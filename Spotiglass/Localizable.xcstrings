@@ -7914,6 +7914,52 @@
         }
       }
     },
+    "palette.footer.commandsHint": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "> Befehle"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "> commands"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "> comandos"
+          }
+        }
+      }
+    },
+    "palette.footer.filter": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇥ Filter"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇥ filter"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇥ filtro"
+          }
+        }
+      }
+    },
     "palette.footer.navigate": {
       "extractionState": "stale",
       "localizations": {
@@ -8256,6 +8302,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Preparando…"
+          }
+        }
+      }
+    },
+    "palette.recentSearches.clear": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar"
+          }
+        }
+      }
+    },
+    "palette.recentSearches.clear.accessibility": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzte Suchen löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear recent searches"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar búsquedas recientes"
           }
         }
       }
@@ -8672,6 +8764,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Búsqueda completa"
+          }
+        }
+      }
+    },
+    "palette.section.quickActions": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnellaktionen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick actions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acciones rápidas"
+          }
+        }
+      }
+    },
+    "palette.section.recentSearches": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzte Suchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent searches"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Búsquedas recientes"
           }
         }
       }
@@ -12643,19 +12781,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn aktiviert, wird der Rest des Fensters leicht unscharf, solange die Palette geöffnet ist."
+            "value": "Wenn aktiviert, wird der Rest des Fensters unscharf und abgedunkelt, solange die Palette geöffnet ist. Wenn deaktiviert, wird er nur abgedunkelt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When on, the rest of the window is slightly blurred while the palette is open."
+            "value": "When on, the rest of the window is blurred and dimmed while the palette is open. When off, it is only dimmed."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cuando está activado, el resto de la ventana se desenfoca ligeramente mientras la paleta está abierta."
+            "value": "Cuando está activado, el resto de la ventana se desenfoca y se oscurece mientras la paleta está abierta. Cuando está desactivado, solo se oscurece."
           }
         }
       }

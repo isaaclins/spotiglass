@@ -263,6 +263,8 @@ enum SpotiglassDesign {
         // MARK: Command palette
 
         static let paletteMaxWidth: CGFloat = 760
+        /// Most space above the palette, so it sits near the top like Spotlight (#472).
+        static let paletteTopInset: CGFloat = 96
         static let paletteResultsHeight: CGFloat = 360
         /// Widest the palette's prefetch progress bar gets.
         static let paletteProgressMaxWidth: CGFloat = 140

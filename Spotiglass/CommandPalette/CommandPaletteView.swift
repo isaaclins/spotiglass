@@ -5,6 +5,14 @@ enum CommandPaletteSearchFocusField {
     case query
 }
 
+extension EnvironmentValues {
+    /// True while this window's command palette is open. A surface with its own search field
+    /// (the Search page) hides that field so the palette never stacks a second one over it (#472).
+    @Entry var isCommandPalettePresented = false
+}
+
+/// The command palette: one panel near the top of the window, like Spotlight, holding the
+/// field, the filters, the results and a footer with the key hints (#472).
 struct CommandPaletteView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
@@ -13,43 +21,41 @@ struct CommandPaletteView: View {
     @State private var previousResponder: NSResponder?
     @State private var previousWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @Namespace private var paletteGlass
+    /// Height the palette can use; starts tall so the first frame sits at the full inset.
+    @State private var availableHeight: CGFloat = .infinity
 
-    /// Full-strength `Material` reads heavy; partial opacity keeps the frosted hint while leaving more detail visible behind the palette.
-    private static let backdropMaterialOpacity: CGFloat = 0.55
+    /// Space above the panel: the Spotlight-like top inset in a tall window, shrinking to
+    /// `spacingS` as the window gets short, so the space gives way before the results do.
+    static func topInset(forAvailableHeight height: CGFloat) -> CGFloat {
+        min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingS, ((height - 300) / 4).rounded()))
+    }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             CommandPaletteBackdropView(
                 backdropBlur: settingsStore.settings.commandPalette.backdropBlur,
-                materialOpacity: Self.backdropMaterialOpacity,
                 onDismiss: { viewModel.hide() }
             )
 
-            GlassEffectContainer(spacing: SpotiglassDesign.spacingS) {
-                VStack(spacing: SpotiglassDesign.spacingS) {
-                    CommandPaletteSearchCardView(
-                        viewModel: viewModel,
-                        focusedField: $focusedField,
-                        paletteGlass: paletteGlass
-                    )
-                    if shouldShowResultsCard {
-                        CommandPaletteResultsCardView(
-                            viewModel: viewModel,
-                            accessibilityReduceMotion: accessibilityReduceMotion,
-                            paletteGlass: paletteGlass
-                        )
-                    }
-                    CommandPaletteFooterView(viewModel: viewModel, paletteGlass: paletteGlass)
-                }
-                .frame(maxWidth: SpotiglassDesign.Layout.paletteMaxWidth)
-                .frame(maxWidth: .infinity)
-                .padding(SpotiglassDesign.spacingXL)
-                .animation(
-                    accessibilityReduceMotion ? nil : .smooth(duration: 0.30),
-                    value: shouldShowResultsCard
+            VStack(spacing: 0) {
+                // The space above follows the window's height only, never the panel's: when it
+                // depended on what was left over, a short window moved the panel down each time
+                // the results got shorter.
+                Color.clear
+                    .frame(height: Self.topInset(forAvailableHeight: availableHeight))
+                    .allowsHitTesting(false)
+                CommandPalettePanelView(
+                    viewModel: viewModel,
+                    focusedField: $focusedField,
+                    accessibilityReduceMotion: accessibilityReduceMotion
                 )
+                .frame(maxWidth: SpotiglassDesign.Layout.paletteMaxWidth)
+                .layoutPriority(1)
+                Spacer(minLength: SpotiglassDesign.spacingS)
+                    .allowsHitTesting(false)
             }
+            .padding(.horizontal, SpotiglassDesign.spacingXL)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { availableHeight = $0 }
         }
         .onAppear {
             previousWindow = NSApp.keyWindow
@@ -77,22 +83,57 @@ struct CommandPaletteView: View {
             }
         }
     }
+}
 
-    /// Hides the results panel while the palette is "idle" (empty query or only a scope prefix) so the footer chips
-    /// sit directly under the search field. Loading and error states still surface so user feedback is never dropped.
-    private var shouldShowResultsCard: Bool {
-        if viewModel.prefetchProgress != nil { return true }
-        let trimmed = viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let onlyPrefix = trimmed == ">" || trimmed == "@"
-        if trimmed.isEmpty || onlyPrefix {
-            return viewModel.isLoading || viewModel.errorText != nil
+// MARK: - Panel
+
+struct CommandPalettePanelView: View {
+    @ObservedObject var viewModel: CommandPaletteViewModel
+    var focusedField: FocusState<CommandPaletteSearchFocusField?>.Binding
+    let accessibilityReduceMotion: Bool
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: SpotiglassDesign.cornerL, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            CommandPaletteSearchCardView(viewModel: viewModel, focusedField: focusedField)
+            if viewModel.currentScope == .songs {
+                CommandPaletteCategoryPillsRowView(viewModel: viewModel)
+                    .padding(.horizontal, SpotiglassDesign.spacingM)
+                    .padding(.bottom, SpotiglassDesign.spacingS)
+            }
+            if shouldShowResults {
+                Divider()
+                CommandPaletteResultsCardView(
+                    viewModel: viewModel,
+                    accessibilityReduceMotion: accessibilityReduceMotion
+                )
+            }
+            Divider()
+            CommandPaletteFooterView(viewModel: viewModel)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: shape)
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(.separator, lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.28), radius: SpotiglassDesign.spacingL, x: 0, y: SpotiglassDesign.spacingS)
+        .animation(accessibilityReduceMotion ? nil : .smooth(duration: 0.24), value: shouldShowResults)
+    }
+
+    /// The results area shows whenever there is something in it: results, the recent searches and
+    /// quick actions before typing, a loading or error state, or a "no results" line.
+    private var shouldShowResults: Bool {
+        if viewModel.prefetchProgress != nil { return true }
+        if !viewModel.sections.isEmpty || viewModel.isLoading || viewModel.errorText != nil { return true }
         let parsed = CommandPaletteScope.parse(viewModel.query)
         let stripped = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        if parsed.scope == .songs,
-           !stripped.isEmpty,
-           stripped.count < CommandPaletteViewModel.minimumPaletteSearchQueryCharacters {
-            return viewModel.isLoading || viewModel.errorText != nil
+        if stripped.isEmpty { return false }
+        if parsed.scope == .songs, stripped.count < CommandPaletteViewModel.minimumPaletteSearchQueryCharacters {
+            return false
         }
         return true
     }

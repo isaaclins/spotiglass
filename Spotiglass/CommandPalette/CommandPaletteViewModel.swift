@@ -33,6 +33,16 @@ final class CommandPaletteViewModel: ObservableObject {
     var cancelPrefetchAllPlaylists: (() -> Void)?
 
     var staticItemsProvider: () -> [CommandPaletteItem] = { [] }
+    /// Searches that led to a result, offered again before typing (#472).
+    var recentSearches: CommandPaletteRecentSearches = .inMemory()
+    /// Everyday commands offered before typing, in this order, when the host lists them.
+    static let quickActionCommandIDs = [
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.toggleLyrics,
+        CommandPaletteCommandID.openSettings
+    ]
     /// Network-backed Spotify catalog search. Always invoked for the full multi-type
     /// result set (the category is a display-time filter, not a fetch parameter).
     var searchProvider: (String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults = { _, _ in
@@ -107,7 +117,7 @@ final class CommandPaletteViewModel: ObservableObject {
         query = ""
         searchCategoryFilter = availableSearchCategories.first ?? .all
         selectedIndex = 0
-        sections = []
+        sections = idleSections()
         errorText = nil
         isLoading = false
         lastSuccessfulSongSearchQuery = nil
@@ -115,6 +125,94 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
+    }
+
+    /// What the palette offers before a search starts: recent searches, then quick actions, so
+    /// opening it never shows an empty field alone (#472). With one letter typed (below the
+    /// search minimum) both narrow to what starts with it (a quick action by a word of its shown
+    /// title), so the panel keeps its list until the
+    /// second letter, and ↩ never runs an action the letter doesn't point to.
+    func idleSections(prefix: String = "") -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
+        var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
+        let matching = recentSearches.queries.filter { Self.matches($0, prefix: prefix) }
+        let recents = matching.map { recent in
+            CommandPaletteItem(
+                id: "palette.recent.\(recent)",
+                title: recent,
+                subtitle: nil,
+                iconSystemName: "clock.arrow.circlepath",
+                section: .recentSearches,
+                keywords: [recent],
+                keepsPaletteOpen: true
+            ) { [weak self] in
+                self?.runRecentSearch(recent)
+            }
+        }
+        if !recents.isEmpty {
+            built.append((.recentSearches, recents))
+        }
+        let commands = staticItemsProvider()
+        let quickActions = Self.quickActionCommandIDs
+            .compactMap { id in commands.first { $0.id == id } }
+            .filter { action in
+                prefix.isEmpty
+                    // The title only: the keywords are English and never shown, so matching
+                    // them put rows first that the letter doesn't point to.
+                    || action.title
+                        .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                        .contains { Self.matches(String($0), prefix: prefix) }
+            }
+        if !quickActions.isEmpty {
+            built.append((.quickActions, quickActions))
+        }
+        return built
+    }
+
+    private static func matches(_ text: String, prefix: String) -> Bool {
+        prefix.isEmpty || text.range(of: prefix, options: [.caseInsensitive, .anchored, .diacriticInsensitive]) != nil
+    }
+
+    /// Rebuilds the suggestions. Typing puts the highlight back on the first row; a refresh
+    /// because Play/Pause or Lyrics availability changed keeps it on the same row when that row
+    /// is still listed, so it never moves under the user.
+    private func showIdleSections(prefix: String, keepingSelection: Bool = false) {
+        let previous = keepingSelection && visibleItems.indices.contains(selectedIndex)
+            ? visibleItems[selectedIndex].id : nil
+        sections = idleSections(prefix: prefix)
+        errorText = nil
+        isLoading = false
+        selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
+    }
+
+    /// Rebuilds what the panel lists after the service's abilities changed (Play/Pause, Lyrics)
+    /// without moving the highlight off a row that is still there.
+    func refreshListedCommands() {
+        guard isPresented else { return }
+        if showsSuggestions {
+            searchTask?.cancel()
+            showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines), keepingSelection: true)
+        } else if currentScope == .commands {
+            refresh()
+        }
+    }
+
+    /// True while the songs scope shows suggestions instead of a search: the field is empty or
+    /// holds less than ``minimumPaletteSearchQueryCharacters``.
+    var showsSuggestions: Bool {
+        currentScope == .songs
+            && strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines).count < Self.minimumPaletteSearchQueryCharacters
+    }
+
+    func clearRecentSearches() {
+        recentSearches.clear()
+        guard showsSuggestions else { return }
+        showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines), keepingSelection: true)
+    }
+
+    /// Puts a recent search back into the field, keeping the selected filter.
+    private func runRecentSearch(_ recent: String) {
+        query = recent
+        refresh()
     }
 
     func hide() {
@@ -222,10 +320,20 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard item.canExecute?() ?? true else { return }
+        recordSearchIfNeeded(leadingTo: item)
         await item.action()
         if !item.keepsPaletteOpen {
             hide()
         }
+    }
+
+    /// A catalog search that led to a result (played, queued, pinned, or the Search page) becomes
+    /// a recent search.
+    private func recordSearchIfNeeded(leadingTo item: CommandPaletteItem) {
+        guard currentScope == .songs, item.section != .recentSearches, item.section != .quickActions else { return }
+        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else { return }
+        recentSearches.record(trimmed)
     }
 
     /// Runs the highlighted palette item's ``pinAction`` (if any) without
@@ -236,6 +344,7 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard let pinAction = item.pinAction else { return }
+        recordSearchIfNeeded(leadingTo: item)
         pinAction()
     }
 
@@ -257,6 +366,7 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard let queueAction = item.queueAction else { return }
+        recordSearchIfNeeded(leadingTo: item)
         await queueAction()
     }
 
@@ -305,20 +415,9 @@ final class CommandPaletteViewModel: ObservableObject {
             selectedIndex = 0
 
         case .songs:
-            guard !trimmed.isEmpty else {
-                resetSongSearchCache()
-                sections = []
-                errorText = nil
-                isLoading = false
-                selectedIndex = 0
-                return
-            }
             guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else {
                 resetSongSearchCache()
-                sections = []
-                errorText = nil
-                isLoading = false
-                selectedIndex = 0
+                showIdleSections(prefix: trimmed)
                 return
             }
             await runSongScopeSearch(query: trimmed)

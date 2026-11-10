@@ -57,6 +57,17 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertNotEqual(manager.viewModel.searchCategoryFilter, before)
     }
 
+    /// In `>` scope Tab was passed on, and the field handed focus to the page behind the palette,
+    /// so typed letters stopped reaching it (#472).
+    func testTabStaysInThePaletteInCommandsScope() {
+        let manager = CommandPaletteManager()
+        manager.viewModel.show()
+        manager.viewModel.query = ">set"
+        let before = manager.viewModel.searchCategoryFilter
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 48)))
+        XCTAssertEqual(manager.viewModel.searchCategoryFilter, before)
+    }
+
     func testDismissLyricsOverlayConsumesEscape() {
         let manager = CommandPaletteManager()
         manager.dismissLyricsOverlayIfPresented = { true }

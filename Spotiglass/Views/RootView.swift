@@ -301,11 +301,12 @@ struct RootView: View {
         sceneRegistry: SpotiglassSceneRegistry,
         playbackHosts: SpotiglassPlaybackHosts,
         serviceStore: MusicServiceStore,
-        appleMusicSession: AppleMusicSession
+        appleMusicSession: AppleMusicSession,
+        recentSearches: CommandPaletteRecentSearches = .inMemory()
     ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
-                commandPaletteManager: CommandPaletteManager(keymapStore: keymapStore)
+                commandPaletteManager: CommandPaletteManager(keymapStore: keymapStore, recentSearches: recentSearches)
             )
         )
         self.sceneRegistry = sceneRegistry
@@ -432,6 +433,8 @@ struct RootView: View {
 
     var body: some View {
         content
+            // The Search page hides its own field while the palette is open (#472).
+            .environment(\.isCommandPalettePresented, commandPaletteManager.viewModel.isPresented)
             // The lyrics surface lives in the browser's main column (`PlaylistBrowserView`), so the
             // sidebar, the toolbar and the player bar stay usable while it is open (#438).
             .environmentObject(lyricsOverlayController)

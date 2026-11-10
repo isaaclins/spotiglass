@@ -153,7 +153,6 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         var dismissed = false
         let blurred = CommandPaletteBackdropView(
             backdropBlur: true,
-            materialOpacity: 0.55,
             onDismiss: { dismissed = true }
         )
         ViewTestHost.host(blurred, size: CGSize(width: 400, height: 300))
@@ -161,7 +160,6 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
 
         let clear = CommandPaletteBackdropView(
             backdropBlur: false,
-            materialOpacity: 0.55,
             onDismiss: { dismissed = true }
         )
         ViewTestHost.host(clear)
@@ -290,7 +288,9 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
             accessibilityReduceMotion: false
         )
         ViewTestHost.host(list, size: CGSize(width: 700, height: 400))
-        XCTAssertNoThrow(try list.inspect().find(text: "Settings"))
+        // The list is lazy, which ViewInspector can't search: check the row it builds instead.
+        let row = CommandPaletteResultRowView(item: iconOnly, isSelected: false)
+        XCTAssertNoThrow(try row.inspect().find(text: "Settings"))
 
         let leading = CommandPaletteRowLeadingView(item: iconOnly)
         ViewTestHost.host(leading)
@@ -348,10 +348,9 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         let vm = CommandPaletteViewModel()
         vm.show()
         struct FooterHost: View {
-            @Namespace private var glass
             @ObservedObject var viewModel: CommandPaletteViewModel
             var body: some View {
-                CommandPaletteFooterView(viewModel: viewModel, paletteGlass: glass)
+                CommandPaletteFooterView(viewModel: viewModel)
             }
         }
         ViewTestHost.host(FooterHost(viewModel: vm))
@@ -365,13 +364,11 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
             phase: .running, total: 4, completed: 1, skipped: 0, failed: 0
         )
         struct CardHost: View {
-            @Namespace private var glass
             @ObservedObject var viewModel: CommandPaletteViewModel
             var body: some View {
                 CommandPaletteResultsCardView(
                     viewModel: viewModel,
-                    accessibilityReduceMotion: true,
-                    paletteGlass: glass
+                    accessibilityReduceMotion: true
                 )
             }
         }

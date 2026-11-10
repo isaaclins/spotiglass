@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - Results card + body
 
+/// Everything between the filters and the footer: the prefetch header, an error line and the results.
 struct CommandPaletteResultsCardView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
     let accessibilityReduceMotion: Bool
-    var paletteGlass: Namespace.ID
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,8 +28,6 @@ struct CommandPaletteResultsCardView: View {
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous))
-        .glassEffectID("palette.results", in: paletteGlass)
     }
 }
 
@@ -90,20 +88,11 @@ struct CommandPaletteResultsBodyView: View {
             CommandPaletteSearchingPlaceholderView(accessibilityReduceMotion: accessibilityReduceMotion)
         } else if sections.isEmpty || allEmpty {
             if hasUserQuery, !onlyPrefix, !trimmed.isEmpty, !viewModel.isLoading {
-                VStack {
-                    Spacer()
-                    Text(String(format: SpotiglassL10n.string("palette.noResults"), trimmed))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
-            } else {
-                Spacer()
+                Text(String(format: SpotiglassL10n.string("palette.noResults"), trimmed))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
+                    .padding(.vertical, SpotiglassDesign.spacingXL)
             }
         } else {
             CommandPaletteSectionedListView(
@@ -120,7 +109,6 @@ struct CommandPaletteSearchingPlaceholderView: View {
 
     var body: some View {
         VStack {
-            Spacer()
             Group {
                 if accessibilityReduceMotion {
                     Image(systemName: "sparkles")
@@ -137,9 +125,8 @@ struct CommandPaletteSearchingPlaceholderView: View {
                         .accessibilityLabel(SpotiglassL10n.format("palette.searching", MusicServiceSelection.current.displayName))
                 }
             }
-            Spacer()
         }
         .frame(maxWidth: .infinity)
-        .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
+        .padding(.vertical, SpotiglassDesign.spacingXL)
     }
 }

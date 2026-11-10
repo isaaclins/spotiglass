@@ -130,8 +130,12 @@ final class CommandPaletteManager: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var playbackReadinessCancellables: Set<AnyCancellable> = []
 
-    init(keymapStore: CommandPaletteKeymapStore? = nil) {
+    init(
+        keymapStore: CommandPaletteKeymapStore? = nil,
+        recentSearches: CommandPaletteRecentSearches = .inMemory()
+    ) {
         self.keymapStore = keymapStore ?? CommandPaletteKeymapStore()
+        viewModel.recentSearches = recentSearches
         viewModel.staticItemsProvider = { [weak self] in
             self?.baseItems() ?? []
         }
@@ -179,15 +183,17 @@ final class CommandPaletteManager: ObservableObject {
     func setPlaybackToggleAvailability(_ available: Bool) {
         guard canTogglePlayback != available else { return }
         canTogglePlayback = available
-        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
-        viewModel.refresh()
+        // Commands show in `>` scope and, before a search starts, as quick actions (#472):
+        // both lists have to follow what the service can do right now.
+        viewModel.refreshListedCommands()
     }
 
     func setLyricsToggleAvailability(_ available: Bool) {
         guard canToggleLyrics != available else { return }
         canToggleLyrics = available
-        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
-        viewModel.refresh()
+        // Commands show in `>` scope and, before a search starts, as quick actions (#472):
+        // both lists have to follow what the service can do right now.
+        viewModel.refreshListedCommands()
     }
 
     /// Keeps menu state and command enablement on the same live playback
@@ -323,10 +329,13 @@ final class CommandPaletteManager: ObservableObject {
             // while the query field stays focused. Modifier-bearing Tab events
             // (e.g. custom bindings) fall through to the keymap
             // dispatch path below so user-rebound shortcuts still fire.
+            // In `>` scope there are no filters, but Tab is still the palette's: passed on, the
+            // field handed focus to the page behind and typing stopped reaching it.
             if event.keyCode == 48,
-               CommandPaletteScope.parse(viewModel.query).scope != .commands,
                event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
-                viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
+                if CommandPaletteScope.parse(viewModel.query).scope != .commands {
+                    viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
+                }
                 return true
             }
             if event.keyCode == 125 { // down

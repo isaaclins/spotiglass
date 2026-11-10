@@ -21,6 +21,9 @@ struct CatalogSearchView: View {
     let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     @FocusState private var isQueryFieldFocused: Bool
+    /// The palette searches too: while it is open this page's field steps aside, so the window
+    /// never shows two search fields stacked (#472). It keeps its place, so nothing moves.
+    @Environment(\.isCommandPalettePresented) private var isCommandPalettePresented
 
     private let cardColumns = [
         GridItem(.adaptive(minimum: SpotiglassDesign.Layout.cardWidth), spacing: SpotiglassDesign.spacingM, alignment: .leading)
@@ -47,6 +50,8 @@ struct CatalogSearchView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
             queryField
+                .opacity(isCommandPalettePresented ? 0 : 1)
+                .accessibilityHidden(isCommandPalettePresented)
             // With no query there is nothing to filter, so presenting the pills
             // as active filters was a lie about the state (#164).
             if !searchViewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
