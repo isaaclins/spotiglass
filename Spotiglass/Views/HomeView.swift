@@ -40,6 +40,9 @@ struct HomeView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("HomeView")
+        #endif
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
                 HomeGreetingHeader(viewModel: viewModel)

@@ -21,7 +21,11 @@ final class WindowResizeCostTests: XCTestCase {
     /// Where AppKit saves a window's frame, here in the store the hosted views' `@AppStorage` reads.
     private static let frameKey = "NSWindow Frame SpotiglassTests.resize"
 
-    private func hostBrowserOnABigPlaylist() async throws -> NSWindow {
+    private enum Page { case home, bigPlaylist }
+
+    /// Hosts the real browser the way the app shows it: the library loaded once, both playlists
+    /// in the sidebar and, for `.bigPlaylist`, a 500-song page with its rows drawn.
+    private func hostBrowser(on page: Page) async throws -> NSWindow {
         let tracks = (0..<500).map { PlaylistBrowsingTestFixtures.track(id: "t\($0)") }
         let api = MockBrowsingAPI(
             playlistResults: [.success([
@@ -31,9 +35,15 @@ final class WindowResizeCostTests: XCTestCase {
             trackResults: ["p1": [.success(tracks)]]
         )
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        await browserVM.load()
-        await browserVM.selectPlaylist(id: "p1")
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, tracks.count)
+        // As the browser's own `.task` loads it, so the hosted view doesn't load it again.
+        await browserVM.loadIfNeeded()
+        switch page {
+        case .home:
+            browserVM.sidebarSelection = .home
+        case .bigPlaylist:
+            await browserVM.selectPlaylist(id: "p1")
+            XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, tracks.count)
+        }
 
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
@@ -41,12 +51,13 @@ final class WindowResizeCostTests: XCTestCase {
         let view = PlaylistBrowserView(
             viewModel: browserVM,
             playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
-            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            catalogProvider: api,
             commandPaletteManager: CommandPaletteManager(),
             signOut: {}
         )
         .environmentObject(store)
         .environmentObject(LyricsOverlayController())
+        ViewBodyTally.counts = [:]
         let controller = ViewTestHost.host(view, size: CGSize(width: 1_400, height: 900))
         let window = try XCTUnwrap(controller.view.window)
         AppKitTestSupport.pumpRunLoop(for: 0.5)
@@ -54,6 +65,17 @@ final class WindowResizeCostTests: XCTestCase {
         // back, as it does when a real window opens.
         window.setContentSize(NSSize(width: 1_450, height: 900))
         AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        // What is on screen before the resize, so the test can't pass on an empty window.
+        let shown = ViewBodyTally.counts ?? [:]
+        XCTAssertNotNil(shown["PlaylistListRow:p1"], "the sidebar doesn't list the playlists")
+        XCTAssertNotNil(shown["PlaylistListRow:p2"], "the sidebar doesn't list the playlists")
+        switch page {
+        case .home:
+            XCTAssertNotNil(shown["HomeView"], "Home isn't on screen")
+        case .bigPlaylist:
+            XCTAssertTrue(shown.keys.contains { $0.hasPrefix("TrackListRow:") }, "no song rows on screen")
+        }
         return window
     }
 
@@ -66,9 +88,22 @@ final class WindowResizeCostTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop(for: 0.02)
     }
 
-    func testAnAnimatedResizeFromCodeDoesNotReRenderTheBrowser() async throws {
-        let window = try await hostBrowserOnABigPlaylist()
+    func testAnAnimatedResizeFromCodeDoesNotReRenderABigPlaylist() async throws {
+        let window = try await hostBrowser(on: .bigPlaylist)
+        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["PlaylistDetailContent"])
+    }
 
+    func testAnAnimatedResizeFromCodeDoesNotReRenderHome() async throws {
+        let window = try await hostBrowser(on: .home)
+        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["HomeView"])
+    }
+
+    private func assertAnAnimatedResizeReRendersNothing(
+        in window: NSWindow,
+        extraViews: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         // Wide to narrow and back, all of it wider than the narrowest breakpoint, so no panel
         // opens or closes and nothing on screen changes but the layout.
         let comfortable: CGFloat = SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: SpotiglassDesign.sidebarWidth)
@@ -87,13 +122,48 @@ final class WindowResizeCostTests: XCTestCase {
             "PlaylistBrowserSidebar",
             "PlaylistsSidebarSectionContent",
             "PlaylistBrowserMainDetailColumn",
-            "PlaylistDetailContent",
-        ] {
+        ] + extraViews {
             XCTAssertNil(
                 counts[container],
-                "\(container) re-rendered \(counts[container] ?? 0) times in \(steps * 2) resize steps"
+                "\(container) re-rendered \(counts[container] ?? 0) times in \(steps * 2) resize steps",
+                file: file, line: line
             )
         }
+        let rows = counts.keys.filter { $0.hasPrefix("TrackListRow:") || $0.hasPrefix("PlaylistListRow:") }
+        XCTAssertTrue(rows.isEmpty, "rows re-rendered while resizing: \(rows.sorted().prefix(5))", file: file, line: line)
+    }
+
+    /// Opening the queue narrows how far the sidebar can be dragged, so a drag can't push the
+    /// columns past the window with the queue open (#459). The limit no longer comes from the
+    /// browser's body, so check the one AppKit applies.
+    func testOpeningTheQueueNarrowsTheSidebarsDragLimit() async throws {
+        let window = try await hostBrowser(on: .bigPlaylist)
+        let content = try XCTUnwrap(window.contentView)
+        let closedLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content), "no sidebar split item")
+
+        StoredFlag.queuePanelVisible.isOn = true
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+        let openLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content))
+        let queueShare = SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: false)
+            - SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: true)
+        XCTAssertEqual(closedLimit - openLimit, queueShare, accuracy: 0.5, "closed \(closedLimit), open \(openLimit)")
+
+        StoredFlag.queuePanelVisible.isOn = false
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+        XCTAssertEqual(try XCTUnwrap(Self.sidebarMaximumThickness(in: content)), closedLimit, accuracy: 0.5)
+    }
+
+    /// The playlist sidebar's widest drag as the split view controller has it.
+    private static func sidebarMaximumThickness(in view: NSView) -> CGFloat? {
+        if let split = view as? NSSplitView, split.arrangedSubviews.count >= 2,
+           let controller = split.delegate as? NSSplitViewController,
+           let sidebar = controller.splitViewItems.first {
+            return sidebar.maximumThickness
+        }
+        for subview in view.subviews {
+            if let found = sidebarMaximumThickness(in: subview) { return found }
+        }
+        return nil
     }
 
     /// The flag behind the queue panel tells its views about its own changes only.

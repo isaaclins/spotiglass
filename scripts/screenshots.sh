@@ -25,7 +25,7 @@ APP="$WORK/Spotiglass.app"
 FAKE_HOME="$WORK/home"
 WINDOW_FRAME="${WINDOW_FRAME:-120, 80, 1320, 860}"   # x, y, width, height in points
 
-usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 # --with-apple-music runs under the real bundle id (MusicKit issues its developer token for that id
 # only), so the real app's defaults domain is saved at start and put back at stop.
@@ -221,7 +221,7 @@ SWIFT
 resize() {
     local pid; pid="$(app_pid)"
     [ -n "$pid" ] || { echo "screenshots: not running; run 'start' first" >&2; exit 1; }
-    if [ ! -x "$WORK/resize_timing" ]; then
+    if [ ! -x "$WORK/resize_timing" ] || [ scripts/screenshot-mode/resize_timing.swift -nt "$WORK/resize_timing" ]; then
         swiftc -O scripts/screenshot-mode/resize_timing.swift -o "$WORK/resize_timing"
     fi
     "$WORK/resize_timing" "$pid" "$@"

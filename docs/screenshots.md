@@ -63,7 +63,9 @@ never reaches MusicKit.
 `setFrame`, Rectangle or Magnet do (size, position, size again through the Accessibility API) and
 prints how long one resize and an animated one of `steps` steps took
 ([`resize_timing.swift`](../scripts/screenshot-mode/resize_timing.swift)). With `max-ms-per-step` it
-exits with an error when the median step is slower. Measure a Release build:
+exits with an error when the median step is slower. It times the app's main window and stops with
+an error when a resize call fails or the window doesn't take the size (a full-screen window), so a
+run that resized nothing can't pass. Measure a Release build:
 
 ```sh
 scripts/screenshots.sh start --release
@@ -71,8 +73,10 @@ scripts/screenshots.sh resize 8 12 40   # fails above 40 ms per step
 scripts/screenshots.sh stop
 ```
 
-On a Mac mini M4 a Finder window takes about 15 ms a step, Spotiglass about 25 (#473). The
-terminal needs the Accessibility permission.
+Compare it with Finder in the same minute, since other work on the Mac slows both: after a
+`resize`, `build/screenshot-mode/resize_timing $(pgrep -x Finder) 8 12` times a Finder window the
+same way. On a quiet Mac mini M4 both take about 15 ms a step in Spotify mode, and Apple Music mode
+is faster still (#473). The terminal needs the Accessibility permission.
 
 `appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
 System Settings does, to check how the window takes a live theme change (set Settings → Appearance

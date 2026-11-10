@@ -11,29 +11,56 @@
 import ApplicationServices
 import Foundation
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 2, let pid = pid_t(arguments[1]) else {
-    FileHandle.standardError.write("usage: resize_timing <pid> [rounds] [steps] [max-ms-per-step]\n".data(using: .utf8)!)
-    exit(2)
+func fail(_ message: String, code: Int32 = 1) -> Never {
+    FileHandle.standardError.write("resize_timing: \(message)\n".data(using: .utf8)!)
+    exit(code)
 }
-let rounds = arguments.count > 2 ? Int(arguments[2]) ?? 6 : 6
-let steps = arguments.count > 3 ? Int(arguments[3]) ?? 12 : 12
-let budget = arguments.count > 4 ? Double(arguments[4]) : nil
 
+let arguments = CommandLine.arguments
+let usage = "usage: resize_timing <pid> [rounds >= 1] [steps >= 1] [max-ms-per-step]"
+guard arguments.count >= 2, let pid = pid_t(arguments[1]) else { fail(usage, code: 2) }
+func count(at index: Int, default value: Int) -> Int {
+    guard arguments.count > index else { return value }
+    guard let number = Int(arguments[index]), number >= 1 else { fail(usage, code: 2) }
+    return number
+}
+let rounds = count(at: 2, default: 6)
+let steps = count(at: 3, default: 12)
+var budget: Double?
+if arguments.count > 4 {
+    guard let number = Double(arguments[4]), number > 0 else { fail(usage, code: 2) }
+    budget = number
+}
+
+// The window a window manager acts on: the main window, not a floating one (the pop-out lyrics,
+// Settings) that the app happens to list first.
 let app = AXUIElementCreateApplication(pid)
-var windowsValue: CFTypeRef?
-guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsValue) == .success,
-      let window = (windowsValue as? [AXUIElement])?.first
-else {
-    FileHandle.standardError.write("resize_timing: no window (is Accessibility allowed for this terminal?)\n".data(using: .utf8)!)
-    exit(1)
+var mainValue: CFTypeRef?
+guard AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &mainValue) == .success,
+      let mainValue, CFGetTypeID(mainValue) == AXUIElementGetTypeID()
+else { fail("no main window (is Accessibility allowed for this terminal, and is the app's main window open?)") }
+let window = mainValue as! AXUIElement
+
+func set(_ attribute: String, _ value: AXValue) {
+    let result = AXUIElementSetAttributeValue(window, attribute as CFString, value)
+    guard result == .success else { fail("setting \(attribute) failed (\(result.rawValue)); a full-screen window can't be resized") }
 }
 
 func setFrame(_ frame: CGRect) {
     var size = frame.size, origin = frame.origin
-    AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, AXValueCreate(.cgSize, &size)!)
-    AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, AXValueCreate(.cgPoint, &origin)!)
-    AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, AXValueCreate(.cgSize, &size)!)
+    set(kAXSizeAttribute, AXValueCreate(.cgSize, &size)!)
+    set(kAXPositionAttribute, AXValueCreate(.cgPoint, &origin)!)
+    set(kAXSizeAttribute, AXValueCreate(.cgSize, &size)!)
+}
+
+/// Fails when the window didn't take the size, so a run that resizes nothing can't pass.
+func expectSize(_ expected: CGSize) {
+    var value: CFTypeRef?
+    var size = CGSize.zero
+    guard AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &value) == .success,
+          let value, AXValueGetValue(value as! AXValue, .cgSize, &size),
+          abs(size.width - expected.width) <= 2, abs(size.height - expected.height) <= 2
+    else { fail("the window is \(size.width)x\(size.height), not the \(expected.width)x\(expected.height) it was given") }
 }
 
 func seconds(_ body: () -> Void) -> Double {
@@ -52,8 +79,12 @@ func between(_ progress: CGFloat) -> CGRect {
     )
 }
 
+setFrame(narrow)
+usleep(300_000)
+expectSize(narrow.size)
 setFrame(wide)
 usleep(500_000)
+expectSize(wide.size)
 var single: [Double] = []
 for round in 0..<rounds {
     single.append(seconds { setFrame(round % 2 == 0 ? narrow : wide) })
