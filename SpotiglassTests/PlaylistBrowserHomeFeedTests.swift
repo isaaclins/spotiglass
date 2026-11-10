@@ -213,6 +213,24 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
         XCTAssertEqual(vm.homeGreeting(now: entries[2], calendar: calendar), "Good morning")
     }
 
+    @MainActor
+    func testHomeGreetingClockStartsOverWhenTheTimeZoneOrClockChanges() {
+        // Review of #479: Home opened in Zurich and carried to New York kept waking at Zurich's
+        // change times, so it missed New York's midnight and kept saying "Good evening".
+        let center = NotificationCenter()
+        let clock = HomeGreetingClock(notificationCenter: center)
+        XCTAssertEqual(clock.generation, 0)
+
+        center.post(name: .NSSystemTimeZoneDidChange, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(clock.generation, 1)
+        XCTAssertEqual(clock.calendar.timeZone, TimeZone.current)
+
+        center.post(name: .NSSystemClockDidChange, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(clock.generation, 2)
+    }
+
     func testHomeGreetingUsesPageTitleStyleWhileSectionsUseSectionStyle() {
         let greeting = HomeSectionHeader(title: "Good morning", style: .pageTitle)
         let section = HomeSectionHeader(title: "Recently played")
