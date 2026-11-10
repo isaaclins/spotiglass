@@ -316,7 +316,7 @@ struct SpotifyAPIClient {
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw CancellationError()
         } catch {
-            throw SpotifyAPIError.network(error.localizedDescription)
+            throw SpotifyAPIError.network(SpotifyAPIError.userMessage(for: error))
         }
     }
 

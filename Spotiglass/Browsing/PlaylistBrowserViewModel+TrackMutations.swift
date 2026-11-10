@@ -443,7 +443,7 @@ extension PlaylistBrowserViewModel {
             }
             return apiError.localizedDescription
         }
-        return error.localizedDescription
+        return SpotifyAPIError.userMessage(for: error)
     }
 
     private static func isScopeFailure(_ error: Error) -> Bool {

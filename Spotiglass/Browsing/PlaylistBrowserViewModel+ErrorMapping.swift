@@ -91,7 +91,7 @@ extension PlaylistBrowserViewModel {
 
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.browsing.generic.title"),
-            message: error.localizedDescription,
+            message: SpotifyAPIError.userMessage(for: error),
             canRetry: true
         )
     }

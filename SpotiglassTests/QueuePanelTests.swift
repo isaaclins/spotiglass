@@ -1123,6 +1123,49 @@ final class QueuePanelTests: XCTestCase {
             "Cancelling the queue poll task during sleep must not trigger an immediate GET /v1/me/player/queue."
         )
     }
+
+    /// #470: with Deutsch picked, a queue refresh that couldn't reach Spotify showed the German
+    /// title over URLSession's English "Could not connect to the server.", because that text
+    /// follows the Mac's language. The sentence must follow the app's language, in each language.
+    func testQueueNetworkErrorFollowsTheAppLanguage() async throws {
+        let expected: [(AppLanguage, String)] = [
+            (.english, "Could not connect to Spotify. Check your network, then try again."),
+            (.german, "Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut."),
+            (.spanish, "No se pudo conectar con Spotify. Comprueba tu red e inténtalo de nuevo.")
+        ]
+        // What URLSession hands back on an English Mac, word for word.
+        let systemText = "Could not connect to the server."
+        // SpotifyPlaybackAPI lets URLSession's error through unchanged.
+        let failures: [Error] = [
+            URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: systemText]),
+            URLError(.networkConnectionLost, userInfo: [NSLocalizedDescriptionKey: "The network connection was lost."])
+        ]
+        for (language, message) in expected {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("queue-network-\(UUID().uuidString).json")
+            let store = SpotiglassSettingsStore(fileURL: url)
+            try store.mutate { $0.appearance.language = language }
+            SpotiglassL10n.settingsStore = store
+            defer { SpotiglassL10n.settingsStore = nil }
+
+            for failure in failures {
+                let api = QueueTestPlaybackAPI()
+                let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
+                playback.handle(.ready(deviceID: "device-1"))
+                let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
+                queue.setPanelVisible(true)
+                api.errorToThrow = failure
+
+                await queue.refreshQueue()
+
+                let banner = try XCTUnwrap(queue.lastError, "\(language) \(failure)")
+                XCTAssertEqual(banner.title, SpotiglassL10n.string("error.queue.updateFailed.title"))
+                XCTAssertEqual(banner.message, message, "\(language) \(failure)")
+                XCTAssertNil(banner.message.range(of: "server."), "\(language) \(failure)")
+                XCTAssertNil(banner.message.range(of: "was lost"), "\(language) \(failure)")
+            }
+        }
+    }
 }
 
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {

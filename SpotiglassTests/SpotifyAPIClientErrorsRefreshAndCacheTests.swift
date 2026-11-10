@@ -366,4 +366,39 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         XCTAssertEqual(withMessage.diagnosticDetails?.contains("500"), true)
         XCTAssertEqual(withMessage.diagnosticDetails?.contains("Upstream timeout"), true)
     }
+
+    /// #470: SpotifyAPIClient kept URLSession's text, which follows the Mac's language, so a
+    /// German Spotiglass showed "Could not connect to the server." on every Spotify screen.
+    @MainActor
+    func testNetworkFailureReadsInTheAppLanguage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("api-network-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: CannotConnectHTTPClient()
+        )
+        do {
+            _ = try await client.currentUserProfile()
+            XCTFail("Expected network error")
+        } catch let error as SpotifyAPIError {
+            XCTAssertEqual(
+                error,
+                .network("Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut.")
+            )
+            let banner = PlaylistBrowserViewModel.displayError(for: error)
+            XCTAssertEqual(banner.title, "Netzwerk nicht verfügbar")
+            XCTAssertEqual(banner.message, error.userMessage)
+        }
+    }
+}
+
+private final class CannotConnectHTTPClient: HTTPClient {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."])
+    }
 }

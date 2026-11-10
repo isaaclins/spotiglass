@@ -140,6 +140,6 @@ extension PlaylistBrowserViewModel {
         if let appleMusicError = appleMusicDisplayError(for: error) {
             return .failed(appleMusicError.message)
         }
-        return .failed(error.localizedDescription)
+        return .failed(SpotifyAPIError.userMessage(for: error))
     }
 }

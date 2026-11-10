@@ -93,6 +93,36 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
     }
 
     var errorDescription: String? { userMessage }
+
+    /// The sentence a listener reads for any error a Spotify request threw. A `URLError`'s own
+    /// text follows the Mac's language, not the one picked in Spotiglass, so a German window
+    /// read "Could not connect to the server." (#470): transport failures get the app's own
+    /// sentence instead.
+    static func userMessage(for error: Error) -> String {
+        if let apiError = error as? SpotifyAPIError { return apiError.userMessage }
+        if let urlError = error as? URLError { return networkMessage(for: urlError) }
+        return error.localizedDescription
+    }
+
+    /// A transport failure in the app's language, saying what to check.
+    static func networkMessage(for error: URLError) -> String {
+        switch error.code {
+        case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
+            return SpotiglassL10n.string("auth.error.offline")
+        case .timedOut:
+            return SpotiglassL10n.string("auth.error.timeout")
+        case .cannotFindHost, .dnsLookupFailed:
+            return SpotiglassL10n.string("auth.error.dns")
+        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected,
+             .clientCertificateRequired:
+            return SpotiglassL10n.string("auth.error.tls")
+        case .cancelled:
+            return SpotiglassL10n.string("auth.error.cancelled")
+        default:
+            return SpotiglassL10n.string("auth.error.network")
+        }
+    }
 }
 
 struct SpotifyAPIErrorResponse: Decodable {

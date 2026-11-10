@@ -22,6 +22,27 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         XCTAssertEqual(generic.title, "Playback command failed")
     }
 
+    /// #470: a Spotify command that couldn't reach Spotify showed URLSession's text (the Mac's
+    /// language) or the error's debug text ("network(...)") instead of a sentence in the app's.
+    func testSpotifyNetworkFailuresReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-network-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let german = "Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut."
+        let urlError = URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."])
+
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: urlError).message, german)
+        XCTAssertEqual(PlaybackSessionViewModel.playbackHostConnectionFailedError(for: urlError).message, german)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: SpotifyAPIError.network(german)).message, german)
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: SpotifyAPIError.server(statusCode: 502, message: nil, details: nil)).message,
+            "Bei den Servern von Spotify ist ein Problem aufgetreten. Versuchen Sie es gleich noch einmal."
+        )
+    }
+
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)
