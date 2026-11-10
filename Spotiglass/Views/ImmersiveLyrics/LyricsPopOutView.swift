@@ -273,7 +273,13 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
         self.stripLine = stripLine
     }
 
-    @AppStorage(LyricsPopOutWindow.pinnedStorageKey) private var isPinned = LyricsPopOutWindow.isPinnedByDefault
+    /// Not `@AppStorage`, which re-ran this view on every write to the defaults, a resize of any
+    /// window included (#473).
+    @ObservedObject private var pin = StoredFlag.lyricsPopOutPinned
+    private var isPinned: Bool {
+        get { pin.isOn }
+        nonmutating set { pin.isOn = newValue }
+    }
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
