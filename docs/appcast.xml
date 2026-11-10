@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.20</title>
-            <pubDate>Tue, 10 Nov 2026 23:09:16 +0100</pubDate>
-            <sparkle:version>31</sparkle:version>
-            <sparkle:shortVersionString>0.8.20</sparkle:shortVersionString>
+            <title>0.8.21</title>
+            <pubDate>Tue, 10 Nov 2026 23:35:42 +0100</pubDate>
+            <sparkle:version>32</sparkle:version>
+            <sparkle:shortVersionString>0.8.21</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Network errors in the Spotify queue now show in the app's language, so German users see them in German.
+            <description sparkle:format="plain-text"><![CDATA[• The sidebar now collapses when there isn't room for it at narrow window widths, so the main content is no longer cut off.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.20/Spotiglass-0.8.20.zip" length="12920017" type="application/octet-stream" sparkle:edSignature="k61hKerHyn4ZIy5xv0xBtBf10jREoC5tcAAKYiqysamZ/EF4IT6yyrVqVFcr0KeOxMQQCtn2i3tEMoG6DNXPAg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.21/Spotiglass-0.8.21.zip" length="12928222" type="application/octet-stream" sparkle:edSignature="s6mQKo64P4Un5W0jhue7Wb13hK2H/9ukR2l7NvyCMG4fh7kGIAkS9IAE5CgPWfCvqTGjP/CZUYdMM/ZfHwSOAA=="/>
         </item>
     </channel>
 </rss>

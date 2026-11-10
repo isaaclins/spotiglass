@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.21] - 2026-11-10
+
+### Fixed
+
+- The sidebar now collapses when there isn't room for it at narrow window widths, so the main content is no longer cut off.
+
 ## [0.8.20] - 2026-11-10
 
 ### Fixed
