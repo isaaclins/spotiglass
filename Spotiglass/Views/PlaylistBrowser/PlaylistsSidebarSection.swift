@@ -85,6 +85,15 @@ struct PlaylistsSidebarSectionContent: View {
             else { return }
             cancelPlaylistNameEditing()
         }
+        // "Edit playlist name" on a Home or Search tile of an empty playlist: its page has no
+        // header to edit in, so the row edits here as if it had been right-clicked (#478).
+        .onChange(of: viewModel.sidebarPlaylistNameEditRequestID, initial: true) { _, requestedID in
+            guard let requestedID,
+                  let playlist = playlistState.currentValue?.first(where: { $0.id == requestedID })
+            else { return }
+            viewModel.playlistNameEditRequestID = nil
+            beginPlaylistNameEditing(for: playlist)
+        }
         // Cancel on focus loss instead of committing on blur. This avoids
         // saving an unfinished name after focus moves to another surface.
         .onChange(of: isPlaylistNameFocused) { _, isFocused in
@@ -132,38 +141,31 @@ struct PlaylistsSidebarSectionContent: View {
             PinnedItemDragPill(item: .playlist(summary))
         }
         .contextMenu {
-            if canRenamePlaylist(summary) {
-                Button(SpotiglassL10n.string("browser.editPlaylistName")) {
+            CollectionMenuItems(
+                menu: CollectionMenu.menu(
+                    for: .playlist(summary),
+                    isPinned: pinned,
+                    canRename: viewModel.canRenamePlaylist(summary),
+                    canDelete: viewModel.canDeletePlaylist(summary)
+                ),
+                placement: .sidebar
+            ) { entry in
+                switch entry {
+                case .editPlaylistName:
                     beginPlaylistNameEditing(for: playlist)
-                }
-                if viewModel.canDeletePlaylist(summary) {
-                    Button(SpotiglassL10n.string("browser.deletePlaylist"), role: .destructive) {
-                        viewModel.requestPlaylistDeletion(summary)
-                    }
-                }
-                Divider()
-            }
-            if pinned {
-                Button(SpotiglassL10n.string("browser.unpin.short")) {
-                    pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
-                }
-            } else {
-                Button(SpotiglassL10n.string("browser.pin")) {
+                case .deletePlaylist:
+                    viewModel.requestPlaylistDeletion(summary)
+                case .pin:
                     pinnedStore.pin(.playlist(summary))
+                case .unpin:
+                    pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
                 }
             }
         }
     }
 
-    private func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
-        guard let currentUserID = viewModel.currentUserSpotifyID,
-              !currentUserID.isEmpty
-        else { return false }
-        return summary.ownerID == currentUserID
-    }
-
     private func beginPlaylistNameEditing(for playlist: PlaylistRowViewModel) {
-        guard canRenamePlaylist(playlistSummaryFromRow(playlist)) else { return }
+        guard viewModel.canRenamePlaylist(playlistSummaryFromRow(playlist)) else { return }
         editingPlaylistID = playlist.id
         editedPlaylistName = playlist.title
     }

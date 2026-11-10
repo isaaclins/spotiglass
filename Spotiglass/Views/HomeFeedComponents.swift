@@ -46,6 +46,7 @@ struct HomeSectionHeader: View {
 /// (or a Liked Songs gradient) with a bold title.
 struct HomeQuickAccessTile: View {
     let card: HomeMediaCard
+    let browserViewModel: PlaylistBrowserViewModel
     let action: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -69,6 +70,8 @@ struct HomeQuickAccessTile: View {
         .buttonStyle(.plain)
         .hoverPressable(hoverScale: 1.015, pressScale: 0.985)
         .accessibilityLabel(card.title)
+        // The same menu the playlist has in the sidebar (#478).
+        .collectionContextMenu(card.menuTarget, browserViewModel: browserViewModel)
     }
 
     @ViewBuilder
@@ -87,31 +90,120 @@ struct HomeQuickAccessTile: View {
 
 // MARK: - Carousel card
 
-/// Square "jump back in" card used in the Recently played carousel.
+/// Square "jump back in" card used in the Recently played carousel and the search results.
+/// The cover and the title open the album or playlist; each artist name under it opens that
+/// artist, and right-clicking anywhere on the card shows the item's menu (#478).
 struct HomeMediaCardView: View {
     static let artworkSize = SpotiglassDesign.Layout.cardWidth
 
     let card: HomeMediaCard
+    let browserViewModel: PlaylistBrowserViewModel
+    let openArtist: (MusicArtistRef) -> Void
     let action: () -> Void
 
+    @State private var isTitleHovered = false
+
+    private var hasArtistLinks: Bool {
+        card.artistCredits.contains { if case .link = $0 { true } else { false } }
+    }
+
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: card.artworkURL, size: Self.artworkSize)
-                Text(card.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(card.subtitle)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            Button(action: action) {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+                    ArtworkView(url: card.artworkURL, size: Self.artworkSize)
+                    Text(card.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .underline(isTitleHovered)
+                        .onHover { isTitleHovered = $0 }
+                        .pointerStyle(.link)
+                    // A line without links (a playlist's owner, an artist without an ID) is
+                    // part of the card's button, so clicking it opens the item as it always did.
+                    if !hasArtistLinks {
+                        HomeCardArtistCredits(subtitle: card.subtitle, credits: [], openArtist: openArtist)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(card.title), \(card.subtitle)")
+            // VoiceOver and keyboard users reach the menu from the card's own button.
+            .collectionAccessibilityActions(card.menuTarget, browserViewModel: browserViewModel)
+
+            if hasArtistLinks {
+                HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist, openCard: action)
+            }
+        }
+        .frame(width: Self.artworkSize, alignment: .leading)
+        .contentShape(Rectangle())
+        .hoverPressable(hoverScale: 1.03, pressScale: 0.97)
+        .collectionContextMenu(card.menuTarget, browserViewModel: browserViewModel, includesAccessibilityActions: false)
+    }
+}
+
+/// The artist line under a card: one link per artist whose ID the service gave, the other
+/// names as plain text.
+struct HomeCardArtistCredits: View {
+    let subtitle: String
+    let credits: [HomeArtistCredit]
+    let openArtist: (MusicArtistRef) -> Void
+    var openCard: () -> Void = {}
+
+    var body: some View {
+        if !credits.contains(where: { if case .link = $0 { true } else { false } }) {
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(credits.enumerated()), id: \.offset) { index, credit in
+                    if index > 0 {
+                        Text(SpotiglassL10n.string("common.comma"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .accessibilityHidden(true)
+                    }
+                    // Earlier names keep their room, so a long line runs out at its end, the
+                    // way one string would, instead of cutting every name short.
+                    creditView(credit)
+                        .layoutPriority(Double(credits.count - index))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func creditView(_ credit: HomeArtistCredit) -> some View {
+        switch credit {
+        case let .link(artist):
+            Button {
+                openArtist(artist)
+            } label: {
+                Text(artist.name)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(width: Self.artworkSize, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.spotiglassTextLink)
+            .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
+        case let .name(name):
+            // A name without an ID next to linked ones opens the card, like the
+            // line does when it has no links at all. VoiceOver reads it in the
+            // card's own label.
+            Button(action: openCard) {
+                Text(name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .hoverPressable(hoverScale: 1.03, pressScale: 0.97)
-        .accessibilityLabel("\(card.title), \(card.subtitle)")
     }
 }
 

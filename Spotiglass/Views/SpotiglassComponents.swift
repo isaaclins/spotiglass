@@ -301,3 +301,31 @@ extension View {
         modifier(HoverPressableModifier(hoverScale: hoverScale, pressScale: pressScale))
     }
 }
+
+// MARK: - Text links
+
+/// A name that opens something (an artist, an album): plain text that underlines and shows
+/// the link pointer under the mouse, like a link on the web (#478).
+struct SpotiglassTextLinkStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SpotiglassTextLinkLabel(configuration: configuration)
+    }
+}
+
+private struct SpotiglassTextLinkLabel: View {
+    let configuration: ButtonStyleConfiguration
+    @State private var isHovering = false
+
+    var body: some View {
+        configuration.label
+            .underline(isHovering)
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .contentShape(Rectangle())
+            .onHover { isHovering = $0 }
+            .pointerStyle(.link)
+    }
+}
+
+extension ButtonStyle where Self == SpotiglassTextLinkStyle {
+    static var spotiglassTextLink: SpotiglassTextLinkStyle { SpotiglassTextLinkStyle() }
+}

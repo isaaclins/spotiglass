@@ -303,6 +303,19 @@ struct PlaylistDetailContent: View {
             guard detail.playlist.isAlbumDetail else { return }
             await browserViewModel.loadSavedAlbumState(for: detail.playlist.id)
         }
+        // "Edit playlist name" on a Home or Search tile opens the playlist and asks for this.
+        .onChange(of: browserViewModel.playlistNameEditRequestID, initial: true) { _, _ in
+            beginRequestedPlaylistNameEditing()
+        }
+        .onChange(of: detail.playlist.id) { _, _ in
+            beginRequestedPlaylistNameEditing()
+        }
+    }
+
+    private func beginRequestedPlaylistNameEditing() {
+        guard browserViewModel.playlistNameEditRequestID == detail.playlist.id else { return }
+        browserViewModel.playlistNameEditRequestID = nil
+        beginPlaylistNameEditing()
     }
 
     /// The displayed playlist, when the provider can delete it and the user owns it.

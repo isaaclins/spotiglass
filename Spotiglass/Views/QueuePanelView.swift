@@ -310,7 +310,7 @@ private struct QueueRowView: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.spotiglassTextLink)
                     .accessibilityLabel(
                         String(format: SpotiglassL10n.string("queue.openArtist"), target.name)
                     )

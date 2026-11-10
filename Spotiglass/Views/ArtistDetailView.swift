@@ -221,17 +221,7 @@ struct ArtistDetailContent: View {
         .draggable(PinnedItemTransfer(item: .artist(detail.artist))) {
             PinnedItemDragPill(item: .artist(detail.artist))
         }
-        .contextMenu {
-            if isArtistPinned {
-                Button(SpotiglassL10n.string("browser.unpin")) {
-                    pinnedStore.unpin(id: PinnedItem.id(forKind: .artist, spotifyID: artistID))
-                }
-            } else {
-                Button(SpotiglassL10n.string("browser.pin")) {
-                    pinnedStore.pin(.artist(detail.artist))
-                }
-            }
-        }
+        .collectionContextMenu(.pinnable(.artist(detail.artist)), browserViewModel: browserViewModel)
     }
 
     private func trackRow(
@@ -331,13 +321,7 @@ struct ArtistDetailContent: View {
         .draggable(PinnedItemTransfer(item: pinnedItem)) {
             PinnedItemDragPill(item: pinnedItem)
         }
-        .contextMenu {
-            if pinned {
-                Button(SpotiglassL10n.string("browser.unpin")) { pinnedStore.unpin(id: pinnedItem.id) }
-            } else {
-                Button(SpotiglassL10n.string("browser.pin")) { pinnedStore.pin(pinnedItem) }
-            }
-        }
+        .collectionContextMenu(.pinnable(pinnedItem), browserViewModel: browserViewModel)
     }
 
     /// One sentence per card. VoiceOver used to walk the artwork, title, year and

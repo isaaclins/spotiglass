@@ -28,6 +28,50 @@ extension PlaylistBrowserViewModel {
         supportedLibraryEdits.contains(.removeFromPlaylist) && isUserOwnedPlaylist(playlistID)
     }
 
+    /// The user's own playlists can be renamed; Liked Songs and other people's can't. A playlist
+    /// the library hasn't loaded yet (made in another app, found through Search) can't either:
+    /// renaming goes through the library's copy (`renamePlaylist`).
+    func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
+        guard summary.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              playlistsByID[summary.id] != nil,
+              let me = currentUserSpotifyID, !me.isEmpty
+        else { return false }
+        return summary.ownerID == me
+    }
+
+    /// "Edit playlist name" from a tile or card outside the sidebar (Home, Search): opens the
+    /// playlist, and its header starts editing the name once it shows (#478).
+    func openPlaylistForNameEditing(_ summary: MusicPlaylistSummary) async {
+        guard canRenamePlaylist(summary) else { return }
+        playlistNameEditRequestID = summary.id
+        await selectPlaylist(summary: summary, origin: .extend)
+        // The header takes the request once the playlist shows, and an empty playlist (no
+        // header) leaves it to its sidebar row (``sidebarPlaylistNameEditRequestID``). When the
+        // playlist didn't open (it failed to load, or the user went elsewhere first) the request
+        // goes, or opening that playlist later would start editing its name out of nowhere.
+        guard playlistNameEditRequestID == summary.id else { return }
+        if sidebarSelection == .playlist(summary.id) {
+            if case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == summary.id { return }
+            if case .empty = detailState { return }
+        }
+        playlistNameEditRequestID = nil
+    }
+
+    /// The rename request for an empty playlist: its page shows a message instead of its
+    /// header, so the sidebar row takes it (#478). The window shows a hidden sidebar for it.
+    var pendingSidebarPlaylistNameEditID: String? {
+        guard let id = playlistNameEditRequestID,
+              sidebarSelection == .playlist(id),
+              case .empty = detailState
+        else { return nil }
+        return id
+    }
+
+    /// The same request once the sidebar shows, which is when its row can edit.
+    var sidebarPlaylistNameEditRequestID: String? {
+        isSidebarShown ? pendingSidebarPlaylistNameEditID : nil
+    }
+
     func canDeletePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
         guard supportedLibraryEdits.contains(.deletePlaylist),
               let me = currentUserSpotifyID, !me.isEmpty

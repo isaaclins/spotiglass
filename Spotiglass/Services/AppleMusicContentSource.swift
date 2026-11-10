@@ -161,15 +161,28 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return await Self.withAlbums(songs)
     }
 
-    /// Recently played songs arrive without their album, and Home groups them by album. One
-    /// catalog request loads the albums for all of them; songs it can't resolve stay as they are.
+    /// Recently played songs arrive without their album and artists. Home groups them by album
+    /// and links each artist under the card (#478), so one catalog request loads both for all
+    /// of them; songs it can't resolve stay as they are.
     private static func withAlbums(_ songs: [Song]) async -> [Song] {
         guard !songs.isEmpty else { return songs }
         var request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: songs.map(\.id))
-        request.properties = [.albums]
+        request.properties = [.albums, .artists]
         guard let detailed = try? await request.response().items else { return songs }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return songs.map { byID[$0.id] ?? $0 }
+    }
+
+    /// Catalog search albums arrive without their artists. The search card links each artist
+    /// under the cover (#478), so one catalog request loads them for the whole page; albums it
+    /// can't resolve keep their plain artist name.
+    private static func withArtists(_ albums: [Album]) async -> [Album] {
+        guard !albums.isEmpty else { return albums }
+        var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: albums.map(\.id))
+        request.properties = [.artists]
+        guard let detailed = try? await request.response().items else { return albums }
+        let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return albums.map { byID[$0.id] ?? $0 }
     }
 
     func recommendedPlaylists() async throws -> [Playlist] {
@@ -276,7 +289,7 @@ struct MusicKitContentSource: AppleMusicContentSource {
         let response = try await request.response()
         var items = AppleMusicSearchItems(
             songs: Array(response.songs),
-            albums: Array(response.albums),
+            albums: await Self.withArtists(Array(response.albums)),
             artists: Array(response.artists),
             playlists: Array(response.playlists)
         )

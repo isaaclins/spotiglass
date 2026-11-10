@@ -470,6 +470,16 @@ struct PlaylistBrowserView: View {
                 }
             }
         }
+        // "Edit playlist name" on the tile of an empty playlist renames it in its sidebar row
+        // (its page has no header), so a hidden sidebar comes back for it (#478).
+        .onChange(of: viewModel.pendingSidebarPlaylistNameEditID) { _, requestedID in
+            if requestedID != nil, playlistColumnVisibility == .detailOnly {
+                playlistColumnVisibility = .doubleColumn
+            }
+        }
+        .onChange(of: playlistColumnVisibility, initial: true) { _, newValue in
+            viewModel.isSidebarShown = newValue != .detailOnly
+        }
         .onChange(of: playlistColumnVisibility) { _, newValue in
             commandPaletteManager.setSidebarVisible(newValue != .detailOnly)
             if newValue != .detailOnly {

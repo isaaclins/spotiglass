@@ -895,6 +895,67 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
     // MARK: - Search
 
+    /// A saved album shows instead of its catalog copy, and only the copy comes with its artists:
+    /// the card under it still links them (#478).
+    func testSavedSearchAlbumLinksTheArtistsOfItsCatalogCopy() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "l.a", title: "Migration")]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            albums: [
+                try AppleMusicFixtures.album(id: "a", title: "Migration", artists: [("5201", "Bonobo")]),
+                try AppleMusicFixtures.album(id: "b", title: "Fragments", artists: [("5201", "Bonobo")]),
+            ]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "bonobo", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["l.a", "b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+        ])
+    }
+
+    /// The library shows up to 100 matches and a catalog page 25, so a saved album's catalog copy
+    /// is often on a later page. The saved album then links the artist of the same name among the
+    /// page's artist results (a library artist, whose page opens). The IDs from a saved album's own
+    /// artists relationship led to an error page instead.
+    func testSavedSearchAlbumWithoutItsCatalogCopyLinksThePagesArtistOfThatName() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [
+                try AppleMusicFixtures.album(id: "l.a", title: "Migration"),
+                try AppleMusicFixtures.album(id: "l.b", title: "Black Sands"),
+            ],
+            artists: [try AppleMusicFixtures.artist(id: "r.1", name: "Bonobo")]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "a", title: "Migration", artists: [("5201", "Bonobo")])]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "bonobo", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["l.a", "l.b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+            [MusicArtistRef(id: "r.1", name: "Bonobo")],
+        ], "the catalog copy's artists when it's on the page, else the page's artist of that name")
+    }
+
+    /// With neither a catalog copy nor an artist of that name on the page, the name stays plain
+    /// text rather than a link to a page that can't load.
+    func testSavedSearchAlbumWithNoArtistOnThePageKeepsAPlainName() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "l.b", title: "Black Sands")]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "black sands", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["l.b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [[]])
+        XCTAssertEqual(results.albums.map(\.artists), [["Bonobo"]])
+    }
+
     func testSearchPutsLibraryMatchesFirstAndDropsCatalogDuplicates() async throws {
         let source = MockAppleMusicSource()
         source.librarySearchItems = AppleMusicSearchItems(
@@ -1660,7 +1721,8 @@ enum AppleMusicFixtures {
         trackCount: Int = 10,
         isSingle: Bool = false,
         isCompilation: Bool = false,
-        tracks: [(id: String, title: String)] = []
+        tracks: [(id: String, title: String)] = [],
+        artists: [(id: String, name: String)] = []
     ) throws -> Album {
         var resource: [String: Any] = [
             "id": id,
@@ -1685,6 +1747,13 @@ enum AppleMusicFixtures {
                                    "playParams": ["id": $0.id, "kind": "song"]] as [String: Any],
                 ] as [String: Any]
             }]]
+        }
+        if !artists.isEmpty {
+            var relationships = resource["relationships"] as? [String: Any] ?? [:]
+            relationships["artists"] = ["data": artists.map {
+                ["id": $0.id, "type": "artists", "attributes": ["name": $0.name]] as [String: Any]
+            }]
+            resource["relationships"] = relationships
         }
         return try decode(Album.self, try json(resource))
     }
