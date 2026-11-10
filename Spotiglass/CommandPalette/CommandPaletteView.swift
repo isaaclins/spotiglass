@@ -24,10 +24,10 @@ struct CommandPaletteView: View {
     /// Height the palette can use; starts tall so the first frame sits at the full inset.
     @State private var availableHeight: CGFloat = .infinity
 
-    /// Space above the panel: an eighth of the height, at least `spacingL`, at most the
-    /// Spotlight-like top inset a tall window gets.
+    /// Space above the panel: the Spotlight-like top inset in a tall window, shrinking to
+    /// `spacingS` as the window gets short, so the space gives way before the results do.
     static func topInset(forAvailableHeight height: CGFloat) -> CGFloat {
-        min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingL, (height / 8).rounded()))
+        min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingS, ((height - 300) / 4).rounded()))
     }
 
     var body: some View {
@@ -51,7 +51,7 @@ struct CommandPaletteView: View {
                 )
                 .frame(maxWidth: SpotiglassDesign.Layout.paletteMaxWidth)
                 .layoutPriority(1)
-                Spacer(minLength: SpotiglassDesign.spacingL)
+                Spacer(minLength: SpotiglassDesign.spacingS)
                     .allowsHitTesting(false)
             }
             .padding(.horizontal, SpotiglassDesign.spacingXL)

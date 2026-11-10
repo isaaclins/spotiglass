@@ -190,6 +190,28 @@ final class CommandPalettePanelTests: XCTestCase {
         XCTAssertEqual(ran, [])
     }
 
+    /// The letter also matched the commands' English keywords, which are never shown: "o" put
+    /// Toggle Lyrics ("overlay") above Open Settings, and "s" put Next Track ("skip") first.
+    func testALetterMatchesOnlyTheTitlesShown() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.setPlaybackToggleAvailability(true)
+        manager.setLyricsToggleAvailability(true)
+        manager.nextTrack = {}
+        manager.viewModel.show()
+        for (letter, expected) in [("o", CommandPaletteCommandID.openSettings), ("s", CommandPaletteCommandID.openSettings)] {
+            manager.viewModel.query = letter
+            manager.viewModel.queryDidChangeFromTextField()
+            await manager.viewModel.waitForSearchCompletion()
+            let quick = manager.viewModel.sections.first { $0.section == .quickActions }?.items ?? []
+            XCTAssertEqual(quick.first?.id, expected, "first row for \"\(letter)\"")
+            for item in quick {
+                let words = item.title.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                XCTAssertTrue(words.contains { $0.hasPrefix(letter) }, "\(item.title) listed for \"\(letter)\"")
+            }
+        }
+    }
+
     /// A Play/Pause or Lyrics availability change rebuilt the suggestions and put the highlight
     /// back on the first row, so ↩ ran something other than the row the user had arrowed to.
     func testRefreshingTheSuggestionsKeepsTheHighlightedRow() async {
@@ -349,12 +371,70 @@ final class CommandPalettePanelTests: XCTestCase {
 
     func testTheSpaceAboveThePanelFollowsTheWindowHeight() {
         XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 1_000), SpotiglassDesign.Layout.paletteTopInset)
-        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 400), 50)
-        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 100), SpotiglassDesign.spacingL)
+        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 500), 50)
+        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 308), SpotiglassDesign.spacingS)
+    }
+
+    /// In the shortest window the space around the panel came out of the list first, leaving the
+    /// results barely one row. The space gives way first now, so at least two rows show.
+    func testTheShortestWindowStillShowsTwoResults() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        // The shortest the window really gets is 412 pt (the browser's own minimums hold it above
+        // `windowMinHeight`, measured in the app), less the 52 pt toolbar above the palette.
+        let size = CGSize(width: SpotiglassApp.windowMinWidth, height: 412 - 52)
+        func panelHeight(rows: Int) throws -> Int {
+            let viewModel = CommandPaletteViewModel()
+            viewModel.show()
+            viewModel.query = "song"
+            let showAll = CommandPaletteItem(
+                id: "palette.showAllResults", title: "Show all results", subtitle: "Open the Search view",
+                iconSystemName: "magnifyingglass", section: .showAll, keywords: []
+            ) {}
+            viewModel.testingReplaceSections([(.tracks, (0 ..< rows).map(track)), (.showAll, [showAll])])
+            let host = NSHostingView(rootView: CommandPaletteView(viewModel: viewModel)
+                .environmentObject(store)
+                .background(Color.white)
+                .environment(\.colorScheme, .light))
+            host.frame = NSRect(origin: .zero, size: size)
+            host.layoutSubtreeIfNeeded()
+            AppKitTestSupport.pumpRunLoop(for: 0.2)
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            let image = try XCTUnwrap(bitmap.cgImage)
+            let top = try XCTUnwrap(Self.firstChangedRow(in: image))
+            return try XCTUnwrap(Self.panelHeight(in: image, from: top))
+        }
+        let one = try panelHeight(rows: 1)
+        let row = try panelHeight(rows: 2) - one
+        XCTAssertGreaterThan(row, 20, "a row should add height")
+        XCTAssertGreaterThanOrEqual(try panelHeight(rows: 30) - one, row, "fewer than two results fit")
     }
 
     /// First row, down the middle column, clearly lighter than the dimmed backdrop at the top:
     /// the panel's own edge (its shadow only ever darkens).
+    /// Rows from the panel's top edge down to where the dimmed backdrop shows again, read down a
+    /// column right of the footer hints and left of "> commands", where no text sits.
+    private static func panelHeight(in image: CGImage, from top: Int) -> Int? {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        func brightness(_ row: Int) -> Int {
+            let start = (row * width + width * 3 / 4) * 4
+            return (0 ..< 3).map { Int(pixels[start + $0]) }.reduce(0, +)
+        }
+        let backdrop = brightness(1)
+        for row in (top + 1) ..< height where brightness(row) <= backdrop + 30 {
+            return row - top
+        }
+        return height - top
+    }
+
     private static func firstChangedRow(in image: CGImage) -> Int? {
         let width = image.width
         let height = image.height

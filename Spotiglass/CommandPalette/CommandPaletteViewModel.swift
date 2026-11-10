@@ -129,7 +129,8 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// What the palette offers before a search starts: recent searches, then quick actions, so
     /// opening it never shows an empty field alone (#472). With one letter typed (below the
-    /// search minimum) both narrow to what starts with it, so the panel keeps its list until the
+    /// search minimum) both narrow to what starts with it (a quick action by a word of its shown
+    /// title), so the panel keeps its list until the
     /// second letter, and ↩ never runs an action the letter doesn't point to.
     func idleSections(prefix: String = "") -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
         var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
@@ -155,8 +156,10 @@ final class CommandPaletteViewModel: ObservableObject {
             .compactMap { id in commands.first { $0.id == id } }
             .filter { action in
                 prefix.isEmpty
-                    || ([action.title] + action.keywords)
-                        .flatMap { $0.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) }
+                    // The title only: the keywords are English and never shown, so matching
+                    // them put rows first that the letter doesn't point to.
+                    || action.title
+                        .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
                         .contains { Self.matches(String($0), prefix: prefix) }
             }
         if !quickActions.isEmpty {
