@@ -274,6 +274,21 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         ])
     }
 
+    /// A shared playlist pinned from Search is pinned under its catalog ID, which the library
+    /// listing doesn't use. The listing keeps its cover under that ID too, so such a pin saved
+    /// without a cover gets it, and draws it again after a relaunch (#477).
+    func testListingKeepsASharedPlaylistsCoverUnderItsCatalogID() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: "46595082274209083", name: "Shared", globalID: "pl.u-477CatalogCover"),
+        ]
+        _ = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+        XCTAssertEqual(
+            AppleMusicArtworkRegistry.shared.url(forItemKey: "playlist:pl.u-477CatalogCover", size: 600)?.absoluteString,
+            "https://example.com/art/46595082274209083/600x600bb.jpg"
+        )
+    }
+
     // MARK: - Playlist track counts (#407)
 
     /// MusicKit lists library playlists without their tracks, so the listing itself has no count.

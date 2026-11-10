@@ -24,8 +24,14 @@ final class PinnedItemsStore: ObservableObject {
     /// Bounds `knownPlaylistCovers`: past it the map starts over from the next list.
     static let maxKnownPlaylistCovers = 10_000
 
-    init(cache: PinnedItemsCache?) {
+    /// The cover the app knows for a pin ID from elsewhere, for a playlist pin saved without
+    /// one that no list names by its ID: a shared Apple Music playlist pinned from Search is
+    /// pinned under its catalog ID, which the library listing keeps its cover under (#477).
+    private let knownArtwork: (String) -> URL?
+
+    init(cache: PinnedItemsCache?, knownArtwork: @escaping (String) -> URL? = { _ in nil }) {
         self.cache = cache
+        self.knownArtwork = knownArtwork
     }
 
     /// Bind the store to a Spotify user ID. Loads that account's pinned list
@@ -43,7 +49,7 @@ final class PinnedItemsStore: ObservableObject {
         }
         if let loaded = try? cache.loadPinnedItems(userID: userID) {
             let migrated = PinnedItem.migrateLegacyTrackPins(loaded)
-            let filled = Self.fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
+            let filled = fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
             items = filled
             if filled != loaded {
                 persist()
@@ -146,9 +152,8 @@ final class PinnedItemsStore: ObservableObject {
         fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.artworkURL) })
     }
 
-    /// The same for playlists found by a search. A shared playlist pinned from Search is
-    /// pinned under its catalog ID, which the library listing never uses, so only a search
-    /// result can give that pin its cover back.
+    /// The same for playlists found by a search, which names a shared playlist by its catalog
+    /// ID, the one pins made from Search carry.
     func fillMissingPlaylistArtwork(from playlists: [MusicPlaylistSummary]) {
         fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.imageURL) })
     }
@@ -158,22 +163,22 @@ final class PinnedItemsStore: ObservableObject {
             covers.compactMap { cover in cover.url.map { (cover.id, $0) } },
             uniquingKeysWith: { first, _ in first }
         )
-        guard !artworkByID.isEmpty else { return }
         if knownPlaylistCovers.count + artworkByID.count > Self.maxKnownPlaylistCovers {
             knownPlaylistCovers = [:]
         }
         knownPlaylistCovers.merge(artworkByID) { _, new in new }
-        let next = Self.fillingMissingPlaylistArtwork(items, from: artworkByID)
+        let next = fillingMissingPlaylistArtwork(items, from: artworkByID)
         guard next != items else { return }
         items = next
         persist()
     }
 
-    private static func fillingMissingPlaylistArtwork(_ items: [PinnedItem], from artworkByID: [String: URL]) -> [PinnedItem] {
-        guard !artworkByID.isEmpty else { return items }
+    private func fillingMissingPlaylistArtwork(_ items: [PinnedItem], from artworkByID: [String: URL]) -> [PinnedItem] {
         var next = items
         for index in next.indices where next[index].kind == .playlist && next[index].artworkURL == nil {
-            guard let id = next[index].spotifyID, let url = artworkByID[id] else { continue }
+            guard let id = next[index].spotifyID,
+                  let url = artworkByID[id] ?? knownArtwork(next[index].id)
+            else { continue }
             next[index].artworkURL = url
         }
         return next

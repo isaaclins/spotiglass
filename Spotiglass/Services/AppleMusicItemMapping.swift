@@ -134,15 +134,35 @@ enum AppleMusicItemMapping {
         // A blank name would read as a broken response to the browser's playlist check (built
         // for Spotify's error items) and fail the whole library with a Spotify-style error.
         let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let imageURL = artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id)
+        // Search lists a shared library playlist under its catalog ID too, and pins made there
+        // carry that ID, so the cover is also kept under it: such a pin draws it after a relaunch,
+        // and one saved without a cover gets it from the library listing (#477).
+        if let imageURL, let artwork = playlist.artwork, let catalogID = catalogID(of: playlist),
+           catalogID != playlist.id.rawValue {
+            AppleMusicArtworkRegistry.shared.register(
+                artwork, for: imageURL, itemKey: PinnedItem.id(forKind: .playlist, spotifyID: catalogID)
+            )
+        }
         return MusicPlaylistSummary(
             id: playlist.id.rawValue,
             name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
-            imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
+            imageURL: imageURL,
             trackCount: playlist.tracks?.count ?? cachedTrackCount,
             snapshotID: playlistSnapshotID
         )
+    }
+
+    /// The catalog ID a shared library playlist carries in its play parameters (`catalogId` from
+    /// the local library, `globalId` from the API).
+    static func catalogID(of playlist: Playlist) -> String? {
+        guard let parameters = playlist.playParameters,
+              let data = try? JSONEncoder().encode(parameters),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return (object["catalogId"] ?? object["globalId"]) as? String
     }
 
     static func album(_ album: Album) -> MusicAlbum {

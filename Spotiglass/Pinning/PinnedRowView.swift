@@ -211,7 +211,6 @@ struct PinnedItemDragPill: View {
 private struct DragPreviewArtwork: View {
     let url: URL?
     let size: CGFloat
-    let artworkKey: String?
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader: ArtworkImageLoader
 
@@ -222,7 +221,6 @@ private struct DragPreviewArtwork: View {
         }
         self.url = url
         self.size = size
-        self.artworkKey = artworkKey
         let initialImage = url.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }
         _artworkLoader = StateObject(
             wrappedValue: ArtworkImageLoader(
@@ -244,11 +242,6 @@ private struct DragPreviewArtwork: View {
                     .overlay {
                         Image(systemName: "music.note")
                             .foregroundStyle(.secondary)
-                    }
-                    .overlay {
-                        // Apple Music library covers are never in the image cache: only MusicKit
-                        // draws them, the same way the pin row does (#449).
-                        MusicKitArtwork(url: url, width: size, height: size, itemKey: artworkKey)
                     }
             }
         }
