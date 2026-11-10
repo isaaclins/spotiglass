@@ -99,6 +99,11 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
             failed
         )
 
+        // A garbled or empty answer reached Spotify: it isn't the network.
+        for code in [URLError.Code.badServerResponse, .cannotParseResponse, .zeroByteResource] {
+            XCTAssertEqual(PlaybackSessionViewModel.displayError(for: URLError(code)).message, failed, "\(code)")
+        }
+
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.notReady(deviceID: "device-1"))

@@ -130,7 +130,7 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
 
     /// A transport failure in the app's language, saying what to check. `fallback` is the
     /// sentence for a code that isn't a connection problem (sign-in's "something went wrong");
-    /// without one, it reads as a failed connection.
+    /// without one, it says Spotify couldn't do it: a garbled or empty answer isn't the network.
     static func networkMessage(for error: URLError, fallback: String? = nil) -> String {
         switch error.code {
         case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
@@ -148,7 +148,7 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         case .cannotConnectToHost, .networkConnectionLost:
             return SpotiglassL10n.string("auth.error.network")
         default:
-            return fallback ?? SpotiglassL10n.string("auth.error.network")
+            return fallback ?? SpotiglassL10n.string("error.playback.spotify.failed")
         }
     }
 }
