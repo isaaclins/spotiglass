@@ -1012,6 +1012,53 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(book.rowURI(at: 1, title: "b"), Self.row("b").uri)
     }
 
+    /// With shuffle on, MusicKit starts a queue that doesn't name its start on a random song: I
+    /// pressed the first of Your top tracks and the twelfth played. With shuffle on the first
+    /// row's start is named, so it plays. A single song needn't be named.
+    func testWithShuffleOnTheFirstRowPlaysFirst() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter()
+        player.shuffles = true
+        let starts = Starts(player: player)
+
+        _ = try await starts.start(songs, at: 0, shuffles: true, currentRows: "P", rowsPlayed: { _ in "top tracks" })
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        XCTAssertEqual(player.namedStarts, ["ITTY BITTY"])
+
+        _ = try await starts.start([songs[2]], at: 0, shuffles: true, currentRows: "P", rowsPlayed: { _ in "oh yeah" })
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertEqual(player.namedStarts.last, .some(nil))
+    }
+
+    /// With shuffle on, a refused named start tries once more named, with fresh entries: the
+    /// queue starting at the pressed song unnamed would start anywhere. All songs stay queued.
+    func testWithShuffleOnARefusedStartTriesAgainNamed() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter()
+        player.shuffles = true
+        player.namedStartRefusalsLeft = 1
+
+        let started = try await Starts(player: player).start(songs, at: 2, shuffles: true, currentRows: "P", rowsPlayed: { _ in "top tracks" })
+
+        XCTAssertEqual(started.leftOut, 0)
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertEqual(player.entries.count, 4)
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.namedStarts, ["oh yeah?", "oh yeah?"])
+    }
+
+    /// Without shuffle the same refusal still retries from the pressed song, unnamed.
+    func testWithoutShuffleARefusedStartRetriesFromThePressedSong() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter()
+        player.namedStartRefusalsLeft = 1
+
+        let started = try await Starts(player: player).start(songs, at: 2, currentRows: "P", rowsPlayed: { _ in "top tracks" })
+
+        XCTAssertEqual(started.leftOut, 2)
+        XCTAssertEqual(player.namedStarts, ["oh yeah?", nil])
+    }
+
     /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
     /// with B playing and X, Y added comes back as [B, X, Y, C]). The added songs keep their
     /// place: a later add goes after them, and the next play still carries them.
@@ -1743,6 +1790,10 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 final class RefusingQueueStarter: AppleMusicQueueStarting {
     let refusedIDs: Set<String>
     var refusesNamedStart: Bool
+    /// Refuses this many named starts, then takes them (MusicKit's refusal is luck).
+    var namedStartRefusalsLeft = 0
+    /// Shuffle on in MusicKit's player.
+    var shuffles = false
     private(set) var entries: [MusicPlayer.Queue.Entry] = []
     private(set) var currentEntry: MusicPlayer.Queue.Entry?
     private(set) var isPlaying = false
@@ -1761,7 +1812,9 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
         commands.append("queue")
         namedStarts.append(entry?.title)
         self.entries = entries
-        currentEntry = entry ?? entries.first
+        // With shuffle on MusicKit starts a queue that doesn't name its start on a random song;
+        // here always the last, so a test can tell.
+        currentEntry = entry ?? (shuffles && entries.count > 1 ? entries.last : entries.first)
         startIsNamed = entry != nil
         isPlaying = false
         playbackTime = 0
@@ -1817,6 +1870,11 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
     }
 
     private func refuseIfNeeded() throws {
+        if namedStartRefusalsLeft > 0, startIsNamed {
+            namedStartRefusalsLeft -= 1
+            isPlaying = false
+            throw NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6, userInfo: [NSDebugDescriptionErrorKey: "Prepare queue failed with unexpected start item"])
+        }
         if refusesNamedStart, startIsNamed {
             isPlaying = false
             throw NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6, userInfo: [NSDebugDescriptionErrorKey: "Prepare queue failed with unexpected start item"])

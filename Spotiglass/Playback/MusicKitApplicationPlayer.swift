@@ -117,7 +117,13 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         let started: AppleMusicQueueStarts<RestorePoint>.Started
         do {
-            started = try await starts.start(queued.map(\.entry), at: startIndex, currentRows: current, rowsPlayed: played)
+            started = try await starts.start(
+                queued.map(\.entry),
+                at: startIndex,
+                shuffles: shuffleWanted,
+                currentRows: current,
+                rowsPlayed: played
+            )
         } catch let refused as AppleMusicQueueStarts<RestorePoint>.Refused {
             // MusicKit switched to the new queue before it refused to play it. What the player
             // holds now is what the start gave back (#476).
@@ -628,9 +634,12 @@ protocol AppleMusicQueueStarting: AnyObject {
 /// - A queue that names the song to start at is refused about half the time when it is short
 ///   (one or two songs: a search result, a single row), with `MPMusicPlayerControllerErrorDomain`
 ///   6, "Prepare queue failed with unexpected start item". The same songs queued without naming
-///   a start (it then starts at the first) played every time. So the start is named only when
-///   the pressed song isn't first, and a refused start tries once more with the queue beginning
-///   at the pressed song.
+///   a start (it then starts at the first) played every time, and a second try with fresh
+///   entries played too. So the start is named only when the pressed song isn't first, and a
+///   refused start tries once more with the queue beginning at the pressed song.
+/// - With shuffle on, a queue of several songs that doesn't name its start starts on a random
+///   one (seen in the app: the first row pressed played the twelfth). Then the start is always
+///   named, and a refused one tries once more, named, with fresh entries.
 /// - MusicKit takes the new queue before it tries to play it. When it refuses, the refused song
 ///   stays the current entry, paused at 0:00, and what was playing has stopped: the bar showed
 ///   the song the user had just pressed play on as "Paused". So a start that is refused for good
@@ -680,6 +689,8 @@ final class AppleMusicQueueStarts<Rows> {
     private let player: any AppleMusicQueueStarting
     /// Bumped whenever the player's queue is replaced or the player is stopped.
     private var queueSerial = 0
+    /// Whether shuffle is on: set by every start, since it decides how queues are set.
+    private var shuffles = false
     /// The ``queueSerial`` of the last stop. A start that MusicKit plays after it stops again,
     /// and what a stopped player holds (an ended session's queue) is nothing to give back.
     private var stoppedAt: Int?
@@ -756,12 +767,14 @@ final class AppleMusicQueueStarts<Rows> {
     func start(
         _ entries: [MusicPlayer.Queue.Entry],
         at startIndex: Int,
+        shuffles: Bool = false,
         currentRows: Rows,
         rowsPlayed: (Int) -> Rows
     ) async throws -> Started {
         guard entries.indices.contains(startIndex) else {
             throw MusicPlaybackError(service: .appleMusic, reason: .notFound, detail: "No song at queue position \(startIndex)")
         }
+        self.shuffles = shuffles
         let giveBack = pending ?? giveBackNow(rows: currentRows)
         pending = giveBack
         var refusal: Error
@@ -775,13 +788,12 @@ final class AppleMusicQueueStarts<Rows> {
             refusal = error
         }
         guard mine == queueSerial else { throw Refused(underlying: refusal, left: .replaced) }
-        if startIndex > 0 {
-            let tail = Self.fresh(Array(entries[startIndex...]))
-            mine = setQueue(tail, at: 0)
+        if let retry = retry(entries, at: startIndex) {
+            mine = setQueue(retry.entries, at: retry.index)
             do {
                 try await player.play()
                 if giveBack.pausedMeanwhile, mine == queueSerial { player.pause() }
-                return played(tail, at: 0, leftOut: startIndex, serial: mine, giveBack: giveBack, rowsPlayed: rowsPlayed)
+                return played(retry.entries, at: retry.index, leftOut: retry.leftOut, serial: mine, giveBack: giveBack, rowsPlayed: rowsPlayed)
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -807,9 +819,9 @@ final class AppleMusicQueueStarts<Rows> {
             try await load(playing: loadsPlaying)
         } catch {
             guard mine == queueSerial else { throw Refused(underlying: refusal, left: .replaced) }
-            guard index > 0 else { try stopRefused(refusal) }
-            mine = setQueue(Self.fresh(Array(giveBack.entries[index...])), at: 0)
-            leftOut = index
+            guard let retry = retry(giveBack.entries, at: index) else { try stopRefused(refusal) }
+            mine = setQueue(retry.entries, at: retry.index)
+            leftOut = retry.leftOut
             player.playbackTime = giveBack.time
             do {
                 try await load(playing: loadsPlaying)
@@ -878,9 +890,23 @@ final class AppleMusicQueueStarts<Rows> {
         throw Refused(underlying: refusal, left: .nothing)
     }
 
-    /// Sets the queue, naming the start only when it isn't the first entry.
+    /// The second try after MusicKit refused `entries` from `index`: with shuffle on the same
+    /// songs, fresh and named again; else the songs from the pressed one on, so its start needn't
+    /// be named. `nil` when there is nothing else to try.
+    private func retry(
+        _ entries: [MusicPlayer.Queue.Entry],
+        at index: Int
+    ) -> (entries: [MusicPlayer.Queue.Entry], index: Int, leftOut: Int)? {
+        if shuffles, entries.count > 1 { return (Self.fresh(entries), index, 0) }
+        guard index > 0 else { return nil }
+        return (Self.fresh(Array(entries[index...])), 0, index)
+    }
+
+    /// Sets the queue, naming the start only when it isn't the first entry, or with shuffle on,
+    /// when there is more than one.
     private func setQueue(_ entries: [MusicPlayer.Queue.Entry], at index: Int) -> Int {
-        player.setQueue(entries, startingAt: index == 0 ? nil : entries[index])
+        let names = index > 0 || (shuffles && entries.count > 1)
+        player.setQueue(entries, startingAt: names ? entries[index] : nil)
         queueSerial += 1
         return queueSerial
     }
