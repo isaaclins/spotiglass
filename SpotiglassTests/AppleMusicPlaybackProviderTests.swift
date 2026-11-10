@@ -934,6 +934,47 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNotEqual(player.currentEntry?.title, "ITTY BITTY")
     }
 
+    /// P plays. I press X and pause while MusicKit still works on it. X is refused for good:
+    /// P comes back paused at its position, since pause was the last thing I asked for.
+    func testAPauseWhileAStartWaitsKeepsTheGiveBackPaused() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
+
+        let x = Task { await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X") } }
+        await player.waitForHeldPlays(1)
+        starts.paused()
+        player.releasePlay() // X refused
+        await player.waitForHeldPlays(1) // P going back
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        XCTAssertEqual(xOutcome, "gave back P, 0 left out")
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.playbackTime, 42)
+        XCTAssertEqual(player.commands.last, "prepare", "loaded, not played")
+    }
+
+    /// Right after a refusal hides the refused song, MusicKit can still report the music it
+    /// played before for a moment. That doesn't show the refused song as Paused; a report once
+    /// that has settled (a media key started it) does show it.
+    func testAPlayingReportRightAfterHidingKeepsItHidden() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        let starts = Starts(player: player)
+        _ = await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X", holding: "none") }
+        XCTAssertTrue(starts.hidesRefusedQueue)
+
+        starts.playerReportsPlaying(now: Date())
+        XCTAssertTrue(starts.hidesRefusedQueue, "MusicKit's state trailing the stop")
+
+        starts.playerReportsPlaying(now: Date().addingTimeInterval(Starts.reportSettle + 0.5))
+        XCTAssertFalse(starts.hidesRefusedQueue)
+    }
+
     /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
     /// with B playing and X, Y added comes back as [B, X, Y, C]). The added songs keep their
     /// place: a later add goes after them, and the next play still carries them.

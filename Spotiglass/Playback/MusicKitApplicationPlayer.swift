@@ -141,9 +141,13 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // meanwhile (a newer play, or a stop) owns the player, its book and its rows: leave
         // them alone.
         guard starts.holdsQueue(started) else { return }
-        // The book is still this queue's (an add may have finished meanwhile): it only moves up
-        // when MusicKit took the queue from the pressed song on.
-        book.dropFirst(started.leftOut)
+        // The book is still this queue's when MusicKit took it at once (an add may have finished
+        // meanwhile). When it only took it from the pressed song on, the queue was set again: an
+        // add that went into the refused one is gone with it, so the book is this queue's own,
+        // moved up.
+        if started.leftOut > 0 {
+            book = played(started.leftOut).book
+        }
         applyModesToNewQueue()
         if shuffleWanted, !carried.isEmpty {
             // Each goes right after the current song, so inserting the last first keeps the
@@ -165,6 +169,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func pause() {
         player.pause()
+        starts.paused()
     }
 
     func resume() async throws {
@@ -289,7 +294,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // Media keys and Control Center reach MusicKit without the app: a refused queue that
         // plays after all shows.
         if starts.hidesRefusedQueue, player.state.playbackStatus == .playing {
-            starts.playerPlays()
+            starts.playerReportsPlaying()
         }
         guard !starts.hidesRefusedQueue else {
             return AppleMusicPlayerState(
@@ -664,6 +669,11 @@ final class AppleMusicQueueStarts<Rows> {
     /// queue, stopped, but nothing played, so the bar shows nothing loaded instead of that song
     /// as "Paused". A queue that plays clears it.
     private(set) var hidesRefusedQueue = false
+    /// When the refused queue was hidden. MusicKit's state trails commands by up to a third of a
+    /// second, so for a moment it can still report the music it was playing before.
+    private var hiddenAt: Date?
+    /// How long a "playing" report right after hiding is taken for that trailing state.
+    static var reportSettle: TimeInterval { 1 }
 
     private let player: any AppleMusicQueueStarting
     /// Bumped whenever the player's queue is replaced or the player is stopped.
@@ -704,6 +714,20 @@ final class AppleMusicQueueStarts<Rows> {
     /// MusicKit), so it shows again.
     func playerPlays() {
         hidesRefusedQueue = false
+    }
+
+    /// MusicKit reports playing while the refused queue is hidden: something started it without
+    /// the app (a media key, Control Center). Right after hiding, that is only its state
+    /// trailing the stop.
+    func playerReportsPlaying(now: Date = Date()) {
+        guard let hiddenAt, now.timeIntervalSince(hiddenAt) >= Self.reportSettle else { return }
+        playerPlays()
+    }
+
+    /// I paused while a start waits for MusicKit: if it is refused, what it gives back stays
+    /// paused.
+    func paused() {
+        pending?.wasPlaying = false
     }
 
     /// Stops the player. A start still waiting for MusicKit then leaves the queue alone.
@@ -841,6 +865,7 @@ final class AppleMusicQueueStarts<Rows> {
     private func stopRefused(_ refusal: Error) throws -> Never {
         stop()
         hidesRefusedQueue = true
+        hiddenAt = Date()
         throw Refused(underlying: refusal, left: .nothing)
     }
 
