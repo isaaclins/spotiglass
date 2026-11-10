@@ -153,6 +153,11 @@ enum ViewTestHost {
         }
         windows.removeAll()
         appStorageDefaults.removePersistentDomain(forName: appStorageSuiteName)
+        // The app's `StoredFlag`s stay in memory under the test host and are shared by every
+        // hosted view, so put them back the way the next test expects, as wiping the store above
+        // does for `@AppStorage` (#473).
+        StoredFlag.queuePanelVisible.isOn = false
+        StoredFlag.lyricsPopOutPinned.isOn = LyricsPopOutWindow.isPinnedByDefault
     }
 
     /// Skips a test when running on a toolchain where ViewInspector traps while

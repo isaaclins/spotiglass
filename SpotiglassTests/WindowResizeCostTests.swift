@@ -115,6 +115,18 @@ final class WindowResizeCostTests: XCTestCase {
             "a new window reads what the last one saved"
         )
     }
+
+    /// Under the test host the app's flags live in memory, shared by every hosted view, so a test
+    /// that opens the queue or unpins the lyrics must not leave it that way for the next one.
+    func testTheTestHostPutsTheAppsFlagsBack() {
+        StoredFlag.queuePanelVisible.isOn = true
+        StoredFlag.lyricsPopOutPinned.isOn = !LyricsPopOutWindow.isPinnedByDefault
+
+        ViewTestHost.tearDownAll()
+
+        XCTAssertFalse(StoredFlag.queuePanelVisible.isOn, "the next test would start with the queue open")
+        XCTAssertEqual(StoredFlag.lyricsPopOutPinned.isOn, LyricsPopOutWindow.isPinnedByDefault)
+    }
 }
 
 @MainActor
