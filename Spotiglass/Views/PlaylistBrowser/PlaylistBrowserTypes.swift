@@ -3,6 +3,10 @@ import SwiftUI
 /// Holds the latest measured browser width without `@State` updates so resize drags do not thrash SwiftUI.
 final class BrowserWidthSampler {
     var latestWidth: CGFloat = 2000
+    /// Commits the width a resize ends on when its last frames came inside the throttle and
+    /// crossed nothing. Without it the committed width stayed at an older, wider one, and the
+    /// sidebar's drag limit, worked out from it, let a drag push the split view past the window.
+    var trailingCommit: Timer?
 }
 
 /// Which column owns ⌘R / toolbar refresh when the queue panel is visible.
