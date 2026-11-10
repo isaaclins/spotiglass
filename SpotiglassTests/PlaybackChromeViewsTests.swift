@@ -329,8 +329,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// transport; in the app that rebuilt the scrubber on layout passes and the
     /// new scrubber's timeline asked for the next pass, which kept a CPU core
     /// busy (measured in Release builds; a test window does not loop). A press
-    /// survives a player update and the window passing through the stacked
-    /// arrangement and back, and the release seeks once, at the pointer.
+    /// survives a player update and the window passing the volume's switch from
+    /// slider to button and back, and the release seeks once, at the pointer.
     func testPressOnTheBarSurvivesUpdatesAndRearrangement() throws {
         let api = MockPlaybackAPI()
         let sentSeeks = SentSeeks()
@@ -613,6 +613,27 @@ final class PlaybackChromeViewsTests: XCTestCase {
                         if minX(text) < centre {
                             XCTAssertLessThanOrEqual(maxX(text), clusterMinX - SpotiglassDesign.spacingS, "\(text.value) runs into the controls, \(label)")
                         }
+                    }
+                    // Beside the other service's label the song's name keeps its
+                    // share of the row (the two split it, less the gap between
+                    // them): the label used to take the row first and left the
+                    // title 6 pt wide in the narrowest window.
+                    if state == "other service" {
+                        let serviceLabel = SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName)
+                        let songTitle = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == "Midnight City" }, label)
+                        let serviceText = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == serviceLabel }, label)
+                        XCTAssertGreaterThanOrEqual(songTitle.size.width + SpotiglassDesign.spacingXS + 1, serviceText.size.width, "the service label squeezes the title, \(label)")
+                    }
+                    // Reconnect and Retry sit right after the line that says what
+                    // went wrong, not at the far end of the left half.
+                    let recoveryLabels = ["playback.controls.reconnect.label", "playback.controls.retry.label"].map { SpotiglassL10n.string($0) }
+                    if let recovery = controls.first(where: { recoveryLabels.contains($0.axDescription) }) {
+                        let textEnd = try XCTUnwrap(
+                            elements.filter { $0.role == "AXStaticText" && $0.position != nil && minX($0) < minX(recovery) }.map(maxX).max(),
+                            "no status text before \(recovery.axDescription), \(label)"
+                        )
+                        // A button's accessibility frame is its bezel, a point wider than its slot.
+                        XCTAssertLessThanOrEqual(minX(recovery) - textEnd, SpotiglassDesign.spacingM + 1.5, "\(recovery.axDescription) is far from its text, \(label)")
                     }
                     // Nothing spills out of the window.
                     for control in controls {

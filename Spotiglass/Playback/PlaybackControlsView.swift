@@ -171,7 +171,13 @@ struct PlaybackTransportArrangementLayout: Layout {
             )
         }
         let recoveryWidth = recovery.map { widths[$0] } ?? 0
-        widths[summary] = measuredWidth(summary, max(side - gap(recoveryWidth) - recoveryWidth, 0))
+        let summaryRoom = max(side - gap(recoveryWidth) - recoveryWidth, 0)
+        // With a Reconnect or Retry button the summary takes only the room its
+        // text needs, so the button sits right after the line it belongs to
+        // instead of at the far end of the left half.
+        widths[summary] = recoveryWidth > 0
+            ? measuredWidth(summary, min(measuredWidth(summary, nil), summaryRoom))
+            : measuredWidth(summary, summaryRoom)
 
         let topRow = [summary, recovery, controls, device, volume].compactMap { $0 }
         let heights = topRow.map { height($0, widths[$0]) }
@@ -209,8 +215,7 @@ struct PlaybackTransportArrangementLayout: Layout {
 ///
 /// `ViewThatFits` compares ideal widths, so the slider reports a width below
 /// its real floor as its ideal here. That lets the arrangement give it any
-/// width from its floor up, as the row it replaced did, without the button
-/// taking over.
+/// width from its floor up without the button taking over.
 struct PlaybackTransportVolumeSlot<Full: View, Compact: View>: View {
     /// The narrowest slider and its gap, less than the control's real floor
     /// whatever width the speaker icon takes.
@@ -348,12 +353,15 @@ struct PlaybackControlsView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
+                        // A narrow bar truncates the title; hovering shows it whole.
+                        .help(title)
                     if let otherService {
                         Text(SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .layoutPriority(1)
+                            // No priority over the title: in a narrow bar the two share the
+                            // row, so the song's name never shrinks to nothing (#496).
                             .transition(.opacity)
                     } else if shouldShowPausedIndicator {
                         Text(SpotiglassL10n.string("playback.paused.label"))
