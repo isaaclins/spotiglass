@@ -43,6 +43,21 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    /// Hours at which `homeGreeting` changes.
+    nonisolated static let homeGreetingChangeHours = [0, 5, 12, 18]
+
+    /// The next moment after `date` at which the home greeting changes, so a Home left on
+    /// screen overnight can switch by itself (#464).
+    nonisolated static func nextHomeGreetingChange(after date: Date, calendar: Calendar = .current) -> Date {
+        homeGreetingChangeHours.compactMap { hour in
+            calendar.nextDate(
+                after: date,
+                matching: DateComponents(hour: hour, minute: 0, second: 0),
+                matchingPolicy: .nextTime
+            )
+        }.min() ?? date.addingTimeInterval(3600)
+    }
+
     /// Entry point for showing the home surface: marks the detail column as Home and
     /// kicks off the independent section loads. Safe to call repeatedly (refresh).
     func loadHomeFeed(session: Int) async {

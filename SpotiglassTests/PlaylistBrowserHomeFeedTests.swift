@@ -193,6 +193,26 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
         XCTAssertEqual(greeting(23, 59), "Good evening")
     }
 
+    func testHomeGreetingScheduleWakesAtEachChange() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!
+        func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+        }
+
+        // #464: Home opened at 23:00 and left on screen must change at midnight, then at 05:00.
+        let entries = Array(HomeGreetingSchedule(calendar: calendar).entries(from: at(9, 23), mode: .normal).prefix(6))
+        XCTAssertEqual(entries, [at(9, 23), at(10, 0), at(10, 5), at(10, 12), at(10, 18), at(11, 0)])
+
+        // A change time itself moves on to the next one.
+        XCTAssertEqual(PlaylistBrowserViewModel.nextHomeGreetingChange(after: at(10, 5), calendar: calendar), at(10, 12))
+
+        let vm = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]), cache: MockBrowsingCache())
+        XCTAssertEqual(vm.homeGreeting(now: entries[0], calendar: calendar), "Good evening")
+        XCTAssertEqual(vm.homeGreeting(now: entries[1], calendar: calendar), "Hello, night owl")
+        XCTAssertEqual(vm.homeGreeting(now: entries[2], calendar: calendar), "Good morning")
+    }
+
     func testHomeGreetingUsesPageTitleStyleWhileSectionsUseSectionStyle() {
         let greeting = HomeSectionHeader(title: "Good morning", style: .pageTitle)
         let section = HomeSectionHeader(title: "Recently played")

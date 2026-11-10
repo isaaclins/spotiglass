@@ -41,7 +41,10 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
-                HomeSectionHeader(title: viewModel.homeGreeting(), style: .pageTitle)
+                // Wakes only when the greeting changes, so Home left open overnight still fits the clock.
+                TimelineView(HomeGreetingSchedule()) { context in
+                    HomeSectionHeader(title: viewModel.homeGreeting(now: context.date), style: .pageTitle)
+                }
 
                 quickAccessGrid
                 recentlyPlayedSection
@@ -207,6 +210,20 @@ struct HomeView: View {
                     origin: .extend
                 )
             }
+        }
+    }
+}
+
+/// Timeline entries at the moments the home greeting changes (00:00, 05:00, 12:00, 18:00).
+struct HomeGreetingSchedule: TimelineSchedule {
+    var calendar: Calendar = .current
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var next: Date? = startDate
+        return AnyIterator {
+            guard let current = next else { return nil }
+            next = PlaylistBrowserViewModel.nextHomeGreetingChange(after: current, calendar: calendar)
+            return current
         }
     }
 }
