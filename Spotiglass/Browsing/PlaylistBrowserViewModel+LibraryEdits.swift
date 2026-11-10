@@ -28,9 +28,12 @@ extension PlaylistBrowserViewModel {
         supportedLibraryEdits.contains(.removeFromPlaylist) && isUserOwnedPlaylist(playlistID)
     }
 
-    /// The user's own playlists can be renamed; Liked Songs and other people's can't.
+    /// The user's own playlists can be renamed; Liked Songs and other people's can't. A playlist
+    /// the library hasn't loaded yet (made in another app, found through Search) can't either:
+    /// renaming goes through the library's copy (`renamePlaylist`).
     func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
         guard summary.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              playlistsByID[summary.id] != nil,
               let me = currentUserSpotifyID, !me.isEmpty
         else { return false }
         return summary.ownerID == me

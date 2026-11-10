@@ -112,6 +112,18 @@ final class CollectionContextMenuTests: XCTestCase {
         )
     }
 
+    /// A playlist made in another app shows up in Search before the library has loaded it, and
+    /// renaming goes through the library's copy: Edit playlist name did nothing there.
+    func testOwnPlaylistTheLibraryHasntLoadedOffersNoRename() {
+        let viewModel = makeBrowserViewModel()
+        let madeElsewhere = MusicPlaylistSummary(
+            id: "new", name: "Made in Music", ownerID: "me", ownerName: "Me",
+            imageURL: nil, trackCount: 0, snapshotID: "s"
+        )
+        XCTAssertFalse(viewModel.canRenamePlaylist(madeElsewhere))
+        XCTAssertTrue(viewModel.canRenamePlaylist(ownPlaylist))
+    }
+
     func testLikedSongsTileHasNoMenuLikeItsSidebarRow() {
         let viewModel = makeBrowserViewModel()
         let liked = viewModel.homeQuickAccessCards.first

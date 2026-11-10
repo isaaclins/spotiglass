@@ -563,9 +563,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
         let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }, match: albumMatch)
-        // A saved album shows instead of its catalog copy, but only the copy comes with its
-        // artists (`catalogSearch` loads them), so the saved one takes their IDs for the links
-        // under its card (#478).
+        // A saved album shows instead of its catalog copy. When the copy is on this page the
+        // saved one links the copy's catalog artists, whose pages show everything they made;
+        // otherwise it keeps its own library artists (#478).
         let catalogAlbumArtists = Dictionary(
             catalogItems.albums.map { (albumMatch($0), AppleMusicItemMapping.album($0).artistRefs) },
             uniquingKeysWith: { first, _ in first }
@@ -578,7 +578,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             artists: artists.map(AppleMusicItemMapping.artist),
             albums: albums.map { album in
                 let mapped = AppleMusicItemMapping.album(album)
-                guard mapped.artistRefs.isEmpty, let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty
+                guard let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty, refs != mapped.artistRefs
                 else { return mapped }
                 return mapped.withArtistRefs(refs)
             },

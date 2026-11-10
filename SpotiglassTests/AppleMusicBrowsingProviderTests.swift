@@ -917,6 +917,28 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         ])
     }
 
+    /// The library shows up to 100 matches and a catalog page 25, so a saved album's catalog copy
+    /// is often on a later page. The saved album then links its own library artists.
+    func testSavedSearchAlbumWithoutItsCatalogCopyLinksItsLibraryArtists() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [
+                try AppleMusicFixtures.album(id: "l.a", title: "Migration", artists: [("r.1", "Bonobo")]),
+                try AppleMusicFixtures.album(id: "l.b", title: "Black Sands", artists: [("r.1", "Bonobo")]),
+            ]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "a", title: "Migration", artists: [("5201", "Bonobo")])]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "bonobo", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["l.a", "l.b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+            [MusicArtistRef(id: "r.1", name: "Bonobo")],
+        ], "the catalog copy's artists when it's on the page, else the library's own")
+    }
+
     func testSearchPutsLibraryMatchesFirstAndDropsCatalogDuplicates() async throws {
         let source = MockAppleMusicSource()
         source.librarySearchItems = AppleMusicSearchItems(
