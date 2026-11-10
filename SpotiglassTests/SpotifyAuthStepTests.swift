@@ -275,6 +275,40 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(cleaner.callCount, 0, "Cache must survive a transient refresh failure.")
     }
 
+    /// #470 moved sign-in's network sentences into the shared mapping. A failure where the
+    /// connection worked but the answer was unusable still reads as sign-in's "something went
+    /// wrong", not as "check your network".
+    @MainActor
+    func testSignInNetworkFailuresSayWhatToCheck() async throws {
+        let cases: [(URLError.Code, String)] = [
+            (.badServerResponse, SpotiglassL10n.string("auth.error.generic")),
+            (.cannotParseResponse, SpotiglassL10n.string("auth.error.generic")),
+            (.cannotConnectToHost, SpotiglassL10n.string("auth.error.network")),
+            (.notConnectedToInternet, SpotiglassL10n.string("auth.error.offline"))
+        ]
+        for (code, expected) in cases {
+            let store = InMemoryRefreshTokenStore()
+            try store.saveRefreshToken("good-refresh-token")
+            let viewModel = AuthViewModel(
+                settings: makeSettings(clientID: "client-id"),
+                // URLSession's own text, which main showed as is.
+                tokenClient: SpotifyTokenClient(httpClient: ThrowingHTTPClient(
+                    error: URLError(code, userInfo: [NSLocalizedDescriptionKey: "The server sent an answer that couldn’t be used."])
+                )),
+                refreshTokenStore: store,
+                signOutDataCleaner: {},
+                artworkCacheClearer: {}
+            )
+
+            await viewModel.restoreSessionIfAvailable()
+
+            guard case let .failed(error) = viewModel.state else {
+                return XCTFail("\(code): expected a failed sign-in, got \(viewModel.state)")
+            }
+            XCTAssertEqual(error.message, expected, "\(code)")
+        }
+    }
+
     @MainActor
     func testRefreshedPlaybackAccessTokenUsesSingleFlightForConcurrentWaiters() async throws {
         let store = InMemoryRefreshTokenStore()

@@ -443,7 +443,8 @@ extension PlaylistBrowserViewModel {
             }
             return apiError.localizedDescription
         }
-        return error.localizedDescription
+        // An Apple Music edit's failure reads as Apple Music's, never as Spotify's (#470).
+        return appleMusicDisplayError(for: error)?.message ?? SpotifyAPIError.userMessage(for: error)
     }
 
     private static func isScopeFailure(_ error: Error) -> Bool {

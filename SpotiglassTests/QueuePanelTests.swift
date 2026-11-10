@@ -1123,6 +1123,126 @@ final class QueuePanelTests: XCTestCase {
             "Cancelling the queue poll task during sleep must not trigger an immediate GET /v1/me/player/queue."
         )
     }
+
+    /// #470: with Deutsch picked, a queue refresh that couldn't reach Spotify showed the German
+    /// title over URLSession's English "Could not connect to the server.", because that text
+    /// follows the Mac's language. The sentence must follow the app's language, in each language.
+    func testQueueNetworkErrorFollowsTheAppLanguage() async throws {
+        let expected: [(AppLanguage, String)] = [
+            (.english, "Could not connect to Spotify. Check your network, then try again."),
+            (.german, "Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut."),
+            (.spanish, "No se pudo conectar con Spotify. Comprueba tu red e inténtalo de nuevo.")
+        ]
+        // What URLSession hands back on an English Mac, word for word.
+        let systemText = "Could not connect to the server."
+        // SpotifyPlaybackAPI lets URLSession's error through unchanged.
+        let failures: [Error] = [
+            URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: systemText]),
+            URLError(.networkConnectionLost, userInfo: [NSLocalizedDescriptionKey: "The network connection was lost."])
+        ]
+        for (language, message) in expected {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("queue-network-\(UUID().uuidString).json")
+            let store = SpotiglassSettingsStore(fileURL: url)
+            try store.mutate { $0.appearance.language = language }
+            SpotiglassL10n.settingsStore = store
+            defer { SpotiglassL10n.settingsStore = nil }
+
+            for failure in failures {
+                let api = QueueTestPlaybackAPI()
+                let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
+                playback.handle(.ready(deviceID: "device-1"))
+                let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
+                queue.setPanelVisible(true)
+                api.errorToThrow = failure
+
+                await queue.refreshQueue()
+
+                let banner = try XCTUnwrap(queue.lastError, "\(language) \(failure)")
+                XCTAssertEqual(banner.title, SpotiglassL10n.string("error.queue.updateFailed.title"))
+                XCTAssertEqual(banner.message, message, "\(language) \(failure)")
+                XCTAssertNil(banner.message.range(of: "server."), "\(language) \(failure)")
+                XCTAssertNil(banner.message.range(of: "was lost"), "\(language) \(failure)")
+            }
+        }
+    }
+}
+
+
+extension QueuePanelTests {
+    /// #470: SpotifyPlaybackAPI decodes the queue itself, so a body it can't read threw a bare
+    /// DecodingError whose text ("The data couldn't be read ...") follows the Mac's language.
+    func testUnreadableQueueResponseFollowsTheAppLanguage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("queue-decoding-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: QueueTestTokenProvider(),
+            httpClient: UnreadableQueueHTTPClient()
+        )
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
+        queue.setPanelVisible(true)
+
+        await queue.refreshQueue()
+
+        let banner = try XCTUnwrap(queue.lastError)
+        XCTAssertEqual(banner.title, "Warteschlangen-Update fehlgeschlagen")
+        XCTAssertEqual(banner.message, "Spotify hat Daten zurückgegeben, die Spotiglass nicht lesen konnte. Versuchen Sie zu aktualisieren.")
+    }
+}
+
+@MainActor
+private final class QueueTestTokenProvider: PlaybackAccessTokenProviding {
+    func playbackAccessToken() async throws -> String { "token" }
+    func refreshedPlaybackAccessToken() async throws -> String { "token" }
+}
+
+extension QueuePanelTests {
+    /// #470: a 403 without Spotify's own text showed a hard-coded English Premium sentence.
+    func testPremiumRefusalWithoutSpotifyTextFollowsTheAppLanguage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("queue-forbidden-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: QueueTestTokenProvider(),
+            httpClient: ForbiddenQueueHTTPClient()
+        )
+        do {
+            _ = try await api.fetchQueue()
+            XCTFail("Expected a refusal")
+        } catch {
+            XCTAssertEqual(QueueViewModel.displayError(for: error)?.message, "Spotify hat den Zugriff verweigert.")
+            XCTAssertEqual(
+                PlaybackSessionViewModel.displayError(for: error).message,
+                "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."
+            )
+        }
+    }
+}
+
+private final class ForbiddenQueueHTTPClient: HTTPClient, @unchecked Sendable {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        (Data(), HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!)
+    }
+}
+
+private final class UnreadableQueueHTTPClient: HTTPClient, @unchecked Sendable {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+        return (Data(#"{"queue":"invalid"}"#.utf8), response)
+    }
 }
 
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {

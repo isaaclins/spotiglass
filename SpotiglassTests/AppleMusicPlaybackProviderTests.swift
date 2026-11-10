@@ -925,10 +925,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let expired = PlaybackSessionViewModel.displayError(for: SpotifyAPIError.unauthorized)
         XCTAssertEqual(expired.recoveryAction, .reauthenticate)
         let failed = PlaybackSessionViewModel.displayError(for: SpotifyAPIError.server(statusCode: 502, message: nil, details: nil))
-        XCTAssertEqual(
-            failed.message,
-            String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), String(describing: SpotifyAPIError.server(statusCode: 502, message: nil, details: nil)))
-        )
+        // The sentence, not the error's debug text (#470).
+        XCTAssertEqual(failed.message, SpotiglassL10n.string("error.spotify.serverProblem"))
     }
 
     func testAppleMusicErrorsNameAppleMusic() {

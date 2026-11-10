@@ -22,6 +22,126 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         XCTAssertEqual(generic.title, "Playback command failed")
     }
 
+    /// #470: a Spotify command that couldn't reach Spotify showed URLSession's text (the Mac's
+    /// language) or the error's debug text ("network(...)") instead of a sentence in the app's.
+    func testSpotifyNetworkFailuresReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-network-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let german = "Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut."
+        let urlError = URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."])
+
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: urlError).message, german)
+        XCTAssertEqual(PlaybackSessionViewModel.playbackHostConnectionFailedError(for: urlError).message, german)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: SpotifyAPIError.network(german)).message, german)
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: SpotifyAPIError.server(statusCode: 502, message: nil, details: nil)).message,
+            "Bei den Servern von Spotify ist ein Problem aufgetreten. Versuchen Sie es gleich noch einmal."
+        )
+    }
+
+    /// #470: the Spotify player page reports its failures in English (its own text, or the
+    /// page's "Spotify Web Playback SDK could not connect to Spotify."), so a German window read
+    /// a German title over an English sentence.
+    func testSpotifyPlayerPageErrorsReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-sdk-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let cases: [(MusicPlaybackEvent, String, String)] = [
+            (.initializationError("Spotify Web Playback SDK could not connect to Spotify."),
+             "Wiedergabe konnte nicht gestartet werden",
+             "Spotiglass konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."),
+            (.authenticationError("Authentication failed"),
+             "Erneut anmelden",
+             "Ihre Spotify-Sitzung ist abgelaufen. Verbinden Sie sich erneut, um weiter abzuspielen."),
+            (.accountError("This functionality is restricted to premium users only"),
+             "Spotify Premium erforderlich",
+             "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."),
+            (.playbackError("Playback error"),
+             "Wiedergabefehler",
+             "Spotify konnte das nicht ausführen. Versuche es gleich erneut.")
+        ]
+        for (event, title, message) in cases {
+            let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+            viewModel.handle(event)
+            guard case let .error(shown) = viewModel.connectionState else {
+                return XCTFail("\(event) should show an error, got \(viewModel.connectionState)")
+            }
+            XCTAssertEqual(shown.title, title, "\(event)")
+            XCTAssertEqual(shown.message, message, "\(event)")
+        }
+    }
+
+    /// #470: a failure that is neither Spotify's nor a URLError (WebKit's "web content process
+    /// terminated" while the player page connects) showed its own text, which follows the Mac's
+    /// language, and losing the device showed a hard-coded English line.
+    func testOtherSpotifyPlayerFailuresReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-other-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let failed = "Spotify konnte das nicht ausführen. Versuche es gleich erneut."
+        let webKit = NSError(domain: "WKErrorDomain", code: 2, userInfo: [NSLocalizedDescriptionKey: "The web content process was terminated."])
+
+        let tryAgain = "Das hat nicht geklappt. Versuche es gleich erneut."
+        XCTAssertEqual(PlaybackSessionViewModel.playbackHostConnectionFailedError(for: webKit).message, tryAgain)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: webKit).message, tryAgain)
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: MusicPlaybackError(service: .spotify, reason: .failed, detail: "Spotify togglePlay threw: offline")).message,
+            failed
+        )
+
+        // A garbled or empty answer reached Spotify: it isn't the network.
+        for code in [URLError.Code.badServerResponse, .cannotParseResponse, .zeroByteResource] {
+            XCTAssertEqual(PlaybackSessionViewModel.displayError(for: URLError(code)).message, failed, "\(code)")
+        }
+
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.notReady(deviceID: "device-1"))
+        XCTAssertEqual(
+            viewModel.connectionState,
+            .unavailable("Das Spotify-Wiedergabegerät ist nicht mehr verfügbar. Verbinde die Wiedergabe erneut, um weiterzuhören.")
+        )
+    }
+
+    /// #470 follow-ups: a request Spotify turned down keeps its reason (retrying can't fix it),
+    /// and an Apple Music edit whose answer didn't decode never reads as Spotify's.
+    func testRejectedRequestsKeepTheirReasonAndAppleMusicNeverBlamesSpotify() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-rejected-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let rejected = SpotifyAPIError.server(statusCode: 400, message: "Invalid track uri", details: nil)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: rejected).message, "Spotify hat diese Anfrage abgelehnt: Invalid track uri")
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: SpotifyAPIError.server(statusCode: 400, message: nil, details: nil)).message,
+            "Spotify hat diese Anfrage abgelehnt."
+        )
+
+        let previous = MusicServiceSelection.current
+        MusicServiceSelection.current = .appleMusic
+        defer { MusicServiceSelection.current = previous }
+        let unreadable = DecodingError.keyNotFound(
+            AnyCodingKey("data"),
+            DecodingError.Context(codingPath: [], debugDescription: "No value associated with key data.")
+        )
+        let toast = PlaylistBrowserViewModel.describeFailure(unreadable, operation: .createPlaylist)
+        XCTAssertFalse(toast.contains("Spotify"), toast)
+        XCTAssertEqual(toast, PlaylistBrowserViewModel.appleMusicDisplayError(for: unreadable)?.message)
+    }
+
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)
@@ -128,4 +248,12 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.playbackVolume, 0.42, accuracy: 0.000_001)
     }
+}
+
+private struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+    init(_ string: String) { stringValue = string }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
 }

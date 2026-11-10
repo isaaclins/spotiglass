@@ -483,7 +483,7 @@ final class CommandPaletteViewModel: ObservableObject {
             isLoading = false
             // Apple Music's search failures read as calm sentences, like the Search view's (#397).
             errorText = PlaylistBrowserViewModel.appleMusicDisplayError(for: error)?.message
-                ?? error.localizedDescription
+                ?? SpotifyAPIError.userMessage(for: error)
         }
     }
 

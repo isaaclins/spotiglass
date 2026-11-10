@@ -378,7 +378,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             return XCTFail("Expected error")
         }
         XCTAssertEqual(error.title, "Spotify Premium required")
-        XCTAssertEqual(error.message, "Premium required")
+        // The SDK's English text is replaced by the app's own sentence (#470).
+        XCTAssertEqual(error.message, SpotiglassL10n.string("error.playback.premium.message"))
         XCTAssertNil(error.recoveryAction)
     }
 

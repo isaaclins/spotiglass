@@ -433,7 +433,8 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         case 401:
             return .unauthorized
         case 403:
-            return .forbidden(message: message ?? "Spotify Premium is required for Web Playback SDK playback.", details: nil)
+            // No text from Spotify: the screens fall back to their own translated Premium sentence (#470).
+            return .forbidden(message: message, details: nil)
         case 404:
             return .notFound(message: message)
         case 429:

@@ -105,11 +105,15 @@ struct QueuePanelView: View {
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+            // The list below takes every point the panel offers, so without a fixed vertical
+            // size the banner got one line each and German sentences ended in "Prü…" (#470).
             Text(error.title)
                 .font(.subheadline.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
             Text(error.message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Button(SpotiglassL10n.string("queue.dismiss")) {
                 queueViewModel.clearError()
             }

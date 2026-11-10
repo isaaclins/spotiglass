@@ -964,7 +964,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
         return PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
-            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
+            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), SpotifyAPIError.userMessage(for: error)),
             recoveryAction: .reconnect
         )
     }
@@ -973,19 +973,19 @@ final class PlaybackSessionViewModel: ObservableObject {
         guard let playbackError = MusicPlaybackError.from(error) else {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
+                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), SpotifyAPIError.userMessage(for: error)),
                 recoveryAction: .retryTransfer
             )
         }
         switch playbackError.service {
         case .spotify:
-            return spotifyDisplayError(for: playbackError)
+            return spotifyDisplayError(for: playbackError, original: error)
         case .appleMusic:
             return appleMusicDisplayError(for: playbackError)
         }
     }
 
-    private static func spotifyDisplayError(for error: MusicPlaybackError) -> PlaybackDisplayError {
+    private static func spotifyDisplayError(for error: MusicPlaybackError, original: Error) -> PlaybackDisplayError {
         switch error.reason {
         case .signInExpired:
             return PlaybackDisplayError(
@@ -1013,9 +1013,11 @@ final class PlaybackSessionViewModel: ObservableObject {
                 recoveryAction: .retryTransfer
             )
         case .network, .server, .notFound, .explicitContentRestricted, .failed:
+            // `detail` is the error's debug text ("network(...)"); the sentence is in the app's
+            // language (#470).
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.detail),
+                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), SpotifyAPIError.userMessage(for: original)),
                 recoveryAction: .retryTransfer
             )
         }

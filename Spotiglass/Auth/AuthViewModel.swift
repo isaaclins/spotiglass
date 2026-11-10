@@ -370,7 +370,8 @@ final class AuthViewModel: ObservableObject {
             return apiError.userMessage
         }
         if let urlError = error as? URLError {
-            return Self.urlErrorMessage(urlError)
+            // A code that isn't a connection problem keeps sign-in's generic sentence.
+            return SpotifyAPIError.networkMessage(for: urlError, fallback: Self.genericAuthFailureMessage)
         }
         if error is DecodingError {
             return SpotiglassL10n.string("auth.error.decode")
@@ -380,29 +381,6 @@ final class AuthViewModel: ObservableObject {
 
     private static var genericAuthFailureMessage: String {
         SpotiglassL10n.string("auth.error.generic")
-    }
-
-    private static func urlErrorMessage(_ error: URLError) -> String {
-        switch error.code {
-        case .notConnectedToInternet:
-            return SpotiglassL10n.string("auth.error.offline")
-        case .timedOut:
-            return SpotiglassL10n.string("auth.error.timeout")
-        case .cannotFindHost, .dnsLookupFailed:
-            return SpotiglassL10n.string("auth.error.dns")
-        case .cannotConnectToHost, .networkConnectionLost:
-            return SpotiglassL10n.string("auth.error.network")
-        case .secureConnectionFailed, .serverCertificateUntrusted, .clientCertificateRejected:
-            return SpotiglassL10n.string("auth.error.tls")
-        case .cancelled:
-            return SpotiglassL10n.string("auth.error.cancelled")
-        default:
-            let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed") || text.localizedCaseInsensitiveContains("couldn't be completed") {
-                return genericAuthFailureMessage
-            }
-            return text
-        }
     }
 }
 

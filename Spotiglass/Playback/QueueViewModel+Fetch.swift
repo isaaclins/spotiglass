@@ -60,6 +60,10 @@ extension QueueViewModel {
                 }
             } catch {
                 if requestGeneration == queueSessionGeneration, !isQueueSessionBoundary {
+                    // The banner reads in the app's language; the cause is kept here (#470).
+                    if !(error is CancellationError) {
+                        SpotiglassLog.error(.playback, "Queue refresh failed: \(String(describing: error))")
+                    }
                     if case let .rateLimited(retryAfter) = MusicPlaybackError.from(error)?.reason {
                         let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
                         let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
@@ -376,8 +380,9 @@ extension QueueViewModel {
         guard let playbackError = MusicPlaybackError.from(error) else {
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
-                canRetry: true
+                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), SpotifyAPIError.userMessage(for: error)),
+                canRetry: true,
+                diagnosticDetails: String(describing: error)
             )
         }
         if case let .network(message) = playbackError.reason, message.contains("cancelled") {
@@ -421,10 +426,13 @@ extension QueueViewModel {
                 diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
             )
         case .network, .server, .notFound, .explicitContentRestricted, .failed:
+            // `detail` is the error's debug text ("network(...)"): it goes to the details
+            // disclosure, and the sentence is in the app's language (#470).
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.detail),
-                canRetry: true
+                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), SpotifyAPIError.userMessage(for: original)),
+                canRetry: true,
+                diagnosticDetails: error.detail.nilWhenEmpty
             )
         }
     }
