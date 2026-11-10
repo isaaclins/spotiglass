@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.16</title>
-            <pubDate>Tue, 10 Nov 2026 21:31:02 +0100</pubDate>
-            <sparkle:version>27</sparkle:version>
-            <sparkle:shortVersionString>0.8.16</sparkle:shortVersionString>
+            <title>0.8.17</title>
+            <pubDate>Tue, 10 Nov 2026 21:51:02 +0100</pubDate>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>0.8.17</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Home has its own greeting after midnight, so it no longer says "Good evening" overnight.
+            <description sparkle:format="plain-text"><![CDATA[• Shelves on Home and artist pages now scroll smoothly with a mouse wheel, including Shift-scrolling, instead of jumping.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.16/Spotiglass-0.8.16.zip" length="12808158" type="application/octet-stream" sparkle:edSignature="H/bgcyQ/x4oWcgQQDd8s3dtujMpSOWmpHANRZCDlFSenu5vecCya/AAlNFgIY30gKlUwlY3V/XOhojbqxbRADg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.17/Spotiglass-0.8.17.zip" length="12817307" type="application/octet-stream" sparkle:edSignature="ZQL44tgngj4AuJHqCVZVxBsVu+1JUAcB3cWk24ZLMn8SdRhAkayhvz1MpdJSwsoVR1iHdLF/F7gNh0JV5dx6AQ=="/>
         </item>
     </channel>
 </rss>

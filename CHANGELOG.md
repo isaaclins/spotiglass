@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.17] - 2026-11-10
+
+### Fixed
+
+- Shelves on Home and artist pages now scroll smoothly with a mouse wheel, including Shift-scrolling, instead of jumping.
+
 ## [0.8.16] - 2026-11-10
 
 ### Fixed
