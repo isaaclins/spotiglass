@@ -347,6 +347,40 @@ final class ScrubberTickCostTests: XCTestCase {
         XCTAssertLessThanOrEqual(next.fireDate.timeIntervalSince(clock), tick, "the track moves on at its rate")
     }
 
+    /// The stall test above fires its ticks by hand, so this one checks that the run loop fires
+    /// them by itself. It waits for the first tick to have scheduled a later one, however late a
+    /// busy machine runs it.
+    func testTheTrackTicksOnTheRunLoopByItself() throws {
+        let window = VisibilityControlledWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        windows.append(window)
+        let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        view.drawing = .init(
+            trackHeight: 4,
+            progress: ScrubberProgress(anchor: playingAnchor(), durationMilliseconds: 240_000, dragFraction: nil),
+            dragFraction: nil,
+            thumbDiameter: 12,
+            overhang: 8,
+            colors: ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
+        )
+        window.contentView?.addSubview(view)
+        defer { view.removeFromSuperview() }
+
+        let firstFireDate = try XCTUnwrap(view.tickTimer).fireDate
+        let ticked = expectation(
+            for: NSPredicate { _, _ in
+                MainActor.assumeIsolated { (view.tickTimer?.fireDate ?? .distantPast) > firstFireDate }
+            },
+            evaluatedWith: nil
+        )
+        wait(for: [ticked], timeout: 30)
+    }
+
     func testTheTrackIsNeverHitOrReadByVoiceOver() {
         let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 100, height: 18))
         XCTAssertNil(view.hitTest(NSPoint(x: 50, y: 9)), "clicks and hover belong to the surface above it")
