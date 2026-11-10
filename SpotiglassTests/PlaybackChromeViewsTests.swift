@@ -567,7 +567,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let nextLabel = SpotiglassL10n.string("playback.controls.next")
         let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
         for (state, makePlayback) in try await playerBarStates() {
-            for width in [CGFloat(520), 640, 900, 1_100, 1_400] {
+            // The widest line of text before Reconnect or Retry at the last width.
+            var recoveryTextWidth: CGFloat = 0
+            for width in [CGFloat(520), 640, 760, 880, 900, 1_000, 1_100, 1_400] {
                 try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: .aqua) { elements, window in
                     let controls = playerBarControls(in: elements)
                     func midX(_ element: RealizedAccessibilityElement) -> CGFloat {
@@ -628,12 +630,23 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     // went wrong, not at the far end of the left half.
                     let recoveryLabels = ["playback.controls.reconnect.label", "playback.controls.retry.label"].map { SpotiglassL10n.string($0) }
                     if let recovery = controls.first(where: { recoveryLabels.contains($0.axDescription) }) {
+                        // The status lines: the texts of the bar left of the button.
+                        let texts = elements.filter {
+                            $0.role == "AXStaticText" && $0.position != nil && $0.value != window.title && minX($0) < minX(recovery)
+                        }
                         let textEnd = try XCTUnwrap(
-                            elements.filter { $0.role == "AXStaticText" && $0.position != nil && minX($0) < minX(recovery) }.map(maxX).max(),
+                            texts.map(maxX).max(),
                             "no status text before \(recovery.axDescription), \(label)"
                         )
-                        // A button's accessibility frame is its bezel, a point wider than its slot.
-                        XCTAssertLessThanOrEqual(minX(recovery) - textEnd, SpotiglassDesign.spacingM + 1.5, "\(recovery.axDescription) is far from its text, \(label)")
+                        // A truncated line's frame ends at its last glyph, a few points
+                        // short of its slot; before the fix the gap was 40 pt and more.
+                        XCTAssertLessThanOrEqual(minX(recovery) - textEnd, SpotiglassDesign.spacingM + SpotiglassDesign.spacingXS + 1.5, "\(recovery.axDescription) is far from its text, \(label)")
+                        // A wider window never gives that text less room: the button
+                        // used to take its title at about 876 pt and cut the message
+                        // to a third of what it had at 872 pt.
+                        let textWidth = texts.map(\.size.width).max() ?? 0
+                        XCTAssertGreaterThanOrEqual(textWidth, recoveryTextWidth - 0.5, "the status text lost room as the window widened, \(label)")
+                        recoveryTextWidth = textWidth
                     }
                     // Nothing spills out of the window.
                     for control in controls {

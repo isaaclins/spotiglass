@@ -162,21 +162,20 @@ struct PlaybackTransportArrangementLayout: Layout {
         if let device {
             widths[device] = measuredWidth(device, max(side - gap(volumeWidth) - volumeWidth, 0))
         }
-        // The left side: the Reconnect or Retry button in full when the summary
-        // keeps its floor beside it, then the summary in what is left.
+        // The left side. The text that says what went wrong comes first: the
+        // Reconnect or Retry button shows its title only once that text fits
+        // whole beside it, its symbol alone otherwise. The summary then takes
+        // only the room its text needs, so the button sits right after the
+        // line it belongs to instead of at the far end of the left half.
+        let summaryIdeal = measuredWidth(summary, nil)
         if let recovery {
-            widths[recovery] = measuredWidth(
-                recovery,
-                max(side - PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth - spacing, 0)
-            )
+            let fullFits = side >= summaryIdeal + spacing + measuredWidth(recovery, nil)
+            widths[recovery] = measuredWidth(recovery, fullFits ? nil : 0)
         }
         let recoveryWidth = recovery.map { widths[$0] } ?? 0
         let summaryRoom = max(side - gap(recoveryWidth) - recoveryWidth, 0)
-        // With a Reconnect or Retry button the summary takes only the room its
-        // text needs, so the button sits right after the line it belongs to
-        // instead of at the far end of the left half.
         widths[summary] = recoveryWidth > 0
-            ? measuredWidth(summary, min(measuredWidth(summary, nil), summaryRoom))
+            ? measuredWidth(summary, min(summaryIdeal, summaryRoom))
             : measuredWidth(summary, summaryRoom)
 
         let topRow = [summary, recovery, controls, device, volume].compactMap { $0 }
