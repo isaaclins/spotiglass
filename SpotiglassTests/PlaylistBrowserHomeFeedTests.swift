@@ -173,13 +173,77 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
     func testGreetingVariesByHour() {
         let api = MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:])
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!
 
-        func date(hour: Int) -> Date {
-            Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!
+        func greeting(_ hour: Int, _ minute: Int = 0) -> String {
+            let date = calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: hour, minute: minute))!
+            return vm.homeGreeting(now: date, calendar: calendar)
         }
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 8)), "Good morning")
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 14)), "Good afternoon")
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 22)), "Good evening")
+
+        // #464: Home said "Good evening" at 03:31.
+        XCTAssertEqual(greeting(3, 31), "Hello, night owl")
+        XCTAssertEqual(greeting(0, 0), "Hello, night owl")
+        XCTAssertEqual(greeting(4, 59), "Hello, night owl")
+        XCTAssertEqual(greeting(5, 0), "Good morning")
+        XCTAssertEqual(greeting(11, 59), "Good morning")
+        XCTAssertEqual(greeting(12, 0), "Good afternoon")
+        XCTAssertEqual(greeting(17, 59), "Good afternoon")
+        XCTAssertEqual(greeting(18, 0), "Good evening")
+        XCTAssertEqual(greeting(23, 59), "Good evening")
+    }
+
+    func testHomeGreetingScheduleWakesAtEachChange() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!
+        func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+        }
+
+        // #464: Home opened at 23:00 and left on screen must change at midnight, then at 05:00.
+        let entries = Array(HomeGreetingSchedule(calendar: calendar).entries(from: at(9, 23), mode: .normal).prefix(6))
+        XCTAssertEqual(entries, [at(9, 23), at(10, 0), at(10, 5), at(10, 12), at(10, 18), at(11, 0)])
+
+        // A change time itself moves on to the next one.
+        XCTAssertEqual(PlaylistBrowserViewModel.nextHomeGreetingChange(after: at(10, 5), calendar: calendar), at(10, 12))
+
+        let vm = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]), cache: MockBrowsingCache())
+        XCTAssertEqual(vm.homeGreeting(now: entries[0], calendar: calendar), "Good evening")
+        XCTAssertEqual(vm.homeGreeting(now: entries[1], calendar: calendar), "Hello, night owl")
+        XCTAssertEqual(vm.homeGreeting(now: entries[2], calendar: calendar), "Good morning")
+    }
+
+    @MainActor
+    func testHomeGreetingClockStartsOverWhenTheTimeZoneOrClockChanges() {
+        // Review of #479: Home opened in Zurich and carried to New York kept waking at Zurich's
+        // change times, so it missed New York's midnight and kept saying "Good evening".
+        func calendar(_ zone: String) -> Calendar {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: zone)!
+            return calendar
+        }
+        var systemCalendar = calendar("Europe/Zurich")
+        let center = NotificationCenter()
+        let clock = HomeGreetingClock(notificationCenter: center, currentCalendar: { systemCalendar })
+        XCTAssertEqual(clock.generation, 0)
+        XCTAssertEqual(clock.calendar.timeZone.identifier, "Europe/Zurich")
+
+        // 23:00 in New York is 05:00 in Zurich: still evening there, and its next change is New York's midnight.
+        let newYorkEvening = calendar("America/New_York").date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 23))!
+        systemCalendar = calendar("America/New_York")
+        center.post(name: .NSSystemTimeZoneDidChange, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(clock.generation, 1)
+        XCTAssertEqual(clock.calendar.timeZone.identifier, "America/New_York")
+        let next = PlaylistBrowserViewModel.nextHomeGreetingChange(after: newYorkEvening, calendar: clock.calendar)
+        XCTAssertEqual(next, newYorkEvening.addingTimeInterval(3600))
+        let vm = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]), cache: MockBrowsingCache())
+        XCTAssertEqual(vm.homeGreeting(now: newYorkEvening, calendar: clock.calendar), "Good evening")
+        XCTAssertEqual(vm.homeGreeting(now: next, calendar: clock.calendar), "Hello, night owl")
+
+        center.post(name: .NSSystemClockDidChange, object: nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(clock.generation, 2)
     }
 
     func testHomeGreetingUsesPageTitleStyleWhileSectionsUseSectionStyle() {
