@@ -789,6 +789,84 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(player.playbackTime, 0)
     }
 
+    /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
+    /// with B playing and X, Y added comes back as [B, X, Y, C]). The added songs keep their
+    /// place: a later add goes after them, and the next play still carries them.
+    func testAQueuePutBackWithoutItsFirstSongsKeepsTheAddedSongs() {
+        var book = Book()
+        var queue = ["a", "b", "c"].map { Self.row($0) }
+        book.replace(with: queue)
+        Self.add(Self.row("x"), to: &queue, current: 1, book: &book)
+        Self.add(Self.row("y"), to: &queue, current: 1, book: &book)
+        XCTAssertEqual(queue.map(\.title), ["a", "b", "x", "y", "c"])
+
+        book.dropFirst(1)
+
+        XCTAssertEqual(book.addedAhead(of: 0), 1..<3, "x and y are still the added songs")
+        XCTAssertEqual(book.planAdd(Self.row("z"), currentIndex: 0, entryCount: 4).index, 3, "z goes after x and y")
+        XCTAssertEqual(book.rowURI(at: 0, title: "b"), Self.row("b").uri)
+        XCTAssertEqual(book.rowURI(at: 3, title: "c"), Self.row("c").uri)
+
+        var past = Book()
+        past.replace(with: ["a", "b", "c"].map { Self.row($0) }, carryingAdded: 1, after: 0)
+        past.dropFirst(2)
+        XCTAssertNil(past.addedAhead(of: 0), "the added song was before the song that plays on")
+    }
+
+    /// P plays at 0:42. I press X, and press Y while MusicKit still works on X (it already holds
+    /// X's queue). Both are refused. Y gives back P, playing at 0:42, not X, which never played.
+    func testOverlappingRefusedPressesGiveBackWhatLastPlayed() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
+        player.setQueue([songs[0], songs[1]], startingAt: nil)
+        try await player.play()
+        player.playbackTime = 42
+        var starts = AppleMusicStartsInFlight<AppleMusicQueueStart.Previous>()
+
+        _ = starts.begin { .init(of: player) }
+        player.setQueue([songs[2]], startingAt: nil) // X: MusicKit holds it, still working
+        let forY = starts.begin { .init(of: player) }
+        starts.end() // X refused, superseded by Y
+
+        await XCTAssertThrowsRefused(
+            try await AppleMusicQueueStart.start([songs[3]], at: 0, on: player, restoring: forY, isCurrent: { true }),
+            left: .previousQueue(leftOutBefore: 0)
+        )
+        starts.end()
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.playbackTime, 42)
+        XCTAssertNil(starts.point)
+    }
+
+    /// The same, when X played while Y still waited: X is what Y gives back.
+    func testARefusedPressGivesBackAnEarlierPressThatPlayedMeanwhile() {
+        var starts = AppleMusicStartsInFlight<String>()
+        XCTAssertEqual(starts.begin { "P" }, "P")
+        XCTAssertEqual(starts.begin { "X's queue, not played yet" }, "P", "a waiting start's queue is no give-back")
+        starts.end(replacingPointWith: "X")
+        XCTAssertEqual(starts.point, "X")
+        XCTAssertEqual(starts.begin { "Y's queue" }, "X")
+        starts.end()
+        starts.end()
+        XCTAssertNil(starts.point)
+        XCTAssertEqual(starts.begin { "now" }, "now", "with none waiting it reads the player again")
+    }
+
+    /// After a refusal that left nothing loaded, MusicKit still holds the refused song (hidden).
+    /// The next refused press gives back nothing, not that song as "Paused".
+    func testARefusalAfterARefusalWithNothingPlayedLeavesNothingLoaded() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
+        player.setQueue([songs[2]], startingAt: nil) // the hidden refused queue
+
+        await XCTAssertThrowsRefused(
+            try await AppleMusicQueueStart.start([songs[3]], at: 0, on: player, restoring: .nothing, isCurrent: { true }),
+            left: .nothing
+        )
+        XCTAssertEqual(player.commands.last, "stop")
+    }
+
     private func XCTAssertThrowsRefused(
         _ work: @autoclosure () async throws -> Int,
         left: AppleMusicQueueStart.Left,

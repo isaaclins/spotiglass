@@ -433,6 +433,21 @@ struct AppleMusicQueueBook: Equatable {
         }
     }
 
+    /// The queue was set again without its first `count` songs (MusicKit only took it from
+    /// the song that plays on, #476): every position moves up by `count`, and added songs
+    /// before that are gone.
+    mutating func dropFirst(_ count: Int) {
+        guard count > 0 else { return }
+        rows = rows.count > count ? Array(rows.dropFirst(count)) : []
+        rowsByEntryID = [:]
+        if let run = added {
+            let start = max(0, run.start - count)
+            let end = run.start + run.count - count
+            added = end > start ? AddedRun(start: start, count: end - start) : nil
+        }
+        generation &+= 1
+    }
+
     /// `count` added songs now sit right after the current song from position `start` (put
     /// there after shuffle reordered a new queue).
     mutating func markAdded(start: Int, count: Int) {
