@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.21</title>
-            <pubDate>Tue, 10 Nov 2026 23:35:42 +0100</pubDate>
-            <sparkle:version>32</sparkle:version>
-            <sparkle:shortVersionString>0.8.21</sparkle:shortVersionString>
+            <title>0.8.22</title>
+            <pubDate>Tue, 10 Nov 2026 23:49:49 +0100</pubDate>
+            <sparkle:version>33</sparkle:version>
+            <sparkle:shortVersionString>0.8.22</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The sidebar now collapses when there isn't room for it at narrow window widths, so the main content is no longer cut off.
+            <description sparkle:format="plain-text"><![CDATA[• Lyrics now follow the song in the player bar, even when you're browsing the other service.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.21/Spotiglass-0.8.21.zip" length="12928222" type="application/octet-stream" sparkle:edSignature="s6mQKo64P4Un5W0jhue7Wb13hK2H/9ukR2l7NvyCMG4fh7kGIAkS9IAE5CgPWfCvqTGjP/CZUYdMM/ZfHwSOAA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.22/Spotiglass-0.8.22.zip" length="12946167" type="application/octet-stream" sparkle:edSignature="Sw0WRdQx9/cwktUDMdIKIEtZTvERRlyd2Goo9O4bwzZFbLn0lNDjH6PD44PIgXz6z4trDiUbb0Qj6Rzjbn22AA=="/>
         </item>
     </channel>
 </rss>

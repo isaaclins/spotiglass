@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.22] - 2026-11-10
+
+### Fixed
+
+- Lyrics now follow the song in the player bar, even when you're browsing the other service.
+
 ## [0.8.21] - 2026-11-10
 
 ### Fixed
