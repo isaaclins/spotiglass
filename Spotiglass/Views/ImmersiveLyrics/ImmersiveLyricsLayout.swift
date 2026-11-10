@@ -24,4 +24,14 @@ enum ImmersiveLyricsLayout {
         startPoint: .top,
         endPoint: .bottom
     )
+
+    /// Opaque down to the last few points, which fade out: content that runs past the bottom
+    /// of its frame softens away instead of ending in a cut.
+    static var bottomEdgeFade: some View {
+        VStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: SpotiglassDesign.spacingL)
+        }
+    }
 }

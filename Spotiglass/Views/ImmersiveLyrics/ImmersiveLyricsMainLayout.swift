@@ -28,7 +28,10 @@ struct ImmersiveLyricsMainLayout: View {
     var body: some View {
         GeometryReader { geo in
             let topClearance = max(geo.safeAreaInsets.top, ImmersiveLyricsLayout.minimumTopClearance)
-            let bottomPadding = max(SpotiglassDesign.spacingM, geo.safeAreaInsets.bottom)
+            // The reader's size already leaves out the bottom safe area (the player bar,
+            // #474), so this is only the gap above it; adding the inset again left a band of
+            // nothing above the bar.
+            let bottomPadding = SpotiglassDesign.spacingM
             let usableHeight = max(0, geo.size.height - topClearance - bottomPadding)
             let leadingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.leading)
             let trailingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.trailing)
@@ -45,6 +48,14 @@ struct ImmersiveLyricsMainLayout: View {
                             linksToLibrary: !followsOtherService
                         )
                         .frame(width: min(SpotiglassDesign.Layout.lyricsSideColumnMaxWidth, geo.size.width * 0.36), alignment: .leading)
+                        // In a short window Next in Queue runs longer than the room above the
+                        // player bar. The column runs behind the bar now (#474), so the list
+                        // fades out above it like the lyrics instead of showing under the bar.
+                        // It keeps its full height, so the section runs past the frame and
+                        // fades rather than being squeezed out of the column.
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxHeight: usableHeight, alignment: .top)
+                        .mask { ImmersiveLyricsLayout.bottomEdgeFade }
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
                             currentTrack: currentTrack,

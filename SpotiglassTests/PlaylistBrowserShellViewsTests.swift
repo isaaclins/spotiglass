@@ -334,16 +334,71 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         )
         let barFrame = barLyricsButton.convert(barLyricsButton.bounds, to: nil)
         XCTAssertGreaterThan(barFrame.width, 0)
-        XCTAssertFalse(
-            barFrame.intersects(lyricsFrame),
-            "the lyrics cover the player bar: bar \(barFrame), lyrics \(lyricsFrame)"
-        )
 
         // `hitTest` takes a point in the receiver's superview's coordinates.
         let container = try XCTUnwrap(root.superview)
         let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
         let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
         XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics")
+    }
+
+    /// #471, #474: the player bar had a row of its own under the columns, on an opaque strip.
+    /// The sidebar's glass and the lyrics backdrop stopped in a hard line where that row began.
+    /// The columns now run the full height of the window and the bar floats over their bottom
+    /// edge: the split view and the lyrics reach the window's bottom, behind the bar, while a
+    /// click on the bar still reaches the bar.
+    func testTheColumnsAndTheLyricsRunBehindThePlayerBar() async throws {
+        let hosted = try await hostBrowserWithLyricsOpen()
+        let root = hosted.root
+        let windowBottom = root.convert(root.bounds, to: nil).minY
+        let lyricsSurface = try XCTUnwrap(
+            Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
+            "the browser shows no lyrics while they are open"
+        )
+        let barLyricsButton = try XCTUnwrap(
+            Self.allNSButtons(in: root).first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
+                    && !$0.isDescendant(of: lyricsSurface)
+            },
+            "the player bar is gone"
+        )
+        let barFrame = barLyricsButton.convert(barLyricsButton.bounds, to: nil)
+
+        let splitView = try XCTUnwrap(
+            Self.firstView(in: root) { $0 is NSSplitView },
+            "the browser has no split view"
+        )
+        let splitFrame = splitView.convert(splitView.bounds, to: nil)
+        XCTAssertEqual(
+            splitFrame.minY, windowBottom, accuracy: 1,
+            "the sidebar and the page stop above the player bar: split view \(splitFrame), bar \(barFrame)"
+        )
+        XCTAssertLessThan(splitFrame.minY, barFrame.minY, "the player bar has a strip of its own under the columns")
+
+        let lyricsFrame = lyricsSurface.convert(lyricsSurface.bounds, to: nil)
+        XCTAssertEqual(
+            lyricsFrame.minY, windowBottom, accuracy: 1,
+            "the lyrics backdrop stops above the player bar: lyrics \(lyricsFrame), bar \(barFrame)"
+        )
+
+        // The backdrop runs behind the bar, the cover, Next in Queue and the lines don't: they
+        // keep clear of it, so the last line can come to rest above the bar. The lyrics are a
+        // hosting view of their own; everything it draws sits in the views inside it.
+        let lyricsHost = try XCTUnwrap(lyricsSurface.subviews.first, "the lyrics draw nothing")
+        let drawn = Self.allViews(in: lyricsHost).dropFirst().filter { !$0.isHidden && $0.bounds.height > 0 }
+        XCTAssertFalse(drawn.isEmpty, "the lyrics draw nothing")
+        for view in drawn {
+            let frame = view.convert(view.bounds, to: nil)
+            XCTAssertGreaterThanOrEqual(
+                frame.minY, barFrame.maxY,
+                "the lyrics run behind the player bar: \(type(of: view)) \(frame), bar \(barFrame)"
+            )
+        }
+
+        let container = try XCTUnwrap(root.superview)
+        let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
+        let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
+        XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics behind it")
     }
 
     /// #438: with the sidebar, the queue and the player bar usable next to the lyrics, picking
@@ -425,6 +480,10 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             if let found = firstView(in: subview, where: matches) { return found }
         }
         return nil
+    }
+
+    private static func allViews(in view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap { allViews(in: $0) }
     }
 
     private static func allNSButtons(in view: NSView) -> [NSButton] {
