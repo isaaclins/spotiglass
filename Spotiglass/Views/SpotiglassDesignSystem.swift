@@ -339,8 +339,13 @@ enum SpotiglassDesign {
     /// never squeezes it to its 280 pt minimum, so a breakpoint from the minimum left a band
     /// where the window cut off both columns (#459). `sidebarWidth` is the measured width.
     static func playlistSidebarAndDetailMinWidth(sidebarWidth: CGFloat) -> CGFloat {
-        max(sidebarWidth, playlistSidebarMinWidth) + detailColumnMinWidth
+        max(sidebarWidth, playlistSidebarMinWidth) + detailColumnMinWidth + splitViewChromeWidth
     }
+
+    /// What the split view needs beyond its two columns. On macOS 26 it lays out 8 pt wider than
+    /// the sidebar and the detail column together (4 pt past each edge of a window exactly that
+    /// wide); macOS 27 needs none. Counting it everywhere costs 8 pt of sidebar on macOS 27.
+    private static let splitViewChromeWidth: CGFloat = 8
 
     /// The widest the sidebar can be dragged in a browser this wide: the browser stays at least
     /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)`` and, with the queue open,
@@ -349,7 +354,8 @@ enum SpotiglassDesign {
     /// would let a drag make the window narrow without crossing into it, and a narrower window
     /// then closed neither the sidebar nor the queue.
     static func playlistSidebarMaxWidth(browserWidth: CGFloat, isQueueVisible: Bool) -> CGFloat {
-        let others = detailColumnMinWidth + (isQueueVisible ? queuePanelMinWidth + dualSidebarSlack : 0)
+        let others = detailColumnMinWidth + splitViewChromeWidth
+            + (isQueueVisible ? queuePanelMinWidth + dualSidebarSlack : 0)
         return max(playlistSidebarMinWidth, browserWidth - others)
     }
 
@@ -362,13 +368,14 @@ enum SpotiglassDesign {
 
     /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
     /// so neither side ever clips off-screen. Computed from the sidebar's measured width (as
-    /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)``, #459), the queue's minimum and 40 pt
-    /// of slack for dividers and rounding, so a wider sidebar or tuned minimums move it along.
+    /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)``, #459), the queue's minimum and some
+    /// slack for dividers and rounding, so a wider sidebar or tuned minimums move it along. With
+    /// the default sidebar it's 1000 pt, as before.
     static func dualSidebarComfortableMinWidth(sidebarWidth: CGFloat) -> CGFloat {
         playlistSidebarAndDetailMinWidth(sidebarWidth: sidebarWidth) + queuePanelMinWidth + dualSidebarSlack
     }
 
-    private static let dualSidebarSlack: CGFloat = 40
+    private static let dualSidebarSlack: CGFloat = 32
 
     static func glassPanelBorderColor(
         contrast: ColorSchemeContrast,

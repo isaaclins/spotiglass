@@ -98,8 +98,10 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
                 "detail column squeezed next to the sidebar at \(width) pt (sidebar \(sidebarFrame), detail \(detailFrame))"
             )
         }
-        // It collapses only where it doesn't fit, and comes back once it does.
-        XCTAssertEqual(collapsedAt, [660, 640, 620, 640, 660], "collapsed at \(collapsedAt)")
+        // It collapses only where it doesn't fit, and comes back once it does. At 680 the two
+        // columns fit exactly on macOS 27, but macOS 26's split view needs 8 pt more and ran past
+        // both edges there, so 680 collapses too.
+        XCTAssertEqual(collapsedAt, [680, 660, 640, 620, 640, 660], "collapsed at \(collapsedAt)")
 
         // Dragging the sidebar wider stops where the detail column still has its minimum: a
         // drag to 620 in an 800 pt window used to push both columns past the window's edges.

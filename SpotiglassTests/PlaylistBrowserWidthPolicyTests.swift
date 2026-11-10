@@ -11,16 +11,18 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
     func testSidebarCollapseMinimumComesFromTheSidebarsRealWidth() {
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarAndDetailMinWidth(sidebarWidth: 320),
-            320 + SpotiglassDesign.detailColumnMinWidth
+            320 + SpotiglassDesign.detailColumnMinWidth + 8
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarAndDetailMinWidth(sidebarWidth: 410),
-            410 + SpotiglassDesign.detailColumnMinWidth
+            410 + SpotiglassDesign.detailColumnMinWidth + 8
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarAndDetailMinWidth(sidebarWidth: 0),
-            SpotiglassDesign.playlistSidebarMinWidth + SpotiglassDesign.detailColumnMinWidth
+            SpotiglassDesign.playlistSidebarMinWidth + SpotiglassDesign.detailColumnMinWidth + 8
         )
+        // Where the sidebar and the queue stop fitting together didn't move for the default sidebar.
+        XCTAssertEqual(SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: 320), 1_000)
         XCTAssertEqual(
             SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: 410)
                 - SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: 320),
@@ -32,11 +34,11 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
     func testSidebarMaxWidthLeavesRoomForTheColumnsBesideIt() {
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 800, isQueueVisible: false),
-            800 - SpotiglassDesign.detailColumnMinWidth
+            800 - SpotiglassDesign.detailColumnMinWidth - 8
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 1_200, isQueueVisible: true),
-            1_200 - SpotiglassDesign.detailColumnMinWidth - SpotiglassDesign.queuePanelMinWidth - 40
+            1_200 - SpotiglassDesign.detailColumnMinWidth - 8 - SpotiglassDesign.queuePanelMinWidth - 32
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 500, isQueueVisible: false),
@@ -95,7 +97,10 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
             )
         }
         XCTAssertFalse(shrink(from: 900, to: 700).crossedIntoSidebarCollapse)
-        XCTAssertFalse(shrink(from: 700, to: sidebar + SpotiglassDesign.detailColumnMinWidth).crossedIntoSidebarCollapse)
+        // macOS 26's split view takes 8 pt more than its two columns: at 680 it ran 4 pt past
+        // each edge of the window.
+        XCTAssertFalse(shrink(from: 700, to: sidebar + SpotiglassDesign.detailColumnMinWidth + 8).crossedIntoSidebarCollapse)
+        XCTAssertTrue(shrink(from: 700, to: sidebar + SpotiglassDesign.detailColumnMinWidth).crossedIntoSidebarCollapse)
         XCTAssertTrue(shrink(from: 700, to: 660).crossedIntoSidebarCollapse)
         XCTAssertTrue(shrink(from: 700, to: 640).crossedIntoSidebarCollapse)
     }
