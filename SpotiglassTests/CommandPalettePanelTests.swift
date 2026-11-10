@@ -129,7 +129,7 @@ final class CommandPalettePanelTests: XCTestCase {
         XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.togglePlayback))
 
         // One letter still shows the suggestions, so they have to keep up there too.
-        manager.viewModel.query = "d"
+        manager.viewModel.query = "l"
         manager.viewModel.refresh()
         await manager.viewModel.waitForSearchCompletion()
         manager.setLyricsToggleAvailability(true)
@@ -151,8 +151,43 @@ final class CommandPalettePanelTests: XCTestCase {
         viewModel.refresh()
         await viewModel.waitForSearchCompletion()
 
-        XCTAssertEqual(viewModel.sections.map(\.section), [.recentSearches, .quickActions])
+        XCTAssertEqual(viewModel.sections.map(\.section), [.recentSearches])
         XCTAssertEqual(viewModel.sections[0].items.map(\.title), ["daft punk", "Disclosure"])
+
+        // The quick actions narrow to the letter as well: "s" matches Open Settings.
+        viewModel.query = "s"
+        viewModel.refresh()
+        await viewModel.waitForSearchCompletion()
+        XCTAssertEqual(viewModel.sections.map(\.section), [.quickActions])
+        XCTAssertEqual(viewModel.sections[0].items.map(\.id), [CommandPaletteCommandID.openSettings])
+    }
+
+    /// The quick actions stayed unfiltered with one letter typed and the highlight stayed where it
+    /// was: "x" then ↩ toggled playback, and arrowing to Next Track before typing "d" skipped the
+    /// song instead of running the matching recent search.
+    func testTypingALetterNeverRunsAnUnrelatedAction() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.recentSearches = .inMemory(["daft punk"])
+        var ran: [String] = []
+        viewModel.staticItemsProvider = {
+            [CommandPaletteCommandID.togglePlayback, CommandPaletteCommandID.nextTrack].map { id in
+                CommandPaletteItem(id: id, title: id, subtitle: nil, iconSystemName: "command", section: .commands, keywords: []) {
+                    ran.append(id)
+                }
+            }
+        }
+        viewModel.show()
+        viewModel.selectedIndex = 2 // Next Track, below the recent search and Play/Pause
+        viewModel.query = "d"
+        viewModel.queryDidChangeFromTextField()
+        await viewModel.waitForSearchCompletion()
+        XCTAssertEqual(viewModel.visibleItems[viewModel.selectedIndex].title, "daft punk")
+
+        viewModel.query = "x"
+        viewModel.queryDidChangeFromTextField()
+        await viewModel.waitForSearchCompletion()
+        await viewModel.executeSelection()
+        XCTAssertEqual(ran, [])
     }
 
     /// A Play/Pause or Lyrics availability change rebuilt the suggestions and put the highlight
@@ -273,8 +308,14 @@ final class CommandPalettePanelTests: XCTestCase {
         viewModel.testingReplaceSections([(.tracks, (0 ..< 30).map(track)), (.showAll, [showAll])])
 
         let controller = NSHostingController(rootView: CommandPaletteView(viewModel: viewModel).environmentObject(store))
-        let smallest = CGSize(width: SpotiglassApp.windowMinWidth, height: SpotiglassApp.windowMinHeight)
-        for window in [CGSize(width: 900, height: 450), CGSize(width: 640, height: 400), smallest] {
+        // The palette sits below the toolbar (52 pt), so it gets that much less than the window.
+        let toolbar: CGFloat = 52
+        let windows = [
+            CGSize(width: 900, height: 450),
+            CGSize(width: 640, height: 400),
+            CGSize(width: SpotiglassApp.windowMinWidth, height: SpotiglassApp.windowMinHeight)
+        ]
+        for window in windows.map({ CGSize(width: $0.width, height: $0.height - toolbar) }) {
             let fitted = controller.sizeThatFits(in: window)
             XCTAssertLessThanOrEqual(fitted.height, window.height, "palette taller than a \(window) window")
         }

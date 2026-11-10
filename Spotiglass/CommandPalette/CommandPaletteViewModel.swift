@@ -129,13 +129,11 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// What the palette offers before a search starts: recent searches, then quick actions, so
     /// opening it never shows an empty field alone (#472). With one letter typed (below the
-    /// search minimum) the recent searches narrow to those starting with it, and the panel keeps
-    /// its list instead of collapsing until the second letter.
+    /// search minimum) both narrow to what starts with it, so the panel keeps its list until the
+    /// second letter, and ↩ never runs an action the letter doesn't point to.
     func idleSections(prefix: String = "") -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
         var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
-        let matching = recentSearches.queries.filter {
-            prefix.isEmpty || $0.range(of: prefix, options: [.caseInsensitive, .anchored, .diacriticInsensitive]) != nil
-        }
+        let matching = recentSearches.queries.filter { Self.matches($0, prefix: prefix) }
         let recents = matching.map { recent in
             CommandPaletteItem(
                 id: "palette.recent.\(recent)",
@@ -153,21 +151,46 @@ final class CommandPaletteViewModel: ObservableObject {
             built.append((.recentSearches, recents))
         }
         let commands = staticItemsProvider()
-        let quickActions = Self.quickActionCommandIDs.compactMap { id in commands.first { $0.id == id } }
+        let quickActions = Self.quickActionCommandIDs
+            .compactMap { id in commands.first { $0.id == id } }
+            .filter { action in
+                prefix.isEmpty
+                    || ([action.title] + action.keywords)
+                        .flatMap { $0.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) }
+                        .contains { Self.matches(String($0), prefix: prefix) }
+            }
         if !quickActions.isEmpty {
             built.append((.quickActions, quickActions))
         }
         return built
     }
 
-    /// Rebuilds the suggestions and keeps the highlight on the same row when it is still listed,
-    /// so a Play/Pause or Lyrics availability change never moves it under the user.
-    private func showIdleSections(prefix: String) {
-        let previous = visibleItems.indices.contains(selectedIndex) ? visibleItems[selectedIndex].id : nil
+    private static func matches(_ text: String, prefix: String) -> Bool {
+        prefix.isEmpty || text.range(of: prefix, options: [.caseInsensitive, .anchored, .diacriticInsensitive]) != nil
+    }
+
+    /// Rebuilds the suggestions. Typing puts the highlight back on the first row; a refresh
+    /// because Play/Pause or Lyrics availability changed keeps it on the same row when that row
+    /// is still listed, so it never moves under the user.
+    private func showIdleSections(prefix: String, keepingSelection: Bool = false) {
+        let previous = keepingSelection && visibleItems.indices.contains(selectedIndex)
+            ? visibleItems[selectedIndex].id : nil
         sections = idleSections(prefix: prefix)
         errorText = nil
         isLoading = false
         selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
+    }
+
+    /// Rebuilds what the panel lists after the service's abilities changed (Play/Pause, Lyrics)
+    /// without moving the highlight off a row that is still there.
+    func refreshListedCommands() {
+        guard isPresented else { return }
+        if showsSuggestions {
+            searchTask?.cancel()
+            showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines), keepingSelection: true)
+        } else if currentScope == .commands {
+            refresh()
+        }
     }
 
     /// True while the songs scope shows suggestions instead of a search: the field is empty or
@@ -180,7 +203,7 @@ final class CommandPaletteViewModel: ObservableObject {
     func clearRecentSearches() {
         recentSearches.clear()
         guard showsSuggestions else { return }
-        showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines))
+        showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines), keepingSelection: true)
     }
 
     /// Puts a recent search back into the field, keeping the selected filter.
