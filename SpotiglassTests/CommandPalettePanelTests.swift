@@ -129,6 +129,74 @@ final class CommandPalettePanelTests: XCTestCase {
         XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.togglePlayback))
     }
 
+    /// One letter is below the search minimum, so the list emptied and the panel collapsed
+    /// between the suggestions and the first results. It now keeps the suggestions up, with the
+    /// recent searches narrowed to that letter.
+    func testOneLetterKeepsTheSuggestionsUp() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.recentSearches = .inMemory(["daft punk", "midnight city", "Disclosure"])
+        viewModel.staticItemsProvider = { [unowned self] in
+            [command(CommandPaletteCommandID.openSettings, title: "Open Settings")]
+        }
+        viewModel.show()
+        viewModel.query = "d"
+        viewModel.refresh()
+        await viewModel.waitForSearchCompletion()
+
+        XCTAssertEqual(viewModel.sections.map(\.section), [.recentSearches, .quickActions])
+        XCTAssertEqual(viewModel.sections[0].items.map(\.title), ["daft punk", "Disclosure"])
+    }
+
+    /// A Play/Pause or Lyrics availability change rebuilt the suggestions and put the highlight
+    /// back on the first row, so ↩ ran something other than the row the user had arrowed to.
+    func testRefreshingTheSuggestionsKeepsTheHighlightedRow() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.setPlaybackToggleAvailability(true)
+        manager.viewModel.show()
+        let ids = manager.viewModel.visibleItems.map(\.id)
+        let settings = try? XCTUnwrap(ids.firstIndex(of: CommandPaletteCommandID.openSettings))
+        manager.viewModel.selectedIndex = settings ?? 0
+        XCTAssertGreaterThan(manager.viewModel.selectedIndex, 0)
+
+        manager.setLyricsToggleAvailability(true)
+        await manager.viewModel.waitForSearchCompletion()
+
+        let items = manager.viewModel.visibleItems
+        XCTAssertEqual(items[manager.viewModel.selectedIndex].id, CommandPaletteCommandID.openSettings)
+    }
+
+    func testRecentSearchesCanBeCleared() {
+        let defaults = makeEphemeralDefaults()
+        let recents = CommandPaletteRecentSearches.userDefaults(defaults)
+        recents.record("daft punk")
+        let viewModel = CommandPaletteViewModel()
+        viewModel.recentSearches = recents
+        viewModel.show()
+        XCTAssertEqual(viewModel.sections.first?.section, .recentSearches)
+
+        viewModel.clearRecentSearches()
+
+        XCTAssertEqual(recents.queries, [])
+        XCTAssertNil(defaults.stringArray(forKey: CommandPaletteRecentSearches.defaultsKey))
+        XCTAssertFalse(viewModel.sections.contains { $0.section == .recentSearches })
+    }
+
+    func testTheClearButtonOnRecentSearchesForgetsThem() throws {
+        let recents = CommandPaletteRecentSearches.inMemory(["daft punk"])
+        let viewModel = CommandPaletteViewModel()
+        viewModel.recentSearches = recents
+        viewModel.show()
+        let list = CommandPaletteSectionedListView(
+            viewModel: viewModel, sections: viewModel.sections, accessibilityReduceMotion: true
+        )
+
+        try list.inspect().find(CommandPaletteClearRecentsButton.self).find(ViewType.Button.self).tap()
+
+        XCTAssertEqual(recents.queries, [])
+        XCTAssertFalse(viewModel.sections.contains { $0.section == .recentSearches })
+    }
+
     func testCommandsAndOneLetterQueriesAreNotRecorded() async {
         let viewModel = CommandPaletteViewModel()
         let recents = CommandPaletteRecentSearches.inMemory()

@@ -70,14 +70,20 @@ struct CommandPaletteSectionedListView: View {
     private func sectionStack(_ chunks: [(section: CommandPaletteSection, rows: [Row])]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { sectionIndex, chunk in
-                // Title case, no letter spacing: section headers no longer render in all caps.
-                Text(chunk.section.displayLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, SpotiglassDesign.spacingS)
-                    .padding(.top, sectionIndex == 0 ? SpotiglassDesign.spacingXS : SpotiglassDesign.spacingS)
-                    .padding(.bottom, SpotiglassDesign.spacingXXS)
-                    .accessibilityAddTraits(.isHeader)
+                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
+                    // Title case, no letter spacing: section headers no longer render in all caps.
+                    Text(chunk.section.displayLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 0)
+                    if chunk.section == .recentSearches {
+                        CommandPaletteClearRecentsButton(viewModel: viewModel)
+                    }
+                }
+                .padding(.horizontal, SpotiglassDesign.spacingS)
+                .padding(.top, sectionIndex == 0 ? SpotiglassDesign.spacingXS : SpotiglassDesign.spacingS)
+                .padding(.bottom, SpotiglassDesign.spacingXXS)
                 ForEach(chunk.rows, id: \.flatIndex) { row in
                     resultRow(row)
                 }
@@ -204,5 +210,22 @@ struct CommandPaletteRowLeadingView: View {
                 .frame(width: SpotiglassDesign.Layout.smallArtworkSize)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+/// Forgets the recent searches, from the heading of their section.
+struct CommandPaletteClearRecentsButton: View {
+    @ObservedObject var viewModel: CommandPaletteViewModel
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(SpotiglassL10n.string("palette.recentSearches.clear")) {
+            viewModel.clearRecentSearches()
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(isHovering ? .primary : .secondary)
+        .onHover { isHovering = $0 }
+        .accessibilityLabel(SpotiglassL10n.string("palette.recentSearches.clear.accessibility"))
     }
 }

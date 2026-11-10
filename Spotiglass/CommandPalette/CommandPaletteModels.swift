@@ -164,27 +164,39 @@ final class CommandPaletteRecentSearches {
 
     private let load: () -> [String]
     private let save: ([String]) -> Void
+    private let erase: () -> Void
 
-    private init(load: @escaping () -> [String], save: @escaping ([String]) -> Void) {
+    private init(
+        load: @escaping () -> [String],
+        save: @escaping ([String]) -> Void,
+        erase: @escaping () -> Void
+    ) {
         self.load = load
         self.save = save
+        self.erase = erase
     }
 
     static func inMemory(_ initial: [String] = []) -> CommandPaletteRecentSearches {
         var stored = initial
-        return CommandPaletteRecentSearches(load: { stored }, save: { stored = $0 })
+        return CommandPaletteRecentSearches(load: { stored }, save: { stored = $0 }, erase: { stored = [] })
     }
 
     /// Read on every access, so every window shows the same list.
     static func userDefaults(_ defaults: UserDefaults) -> CommandPaletteRecentSearches {
         CommandPaletteRecentSearches(
             load: { defaults.stringArray(forKey: defaultsKey) ?? [] },
-            save: { defaults.set($0, forKey: defaultsKey) }
+            save: { defaults.set($0, forKey: defaultsKey) },
+            erase: { defaults.removeObject(forKey: defaultsKey) }
         )
     }
 
     var queries: [String] {
         Array(load().prefix(Self.capacity))
+    }
+
+    /// Forgets every recent search (the "Clear" button on the section).
+    func clear() {
+        erase()
     }
 
     /// Moves `query` to the front, once, ignoring case and surrounding spaces.

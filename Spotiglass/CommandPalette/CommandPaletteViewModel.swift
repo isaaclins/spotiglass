@@ -127,11 +127,16 @@ final class CommandPaletteViewModel: ObservableObject {
         rateLimitCooldownUntil = .distantPast
     }
 
-    /// What the palette offers before anything is typed: recent searches, then quick actions,
-    /// so opening it never shows an empty field alone (#472).
-    func idleSections() -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
+    /// What the palette offers before a search starts: recent searches, then quick actions, so
+    /// opening it never shows an empty field alone (#472). With one letter typed (below the
+    /// search minimum) the recent searches narrow to those starting with it, and the panel keeps
+    /// its list instead of collapsing until the second letter.
+    func idleSections(prefix: String = "") -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
         var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
-        let recents = recentSearches.queries.map { recent in
+        let matching = recentSearches.queries.filter {
+            prefix.isEmpty || $0.range(of: prefix, options: [.caseInsensitive, .anchored, .diacriticInsensitive]) != nil
+        }
+        let recents = matching.map { recent in
             CommandPaletteItem(
                 id: "palette.recent.\(recent)",
                 title: recent,
@@ -153,6 +158,23 @@ final class CommandPaletteViewModel: ObservableObject {
             built.append((.quickActions, quickActions))
         }
         return built
+    }
+
+    /// Rebuilds the suggestions and keeps the highlight on the same row when it is still listed,
+    /// so a Play/Pause or Lyrics availability change never moves it under the user.
+    private func showIdleSections(prefix: String) {
+        let previous = visibleItems.indices.contains(selectedIndex) ? visibleItems[selectedIndex].id : nil
+        sections = idleSections(prefix: prefix)
+        errorText = nil
+        isLoading = false
+        selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
+    }
+
+    func clearRecentSearches() {
+        recentSearches.clear()
+        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard currentScope == .songs, trimmed.count < Self.minimumPaletteSearchQueryCharacters else { return }
+        showIdleSections(prefix: trimmed)
     }
 
     /// Puts a recent search back into the field, keeping the selected filter.
@@ -361,20 +383,9 @@ final class CommandPaletteViewModel: ObservableObject {
             selectedIndex = 0
 
         case .songs:
-            guard !trimmed.isEmpty else {
-                resetSongSearchCache()
-                sections = idleSections()
-                errorText = nil
-                isLoading = false
-                selectedIndex = 0
-                return
-            }
             guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else {
                 resetSongSearchCache()
-                sections = []
-                errorText = nil
-                isLoading = false
-                selectedIndex = 0
+                showIdleSections(prefix: trimmed)
                 return
             }
             await runSongScopeSearch(query: trimmed)
