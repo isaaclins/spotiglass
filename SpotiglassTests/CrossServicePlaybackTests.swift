@@ -17,11 +17,11 @@ final class CrossServicePlaybackTests: XCTestCase {
     }
 
     /// Spotify's player, connected and paused on Midnight City (the handover paused it).
-    private func pausedSpotify() -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
+    private func pausedSpotify(api: MockPlaybackAPI = MockPlaybackAPI()) -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
         _ = NSApplication.shared
         let commander = MockWebPlaybackCommander()
         let host = SpotiglassPlaybackHost(
-            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: commander)
         )
         let playback = host.playbackViewModel
         playback.deviceID = "device-1"
@@ -371,6 +371,176 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertTrue(playback.audiblePlayer === appleMusic)
     }
 
+    /// The report (#486): Piranguera from Apple Music in the bar, Spotify on screen paused on
+    /// Midnight City. The bar's Lyrics button and View › Show Lyrics opened Midnight City's
+    /// lyrics. They open the lyrics of the song in the bar, playing or paused.
+    func testTheLyricsFollowTheSongInTheBarNotTheOnScreenService() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify) // ⌃2
+        let playback = spotify.playbackViewModel
+        let manager = wirePalette(to: playback)
+        manager.bindPlaybackReadiness(to: playback)
+        // A song of its own: the lyrics cache is app-wide.
+        let piranguera = Self.song("Piranguera", uri: "applemusic:song:piranguera-\(UUID().uuidString)", positionMilliseconds: 25_000)
+        appleMusic.setConnectionState(.playing(piranguera))
+
+        // The Lyrics view in the main window loads the song in the bar while it plays.
+        var looked: [String] = []
+        let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+        defer { ViewTestHost.tearDownAll() }
+        try await waitUntil { !looked.isEmpty }
+        XCTAssertEqual(looked, ["Piranguera"], "not Midnight City, Spotify's paused song on screen")
+
+        // Pause from the bar: the bar stays on Piranguera (#468), and so do the lyrics.
+        _ = playback.audiblePlayer.requestTogglePlayPause()
+        await appleMusic.playPauseCommandTail?.value
+        player.advance(by: 1)
+        appleMusic.setConnectionState(.paused(piranguera))
+        XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar shows Piranguera")
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed when Piranguera paused")
+        XCTAssertEqual(looked, ["Piranguera"], "the paused lyrics went to another song")
+        lyricsOverlay.presentedBinding {}.wrappedValue = false
+        lyricsOverlay.presentedBinding {}.wrappedValue = true
+        XCTAssertTrue(lyricsOverlay.isPresented, "the bar's Lyrics button doesn't open Piranguera's paused lyrics")
+
+        // View › Show Lyrics follows the bar too, even with no Spotify song to fall back on.
+        XCTAssertTrue(manager.canToggleLyrics)
+        playback.setConnectionState(.paused(nil))
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+        XCTAssertTrue(manager.canToggleLyrics, "Show Lyrics opens Piranguera's lyrics")
+        lyricsOverlay.presentedBinding {}.wrappedValue = false
+        lyricsOverlay.presentedBinding {}.wrappedValue = true
+        XCTAssertTrue(lyricsOverlay.isPresented, "the bar's Lyrics button opens Piranguera's lyrics")
+    }
+
+    /// Starting a Spotify song while the lyrics show Apple Music's paused Piranguera: Spotify is
+    /// the one you hear at once, but its song only comes when Spotify's page reports it. The
+    /// lyrics used to close in that moment. They wait for the song, like the bar, then show it,
+    /// and Hide Lyrics keeps working meanwhile. A play that fails or gives up waiting ends the
+    /// wait, and the lyrics close.
+    func testStartingASongOnScreenKeepsTheLyricsOpen() async throws {
+        enum Ending { case reported, fails, timesOut }
+        let runs: [(start: PlaybackConnectionState, ending: Ending)] = [
+            (.paused(nil), .reported),
+            (.ready(deviceID: "device-1"), .reported), // connected after launch, nothing loaded
+            (.paused(nil), .fails),
+            (.paused(nil), .timesOut),
+        ]
+        for (start, ending) in runs {
+            let label = "\(start), \(ending)"
+            let api = MockPlaybackAPI()
+            if ending == .fails { api.playErrors = [URLError(.notConnectedToInternet)] }
+            let (spotify, _) = pausedSpotify(api: api)
+            let player = ScriptedAppleMusicPlayer()
+            let hosts = hosts(spotify: spotify, player: player)
+            hosts.gate(activeService: .appleMusic)
+            let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+            hosts.gate(activeService: .spotify)
+            let playback = spotify.playbackViewModel
+            let piranguera = Self.song("Piranguera", uri: "applemusic:song:piranguera-\(UUID().uuidString)", positionMilliseconds: 25_000)
+            appleMusic.setConnectionState(.playing(piranguera))
+            _ = playback.audiblePlayer.requestTogglePlayPause()
+            await appleMusic.playPauseCommandTail?.value
+            player.advance(by: 1)
+            appleMusic.setConnectionState(.paused(piranguera))
+            playback.setConnectionState(start)
+            XCTAssertTrue(playback.audiblePlayer === appleMusic, label)
+
+            var looked: [String] = []
+            let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+            let manager = wirePalette(
+                to: playback,
+                lyricsPresented: lyricsOverlay.presentedBinding {}
+            )
+            manager.bindPlaybackReadiness(to: playback)
+            try await waitUntil { looked == ["Piranguera"] }
+
+            // Play a Spotify song from the palette.
+            let strobeURI = "spotify:track:strobe-\(UUID().uuidString)"
+            let play = Task { await playback.play(uri: strobeURI) }
+            try await waitUntil {
+                if case .error = playback.connectionState { return true }
+                return playback.pendingPlayTransition != nil
+            }
+            if ending == .fails {
+                await play.value
+                try await waitUntil { !lyricsOverlay.isPresented }
+                XCTAssertFalse(lyricsOverlay.isPresented, "the play failed: no song to show the lyrics of, \(label)")
+                ViewTestHost.tearDownAll()
+                continue
+            }
+            XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too, \(label)")
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way, \(label)")
+            XCTAssertEqual(lyricsOverlay.lyricsModel?.phase, .loading, "the lyrics wait for the song, like the bar, \(label)")
+            XCTAssertTrue(manager.isLyricsToggleAllowed, "Hide Lyrics doesn't work while the lyrics wait, \(label)")
+            await play.value
+
+            if ending == .timesOut {
+                // What the session does when no report came in time (`pendingPlayURITimeout`).
+                playback.clearPendingPlay()
+                try await waitUntil { !lyricsOverlay.isPresented }
+                XCTAssertFalse(lyricsOverlay.isPresented, "the wait for the song never ended, \(label)")
+                ViewTestHost.tearDownAll()
+                continue
+            }
+
+            // Spotify's page reports the song.
+            playback.handle(.stateChanged(Self.song("Strobe", uri: strobeURI), isPaused: false, nextTracks: []))
+            try await waitUntil { looked.last == "Strobe" }
+            XCTAssertEqual(looked, ["Piranguera", "Strobe"], label)
+            XCTAssertNil(playback.pendingPlayTransition, "the report is the song the play asked for, \(label)")
+            XCTAssertTrue(lyricsOverlay.isPresented, label)
+            ViewTestHost.tearDownAll()
+        }
+    }
+
+    /// The lyrics view as the main window shows it: the overlay layer on the browser's
+    /// (on-screen) player, opened.
+    private func hostLyricsOverlay(
+        onScreenPlayer playback: PlaybackSessionViewModel,
+        lookedUp: @escaping (String) -> Void
+    ) throws -> LyricsOverlayController {
+        let settings = try ViewTestHost.makeSettingsStore()
+        let lyricsOverlay = LyricsOverlayController()
+        var willOpen = 0
+        lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
+        XCTAssertFalse(lyricsOverlay.isPresented, "the lyrics opened with no song to show")
+        XCTAssertEqual(willOpen, 0, "a refused open saved the playlist's scroll position")
+        lyricsOverlay.attach(
+            playback: playback,
+            queue: QueueViewModel(provider: playback.provider, playbackSession: playback),
+            lyrics: ImmersiveLyricsViewModel(fetchLyrics: { track in
+                lookedUp(track.name)
+                return .instrumental
+            }),
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        // What the bar's Lyrics button and View › Show Lyrics toggle.
+        lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
+        lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
+        XCTAssertEqual(willOpen, 1, "opening the lyrics again saved the playlist's scroll position again")
+        XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics didn't open for the song in the bar")
+        ViewTestHost.host(
+            LyricsOverlayLayer(lyricsOverlay: lyricsOverlay, keymapStore: CommandPaletteKeymapStore(settingsStore: settings))
+                .environmentObject(settings),
+            size: CGSize(width: 960, height: 640)
+        )
+        return lyricsOverlay
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<80 where !condition() {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
     /// The mirror: Spotify played, Apple Music is on screen with its own paused song. After
     /// Spotify pauses, the bar stays on Spotify's song, and Play resumes it, not Apple Music's.
     func testAppleMusicsBarStaysOnSpotifysPausedSong() async throws {
@@ -527,7 +697,10 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertEqual(spotify.playbackViewModel.service, .spotify)
     }
 
-    private func wirePalette(to playback: PlaybackSessionViewModel) -> CommandPaletteManager {
+    private func wirePalette(
+        to playback: PlaybackSessionViewModel,
+        lyricsPresented: Binding<Bool> = .constant(false)
+    ) -> CommandPaletteManager {
         let manager = CommandPaletteManager()
         PlaylistBrowserCommandPaletteConfiguration.apply(
             to: manager,
@@ -545,7 +718,7 @@ final class CrossServicePlaybackTests: XCTestCase {
                 syncUnifiedRefreshRouting: {}
             ),
             queueVisible: .constant(false),
-            lyricsPresented: .constant(false)
+            lyricsPresented: lyricsPresented
         )
         return manager
     }

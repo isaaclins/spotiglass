@@ -78,6 +78,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The other service's repeat mode, kept by ``SpotiglassPlaybackHosts``: the Playback menu
     /// shows the repeat of the music you hear.
     @PublishedWhenChanged var otherServiceRepeatMode: MusicRepeatMode = .off
+    /// Whether the other service's player has a song lyrics can be loaded for, kept by
+    /// ``SpotiglassPlaybackHosts``: View › Show Lyrics follows the song in the bar (#486).
+    @PublishedWhenChanged var otherServiceHasLyrics = false
     /// Whether the other service's player takes repeat changes
     /// (``isTransportMutationReady``), kept by ``SpotiglassPlaybackHosts``.
     @PublishedWhenChanged var isOtherServiceTransportMutationReady = false

@@ -7,6 +7,9 @@ struct ImmersiveLyricsView: View {
     let navigateToArtist: (ArtistTapTarget) -> Void
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let onDismiss: () -> Void
+    /// The bar shows the other service's song (#486): its queue, artists and album are not in
+    /// the library on screen, so the lyrics show the song without them.
+    var followsOtherService = false
 
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -59,9 +62,20 @@ struct ImmersiveLyricsView: View {
             if !Self.showsLyricsList(phase) { hasPlacedInitialFocus = false }
             placeInitialFocusIfReady()
         }
-        .task(id: currentTrack?.uri) {
+        .task(id: isAwaitingSong ? Self.awaitingSongTaskID : currentTrack?.uri) {
             guard let track = currentTrack else {
-                onDismiss()
+                // Starting music on the on-screen service makes it the one you hear before its
+                // song arrives (#486): the lyrics wait for that song instead of closing. A play
+                // that fails or times out ends the wait, and the lyrics close.
+                if isAwaitingSong {
+                    lyricsModel.waitForTrack()
+                } else {
+                    onDismiss()
+                }
+                return
+            }
+            guard !followsOtherService else {
+                await lyricsModel.load(track: track)
                 return
             }
             async let lyricsLoad: Void = lyricsModel.load(track: track)
@@ -115,6 +129,15 @@ struct ImmersiveLyricsView: View {
         playbackViewModel.currentLyricTrack
     }
 
+    /// A play started on this player is on its way and nothing is loaded yet.
+    private var isAwaitingSong: Bool {
+        playbackViewModel.connectionState.currentTrack == nil
+            && playbackViewModel.pendingPlayTransition != nil
+    }
+
+    /// Not a song URI: the lyrics task runs again when the wait for a song starts or ends.
+    private static let awaitingSongTaskID = "awaiting-song"
+
     /// Follows each new position from the player; the session publishes only track and state
     /// changes (#409).
     private var lyricsMainLayout: some View {
@@ -131,6 +154,7 @@ struct ImmersiveLyricsView: View {
             navigateToArtist: navigateToArtist,
             navigateToAlbum: navigateToAlbum,
             currentTrack: currentTrack,
+            followsOtherService: followsOtherService,
             positionMs: positionMs,
             reduceMotion: reduceMotion,
             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
