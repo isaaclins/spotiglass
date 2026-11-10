@@ -190,7 +190,11 @@ struct PlaylistBrowserView: View {
                 }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
-                    ideal: SpotiglassDesign.sidebarWidth
+                    ideal: SpotiglassDesign.sidebarWidth,
+                    max: SpotiglassDesign.playlistSidebarMaxWidth(
+                        browserWidth: browserContentWidth,
+                        isQueueVisible: isQueueVisible
+                    )
                 )
             } detail: {
                 PlaylistBrowserDetailWithQueueSplit(

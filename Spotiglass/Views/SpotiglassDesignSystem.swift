@@ -342,6 +342,14 @@ enum SpotiglassDesign {
         max(sidebarWidth, playlistSidebarMinWidth) + detailColumnMinWidth
     }
 
+    /// The widest the sidebar can be dragged in a browser this wide: what's left still holds the
+    /// detail column, and the queue when it's open, at their minimums. Without a limit a drag
+    /// pushed the split view past the window and cut off both sides (#459).
+    static func playlistSidebarMaxWidth(browserWidth: CGFloat, isQueueVisible: Bool) -> CGFloat {
+        let others = detailColumnMinWidth + (isQueueVisible ? queuePanelMinWidth : 0)
+        return max(playlistSidebarMinWidth, browserWidth - others)
+    }
+
     static let queuePanelMaxWidth: CGFloat = 420
 
     /// The narrowest the browser gets while the queue panel is open: the detail column and the

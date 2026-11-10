@@ -28,6 +28,22 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
         )
     }
 
+    /// A dragged sidebar leaves the detail column (and an open queue) their minimums (#459).
+    func testSidebarMaxWidthLeavesRoomForTheColumnsBesideIt() {
+        XCTAssertEqual(
+            SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 800, isQueueVisible: false),
+            800 - SpotiglassDesign.detailColumnMinWidth
+        )
+        XCTAssertEqual(
+            SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 1_200, isQueueVisible: true),
+            1_200 - SpotiglassDesign.detailColumnMinWidth - SpotiglassDesign.queuePanelMinWidth
+        )
+        XCTAssertEqual(
+            SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 500, isQueueVisible: false),
+            SpotiglassDesign.playlistSidebarMinWidth
+        )
+    }
+
     /// The window from #459: the sidebar keeps its 320 pt while the window shrinks from 700 to
     /// 640, where it and the detail column's 360 pt no longer fit. The sidebar has to collapse
     /// there, not only below 280 + 360.

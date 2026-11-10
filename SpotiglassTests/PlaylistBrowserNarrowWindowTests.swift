@@ -100,6 +100,28 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         }
         // It collapses only where it doesn't fit, and comes back once it does.
         XCTAssertEqual(collapsedAt, [660, 640, 620, 640, 660], "collapsed at \(collapsedAt)")
+
+        // Dragging the sidebar wider stops where the detail column still has its minimum: a
+        // drag to 620 in an 800 pt window used to push both columns past the window's edges.
+        window.setContentSize(CGSize(width: 800, height: 600))
+        controller.view.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        let split = try XCTUnwrap(Self.splitView(in: controller.view))
+        split.setPosition(620, ofDividerAt: 0)
+        controller.view.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        let sidebar = try XCTUnwrap(split.arrangedSubviews.first)
+        let detail = try XCTUnwrap(split.arrangedSubviews.last)
+        let bounds = controller.view.bounds
+        let sidebarFrame = sidebar.convert(sidebar.bounds, to: controller.view)
+        let detailFrame = detail.convert(detail.bounds, to: controller.view)
+        XCTAssertEqual(bounds.width, 800, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(sidebarFrame.minX, bounds.minX - 0.5, "sidebar cut off after the drag")
+        XCTAssertLessThanOrEqual(detailFrame.maxX, bounds.maxX + 0.5, "detail column cut off after the drag")
+        XCTAssertGreaterThanOrEqual(
+            detailFrame.maxX - sidebarFrame.maxX, SpotiglassDesign.detailColumnMinWidth - 0.5,
+            "detail column squeezed after the drag (sidebar \(sidebarFrame), detail \(detailFrame))"
+        )
     }
 
     private static func splitView(in view: NSView) -> NSSplitView? {
