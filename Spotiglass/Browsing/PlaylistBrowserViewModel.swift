@@ -32,6 +32,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var savedTrackStates: [String: Bool] = [:]
     /// Library state keyed by album ID, for providers that can save albums.
     @Published internal(set) var savedAlbumStates: [String: Bool] = [:]
+    /// The playlist whose header should start editing its name when it shows
+    /// (``openPlaylistForNameEditing(_:)``). The header clears it once it has.
+    @Published var playlistNameEditRequestID: String?
     /// The playlist whose "Delete Playlist" confirmation is showing.
     @Published var playlistPendingDeletion: MusicPlaylistSummary?
     /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).

@@ -326,7 +326,7 @@ struct TrackListRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.spotiglassTextLink)
                     .lineLimit(1)
                 }
             }

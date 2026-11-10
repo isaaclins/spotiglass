@@ -284,6 +284,8 @@ struct CatalogSearchView: View {
                     CatalogSearchArtistCard(artist: artist) {
                         Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
                     }
+                    // The artist page's own menu (#478).
+                    .collectionContextMenu(.pinnable(.artist(artist)), browserViewModel: viewModel)
                 }
             }
         }
@@ -294,26 +296,13 @@ struct CatalogSearchView: View {
             HomeSectionHeader(title: CatalogSearchCategory.albums.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .albums) {
                 ForEach(albums) { album in
-                    let subtitle = album.artists.joined(separator: ", ")
-                    HomeMediaCardView(
-                        card: HomeMediaCard(
-                            id: album.id,
-                            title: album.name,
-                            subtitle: subtitle,
-                            artworkURL: album.imageURL,
-                            destination: .album(
-                                id: album.id,
-                                title: album.name,
-                                subtitle: subtitle,
-                                artworkURL: album.imageURL
-                            )
-                        )
-                    ) {
+                    let card = HomeMediaCard(album: album)
+                    HomeMediaCardView(card: card, browserViewModel: viewModel, openArtist: openArtist) {
                         Task {
                             await viewModel.selectAlbum(
                                 id: album.id,
                                 displayTitle: album.name,
-                                displaySubtitle: subtitle,
+                                displaySubtitle: card.subtitle,
                                 artworkURL: album.imageURL,
                                 origin: .extend
                             )
@@ -330,19 +319,19 @@ struct CatalogSearchView: View {
             cardLayout(isFocused: searchViewModel.category == .playlists) {
                 ForEach(playlists) { playlist in
                     HomeMediaCardView(
-                        card: HomeMediaCard(
-                            id: playlist.id,
-                            title: playlist.name,
-                            subtitle: playlist.ownerName,
-                            artworkURL: playlist.imageURL,
-                            destination: .playlist(id: playlist.id)
-                        )
+                        card: HomeMediaCard(playlist: playlist, subtitle: playlist.ownerName),
+                        browserViewModel: viewModel,
+                        openArtist: openArtist
                     ) {
                         Task { await viewModel.selectPlaylist(summary: playlist, origin: .extend) }
                     }
                 }
             }
         }
+    }
+
+    private func openArtist(_ artist: MusicArtistRef) {
+        Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
     }
 
     /// `all` previews each type in a horizontal row; a focused pill spreads the

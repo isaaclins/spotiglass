@@ -200,8 +200,41 @@ struct MusicAlbum: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let artists: [String]
+    /// The artists by ID when the service gave them, so a card can link each one (#478).
+    let artistRefs: [MusicArtistRef]
     let imageURL: URL?
     let uri: String
+
+    init(
+        id: String,
+        name: String,
+        artists: [String],
+        artistRefs: [MusicArtistRef] = [],
+        imageURL: URL?,
+        uri: String
+    ) {
+        self.id = id
+        self.name = name
+        self.artists = artists
+        self.artistRefs = artistRefs
+        self.imageURL = imageURL
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, artists, artistRefs, imageURL, uri
+    }
+
+    /// Albums cached before `artistRefs` existed decode with none.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        artists = try c.decode([String].self, forKey: .artists)
+        artistRefs = try c.decodeIfPresent([MusicArtistRef].self, forKey: .artistRefs) ?? []
+        imageURL = try c.decodeIfPresent(URL.self, forKey: .imageURL)
+        uri = try c.decode(String.self, forKey: .uri)
+    }
 }
 
 struct MusicSearchPaging: Codable, Equatable {

@@ -132,38 +132,31 @@ struct PlaylistsSidebarSectionContent: View {
             PinnedItemDragPill(item: .playlist(summary))
         }
         .contextMenu {
-            if canRenamePlaylist(summary) {
-                Button(SpotiglassL10n.string("browser.editPlaylistName")) {
+            CollectionMenuItems(
+                menu: CollectionMenu.menu(
+                    for: .playlist(summary),
+                    isPinned: pinned,
+                    canRename: viewModel.canRenamePlaylist(summary),
+                    canDelete: viewModel.canDeletePlaylist(summary)
+                ),
+                placement: .sidebar
+            ) { entry in
+                switch entry {
+                case .editPlaylistName:
                     beginPlaylistNameEditing(for: playlist)
-                }
-                if viewModel.canDeletePlaylist(summary) {
-                    Button(SpotiglassL10n.string("browser.deletePlaylist"), role: .destructive) {
-                        viewModel.requestPlaylistDeletion(summary)
-                    }
-                }
-                Divider()
-            }
-            if pinned {
-                Button(SpotiglassL10n.string("browser.unpin.short")) {
-                    pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
-                }
-            } else {
-                Button(SpotiglassL10n.string("browser.pin")) {
+                case .deletePlaylist:
+                    viewModel.requestPlaylistDeletion(summary)
+                case .pin:
                     pinnedStore.pin(.playlist(summary))
+                case .unpin:
+                    pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
                 }
             }
         }
     }
 
-    private func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
-        guard let currentUserID = viewModel.currentUserSpotifyID,
-              !currentUserID.isEmpty
-        else { return false }
-        return summary.ownerID == currentUserID
-    }
-
     private func beginPlaylistNameEditing(for playlist: PlaylistRowViewModel) {
-        guard canRenamePlaylist(playlistSummaryFromRow(playlist)) else { return }
+        guard viewModel.canRenamePlaylist(playlistSummaryFromRow(playlist)) else { return }
         editingPlaylistID = playlist.id
         editedPlaylistName = playlist.title
     }

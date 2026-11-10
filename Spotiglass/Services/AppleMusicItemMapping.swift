@@ -170,6 +170,7 @@ enum AppleMusicItemMapping {
             id: album.id.rawValue,
             name: album.title,
             artists: artistNames(album.artistName),
+            artistRefs: artistRefs(album.artists),
             imageURL: artworkURL(album.artwork, size: ArtworkSize.cover, pinKind: .album, itemID: album.id),
             uri: uri(kind: "album", id: album.id)
         )

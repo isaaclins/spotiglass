@@ -161,12 +161,13 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return await Self.withAlbums(songs)
     }
 
-    /// Recently played songs arrive without their album, and Home groups them by album. One
-    /// catalog request loads the albums for all of them; songs it can't resolve stay as they are.
+    /// Recently played songs arrive without their album and artists. Home groups them by album
+    /// and links each artist under the card (#478), so one catalog request loads both for all
+    /// of them; songs it can't resolve stay as they are.
     private static func withAlbums(_ songs: [Song]) async -> [Song] {
         guard !songs.isEmpty else { return songs }
         var request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: songs.map(\.id))
-        request.properties = [.albums]
+        request.properties = [.albums, .artists]
         guard let detailed = try? await request.response().items else { return songs }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return songs.map { byID[$0.id] ?? $0 }

@@ -1296,7 +1296,7 @@ private struct PlaybackArtistLine: View {
                             // ellipsize a credit that it is meant to reveal.
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.spotiglassTextLink)
                     .accessibilityLabel(
                         String(
                             format: SpotiglassL10n.string("playback.controls.openArtist"),

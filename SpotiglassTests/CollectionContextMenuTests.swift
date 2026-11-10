@@ -1,0 +1,278 @@
+import SwiftUI
+import ViewInspector
+import XCTest
+@testable import Spotiglass
+
+/// Home's tiles and Recently played covers had no menu, and the artist names under a cover
+/// were plain text (#478). These replay that: a Home tile and a cover offer the same entries
+/// the sidebar row and the artist page's album cards do, reachable without a mouse, and the
+/// names under a cover open their artists.
+@MainActor
+final class CollectionContextMenuTests: XCTestCase {
+    override func tearDown() {
+        ViewTestHost.tearDownAll()
+        super.tearDown()
+    }
+
+    // MARK: - Fixtures
+
+    private let pinTitle = SpotiglassL10n.string("browser.pin")
+    private let unpinTitle = SpotiglassL10n.string("browser.unpin")
+    private let editTitle = SpotiglassL10n.string("browser.editPlaylistName")
+    private let deleteTitle = SpotiglassL10n.string("browser.deletePlaylist")
+
+    private let ownPlaylist = MusicPlaylistSummary(
+        id: "mine",
+        name: "Road Trip",
+        ownerID: "me",
+        ownerName: "Me",
+        imageURL: nil,
+        trackCount: 12,
+        snapshotID: "s1"
+    )
+
+    private func makeBrowserViewModel(api: MusicBrowsingProvider? = nil) -> PlaylistBrowserViewModel {
+        let api = api ?? MockBrowsingAPI(playlistResults: [.success([ownPlaylist])], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserSpotifyID = "me"
+        viewModel.playlistsByID = [ownPlaylist.id: ownPlaylist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(ownPlaylist)])
+        return viewModel
+    }
+
+    /// "Oh yeah?" by Steve Lacy, as Spotify's recently played returns it.
+    private func recentlyPlayedTrack(
+        artists: [MusicArtistRef] = [MusicArtistRef(id: "steve", name: "Steve Lacy")],
+        uri: String = "spotify:track:t1"
+    ) -> MusicTrack {
+        MusicTrack(
+            id: "t1",
+            name: "Oh yeah?",
+            artists: artists.map(\.name),
+            artistRefs: artists,
+            albumArtworkURL: nil,
+            albumName: "Oh yeah?",
+            albumID: "album-oh-yeah",
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: uri
+        )
+    }
+
+    private func buttonTitles(in menu: some View) throws -> [String] {
+        try menu.inspect().findAll(ViewType.Button.self).map { try $0.labelView().text().string() }
+    }
+
+    // MARK: - Menu entries
+
+    func testHomePlaylistTileOffersTheSidebarRowsEntriesInItsOrder() throws {
+        let viewModel = makeBrowserViewModel()
+        let card = try XCTUnwrap(viewModel.homeQuickAccessCards.first { $0.id == ownPlaylist.id })
+        let target = try XCTUnwrap(card.menuTarget)
+
+        let sidebarMenu = CollectionMenu.menu(
+            for: .playlist(ownPlaylist),
+            isPinned: false,
+            canRename: viewModel.canRenamePlaylist(ownPlaylist),
+            canDelete: viewModel.canDeletePlaylist(ownPlaylist)
+        )
+        let homeMenu = CollectionMenu.menu(
+            for: target,
+            isPinned: false,
+            canRename: viewModel.canRenamePlaylist(ownPlaylist),
+            canDelete: viewModel.canDeletePlaylist(ownPlaylist)
+        )
+        XCTAssertEqual(homeMenu, sidebarMenu)
+        XCTAssertEqual(homeMenu.entries, [.editPlaylistName, .pin])
+
+        let items = CollectionMenuItems(menu: homeMenu, placement: .content) { _ in }
+        XCTAssertEqual(try buttonTitles(in: items), [editTitle, pinTitle])
+    }
+
+    func testDeleteFollowsRenameWhenTheServiceCanDeletePlaylists() throws {
+        let menu = CollectionMenu.menu(for: .playlist(ownPlaylist), isPinned: true, canRename: true, canDelete: true)
+        XCTAssertEqual(menu.sections, [[.editPlaylistName, .deletePlaylist], [.unpin]])
+        let items = CollectionMenuItems(menu: menu, placement: .content) { _ in }
+        XCTAssertEqual(try buttonTitles(in: items), [editTitle, deleteTitle, unpinTitle])
+
+        let sidebar = CollectionMenuItems(menu: menu, placement: .sidebar) { _ in }
+        XCTAssertEqual(try buttonTitles(in: sidebar).last, SpotiglassL10n.string("browser.unpin.short"))
+    }
+
+    func testSomeoneElsesPlaylistOnlyPins() {
+        let theirs = PlaylistBrowsingTestFixtures.playlist(id: "theirs", name: "Theirs")
+        let viewModel = makeBrowserViewModel()
+        XCTAssertFalse(viewModel.canRenamePlaylist(theirs))
+        XCTAssertEqual(
+            CollectionMenu.menu(for: .playlist(theirs), isPinned: false, canRename: false, canDelete: true).entries,
+            [.pin]
+        )
+    }
+
+    func testLikedSongsTileHasNoMenuLikeItsSidebarRow() {
+        let viewModel = makeBrowserViewModel()
+        let liked = viewModel.homeQuickAccessCards.first
+        XCTAssertEqual(liked?.destination, .likedSongs)
+        XCTAssertNil(liked?.menuTarget)
+    }
+
+    func testRecentlyPlayedCoverPinsTheSameAlbumTheAlbumPageDoes() throws {
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: recentlyPlayedTrack()))
+        let pinned = try XCTUnwrap(card.menuTarget).pinnedItem
+        XCTAssertEqual(pinned.id, PinnedItem.id(forKind: .album, spotifyID: "album-oh-yeah"))
+        XCTAssertEqual(pinned.kind, .album)
+        XCTAssertEqual(pinned.spotifyURI, "spotify:album:album-oh-yeah")
+        XCTAssertEqual(
+            CollectionMenu.menu(for: .pinnable(pinned), isPinned: false, canRename: true, canDelete: true).entries,
+            [.pin],
+            "an album's menu is the artist page's album menu: Pin only"
+        )
+    }
+
+    func testAppleMusicCoverPinsAnAppleMusicAlbum() throws {
+        let track = recentlyPlayedTrack(uri: "applemusic:song:1")
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: track))
+        XCTAssertEqual(card.menuTarget?.pinnedItem.spotifyURI, "applemusic:album:album-oh-yeah")
+    }
+
+    // MARK: - Hosted views (keyboard and VoiceOver reach the same entries)
+
+    func testHomeTilePinsItsPlaylistFromItsActions() throws {
+        let viewModel = makeBrowserViewModel()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        let card = try XCTUnwrap(viewModel.homeQuickAccessCards.first { $0.id == ownPlaylist.id })
+        let tile = HomeQuickAccessTile(card: card, browserViewModel: viewModel) {}
+            .environmentObject(store)
+        ViewTestHost.host(tile)
+
+        try tile.inspect().find(button: pinTitle).tap()
+
+        XCTAssertTrue(store.isPinned(spotifyID: ownPlaylist.id, kind: .playlist))
+    }
+
+    func testAppleMusicHomeTileDeletesAndRenamesLikeTheSidebar() async throws {
+        let viewModel = makeBrowserViewModel(api: LibraryEditsMockAPI(edits: .all))
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        let card = try XCTUnwrap(viewModel.homeQuickAccessCards.first { $0.id == ownPlaylist.id })
+        let tile = HomeQuickAccessTile(card: card, browserViewModel: viewModel) {}
+            .environmentObject(store)
+        ViewTestHost.host(tile)
+
+        try tile.inspect().find(button: deleteTitle).tap()
+        XCTAssertEqual(viewModel.playlistPendingDeletion, ownPlaylist, "asks first, like the sidebar")
+
+        try tile.inspect().find(button: editTitle).tap()
+        for _ in 0..<50 where viewModel.playlistNameEditRequestID == nil {
+            await Task.yield()
+        }
+        XCTAssertEqual(viewModel.playlistNameEditRequestID, ownPlaylist.id)
+    }
+
+    func testRecentlyPlayedCoverPinsAndUnpinsItsAlbum() throws {
+        let viewModel = makeBrowserViewModel()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: recentlyPlayedTrack()))
+        let view = HomeMediaCardView(card: card, browserViewModel: viewModel, openArtist: { _ in }) {}
+            .environmentObject(store)
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: pinTitle).tap()
+        XCTAssertTrue(store.isPinned(spotifyID: "album-oh-yeah", kind: .album))
+
+        try view.inspect().find(button: unpinTitle).tap()
+        XCTAssertFalse(store.isPinned(spotifyID: "album-oh-yeah", kind: .album))
+    }
+
+    func testEachArtistUnderACoverOpensThatArtist() throws {
+        let artists = [MusicArtistRef(id: "steve", name: "Steve Lacy"), MusicArtistRef(id: "fousheé", name: "Fousheé")]
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: recentlyPlayedTrack(artists: artists)))
+        var opened: [MusicArtistRef] = []
+        let view = HomeMediaCardView(
+            card: card,
+            browserViewModel: makeBrowserViewModel(),
+            openArtist: { opened.append($0) }
+        ) {}
+            .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: "Steve Lacy").tap()
+        try view.inspect().find(button: "Fousheé").tap()
+
+        XCTAssertEqual(opened, artists)
+    }
+
+    func testCoverTitleOpensTheAlbum() throws {
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: recentlyPlayedTrack()))
+        var openedAlbum = false
+        let view = HomeMediaCardView(card: card, browserViewModel: makeBrowserViewModel(), openArtist: { _ in }) {
+            openedAlbum = true
+        }
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(view)
+
+        try view.inspect().find(text: "Oh yeah?").find(ViewType.Button.self, relation: .parent).tap()
+
+        XCTAssertTrue(openedAlbum)
+    }
+
+    func testNamesWithoutIDsStayPlainText() throws {
+        let card = HomeMediaCard(album: MusicAlbum(
+            id: "a",
+            name: "Album",
+            artists: ["Unknown Artist"],
+            imageURL: nil,
+            uri: "spotify:album:a"
+        ))
+        let view = HomeCardArtistCredits(subtitle: card.subtitle, artists: card.artistRefs, openArtist: { _ in })
+        XCTAssertNoThrow(try view.inspect().find(text: "Unknown Artist"))
+        XCTAssertThrowsError(try view.inspect().find(button: "Unknown Artist"))
+    }
+
+    // MARK: - Edit playlist name from Home
+
+    func testEditPlaylistNameOpensThePlaylistAndAsksItsHeaderToEdit() async throws {
+        let viewModel = makeBrowserViewModel()
+
+        await viewModel.openPlaylistForNameEditing(ownPlaylist)
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist(ownPlaylist.id))
+        XCTAssertEqual(viewModel.playlistNameEditRequestID, ownPlaylist.id)
+    }
+
+    func testEditPlaylistNameIgnoresPlaylistsTheUserCantRename() async {
+        let viewModel = makeBrowserViewModel()
+        let theirs = PlaylistBrowsingTestFixtures.playlist(id: "theirs", name: "Theirs")
+
+        await viewModel.openPlaylistForNameEditing(theirs)
+
+        XCTAssertNil(viewModel.playlistNameEditRequestID)
+        XCTAssertNotEqual(viewModel.sidebarSelection, .playlist(theirs.id))
+    }
+
+    // MARK: - Search results carry the artist IDs
+
+    func testSpotifySearchAlbumKeepsItsArtistIDs() throws {
+        let json = Data("""
+        {"id": "al1", "name": "Gemini Rights", "uri": "spotify:album:al1", "images": [],
+         "artists": [{"id": "steve", "name": "Steve Lacy"}, {"name": "No ID"}]}
+        """.utf8)
+        let album = try JSONDecoder().decode(SpotifySearchAlbumDTO.self, from: json).domainModel()
+        XCTAssertEqual(album.artists, ["Steve Lacy", "No ID"])
+        XCTAssertEqual(album.artistRefs, [MusicArtistRef(id: "steve", name: "Steve Lacy")])
+        XCTAssertEqual(HomeMediaCard(album: album).artistRefs, album.artistRefs)
+    }
+
+    func testAlbumsCachedBeforeArtistIDsStillDecode() throws {
+        let json = Data("""
+        {"id": "al1", "name": "Old", "artists": ["Someone"], "uri": "spotify:album:al1"}
+        """.utf8)
+        let album = try JSONDecoder().decode(MusicAlbum.self, from: json)
+        XCTAssertEqual(album.artistRefs, [])
+        let roundTrip = try JSONDecoder().decode(MusicAlbum.self, from: JSONEncoder().encode(
+            MusicAlbum(id: "x", name: "X", artists: ["A"], artistRefs: [MusicArtistRef(id: "a", name: "A")], imageURL: nil, uri: "u")
+        ))
+        XCTAssertEqual(roundTrip.artistRefs, [MusicArtistRef(id: "a", name: "A")])
+    }
+}

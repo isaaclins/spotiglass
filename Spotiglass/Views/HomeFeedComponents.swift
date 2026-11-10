@@ -46,6 +46,7 @@ struct HomeSectionHeader: View {
 /// (or a Liked Songs gradient) with a bold title.
 struct HomeQuickAccessTile: View {
     let card: HomeMediaCard
+    let browserViewModel: PlaylistBrowserViewModel
     let action: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -69,6 +70,8 @@ struct HomeQuickAccessTile: View {
         .buttonStyle(.plain)
         .hoverPressable(hoverScale: 1.015, pressScale: 0.985)
         .accessibilityLabel(card.title)
+        // The same menu the playlist has in the sidebar (#478).
+        .collectionContextMenu(card.menuTarget, browserViewModel: browserViewModel)
     }
 
     @ViewBuilder
@@ -87,31 +90,84 @@ struct HomeQuickAccessTile: View {
 
 // MARK: - Carousel card
 
-/// Square "jump back in" card used in the Recently played carousel.
+/// Square "jump back in" card used in the Recently played carousel and the search results.
+/// The cover and the title open the album or playlist; each artist name under it opens that
+/// artist, and right-clicking anywhere on the card shows the item's menu (#478).
 struct HomeMediaCardView: View {
     static let artworkSize = SpotiglassDesign.Layout.cardWidth
 
     let card: HomeMediaCard
+    let browserViewModel: PlaylistBrowserViewModel
+    let openArtist: (MusicArtistRef) -> Void
     let action: () -> Void
 
+    @State private var isTitleHovered = false
+
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: card.artworkURL, size: Self.artworkSize)
-                Text(card.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Text(card.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            Button(action: action) {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+                    ArtworkView(url: card.artworkURL, size: Self.artworkSize)
+                    Text(card.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .underline(isTitleHovered)
+                        .onHover { isTitleHovered = $0 }
+                        .pointerStyle(.link)
+                }
+                .contentShape(Rectangle())
             }
-            .frame(width: Self.artworkSize, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(card.title), \(card.subtitle)")
+            // VoiceOver and keyboard users reach the menu from the card's own button.
+            .collectionAccessibilityActions(card.menuTarget, browserViewModel: browserViewModel)
+
+            HomeCardArtistCredits(subtitle: card.subtitle, artists: card.artistRefs, openArtist: openArtist)
         }
-        .buttonStyle(.plain)
+        .frame(width: Self.artworkSize, alignment: .leading)
+        .contentShape(Rectangle())
         .hoverPressable(hoverScale: 1.03, pressScale: 0.97)
-        .accessibilityLabel("\(card.title), \(card.subtitle)")
+        .collectionContextMenu(card.menuTarget, browserViewModel: browserViewModel, includesAccessibilityActions: false)
+    }
+}
+
+/// The artist line under a card: one link per artist when their IDs are known, else the plain
+/// names the service gave.
+struct HomeCardArtistCredits: View {
+    let subtitle: String
+    let artists: [MusicArtistRef]
+    let openArtist: (MusicArtistRef) -> Void
+
+    var body: some View {
+        if artists.isEmpty {
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(artists.enumerated()), id: \.offset) { index, artist in
+                    if index > 0 {
+                        Text(SpotiglassL10n.string("common.comma"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
+                    Button {
+                        openArtist(artist)
+                    } label: {
+                        Text(artist.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.spotiglassTextLink)
+                    .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

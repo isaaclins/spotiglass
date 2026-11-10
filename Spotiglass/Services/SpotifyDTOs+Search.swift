@@ -73,6 +73,9 @@ struct SpotifySearchAlbumDTO: Decodable {
             id: resolvedID,
             name: name,
             artists: artists.map(\.name),
+            artistRefs: artists.compactMap { artist in
+                artist.id.map { MusicArtistRef(id: $0, name: artist.name) }
+            },
             imageURL: images?.largestImageURL,
             uri: uri ?? "spotify:album:\(resolvedID)"
         )

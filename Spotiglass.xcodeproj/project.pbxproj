@@ -251,6 +251,8 @@
 		SPKL00000000000000000001 /* SparkleConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SPKL00000000000000000011 /* SparkleConfiguration.swift */; };
 		SPKL00000000000000000002 /* SparkleUpdaterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = SPKL00000000000000000012 /* SparkleUpdaterController.swift */; };
 		SPKL00000000000000000003 /* CheckForUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SPKL00000000000000000013 /* CheckForUpdatesView.swift */; };
+		47E0912BAAC8D6790C9F4C19 /* CollectionContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72C82B0ECDF314D658D1466C /* CollectionContextMenu.swift */; };
+		1FBDAC2EC714B59FF282B6DF /* CollectionContextMenuTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF49FF88AE3A6A9C99B13F36 /* CollectionContextMenuTests.swift */; };
 		SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080010 /* EqualizerPresets.swift */; };
 		SRC0000000000000000000011 /* EqualizerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080011 /* EqualizerSettingsView.swift */; };
 		SRC0000000000000000000012 /* AudioEqualizerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080012 /* AudioEqualizerEngine.swift */; };
@@ -708,6 +710,8 @@
 		SPKL00000000000000000011 /* SparkleConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleConfiguration.swift; sourceTree = "<group>"; };
 		SPKL00000000000000000012 /* SparkleUpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdaterController.swift; sourceTree = "<group>"; };
 		SPKL00000000000000000013 /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
+		72C82B0ECDF314D658D1466C /* CollectionContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionContextMenu.swift; sourceTree = "<group>"; };
+		BF49FF88AE3A6A9C99B13F36 /* CollectionContextMenuTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionContextMenuTests.swift; sourceTree = "<group>"; };
 		SPKL00000000000000000014 /* SparkleInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = SparkleInfo.plist; sourceTree = "<group>"; };
 		SRC0000000000000000080010 /* EqualizerPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPresets.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080011 /* EqualizerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerSettingsView.swift; sourceTree = "<group>"; };
@@ -967,6 +971,7 @@
 			isa = PBXGroup;
 			children = (
 				D40000000000000000000021 /* Breadcrumbs */,
+				72C82B0ECDF314D658D1466C /* CollectionContextMenu.swift */,
 				E60000000000000000000040 /* PlaylistBrowser */,
 				D40000000000000000000012 /* PlaylistBrowserView.swift */,
 				D40000000000000000000014 /* QueuePanelView.swift */,
@@ -1127,6 +1132,7 @@
 				TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */,
 				TST000000000000000001012A /* LibraryContinuationRankingTests.swift */,
 				TST0000000000000000010126 /* CatalogSearchViewTests.swift */,
+				BF49FF88AE3A6A9C99B13F36 /* CollectionContextMenuTests.swift */,
 				TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */,
 				TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */,
 				TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */,
@@ -1672,6 +1678,7 @@
 				SPKL00000000000000000001 /* SparkleConfiguration.swift in Sources */,
 				SPKL00000000000000000002 /* SparkleUpdaterController.swift in Sources */,
 				SPKL00000000000000000003 /* CheckForUpdatesView.swift in Sources */,
+				47E0912BAAC8D6790C9F4C19 /* CollectionContextMenu.swift in Sources */,
 				728E7A112FEAA74600FB3C01 /* HomeView.swift in Sources */,
 				KSC0000000000000000000001 /* KeychainSecItemClient.swift in Sources */,
 				PRO00000000000000000000EA /* PlaybackSessionDiagnostics.swift in Sources */,
@@ -1946,6 +1953,7 @@
 				TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */,
 				TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */,
 				TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */,
+				1FBDAC2EC714B59FF282B6DF /* CollectionContextMenuTests.swift in Sources */,
 				TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */,
 				TST0000000000000000000124 /* MenuKeyEquivalentTests.swift in Sources */,
