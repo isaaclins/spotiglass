@@ -137,8 +137,19 @@ final class PinnedItemsStore: ObservableObject {
     /// cover, so pins made then kept the placeholder for good (#477). A pin that has a cover
     /// keeps it: only a missing one is filled in.
     func fillMissingPlaylistArtwork(from playlists: [PlaylistRowViewModel]) {
+        fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.artworkURL) })
+    }
+
+    /// The same for playlists found by a search. A shared playlist pinned from Search is
+    /// pinned under its catalog ID, which the library listing never uses, so only a search
+    /// result can give that pin its cover back.
+    func fillMissingPlaylistArtwork(from playlists: [MusicPlaylistSummary]) {
+        fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.imageURL) })
+    }
+
+    private func fillMissingPlaylistArtwork(covers: [(id: String, url: URL?)]) {
         let artworkByID = Dictionary(
-            playlists.compactMap { row in row.artworkURL.map { (row.id, $0) } },
+            covers.compactMap { cover in cover.url.map { (cover.id, $0) } },
             uniquingKeysWith: { first, _ in first }
         )
         guard !artworkByID.isEmpty else { return }

@@ -45,6 +45,29 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(cache.saved["u1"]?.map(\.artworkURL?.absoluteString), artwork)
     }
 
+    /// A shared Apple Music playlist pinned from Search is saved under its catalog ID
+    /// (`pl.u-…`), which the library listing doesn't use, so only a search result that finds
+    /// it can give the pin back its cover (#477).
+    func testSharedPlaylistPinnedFromSearchGetsItsCoverFromASearchResult() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: "Shared", ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        store.pin(.playlist(summary("pl.u-ZmblDrrtVmXYkko", nil)))
+
+        store.fillMissingPlaylistArtwork(from: [PlaylistRowViewModel(summary("46595082274209082", "musicKit://artwork/shared"))])
+        XCTAssertNil(store.items.first?.artworkURL)
+
+        store.fillMissingPlaylistArtwork(from: [summary("pl.u-ZmblDrrtVmXYkko", "https://example.com/shared.jpg")])
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+        XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+    }
+
     func testPinDedupesSameId() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)

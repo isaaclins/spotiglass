@@ -432,6 +432,12 @@ struct PlaylistBrowserView: View {
             guard let playlists = state.currentValue else { return }
             pinnedStore.fillMissingPlaylistArtwork(from: playlists)
         }
+        // A shared playlist pinned from Search is pinned under its catalog ID, which only a
+        // search result carries (#477).
+        .onReceive(viewModel.catalogSearch.$state) { state in
+            guard let results = state.currentValue else { return }
+            pinnedStore.fillMissingPlaylistArtwork(from: results.playlists)
+        }
         .onChange(of: pinnedStore.items) { _, _ in
             // Pins can arrive after the listing (the account is bound later, or a service
             // switch loads the other library's pins while its list is already on screen), so
