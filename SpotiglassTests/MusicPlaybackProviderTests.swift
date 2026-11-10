@@ -1451,7 +1451,8 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         guard case let .error(error) = session.connectionState else {
             return XCTFail("Expected the playback error, got \(session.connectionState)")
         }
-        XCTAssertEqual(error.message, "Spotify seek failed: offline")
+        // The page's text is a debug line in English; the bar says it in the app's language (#470).
+        XCTAssertEqual(error.message, SpotiglassL10n.string("error.playback.spotify.failed"))
     }
 }
 

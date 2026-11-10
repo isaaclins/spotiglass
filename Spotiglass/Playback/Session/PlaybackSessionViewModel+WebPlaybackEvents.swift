@@ -178,7 +178,8 @@ extension PlaybackSessionViewModel {
             clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
-                message: message,
+                // The SDK's text is English whatever the app's language (#470); it's in the log.
+                message: SpotiglassL10n.string("error.playback.connectionTimeout.message"),
                 recoveryAction: .reconnect
             )))
             playbackHostRecoveryTask?.cancel()
@@ -203,7 +204,7 @@ extension PlaybackSessionViewModel {
             clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.signInAgain.title"),
-                message: message,
+                message: SpotiglassL10n.string("error.playback.signInAgain.message"),
                 recoveryAction: .reauthenticate
             )))
         case let .accountError(message):
@@ -213,7 +214,7 @@ extension PlaybackSessionViewModel {
             clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.premium.title"),
-                message: message,
+                message: SpotiglassL10n.string("error.playback.premium.message"),
                 recoveryAction: nil
             )))
         case let .playbackError(message):
@@ -223,7 +224,7 @@ extension PlaybackSessionViewModel {
             finishInAppCommand()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.error.title"),
-                message: message,
+                message: SpotiglassL10n.string("error.playback.spotify.failed"),
                 recoveryAction: .retryTransfer
             )))
         case let .log(message):

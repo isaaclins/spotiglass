@@ -43,6 +43,41 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         )
     }
 
+    /// #470: the Spotify player page reports its failures in English (its own text, or the
+    /// page's "Spotify Web Playback SDK could not connect to Spotify."), so a German window read
+    /// a German title over an English sentence.
+    func testSpotifyPlayerPageErrorsReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-sdk-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let cases: [(MusicPlaybackEvent, String, String)] = [
+            (.initializationError("Spotify Web Playback SDK could not connect to Spotify."),
+             "Wiedergabe konnte nicht gestartet werden",
+             "Spotiglass konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."),
+            (.authenticationError("Authentication failed"),
+             "Erneut anmelden",
+             "Ihre Spotify-Sitzung ist abgelaufen. Verbinden Sie sich erneut, um weiter abzuspielen."),
+            (.accountError("This functionality is restricted to premium users only"),
+             "Spotify Premium erforderlich",
+             "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."),
+            (.playbackError("Playback error"),
+             "Wiedergabefehler",
+             "Spotify konnte das nicht ausführen. Versuche es gleich erneut.")
+        ]
+        for (event, title, message) in cases {
+            let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+            viewModel.handle(event)
+            guard case let .error(shown) = viewModel.connectionState else {
+                return XCTFail("\(event) should show an error, got \(viewModel.connectionState)")
+            }
+            XCTAssertEqual(shown.title, title, "\(event)")
+            XCTAssertEqual(shown.message, message, "\(event)")
+        }
+    }
+
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)

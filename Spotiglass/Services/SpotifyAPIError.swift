@@ -101,6 +101,8 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
     static func userMessage(for error: Error) -> String {
         if let apiError = error as? SpotifyAPIError { return apiError.userMessage }
         if let urlError = error as? URLError { return networkMessage(for: urlError) }
+        // A response that didn't decode (SpotifyPlaybackAPI decodes outside the client).
+        if error is DecodingError { return SpotiglassL10n.string("error.spotify.unexpectedShape") }
         return error.localizedDescription
     }
 

@@ -1168,6 +1168,49 @@ final class QueuePanelTests: XCTestCase {
     }
 }
 
+
+extension QueuePanelTests {
+    /// #470: SpotifyPlaybackAPI decodes the queue itself, so a body it can't read threw a bare
+    /// DecodingError whose text ("The data couldn't be read ...") follows the Mac's language.
+    func testUnreadableQueueResponseFollowsTheAppLanguage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("queue-decoding-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: QueueTestTokenProvider(),
+            httpClient: UnreadableQueueHTTPClient()
+        )
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
+        queue.setPanelVisible(true)
+
+        await queue.refreshQueue()
+
+        let banner = try XCTUnwrap(queue.lastError)
+        XCTAssertEqual(banner.title, "Warteschlangen-Update fehlgeschlagen")
+        XCTAssertEqual(banner.message, "Spotify hat Daten zurückgegeben, die Spotiglass nicht lesen konnte. Versuchen Sie zu aktualisieren.")
+    }
+}
+
+@MainActor
+private final class QueueTestTokenProvider: PlaybackAccessTokenProviding {
+    func playbackAccessToken() async throws -> String { "token" }
+    func refreshedPlaybackAccessToken() async throws -> String { "token" }
+}
+
+private final class UnreadableQueueHTTPClient: HTTPClient, @unchecked Sendable {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+        return (Data(#"{"queue":"invalid"}"#.utf8), response)
+    }
+}
+
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {
     func loadHost(generation: PlaybackHostGeneration) {}
 
