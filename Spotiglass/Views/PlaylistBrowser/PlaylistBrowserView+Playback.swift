@@ -5,7 +5,8 @@ extension PlaylistBrowserView {
         Binding(
             get: { lyricsOverlay.isPresented },
             set: { newValue in
-                guard !newValue || playbackViewModel.currentLyricTrack != nil else { return }
+                // The lyrics are those of the song in the bar (#486).
+                guard !newValue || playbackViewModel.audiblePlayer.currentLyricTrack != nil else { return }
                 if newValue, !lyricsOverlay.isPresented {
                     pendingPlaylistListScrollRestoreID = anchorTrackIDForPlaylistListScrollRestore()
                 }

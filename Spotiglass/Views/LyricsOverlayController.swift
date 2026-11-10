@@ -376,8 +376,8 @@ struct LyricsOverlayLayer: View {
                 let navigateAlbum = lyricsOverlay.navigateToAlbum
             {
                 LyricsOverlayFocusContainer(
-                    content: ImmersiveLyricsView(
-                        playbackViewModel: playback,
+                    content: LyricsOverlayPlayerResolver(
+                        onScreenPlayer: playback,
                         queueViewModel: queue,
                         lyricsModel: lyrics,
                         navigateToArtist: navigateArtist,
@@ -403,5 +403,31 @@ struct LyricsOverlayLayer: View {
         .clipped()
         .ignoresSafeArea(.container, edges: .top)
         .allowsHitTesting(immersiveLyricsReady)
+    }
+}
+
+/// Shows the lyrics of the song in the player bar (``PlaybackSessionViewModel/audiblePlayer``,
+/// #486): the on-screen player, or the other service's while its music is the one you hear,
+/// playing or paused. The bar, View › Show Lyrics and the pop-out window follow the same player.
+struct LyricsOverlayPlayerResolver: View {
+    @ObservedObject var onScreenPlayer: PlaybackSessionViewModel
+    let queueViewModel: QueueViewModel
+    let lyricsModel: ImmersiveLyricsViewModel
+    let navigateToArtist: (ArtistTapTarget) -> Void
+    let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        let player = onScreenPlayer.audiblePlayer
+        ImmersiveLyricsView(
+            playbackViewModel: player,
+            queueViewModel: queueViewModel,
+            lyricsModel: lyricsModel,
+            navigateToArtist: navigateToArtist,
+            navigateToAlbum: navigateToAlbum,
+            onDismiss: onDismiss,
+            followsOtherService: player !== onScreenPlayer
+        )
+        .id(ObjectIdentifier(player))
     }
 }

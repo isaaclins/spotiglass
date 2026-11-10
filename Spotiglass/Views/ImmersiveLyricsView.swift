@@ -7,6 +7,9 @@ struct ImmersiveLyricsView: View {
     let navigateToArtist: (ArtistTapTarget) -> Void
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let onDismiss: () -> Void
+    /// The bar shows the other service's song (#486): its queue, artists and album are not in
+    /// the library on screen, so the lyrics show the song without them.
+    var followsOtherService = false
 
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -62,6 +65,10 @@ struct ImmersiveLyricsView: View {
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
                 onDismiss()
+                return
+            }
+            guard !followsOtherService else {
+                await lyricsModel.load(track: track)
                 return
             }
             async let lyricsLoad: Void = lyricsModel.load(track: track)
@@ -131,6 +138,7 @@ struct ImmersiveLyricsView: View {
             navigateToArtist: navigateToArtist,
             navigateToAlbum: navigateToAlbum,
             currentTrack: currentTrack,
+            followsOtherService: followsOtherService,
             positionMs: positionMs,
             reduceMotion: reduceMotion,
             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,

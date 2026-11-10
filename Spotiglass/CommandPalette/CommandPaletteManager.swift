@@ -215,14 +215,14 @@ final class CommandPaletteManager: ObservableObject {
     func bindPlaybackReadiness(to playback: PlaybackSessionViewModel) {
         playbackReadinessCancellables.removeAll()
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
-        setLyricsToggleAvailability(playback.currentLyricTrack != nil)
+        setLyricsToggleAvailability(playback.audiblePlayer.currentLyricTrack != nil)
         shuffleEnabled = playback.shuffleEnabled
         repeatMode = playback.repeatMode
         canMutatePlaybackTransport = playback.isTransportMutationReady
         canMutateRepeat = playback.audiblePlayer.isTransportMutationReady
 
         let playerPushesState = playback.playerPushesState
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 playback.connectionStatePublisher,
                 playback.$deviceID,
@@ -230,9 +230,10 @@ final class CommandPaletteManager: ObservableObject {
                 playback.$isTransportStateKnown
             ),
             playback.$isOtherServiceHeard,
-            playback.$isOtherServiceTransportMutationReady
+            playback.$isOtherServiceTransportMutationReady,
+            playback.$otherServiceHasLyrics
         )
-        .sink { [weak self] state, isOtherServiceHeard, isOtherServiceTransportMutationReady in
+        .sink { [weak self] state, isOtherServiceHeard, isOtherServiceTransportMutationReady, otherServiceHasLyrics in
             let (connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown) = state
             // While the other service's music is what you hear, Play/Pause pauses or resumes it
             // (#396, #468).
@@ -246,7 +247,10 @@ final class CommandPaletteManager: ObservableObject {
                     playerPushesState: playerPushesState
                 )
             )
-            self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
+            // View › Show Lyrics opens the lyrics of the song in the bar (#486).
+            self?.setLyricsToggleAvailability(
+                followsOtherService ? otherServiceHasLyrics : connectionState.currentLyricTrack != nil
+            )
             let isTransportMutationReady = PlaybackSessionViewModel.isTransportMutationReady(
                 isTransportStateKnown: isTransportStateKnown,
                 connectionState: connectionState,

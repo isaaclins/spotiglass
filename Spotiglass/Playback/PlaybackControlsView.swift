@@ -1000,8 +1000,9 @@ struct PlaybackControlsView: View {
         return false
     }
 
+    /// The lyrics follow the song the bar shows, whichever service plays it (#486).
     private var showsLyricsButton: Bool {
-        otherService == nil && viewModel.currentLyricTrack != nil
+        viewModel.currentLyricTrack != nil
     }
 
     /// The service whose player the bar shows.

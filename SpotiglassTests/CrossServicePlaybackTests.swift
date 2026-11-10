@@ -371,6 +371,61 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertTrue(playback.audiblePlayer === appleMusic)
     }
 
+    /// The report (#486): Piranguera from Apple Music in the bar, Spotify on screen paused on
+    /// Midnight City. The bar's Lyrics button and View › Show Lyrics opened Midnight City's
+    /// lyrics. They open the lyrics of the song in the bar, playing or paused.
+    func testTheLyricsFollowTheSongInTheBarNotTheOnScreenService() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify) // ⌃2
+        let playback = spotify.playbackViewModel
+        let manager = wirePalette(to: playback)
+        manager.bindPlaybackReadiness(to: playback)
+        // A song of its own: the lyrics cache is app-wide.
+        let piranguera = Self.song("Piranguera", uri: "applemusic:song:piranguera-\(UUID().uuidString)", positionMilliseconds: 25_000)
+        appleMusic.setConnectionState(.playing(piranguera))
+
+        // Pause from the bar: the bar stays on Piranguera (#468), and so do the lyrics.
+        _ = playback.audiblePlayer.requestTogglePlayPause()
+        await appleMusic.playPauseCommandTail?.value
+        player.advance(by: 1)
+        appleMusic.setConnectionState(.paused(piranguera))
+        XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar shows Piranguera")
+
+        // The Lyrics view in the main window loads the song in the bar.
+        var looked: [String] = []
+        let settings = try ViewTestHost.makeSettingsStore()
+        defer { ViewTestHost.tearDownAll() }
+        ViewTestHost.host(
+            LyricsOverlayPlayerResolver(
+                onScreenPlayer: playback,
+                queueViewModel: QueueViewModel(provider: playback.provider, playbackSession: playback),
+                lyricsModel: ImmersiveLyricsViewModel(fetchLyrics: { track in
+                    looked.append(track.name)
+                    return .instrumental
+                }),
+                navigateToArtist: { _ in },
+                navigateToAlbum: { _, _, _ in },
+                onDismiss: {}
+            )
+            .environmentObject(settings),
+            size: CGSize(width: 960, height: 640)
+        )
+        for _ in 0..<80 where looked.isEmpty {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(looked, ["Piranguera"], "not Midnight City, Spotify's paused song on screen")
+
+        // View › Show Lyrics follows the bar too, even with no Spotify song to fall back on.
+        XCTAssertTrue(manager.canToggleLyrics)
+        playback.setConnectionState(.paused(nil))
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+        XCTAssertTrue(manager.canToggleLyrics, "Show Lyrics opens Piranguera's lyrics")
+    }
+
     /// The mirror: Spotify played, Apple Music is on screen with its own paused song. After
     /// Spotify pauses, the bar stays on Spotify's song, and Play resumes it, not Apple Music's.
     func testAppleMusicsBarStaysOnSpotifysPausedSong() async throws {

@@ -6,6 +6,9 @@ struct ImmersiveLyricsLeftColumnView: View {
     let navigateToArtist: (ArtistTapTarget) -> Void
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let currentTrack: PlaybackNowPlaying?
+    /// Off while the lyrics show the other service's song (#486): its artists, album and queue
+    /// are not in the library on screen.
+    var linksToLibrary = true
 
     /// Narrow layout: the lyrics share the column with this header, so it shrinks to a small
     /// cover beside the title and leaves Next in Queue to the queue panel (#438).
@@ -26,12 +29,14 @@ struct ImmersiveLyricsLeftColumnView: View {
 
                     trackDetails(track, titleFont: .title2.weight(.bold))
 
-                    ImmersiveLyricsNextInQueueSectionView(
-                        queueViewModel: queueViewModel,
-                        playbackViewModel: playbackViewModel,
-                        navigateToArtist: navigateToArtist,
-                        navigateToAlbum: navigateToAlbum
-                    )
+                    if linksToLibrary {
+                        ImmersiveLyricsNextInQueueSectionView(
+                            queueViewModel: queueViewModel,
+                            playbackViewModel: playbackViewModel,
+                            navigateToArtist: navigateToArtist,
+                            navigateToAlbum: navigateToAlbum
+                        )
+                    }
                 }
             }
         }
@@ -48,9 +53,16 @@ struct ImmersiveLyricsLeftColumnView: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            ImmersiveLyricsArtistLineView(track: track, navigateToArtist: navigateToArtist)
+            ImmersiveLyricsArtistLineView(track: track, linksToArtists: linksToLibrary, navigateToArtist: navigateToArtist)
 
-            if let album = track.albumName, !album.isEmpty {
+            if let album = track.albumName, !album.isEmpty, !linksToLibrary {
+                Text(album)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(isCompact ? 1 : 2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let album = track.albumName, !album.isEmpty {
                 Button {
                     navigateToAlbum(
                         AlbumTapTarget(id: track.albumID, name: album),
@@ -74,10 +86,11 @@ struct ImmersiveLyricsLeftColumnView: View {
 
 struct ImmersiveLyricsArtistLineView: View {
     let track: PlaybackNowPlaying
+    var linksToArtists = true
     let navigateToArtist: (ArtistTapTarget) -> Void
 
     var body: some View {
-        if track.artistTapTargets.isEmpty {
+        if track.artistTapTargets.isEmpty || !linksToArtists {
             Text(track.artistText)
                 .font(.subheadline)
                 .foregroundStyle(.white.opacity(0.72))
