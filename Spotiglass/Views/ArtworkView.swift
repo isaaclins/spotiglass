@@ -126,6 +126,92 @@ struct MusicKitArtwork: View {
             let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url, itemKey: itemKey)
         {
             ArtworkImage(artwork, width: width, height: height)
+                .background(OnScreenArtworkMarker(url: url, itemKey: itemKey))
+        }
+    }
+}
+
+/// Library covers on screen right now, so a drag preview can show one (#449). MusicKit draws
+/// library artwork only inside a window: `ImageRenderer`, and with it the image macOS takes for
+/// a drag, gets blank pixels even after the same cover was drawn. A snapshot of the window
+/// where a cover already shows has it, so the preview takes the cover from there when the drag
+/// begins.
+@MainActor
+final class OnScreenArtwork {
+    static let shared = OnScreenArtwork()
+
+    /// Marker views by cover URL and by pin ID. Weak: a row that goes away drops out by itself.
+    private var viewsByKey: [String: NSHashTable<OnScreenArtworkMarker.MarkerView>] = [:]
+
+    func register(_ view: OnScreenArtworkMarker.MarkerView) {
+        // Scrolling a large library registers thousands of covers; drop the ones that are gone.
+        if viewsByKey.count > 1_000 {
+            viewsByKey = viewsByKey.filter { !$0.value.allObjects.isEmpty }
+        }
+        for key in view.keys {
+            let views = viewsByKey[key] ?? .weakObjects()
+            views.add(view)
+            viewsByKey[key] = views
+        }
+    }
+
+    /// The cover for `url` (or the pin `itemKey`) as it shows on screen, or nil when no view
+    /// shows it. A pin keeps last session's library URL, so the pin ID finds it too.
+    func snapshot(url: URL?, itemKey: String? = nil) -> NSImage? {
+        for key in OnScreenArtworkMarker.keys(url: url, itemKey: itemKey) {
+            guard let views = viewsByKey[key] else { continue }
+            for view in views.allObjects where view.keys.contains(key) {
+                if let image = view.snapshot() { return image }
+            }
+            if views.allObjects.isEmpty { viewsByKey[key] = nil }
+        }
+        return nil
+    }
+}
+
+/// Sits behind a MusicKit cover and registers where it is drawn with ``OnScreenArtwork``.
+struct OnScreenArtworkMarker: NSViewRepresentable {
+    let url: URL
+    var itemKey: String?
+
+    static func keys(url: URL?, itemKey: String?) -> [String] {
+        [url.map { "url:" + $0.absoluteString }, itemKey.map { "item:" + $0 }].compactMap { $0 }
+    }
+
+    func makeNSView(context: Context) -> MarkerView {
+        let view = MarkerView()
+        view.keys = Self.keys(url: url, itemKey: itemKey)
+        return view
+    }
+
+    func updateNSView(_ view: MarkerView, context: Context) {
+        let keys = Self.keys(url: url, itemKey: itemKey)
+        guard view.keys != keys else { return }
+        view.keys = keys
+        if view.window != nil { OnScreenArtwork.shared.register(view) }
+    }
+
+    final class MarkerView: NSView {
+        var keys: [String] = []
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil { OnScreenArtwork.shared.register(self) }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        /// What the window draws over this view's frame: the cover in front of it.
+        func snapshot() -> NSImage? {
+            guard let root = window?.contentView, !visibleRect.isEmpty else { return nil }
+            let rect = convert(bounds, to: root).integral
+            guard rect.width >= 1, rect.height >= 1, root.bounds.contains(rect),
+                let rep = root.bitmapImageRepForCachingDisplay(in: rect)
+            else { return nil }
+            root.cacheDisplay(in: rect, to: rep)
+            let image = NSImage(size: rect.size)
+            image.addRepresentation(rep)
+            return image
         }
     }
 }

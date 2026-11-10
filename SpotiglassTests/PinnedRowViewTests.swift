@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import ViewInspector
 import XCTest
 @testable import Spotiglass
@@ -114,5 +116,101 @@ final class PinnedRowViewTests: XCTestCase {
         )
         ViewTestHost.host(PinnedItemDragPill(item: playlist))
         ViewTestHost.host(PinnedItemDragPill(item: .likedSongs(ownerDisplay: "You", artworkURL: nil)))
+    }
+}
+
+/// Dragging an Apple Music library pin showed the plain note instead of its cover (#449).
+/// macOS takes the drag image at once, the way `ImageRenderer` draws the pill here, and MusicKit
+/// draws library covers only inside a window, so the preview has to take the cover that already
+/// shows on screen. MusicKit draws nothing for a made-up artwork, so a magenta tile carrying the
+/// same marker as ``MusicKitArtwork`` stands in for the drawn cover.
+@MainActor
+final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
+    private var windows: [NSWindow] = []
+
+    override func tearDown() {
+        windows.forEach(AppKitTestSupport.closeWindowSafely)
+        windows = []
+        super.tearDown()
+    }
+
+    private func libraryPlaylistPin(artwork: String) -> PinnedItem {
+        PinnedItem.playlist(
+            MusicPlaylistSummary(
+                id: "p.library449", name: "Road Trip",
+                ownerID: "me", ownerName: "Me",
+                imageURL: URL(string: artwork), trackCount: 12, snapshotID: "applemusic"
+            )
+        )
+    }
+
+    /// Shows a stand-in cover on screen the way a sidebar or pin row shows a library cover.
+    private func showCoverOnScreen(url: String, itemKey: String?) throws {
+        let cover = Color(red: 1, green: 0, blue: 1)
+            .frame(width: 40, height: 40)
+            .background(OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey))
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 80, height: 80),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.contentView = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+        window.orderFrontRegardless()
+        windows.append(window)
+        AppKitTestSupport.pumpRunLoop()
+    }
+
+    /// Share of the drawn pill that is the cover's magenta.
+    private func coverPixelCount(in item: PinnedItem) throws -> Int {
+        let renderer = ImageRenderer(content: PinnedItemDragPill(item: item))
+        renderer.scale = 1
+        let cg = try XCTUnwrap(renderer.cgImage)
+        let width = cg.width, height = cg.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return stride(from: 0, to: pixels.count, by: 4).filter { i in
+            pixels[i] > 220 && pixels[i + 1] < 60 && pixels[i + 2] > 220
+        }.count
+    }
+
+    func testLibraryPinDragPreviewShowsTheCoverOnScreen() throws {
+        let url = "musicKit://artwork/transient/40x40?id=ROAD449"
+        let pin = libraryPlaylistPin(artwork: url)
+        try showCoverOnScreen(url: url, itemKey: nil)
+
+        let size = SpotiglassDesign.Layout.thumbnailSize
+        // Most of the preview's cover square is the cover, not the note on grey.
+        XCTAssertGreaterThan(try coverPixelCount(in: pin), Int(size * size * 0.6))
+    }
+
+    /// Pins keep last session's library URL, which no view draws under anymore; the row draws the
+    /// cover under the pin's ID, so the preview finds it there.
+    func testPinSavedWithLastSessionsURLFindsItsCoverByPinID() throws {
+        let pin = libraryPlaylistPin(artwork: "musicKit://artwork/transient/40x40?id=OLD449")
+        try showCoverOnScreen(url: "musicKit://artwork/transient/40x40?id=NEW449", itemKey: pin.id)
+
+        XCTAssertNotNil(DragPreviewArtwork.initialImage(
+            artworkURL: pin.artworkURL, requestURL: pin.artworkURL, artworkKey: pin.id
+        ))
+        XCTAssertGreaterThan(try coverPixelCount(in: pin), 0)
+    }
+
+    func testLibraryCoverNotOnScreenKeepsThePlaceholder() throws {
+        let pin = libraryPlaylistPin(artwork: "musicKit://artwork/transient/40x40?id=NOWHERE449")
+        XCTAssertNil(DragPreviewArtwork.initialImage(
+            artworkURL: pin.artworkURL, requestURL: pin.artworkURL, artworkKey: pin.id
+        ))
+    }
+
+    /// Catalog and Spotify covers still come from the image cache, never from the screen.
+    func testDownloadedCoverIsNotTakenFromTheScreen() throws {
+        let url = "https://example.com/catalog449.jpg"
+        try showCoverOnScreen(url: url, itemKey: nil)
+        XCTAssertNil(DragPreviewArtwork.initialImage(
+            artworkURL: URL(string: url), requestURL: URL(string: url), artworkKey: nil
+        ))
     }
 }
