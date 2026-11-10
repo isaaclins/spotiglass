@@ -147,7 +147,7 @@ final class PinnedItemsStore: ObservableObject {
     /// Gives playlist pins saved without a cover the one their playlist has now. Apple Music
     /// playlists without a picture of their own were once listed without Apple's generated
     /// cover, so pins made then kept the placeholder for good (#477). A pin that has a cover
-    /// keeps it: only a missing one is filled in.
+    /// keeps it, unless it's a `musicKit://` one and a cover that loads on its own is offered.
     func fillMissingPlaylistArtwork(from playlists: [PlaylistRowViewModel]) {
         fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.artworkURL) })
     }
@@ -175,11 +175,19 @@ final class PinnedItemsStore: ObservableObject {
 
     private func fillingMissingPlaylistArtwork(_ items: [PinnedItem], from artworkByID: [String: URL]) -> [PinnedItem] {
         var next = items
-        for index in next.indices where next[index].kind == .playlist && next[index].artworkURL == nil {
-            guard let id = next[index].spotifyID,
-                  let url = artworkByID[id] ?? knownArtwork(next[index].id)
-            else { continue }
-            next[index].artworkURL = url
+        for index in next.indices where next[index].kind == .playlist {
+            guard let id = next[index].spotifyID else { continue }
+            if let saved = next[index].artworkURL {
+                // A `musicKit://` cover only draws while the library has the playlist. One a list
+                // offers that loads on its own (a shared playlist's catalog cover from Search)
+                // takes its place, so the pin keeps its cover if the playlist leaves the library.
+                guard AppleMusicArtworkRegistry.needsMusicKit(saved),
+                      let durable = artworkByID[id], !AppleMusicArtworkRegistry.needsMusicKit(durable)
+                else { continue }
+                next[index].artworkURL = durable
+            } else if let url = artworkByID[id] ?? knownArtwork(next[index].id) {
+                next[index].artworkURL = url
+            }
         }
         return next
     }

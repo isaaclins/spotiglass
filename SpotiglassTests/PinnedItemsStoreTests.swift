@@ -122,6 +122,19 @@ final class PinnedItemsStoreTests: XCTestCase {
 
         XCTAssertEqual(store.items.map(\.artworkURL?.absoluteString), ["musicKit://artwork/shared", nil])
         XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "musicKit://artwork/shared")
+
+        // That cover only draws while the playlist is in the library. Search's catalog cover
+        // loads on its own and takes its place; a later library cover doesn't undo that.
+        store.fillMissingPlaylistArtwork(from: [MusicPlaylistSummary(
+            id: "pl.u-ZmblDrrtVmXYkko", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: URL(string: "https://example.com/shared.jpg"), trackCount: nil, snapshotID: "applemusic"
+        )])
+        store.fillMissingPlaylistArtwork(from: [MusicPlaylistSummary(
+            id: "pl.u-ZmblDrrtVmXYkko", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: URL(string: "musicKit://artwork/other"), trackCount: nil, snapshotID: "applemusic"
+        )])
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+        XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
     }
 
     func testPinDedupesSameId() {
