@@ -104,6 +104,9 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     /// pop-out lyrics window, #439). Sent on the next turn: the player is often made mid-render.
     let appleMusicCreated = PassthroughSubject<Void, Never>()
     private var addedServices: [MusicService]?
+    /// The service whose music you heard last (#468): the last player to start or play. A pause
+    /// keeps it, so the bar stays on the song you paused, whichever service is on screen.
+    private let lastHeardService = CurrentValueSubject<MusicService?, Never>(nil)
     private var cancellables: Set<AnyCancellable> = []
 
     init(spotify: SpotiglassPlaybackHost, makeAppleMusic: @escaping () -> SpotiglassPlaybackHost) {
@@ -167,16 +170,37 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         Task { await appleMusic.disconnect() }
     }
 
-    /// `starting` pauses `other` when it starts music, and knows whether `other` is playing.
+    /// `starting` pauses `other` when it starts music, and knows whether `other`'s music is the
+    /// one you hear.
     private func link(_ starting: PlaybackSessionViewModel, _ other: PlaybackSessionViewModel) {
-        starting.onWillStartPlayback = { [weak other] in
+        let startingService = starting.service
+        let otherService = other.service
+        starting.onWillStartPlayback = { [weak other, lastHeardService] in
+            // Set before `other` pauses: its pause must not make it the one you hear.
+            lastHeardService.send(startingService)
             other?.pauseForHandover()
         }
         starting.otherServicePlayer = other
+        // Music that starts in `other` by any way (its bar, another device, the Music app) makes
+        // it the one you heard last.
         other.connectionStatePublisher
-            .map { PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: $0) }
+            .filter { PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: $0) }
+            .sink { [lastHeardService] _ in
+                if lastHeardService.value != otherService { lastHeardService.send(otherService) }
+            }
+            .store(in: &cancellables)
+        // A paused song counts while `other` played last: pausing it keeps the bar on it, and
+        // Play resumes it (#468). Signing out or nothing loaded leaves no song to follow.
+        Publishers.CombineLatest(other.connectionStatePublisher, lastHeardService)
+            .map { state, lastHeard in
+                switch state {
+                case .playing: true
+                case .paused: lastHeard == otherService
+                default: false
+                }
+            }
             .removeDuplicates()
-            .sink { [weak starting] in starting?.isOtherServicePlaying = $0 }
+            .sink { [weak starting] in starting?.isOtherServiceHeard = $0 }
             .store(in: &cancellables)
         other.$repeatMode
             .sink { [weak starting] in starting?.otherServiceRepeatMode = $0 }
