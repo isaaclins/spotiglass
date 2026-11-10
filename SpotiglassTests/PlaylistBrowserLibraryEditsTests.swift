@@ -145,7 +145,10 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         await viewModel.navigateBack()
         XCTAssertEqual(viewModel.sidebarSelection, .home)
         XCTAssertNotEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Spotiglass test")
-        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), AppMetadata.displayName)
+        XCTAssertEqual(
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            ViewTestHost.localizedString("browser.home")
+        )
     }
 
     func testAFailedDeletionKeepsThePlaylist() async {

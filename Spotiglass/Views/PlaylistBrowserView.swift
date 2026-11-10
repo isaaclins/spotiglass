@@ -143,8 +143,8 @@ struct PlaylistBrowserView: View {
         return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
-    /// Where you are, falling back to the app name at the root. With the lyrics open that is
-    /// the lyrics, not the page underneath them (#438).
+    /// Where you are, Home at the root. With the lyrics open that is the lyrics, not the page
+    /// underneath them (#438).
     private var windowTitle: String {
         if lyricsOverlay.isPresented {
             return SpotiglassL10n.string("playback.controls.lyrics")
@@ -153,6 +153,13 @@ struct PlaylistBrowserView: View {
             for: viewModel.breadcrumbPath,
             locale: spotiglassLocale
         )
+    }
+
+    /// The window keeps its name (`windowTitle`) everywhere; only the bar above Home, which
+    /// has its own greeting, shows none (#495).
+    private var showsTitleInToolbar: Bool {
+        lyricsOverlay.isPresented
+            || BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath)
     }
 
     // The browser body is split into sequential stages on purpose. As one
@@ -289,8 +296,10 @@ struct PlaylistBrowserView: View {
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was
         // correctly named (#161). The title is the current location rather than
-        // the app name; the back button names the place before it (#443).
+        // the app name; the back button names the place before it (#443). Home keeps
+        // that name for the window but shows none in the bar (#495).
         .navigationTitle(windowTitle)
+        .toolbar(removing: showsTitleInToolbar ? nil : .title)
         .toolbar {
             if let progress = viewModel.prefetchAllPlaylistsProgress {
                 ToolbarItem(placement: .automatic) {

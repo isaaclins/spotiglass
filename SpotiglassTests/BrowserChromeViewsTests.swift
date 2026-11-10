@@ -10,7 +10,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         super.tearDown()
     }
 
-    /// The title names where you are: the app at the root, the place after.
+    /// The title names where you are: Home at the root, the place after. Never the app (#495).
     func testWindowTitleNamesTheCurrentPlace() async throws {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
         let api = MockBrowsingAPI(
@@ -21,8 +21,9 @@ final class BrowserChromeViewsTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         XCTAssertEqual(
             BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
-            AppMetadata.displayName
+            ViewTestHost.localizedString("browser.home")
         )
+        XCTAssertFalse(BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath))
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
         await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
@@ -30,6 +31,7 @@ final class BrowserChromeViewsTests: XCTestCase {
             BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
             "Artist artist-xyz"
         )
+        XCTAssertTrue(BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath))
     }
 
     func testPlayingWaveformIconPausedAndPlaying() throws {
@@ -421,4 +423,95 @@ private struct WaveformMotionDriverView: View {
         PlayingWaveformIcon(isPlaying: driver.isPlaying)
             .frame(width: 24, height: 16)
     }
+}
+
+
+/// The bar above Home said "Spotiglass" next to the sidebar button: the app's
+/// name, not a place, above a page that already has its own greeting (#495).
+/// These host the real browser the way the app's window scene does (title and
+/// toolbar bridged into an `NSWindow`) and read what AppKit ends up with.
+@MainActor
+final class BrowserWindowTitleTests: XCTestCase {
+    private var window: NSWindow?
+
+    override func tearDown() {
+        if let window { AppKitTestSupport.closeWindowSafely(window) }
+        window = nil
+        ViewTestHost.tearDownAll()
+        super.tearDown()
+    }
+
+    private func hostBrowser(_ viewModel: PlaylistBrowserViewModel) -> NSWindow {
+        AppKitTestSupport.activateAppIfNeeded()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let tokens = TitleTestTokenProvider()
+        let view = PlaylistBrowserView(
+            viewModel: viewModel,
+            playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+        .environmentObject(store)
+        .environmentObject(LyricsOverlayController())
+        .defaultAppStorage(ViewTestHost.appStorageDefaults)
+        let controller = NSHostingController(rootView: view)
+        controller.sceneBridgingOptions = [.title, .toolbars]
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 700),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = controller
+        // Hosting the controller shrinks the window to the browser's fitting size; give it the
+        // size a real window has.
+        window.setContentSize(CGSize(width: 1_100, height: 700))
+        window.isReleasedWhenClosed = false
+        self.window = window
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+        return window
+    }
+
+    /// Launch lands on Home, then a playlist, then back to Home: the bar shows no
+    /// title on Home and the page's name elsewhere, while the window itself is
+    /// always named after the place, never after the app, so the Window menu,
+    /// Mission Control and VoiceOver still have a real name (#161).
+    func testHomeBarHasNoTitleButTheWindowIsStillNamed() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+        let window = hostBrowser(viewModel)
+        let home = ViewTestHost.localizedString("browser.home")
+        let size = window.frame.size
+
+        XCTAssertEqual(window.title, home)
+        XCTAssertEqual(window.titleVisibility, .hidden, "Home has its own greeting; the bar stays empty")
+
+        await viewModel.selectSidebar(.playlist("p1"))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        XCTAssertEqual(window.title, "Focus")
+        XCTAssertEqual(window.titleVisibility, .visible)
+
+        await viewModel.navigateBack()
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertEqual(window.title, home)
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertEqual(window.frame.size, size, "showing or hiding the title must not resize the window")
+
+        XCTAssertNotEqual(window.title, AppMetadata.displayName)
+    }
+}
+
+private final class TitleTestTokenProvider: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
+    func playbackAccessToken() async throws -> String { "title-token" }
+    func refreshedPlaybackAccessToken() async throws -> String { "title-token" }
+    func accessToken() async throws -> String { "title-token" }
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "title-token" }
 }
