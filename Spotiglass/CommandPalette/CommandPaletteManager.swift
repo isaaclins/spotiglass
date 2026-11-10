@@ -198,15 +198,6 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refreshListedCommands()
     }
 
-    /// A song is playing or paused, so Next and Previous have something to skip from.
-    static func hasLoadedTrack(_ state: PlaybackConnectionState) -> Bool {
-        switch state {
-        case .playing: true
-        case let .paused(track): track != nil
-        default: false
-        }
-    }
-
     /// Show Lyrics needs a song in the bar; Hide Lyrics works whenever the lyrics show, also
     /// while they wait for a song that is on its way (#486).
     var isLyricsToggleAllowed: Bool {
@@ -242,7 +233,7 @@ final class CommandPaletteManager: ObservableObject {
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
         setLyricsToggleAvailability(playback.audiblePlayer.currentLyricTrack != nil)
         setSkipAvailability(
-            playback.isOtherServiceHeard || Self.hasLoadedTrack(playback.connectionState)
+            playback.isOtherServiceHeard || playback.connectionState.hasTrackToSkipFrom
         )
         shuffleEnabled = playback.shuffleEnabled
         repeatMode = playback.repeatMode
@@ -280,7 +271,7 @@ final class CommandPaletteManager: ObservableObject {
                 followsOtherService ? otherServiceHasLyrics : connectionState.currentLyricTrack != nil
             )
             // Skipping goes to the music you hear (#396): the other service's song counts too.
-            self?.setSkipAvailability(isOtherServiceHeard || Self.hasLoadedTrack(connectionState))
+            self?.setSkipAvailability(isOtherServiceHeard || connectionState.hasTrackToSkipFrom)
             let isTransportMutationReady = PlaybackSessionViewModel.isTransportMutationReady(
                 isTransportStateKnown: isTransportStateKnown,
                 connectionState: connectionState,

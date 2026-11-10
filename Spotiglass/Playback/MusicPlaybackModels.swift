@@ -85,8 +85,7 @@ extension PlaybackConnectionState {
         }
     }
 
-    /// Whether a player is there to take Previous and Next: the player bar and the pop-out lyrics
-    /// window enable their skip buttons by it.
+    /// Whether a player is there to take commands (Play, the device picker).
     var hasReadyDevice: Bool {
         switch self {
         case .ready, .transferring, .playing, .paused:
@@ -94,6 +93,13 @@ extension PlaybackConnectionState {
         case .disconnected, .connecting, .unavailable, .error:
             false
         }
+    }
+
+    /// Whether Previous and Next have a song to skip from: one is playing or paused. With nothing
+    /// loaded (the bar says "Ready to play") they did nothing (#500), so the player bar, the
+    /// pop-out lyrics window, the palette and the Playback menu leave them off.
+    var hasTrackToSkipFrom: Bool {
+        currentTrack != nil
     }
 
     /// The currently playing or paused music track, if lyrics can be loaded for it.
