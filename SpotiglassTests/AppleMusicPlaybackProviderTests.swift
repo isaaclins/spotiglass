@@ -768,6 +768,10 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let second = await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Where's Your Head At", holding: "hidden") }
         XCTAssertEqual(second, "nothing", "the hidden refused song doesn't come back as Paused")
         XCTAssertTrue(starts.hidesRefusedQueue)
+        starts.playerPlays() // a media key started it after all
+        XCTAssertFalse(starts.hidesRefusedQueue, "what plays shows")
+        _ = await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Where's Your Head At", holding: "hidden") }
+        XCTAssertTrue(starts.hidesRefusedQueue)
 
         _ = try await Self.press(starts, [songs[1]], rows: "Loca Playa", holding: "hidden")
         XCTAssertFalse(starts.hidesRefusedQueue)

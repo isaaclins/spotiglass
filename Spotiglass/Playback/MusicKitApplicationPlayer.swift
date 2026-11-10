@@ -169,7 +169,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func resume() async throws {
         try await Self.mapped { try await self.player.play() }
-        starts.playerTookCommand()
+        starts.playerPlays()
     }
 
     func stop() {
@@ -185,12 +185,12 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func skipToNext() async throws {
         try await Self.mapped { try await self.player.skipToNextEntry() }
-        starts.playerTookCommand()
+        starts.playerPlays()
     }
 
     func skipToPrevious() async throws {
         try await Self.mapped { try await self.player.skipToPreviousEntry() }
-        starts.playerTookCommand()
+        starts.playerPlays()
     }
 
     func setShuffle(_ enabled: Bool) {
@@ -286,6 +286,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func readState() -> AppleMusicPlayerState {
+        // Media keys and Control Center reach MusicKit without the app: a refused queue that
+        // plays after all shows.
+        if starts.hidesRefusedQueue, player.state.playbackStatus == .playing {
+            starts.playerPlays()
+        }
         guard !starts.hidesRefusedQueue else {
             return AppleMusicPlayerState(
                 status: .stopped,
@@ -695,8 +700,9 @@ final class AppleMusicQueueStarts<Rows> {
         started.queueSerial == queueSerial
     }
 
-    /// A resume or skip MusicKit took plays what the player holds, so it shows again.
-    func playerTookCommand() {
+    /// The player plays what it holds (a resume, a skip, or a media key that went straight to
+    /// MusicKit), so it shows again.
+    func playerPlays() {
         hidesRefusedQueue = false
     }
 
@@ -762,6 +768,9 @@ final class AppleMusicQueueStarts<Rows> {
         guard let index = giveBack.index else { try stopRefused(refusal) }
         var mine = setQueue(Self.fresh(giveBack.entries), at: index)
         var leftOut = 0
+        // Set before it plays too, so the song isn't heard from 0:00 first; set again once it
+        // does, in case MusicKit only takes it then.
+        player.playbackTime = giveBack.time
         do {
             try await load(playing: giveBack.wasPlaying)
         } catch {
@@ -769,6 +778,7 @@ final class AppleMusicQueueStarts<Rows> {
             guard index > 0 else { try stopRefused(refusal) }
             mine = setQueue(Self.fresh(Array(giveBack.entries[index...])), at: 0)
             leftOut = index
+            player.playbackTime = giveBack.time
             do {
                 try await load(playing: giveBack.wasPlaying)
             } catch {
