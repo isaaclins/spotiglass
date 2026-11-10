@@ -346,11 +346,16 @@ final class LyricsOverlayController: ObservableObject {
         isPresented = false
     }
 
-    /// Whether there is a song to show the lyrics of: the one in the player bar, whichever
-    /// service is on screen (#486).
+    /// Opens the lyrics only when there is a song to show them for: the one in the player bar,
+    /// whichever service is on screen (#486).
+    func setPresented(_ presented: Bool) {
+        guard !presented || hasLyricsToShow else { return }
+        isPresented = presented
+    }
+
     var hasLyricsToShow: Bool {
         guard let playbackViewModel else { return false }
-        return LyricsOverlayPlayerResolver.lyricsPlayer(onScreenPlayer: playbackViewModel).currentLyricTrack != nil
+        return playbackViewModel.audiblePlayer.currentLyricTrack != nil
     }
 }
 
@@ -425,7 +430,7 @@ struct LyricsOverlayPlayerResolver: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        let player = Self.lyricsPlayer(onScreenPlayer: onScreenPlayer)
+        let player = onScreenPlayer.audiblePlayer
         ImmersiveLyricsView(
             playbackViewModel: player,
             queueViewModel: queueViewModel,
@@ -436,20 +441,5 @@ struct LyricsOverlayPlayerResolver: View {
             followsOtherService: player !== onScreenPlayer
         )
         .id(ObjectIdentifier(player))
-    }
-
-    /// The player whose song the lyrics show: the one in the bar. Starting music on the
-    /// on-screen service makes it the one you hear at once, but its song only arrives when the
-    /// play has gone through; until then the lyrics stay on the other service's song instead
-    /// of closing for a moment with no song to show.
-    static func lyricsPlayer(onScreenPlayer: PlaybackSessionViewModel) -> PlaybackSessionViewModel {
-        let audible = onScreenPlayer.audiblePlayer
-        guard audible === onScreenPlayer,
-              onScreenPlayer.currentLyricTrack == nil,
-              onScreenPlayer.pendingPlayTransition != nil,
-              let other = onScreenPlayer.otherServicePlayer,
-              other.currentLyricTrack != nil
-        else { return audible }
-        return other
     }
 }

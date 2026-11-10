@@ -62,9 +62,16 @@ struct ImmersiveLyricsView: View {
             if !Self.showsLyricsList(phase) { hasPlacedInitialFocus = false }
             placeInitialFocusIfReady()
         }
-        .task(id: currentTrack?.uri) {
+        .task(id: isAwaitingSong ? Self.awaitingSongTaskID : currentTrack?.uri) {
             guard let track = currentTrack else {
-                onDismiss()
+                // Starting music on the on-screen service makes it the one you hear before its
+                // song arrives (#486): the lyrics wait for that song instead of closing. A play
+                // that fails or times out ends the wait, and the lyrics close.
+                if isAwaitingSong {
+                    lyricsModel.waitForTrack()
+                } else {
+                    onDismiss()
+                }
                 return
             }
             guard !followsOtherService else {
@@ -121,6 +128,15 @@ struct ImmersiveLyricsView: View {
     private var currentTrack: PlaybackNowPlaying? {
         playbackViewModel.currentLyricTrack
     }
+
+    /// A play started on this player is on its way and nothing is loaded yet.
+    private var isAwaitingSong: Bool {
+        playbackViewModel.connectionState.currentTrack == nil
+            && playbackViewModel.pendingPlayTransition != nil
+    }
+
+    /// Not a song URI: the lyrics task runs again when the wait for a song starts or ends.
+    private static let awaitingSongTaskID = "awaiting-song"
 
     /// Follows each new position from the player; the session publishes only track and state
     /// changes (#409).

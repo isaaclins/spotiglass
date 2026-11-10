@@ -5,11 +5,10 @@ extension PlaylistBrowserView {
         Binding(
             get: { lyricsOverlay.isPresented },
             set: { newValue in
-                guard !newValue || lyricsOverlay.hasLyricsToShow else { return }
-                if newValue, !lyricsOverlay.isPresented {
+                if newValue, !lyricsOverlay.isPresented, lyricsOverlay.hasLyricsToShow {
                     pendingPlaylistListScrollRestoreID = anchorTrackIDForPlaylistListScrollRestore()
                 }
-                lyricsOverlay.isPresented = newValue
+                lyricsOverlay.setPresented(newValue)
             }
         )
     }
