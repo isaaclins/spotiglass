@@ -84,8 +84,8 @@ struct HomeView: View {
                 } else {
                     // The shelf hid its indicator and cut the last card in half,
                     // so nothing said it scrolled (#162). The indicator is back,
-                    // and snapping to card boundaries means a card is never left
-                    // bisected at rest, whatever the window width.
+                    // and a trackpad swipe settles on card boundaries, so it never
+                    // leaves a card bisected. A mouse wheel moves the shelf freely (#475).
                     ScrollView(.horizontal, showsIndicators: true) {
                         HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                             ForEach(cards) { card in
@@ -97,7 +97,7 @@ struct HomeView: View {
                         .scrollTargetLayout()
                         .padding(.vertical, SpotiglassDesign.spacingXS)
                     }
-                    .scrollTargetBehavior(.viewAligned)
+                    .shelfScrollBehavior()
                 }
             case .unavailable:
                 HomeSectionNotice(style: .message(

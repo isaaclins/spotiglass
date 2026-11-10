@@ -284,8 +284,8 @@ struct ArtistDetailContent: View {
                     .font(.title3.weight(.semibold))
                     .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
 
-                // Keep the shelf discoverable and settle it on whole release cards,
-                // matching the resolved Home shelf behavior (#232).
+                // Keep the shelf discoverable and scroll it like the Home shelf:
+                // a swipe settles on whole release cards (#232), a wheel moves freely (#475).
                 ScrollView(.horizontal, showsIndicators: true) {
                     HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                         ForEach(albums) { album in
@@ -296,7 +296,7 @@ struct ArtistDetailContent: View {
                     .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
                     .padding(.bottom, SpotiglassDesign.spacingS)
                 }
-                .scrollTargetBehavior(.viewAligned)
+                .shelfScrollBehavior()
             }
         }
     }
