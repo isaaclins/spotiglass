@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.22</title>
-            <pubDate>Tue, 10 Nov 2026 23:49:49 +0100</pubDate>
-            <sparkle:version>33</sparkle:version>
-            <sparkle:shortVersionString>0.8.22</sparkle:shortVersionString>
+            <title>0.8.23</title>
+            <pubDate>Tue, 10 Nov 2026 23:53:48 +0100</pubDate>
+            <sparkle:version>34</sparkle:version>
+            <sparkle:shortVersionString>0.8.23</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Lyrics now follow the song in the player bar, even when you're browsing the other service.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music playlists without their own picture now show the cover from the Music app instead of a grey tile.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.22/Spotiglass-0.8.22.zip" length="12946167" type="application/octet-stream" sparkle:edSignature="Sw0WRdQx9/cwktUDMdIKIEtZTvERRlyd2Goo9O4bwzZFbLn0lNDjH6PD44PIgXz6z4trDiUbb0Qj6Rzjbn22AA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.23/Spotiglass-0.8.23.zip" length="12871175" type="application/octet-stream" sparkle:edSignature="i1C/i9Z9xe8i8bKOGxB2a20LSDo6xWxPFVJogjgyLNDSQjcf4jA1HpupzYHqQnb9QHs7L62HBm65zBjy5YXoDQ=="/>
         </item>
     </channel>
 </rss>

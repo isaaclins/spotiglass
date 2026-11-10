@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.23] - 2026-11-10
+
+### Fixed
+
+- Apple Music playlists without their own picture now show the cover from the Music app instead of a grey tile.
+
 ## [0.8.22] - 2026-11-10
 
 ### Fixed
