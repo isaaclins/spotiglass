@@ -27,10 +27,13 @@ extension PlaylistBrowserViewModel {
         return cards
     }
 
-    /// Time-of-day greeting shown in the home header.
-    func homeGreeting(now: Date = Date()) -> String {
-        let hour = Calendar.current.component(.hour, from: now)
+    /// Time-of-day greeting shown in the home header. The hours after midnight get their
+    /// own greeting: they are neither evening nor morning yet (#464).
+    func homeGreeting(now: Date = Date(), calendar: Calendar = .current) -> String {
+        let hour = calendar.component(.hour, from: now)
         switch hour {
+        case 0..<5:
+            return SpotiglassL10n.string("home.greeting.night")
         case 5..<12:
             return SpotiglassL10n.string("home.greeting.morning")
         case 12..<18:

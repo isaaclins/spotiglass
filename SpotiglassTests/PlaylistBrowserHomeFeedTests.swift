@@ -173,13 +173,24 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
     func testGreetingVariesByHour() {
         let api = MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:])
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!
 
-        func date(hour: Int) -> Date {
-            Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!
+        func greeting(_ hour: Int, _ minute: Int = 0) -> String {
+            let date = calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: hour, minute: minute))!
+            return vm.homeGreeting(now: date, calendar: calendar)
         }
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 8)), "Good morning")
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 14)), "Good afternoon")
-        XCTAssertEqual(vm.homeGreeting(now: date(hour: 22)), "Good evening")
+
+        // #464: Home said "Good evening" at 03:31.
+        XCTAssertEqual(greeting(3, 31), "Hello, night owl")
+        XCTAssertEqual(greeting(0, 0), "Hello, night owl")
+        XCTAssertEqual(greeting(4, 59), "Hello, night owl")
+        XCTAssertEqual(greeting(5, 0), "Good morning")
+        XCTAssertEqual(greeting(11, 59), "Good morning")
+        XCTAssertEqual(greeting(12, 0), "Good afternoon")
+        XCTAssertEqual(greeting(17, 59), "Good afternoon")
+        XCTAssertEqual(greeting(18, 0), "Good evening")
+        XCTAssertEqual(greeting(23, 59), "Good evening")
     }
 
     func testHomeGreetingUsesPageTitleStyleWhileSectionsUseSectionStyle() {
