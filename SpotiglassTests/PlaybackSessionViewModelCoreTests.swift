@@ -78,6 +78,36 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         }
     }
 
+    /// #470: a failure that is neither Spotify's nor a URLError (WebKit's "web content process
+    /// terminated" while the player page connects) showed its own text, which follows the Mac's
+    /// language, and losing the device showed a hard-coded English line.
+    func testOtherSpotifyPlayerFailuresReadInTheAppLanguage() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-other-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let failed = "Spotify konnte das nicht ausführen. Versuche es gleich erneut."
+        let webKit = NSError(domain: "WKErrorDomain", code: 2, userInfo: [NSLocalizedDescriptionKey: "The web content process was terminated."])
+
+        let tryAgain = "Das hat nicht geklappt. Versuche es gleich erneut."
+        XCTAssertEqual(PlaybackSessionViewModel.playbackHostConnectionFailedError(for: webKit).message, tryAgain)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: webKit).message, tryAgain)
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: MusicPlaybackError(service: .spotify, reason: .failed, detail: "Spotify togglePlay threw: offline")).message,
+            failed
+        )
+
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.notReady(deviceID: "device-1"))
+        XCTAssertEqual(
+            viewModel.connectionState,
+            .unavailable("Das Spotify-Wiedergabegerät ist nicht mehr verfügbar. Verbinde die Wiedergabe erneut, um weiterzuhören.")
+        )
+    }
+
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)

@@ -109,7 +109,7 @@ extension PlaybackSessionViewModel {
             hasTransferredPlaybackToCurrentDevice = false
             clearPendingSkipCommand()
             sdkNextTracks = []
-            setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
+            setConnectionState(.unavailable(SpotiglassL10n.string("error.playback.deviceLost.message")))
             playbackHostRecoveryTask?.cancel()
             playbackHostRecoveryTask = nil
             playbackHostRecoverySerial &+= 1

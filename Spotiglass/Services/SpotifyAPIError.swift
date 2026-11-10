@@ -103,7 +103,21 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         if let urlError = error as? URLError { return networkMessage(for: urlError) }
         // A response that didn't decode (SpotifyPlaybackAPI decodes outside the client).
         if error is DecodingError { return SpotiglassL10n.string("error.spotify.unexpectedShape") }
-        return error.localizedDescription
+        // Its detail is the SDK's or the error's own English text, kept for the log.
+        if let playbackError = error as? MusicPlaybackError {
+            return failedMessage(for: playbackError.service)
+        }
+        // Spotiglass's own errors already say it in the app's language. Anything else (a WebKit
+        // or Foundation NSError) would read in the Mac's language, so it gets the app's sentence.
+        // It may not come from a service at all, so it names none.
+        if let localized = error as? LocalizedError, let text = localized.errorDescription?.nilWhenEmpty {
+            return text
+        }
+        return SpotiglassL10n.string("error.generic.tryAgain")
+    }
+
+    private static func failedMessage(for service: MusicService) -> String {
+        SpotiglassL10n.string(service == .appleMusic ? "error.playback.appleMusic.failed" : "error.playback.spotify.failed")
     }
 
     /// A transport failure in the app's language, saying what to check.
