@@ -433,6 +433,12 @@ struct PlaylistBrowserView: View {
             pinnedStore.fillMissingPlaylistArtwork(from: playlists)
         }
         .onChange(of: pinnedStore.items) { _, _ in
+            // Pins can arrive after the listing (the account is bound later, or a service
+            // switch loads the other library's pins while its list is already on screen), so
+            // they are filled from the list on hand too, not only from the next listing (#477).
+            if let playlists = viewModel.playlistState.currentValue {
+                pinnedStore.fillMissingPlaylistArtwork(from: playlists)
+            }
             // Auth teardown detaches this scene before clearing account-bound
             // pins. Do not let that published clear rebind browser callbacks
             // after the palette has been reset.
