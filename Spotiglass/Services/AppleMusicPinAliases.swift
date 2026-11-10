@@ -226,11 +226,6 @@ struct AppleMusicAlbumDetail: Sendable, Equatable {
     /// explicit release of one album are often a day apart.
     var releaseDay: String?
 
-    init(trackCount: Int?, releaseDay: String?) {
-        self.trackCount = trackCount
-        self.releaseDay = releaseDay
-    }
-
     init(_ album: Album) {
         trackCount = album.trackCount
         releaseDay = album.releaseDate.map { Self.dayFormat.string(from: $0) }

@@ -797,7 +797,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let registry = AppleMusicPinAliasRegistry.shared
         registry.register(
             albumID: "-2428838143274209991", matchKey: AppleMusicItemMapping.albumPinKey(album),
-            query: AppleMusicAlbumQuery(title: "", artist: ""), detail: AppleMusicAlbumDetail(trackCount: nil, releaseDay: nil)
+            query: AppleMusicAlbumQuery(title: "", artist: ""), detail: AppleMusicAlbumDetail(album)
         )
         XCTAssertNotNil(registry.takeUnsearchedKey(ofPinID: "album:1225219991"), "the opened album shares a key with the saved copy")
     }
