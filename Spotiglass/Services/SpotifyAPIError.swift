@@ -128,8 +128,10 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         SpotiglassL10n.string(service == .appleMusic ? "error.playback.appleMusic.failed" : "error.playback.spotify.failed")
     }
 
-    /// A transport failure in the app's language, saying what to check.
-    static func networkMessage(for error: URLError) -> String {
+    /// A transport failure in the app's language, saying what to check. `fallback` is the
+    /// sentence for a code that isn't a connection problem (sign-in's "something went wrong");
+    /// without one, it reads as a failed connection.
+    static func networkMessage(for error: URLError, fallback: String? = nil) -> String {
         switch error.code {
         case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
             return SpotiglassL10n.string("auth.error.offline")
@@ -143,8 +145,10 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
             return SpotiglassL10n.string("auth.error.tls")
         case .cancelled:
             return SpotiglassL10n.string("auth.error.cancelled")
-        default:
+        case .cannotConnectToHost, .networkConnectionLost:
             return SpotiglassL10n.string("auth.error.network")
+        default:
+            return fallback ?? SpotiglassL10n.string("auth.error.network")
         }
     }
 }

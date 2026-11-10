@@ -316,6 +316,9 @@ struct SpotifyAPIClient {
         } catch let urlError as URLError where urlError.code == .cancelled {
             throw CancellationError()
         } catch {
+            // The error carries the sentence a listener reads; the cause (which URLError code,
+            // which domain) goes to the log for bug reports (#470).
+            SpotiglassLog.error(.api, "Spotify request failed: \(String(describing: error))")
             throw SpotifyAPIError.network(SpotifyAPIError.userMessage(for: error))
         }
     }

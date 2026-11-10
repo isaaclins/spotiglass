@@ -370,7 +370,8 @@ final class AuthViewModel: ObservableObject {
             return apiError.userMessage
         }
         if let urlError = error as? URLError {
-            return SpotifyAPIError.networkMessage(for: urlError)
+            // A code that isn't a connection problem keeps sign-in's generic sentence.
+            return SpotifyAPIError.networkMessage(for: urlError, fallback: Self.genericAuthFailureMessage)
         }
         if error is DecodingError {
             return SpotiglassL10n.string("auth.error.decode")
