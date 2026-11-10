@@ -3,14 +3,22 @@ import SwiftUI
 // MARK: - Footer
 
 /// The quiet bottom row of the panel: the keys that work right now, and how to switch scope.
+/// A narrow window drops the least needed hints first instead of cutting the row off at the
+/// panel's edge: the commands hint, then ⇥ filter, then the queue and pin keys.
 struct CommandPaletteFooterView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
 
     var body: some View {
-        HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            CommandPaletteHintsChipView(viewModel: viewModel)
-            Spacer(minLength: SpotiglassDesign.spacingS)
-            CommandPaletteCommandsHintChipView(scope: viewModel.currentScope)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
+                CommandPaletteHintsChipView(viewModel: viewModel, detail: .all)
+                Spacer(minLength: SpotiglassDesign.spacingS)
+                CommandPaletteCommandsHintChipView(scope: viewModel.currentScope)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            CommandPaletteHintsChipView(viewModel: viewModel, detail: .all)
+            CommandPaletteHintsChipView(viewModel: viewModel, detail: .withoutFilter)
+            CommandPaletteHintsChipView(viewModel: viewModel, detail: .essentials)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -22,19 +30,27 @@ struct CommandPaletteFooterView: View {
 }
 
 struct CommandPaletteHintsChipView: View {
+    /// How many hints fit: every one that applies, all but ⇥ filter, or only ↑↓, ↩ and esc.
+    enum Detail {
+        case all
+        case withoutFilter
+        case essentials
+    }
+
     @ObservedObject var viewModel: CommandPaletteViewModel
+    var detail: Detail = .all
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingM) {
             Text(SpotiglassL10n.string("palette.footer.navigate"))
             Text(SpotiglassL10n.string("palette.footer.run"))
-            if viewModel.currentScope == .songs {
+            if detail == .all, viewModel.currentScope == .songs {
                 Text(SpotiglassL10n.string("palette.footer.filter"))
             }
-            if viewModel.canEnqueueSelectedItem {
+            if detail != .essentials, viewModel.canEnqueueSelectedItem {
                 Text(SpotiglassL10n.string("palette.footer.queue"))
             }
-            if viewModel.canPinSelectedItem {
+            if detail != .essentials, viewModel.canPinSelectedItem {
                 Text(SpotiglassL10n.string("palette.footer.pin"))
             }
             Text(SpotiglassL10n.string("palette.footer.close"))

@@ -182,7 +182,9 @@ struct SpotiglassApp: App {
                 playbackHosts: playbackHosts,
                 serviceStore: serviceStore,
                 appleMusicSession: appleMusicSession,
-                recentSearches: .userDefaults(.standard)
+                // Screenshot mode keeps them in memory: its captures go public, so they must
+                // never show (or add to) the searches of whoever runs it.
+                recentSearches: ScreenshotMode.isActive ? .inMemory() : .userDefaults(.standard)
             )
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)

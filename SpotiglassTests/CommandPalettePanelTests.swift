@@ -150,10 +150,62 @@ final class CommandPalettePanelTests: XCTestCase {
         viewModel.testingReplaceSections([(.tracks, (0 ..< 30).map(track)), (.showAll, [showAll])])
 
         let controller = NSHostingController(rootView: CommandPaletteView(viewModel: viewModel).environmentObject(store))
-        for window in [CGSize(width: 900, height: 450), CGSize(width: 640, height: 400)] {
+        let smallest = CGSize(width: SpotiglassApp.windowMinWidth, height: SpotiglassApp.windowMinHeight)
+        for window in [CGSize(width: 900, height: 450), CGSize(width: 640, height: 400), smallest] {
             let fitted = controller.sizeThatFits(in: window)
             XCTAssertLessThanOrEqual(fitted.height, window.height, "palette taller than a \(window) window")
         }
+    }
+
+    /// In the smallest window the footer asked for more width than the panel has once a track
+    /// offered ⇧↩ queue and ⌘↩ pin, so "esc close" was cut off at the panel's edge (German, and
+    /// English too). It now drops the least needed hints and keeps a margin on the right.
+    func testTheFooterFitsThePanelInTheSmallestWindow() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+        let panelWidth = SpotiglassApp.windowMinWidth - 2 * SpotiglassDesign.spacingXL
+        for language in [AppLanguage.english, .german, .spanish] {
+            try store.mutate { $0.appearance.language = language }
+            let viewModel = CommandPaletteViewModel()
+            viewModel.show()
+            viewModel.query = "song"
+            let queueable = CommandPaletteItem(
+                id: "track-q", title: "Song", subtitle: "Artist", iconSystemName: "music.note",
+                section: .tracks, keywords: [], pinAction: {}, queueAction: {}
+            ) {}
+            viewModel.testingReplaceSections([(.tracks, [queueable])])
+            XCTAssertTrue(viewModel.canEnqueueSelectedItem && viewModel.canPinSelectedItem)
+
+            let renderer = ImageRenderer(content: CommandPaletteFooterView(viewModel: viewModel)
+                .frame(width: panelWidth)
+                .environment(\.colorScheme, .light))
+            renderer.scale = 1
+            let image = try XCTUnwrap(renderer.cgImage)
+            let lastInk = try XCTUnwrap(Self.lastInkColumn(in: image))
+            XCTAssertLessThanOrEqual(
+                CGFloat(lastInk), panelWidth - SpotiglassDesign.spacingM + 1,
+                "footer runs into the panel's edge in \(language.rawValue)"
+            )
+        }
+    }
+
+    /// The rightmost pixel column with anything drawn in it.
+    private static func lastInkColumn(in image: CGImage) -> Int? {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        for column in stride(from: width - 1, through: 0, by: -1) {
+            for row in 0 ..< height where pixels[(row * width + column) * 4 + 3] > 24 {
+                return column
+            }
+        }
+        return nil
     }
 
     // MARK: - Selected filter (#469)
