@@ -18,6 +18,11 @@ final class PinnedItemsStore: ObservableObject {
     private(set) var boundUserID: String?
     /// Invalidates profile lookups that started before a sign-out or reconnect.
     private(set) var bindingGeneration = 0
+    /// The covers of the playlists listed or found so far, by playlist ID, so pins that are
+    /// loaded after the list (the account is bound later, a service switch) get them too (#477).
+    private var knownPlaylistCovers: [String: URL] = [:]
+    /// Bounds `knownPlaylistCovers`: past it the map starts over from the next list.
+    static let maxKnownPlaylistCovers = 10_000
 
     init(cache: PinnedItemsCache?) {
         self.cache = cache
@@ -38,8 +43,9 @@ final class PinnedItemsStore: ObservableObject {
         }
         if let loaded = try? cache.loadPinnedItems(userID: userID) {
             let migrated = PinnedItem.migrateLegacyTrackPins(loaded)
-            items = migrated
-            if migrated != loaded {
+            let filled = Self.fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
+            items = filled
+            if filled != loaded {
                 persist()
             }
         } else {
@@ -153,14 +159,24 @@ final class PinnedItemsStore: ObservableObject {
             uniquingKeysWith: { first, _ in first }
         )
         guard !artworkByID.isEmpty else { return }
+        if knownPlaylistCovers.count + artworkByID.count > Self.maxKnownPlaylistCovers {
+            knownPlaylistCovers = [:]
+        }
+        knownPlaylistCovers.merge(artworkByID) { _, new in new }
+        let next = Self.fillingMissingPlaylistArtwork(items, from: artworkByID)
+        guard next != items else { return }
+        items = next
+        persist()
+    }
+
+    private static func fillingMissingPlaylistArtwork(_ items: [PinnedItem], from artworkByID: [String: URL]) -> [PinnedItem] {
+        guard !artworkByID.isEmpty else { return items }
         var next = items
         for index in next.indices where next[index].kind == .playlist && next[index].artworkURL == nil {
             guard let id = next[index].spotifyID, let url = artworkByID[id] else { continue }
             next[index].artworkURL = url
         }
-        guard next != items else { return }
-        items = next
-        persist()
+        return next
     }
 
     /// Clears the in-memory list without touching disk. Used at sign-out so

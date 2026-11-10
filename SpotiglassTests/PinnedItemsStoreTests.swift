@@ -68,6 +68,39 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
     }
 
+    /// The pins can come in after the list: the account is bound once its lookup answers, and a
+    /// service switch clears the pins and loads the other library's while its list is already
+    /// on screen and isn't listed again. Those pins get the covers from the list on hand (#477).
+    func testPinsLoadedAfterTheListGetTheirCoverFromIt() {
+        let cache = RecordingPinnedCache()
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: id, ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        cache.saved["u1"] = [
+            .playlist(summary("road", nil)),
+            .playlist(summary("mix", "https://example.com/old.jpg")),
+        ]
+        let store = PinnedItemsStore(cache: cache)
+        store.fillMissingPlaylistArtwork(from: [
+            PlaylistRowViewModel(summary("road", "musicKit://artwork/road")),
+            PlaylistRowViewModel(summary("mix", "https://example.com/new.jpg")),
+        ])
+
+        store.bind(userID: "u1")
+        let expected: [String?] = ["musicKit://artwork/road", "https://example.com/old.jpg"]
+        XCTAssertEqual(store.items.map(\.artworkURL?.absoluteString), expected)
+        XCTAssertEqual(cache.saved["u1"]?.map(\.artworkURL?.absoluteString), expected)
+
+        // A service switch: the pins are cleared and loaded again, the list stays as it was.
+        store.clearForSignOut()
+        cache.saved["u1"] = [.playlist(summary("road", nil))]
+        store.bind(userID: "u1")
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "musicKit://artwork/road")
+    }
+
     func testPinDedupesSameId() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
