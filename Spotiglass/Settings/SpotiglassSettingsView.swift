@@ -270,7 +270,7 @@ struct SpotiglassSettingsView: View {
             // padding (#21, #22). The shell owns the header and the divider; the
             // pane owns its scrolling and its group insets.
             Group {
-                SettingsPaneContainer {
+                SettingsPaneContainer(settingsStore: settingsStore) {
                     switch section ?? .equalizer {
                     case .equalizer:
                         EqualizerSettingsView(
@@ -335,16 +335,25 @@ struct SpotiglassSettingsView: View {
 
 /// Gives every settings pane the same finite width proposal and leading
 /// alignment, so switching panes cannot change the window's content width.
-private struct SettingsPaneContainer<Content: View>: View {
+///
+/// It also rebuilds the pane when the language changes. Text views follow the new
+/// language by themselves, but the AppKit controls behind segmented and pop-up
+/// pickers keep the option titles they were created with, so the Appearance pane
+/// went on showing "Hell / Dunkel" after a switch to English (#460). The main and
+/// lyrics windows are rebuilt the same way.
+struct SettingsPaneContainer<Content: View>: View {
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
     let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(settingsStore: SpotiglassSettingsStore, @ViewBuilder content: () -> Content) {
+        self.settingsStore = settingsStore
         self.content = content()
     }
 
     var body: some View {
         content
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
+            .id(settingsStore.settings.appearance.language)
     }
 }
 
