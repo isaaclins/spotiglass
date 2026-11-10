@@ -252,11 +252,8 @@ final class CommandPalettePanelTests: XCTestCase {
         let viewModel = CommandPaletteViewModel()
         viewModel.recentSearches = recents
         viewModel.show()
-        let list = CommandPaletteSectionedListView(
-            viewModel: viewModel, sections: viewModel.sections, accessibilityReduceMotion: true
-        )
-
-        try list.inspect().find(CommandPaletteClearRecentsButton.self).find(ViewType.Button.self).tap()
+        // The list is lazy, which ViewInspector can't search, so tap the heading's button itself.
+        try CommandPaletteClearRecentsButton(viewModel: viewModel).inspect().find(ViewType.Button.self).tap()
 
         XCTAssertEqual(recents.queries, [])
         XCTAssertFalse(viewModel.sections.contains { $0.section == .recentSearches })
@@ -542,6 +539,25 @@ final class CommandPalettePanelTests: XCTestCase {
         return stride(from: 0, to: pixels.count, by: 4).filter { index in
             Int(pixels[index + 2]) - Int(pixels[index]) > 80
         }.count
+    }
+
+    /// The results list built every row at once. "Here" and "My Playlists" are uncapped, so a
+    /// long playlist built thousands of rows (each starting an artwork load) on every keystroke.
+    /// Only the rows on screen may be built.
+    func testALongResultListBuildsOnlyTheRowsOnScreen() throws {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.show()
+        viewModel.query = "the"
+        let rows = (0 ..< 6_000).map(track)
+        viewModel.testingReplaceSections([(.tracks, rows)])
+        let list = CommandPaletteSectionedListView(
+            viewModel: viewModel, sections: viewModel.sections, accessibilityReduceMotion: true
+        )
+        let start = Date()
+        _ = ViewTestHost.host(list, size: CGSize(width: 700, height: 400))
+        let elapsed = Date().timeIntervalSince(start)
+        print("palette list of 6000 rows laid out in \(elapsed) s")
+        XCTAssertLessThan(elapsed, 1.0, "the list builds rows that aren't on screen")
     }
 
     // MARK: - Selected filter (#469)

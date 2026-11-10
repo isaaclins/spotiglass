@@ -288,7 +288,9 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
             accessibilityReduceMotion: false
         )
         ViewTestHost.host(list, size: CGSize(width: 700, height: 400))
-        XCTAssertNoThrow(try list.inspect().find(text: "Settings"))
+        // The list is lazy, which ViewInspector can't search: check the row it builds instead.
+        let row = CommandPaletteResultRowView(item: iconOnly, isSelected: false)
+        XCTAssertNoThrow(try row.inspect().find(text: "Settings"))
 
         let leading = CommandPaletteRowLeadingView(item: iconOnly)
         ViewTestHost.host(leading)

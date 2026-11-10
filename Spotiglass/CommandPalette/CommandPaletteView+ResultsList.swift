@@ -67,8 +67,11 @@ struct CommandPaletteSectionedListView: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Lazy, so a long uncapped list ("Here" in a big playlist) builds and loads artwork only for
+    /// the rows on screen. A short list is built whole, so its measured height is exact; a long
+    /// one is taller than the cap either way.
     private func sectionStack(_ chunks: [(section: CommandPaletteSection, rows: [Row])]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(Array(chunks.enumerated()), id: \.offset) { sectionIndex, chunk in
                 HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
                     // Title case, no letter spacing: section headers no longer render in all caps.

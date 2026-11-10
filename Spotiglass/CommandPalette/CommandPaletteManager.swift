@@ -328,10 +328,13 @@ final class CommandPaletteManager: ObservableObject {
             // while the query field stays focused. Modifier-bearing Tab events
             // (e.g. custom bindings) fall through to the keymap
             // dispatch path below so user-rebound shortcuts still fire.
+            // In `>` scope there are no filters, but Tab is still the palette's: passed on, the
+            // field handed focus to the page behind and typing stopped reaching it.
             if event.keyCode == 48,
-               CommandPaletteScope.parse(viewModel.query).scope != .commands,
                event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
-                viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
+                if CommandPaletteScope.parse(viewModel.query).scope != .commands {
+                    viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
+                }
                 return true
             }
             if event.keyCode == 125 { // down
