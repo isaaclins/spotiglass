@@ -277,6 +277,33 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertFalse(commands.isLyricsToggleEnabled)
     }
 
+    /// #486: while the lyrics wait for a song that is on its way, the bar has none, and
+    /// View › Hide Lyrics (and ⌥⌘L, which goes through the menu) stays enabled.
+    func testHideLyricsStaysEnabledWhileTheLyricsShowWithoutASong() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        manager.bindPlaybackReadiness(to: playback)
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+
+        XCTAssertFalse(commands.isLyricsToggleEnabled, "Show Lyrics with no song in the bar")
+        scene.lyricsOverlayController.isPresented = true
+        XCTAssertTrue(commands.isLyricsToggleEnabled, "Hide Lyrics is greyed out while the lyrics show")
+        scene.lyricsOverlayController.isPresented = false
+    }
+
     /// #438: View › Refresh (⌘R) reloaded the page hidden under the lyrics. It dims while they're open.
     func testRefreshMenuItemDimsWhileLyricsAreOpen() {
         let manager = CommandPaletteManager(keymapStore: makeStore())

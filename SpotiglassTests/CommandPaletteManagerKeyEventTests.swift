@@ -358,6 +358,44 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertEqual(toggled, 1)
     }
 
+    /// #486: starting a song on the service on screen leaves the bar without a song for a moment,
+    /// and the lyrics wait for it. Hiding them works meanwhile: the shortcut, running the command
+    /// and the palette's list. Showing them still needs a song.
+    func testHideLyricsWorksWhileTheLyricsWaitForASong() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.toggleLyrics,
+            shortcut: try CommandShortcut(keystroke: "cmd-l"),
+            replaceConflicting: true
+        )
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        manager.bindPlaybackReadiness(to: playback)
+        var presented = false
+        manager.isLyricsPresented = { presented }
+        var toggled = 0
+        manager.toggleLyrics = { toggled += 1 }
+        let paletteOffersLyrics = {
+            manager.viewModel.staticItemsProvider().contains { $0.id == CommandPaletteCommandID.toggleLyrics }
+        }
+
+        XCTAssertFalse(manager.handleKeyEvent(keyDown(keyCode: 37, characters: "l", modifiers: [.command])))
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertEqual(toggled, 0, "Show Lyrics ran with no song in the bar")
+        XCTAssertFalse(paletteOffersLyrics())
+
+        presented = true
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 37, characters: "l", modifiers: [.command])), "the shortcut doesn't hide the lyrics")
+        XCTAssertEqual(toggled, 1)
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertEqual(toggled, 2, "the command doesn't hide the lyrics")
+        XCTAssertTrue(paletteOffersLyrics(), "the palette has no Hide Lyrics")
+    }
+
     func testExecuteWiresPlaybackAndNavigationHandlers() async {
         let manager = CommandPaletteManager()
         let toggle = expectation(description: "toggle")

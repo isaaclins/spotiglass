@@ -384,8 +384,8 @@ struct PlaybackControlsView: View {
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
     /// Set while the bar shows the other service's player because that is what you hear (#396):
-    /// the bar says which service plays, and its artists and lyrics, which belong to the other
-    /// library, aren't offered here.
+    /// the bar says which service plays, and its artists, which belong to the other library,
+    /// aren't offered here. Its Lyrics button opens that song's lyrics (#486).
     var otherService: MusicService? = nil
     @Environment(\.openSettings) private var openSettingsAction
     @State private var isVolumePopoverPresented = false
