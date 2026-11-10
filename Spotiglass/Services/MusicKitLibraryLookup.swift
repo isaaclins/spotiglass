@@ -302,7 +302,7 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         return reference
     }
 
-    private static func batches(_ ids: [String]) -> [[String]] {
+    static func batches(_ ids: [String]) -> [[String]] {
         stride(from: 0, to: ids.count, by: batchSize).map { Array(ids[$0..<min($0 + batchSize, ids.count)]) }
     }
 }

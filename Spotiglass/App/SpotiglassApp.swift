@@ -59,7 +59,7 @@ struct SpotiglassApp: App {
             SpotiglassLog.info(SpotiglassLog.persistence, "Using in-memory pinned-items cache")
             pinningCache = InMemoryPinnedItemsCache()
         }
-        _pinnedStore = StateObject(wrappedValue: PinnedItemsStore(cache: pinningCache) { pinID in
+        _pinnedStore = StateObject(wrappedValue: PinnedItemsStore(cache: pinningCache, aliases: AppleMusicPinAliases()) { pinID in
             AppleMusicArtworkRegistry.shared.url(forItemKey: pinID, size: AppleMusicItemMapping.ArtworkSize.cover)
         })
         let authVM: AuthViewModel

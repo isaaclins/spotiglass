@@ -29,6 +29,10 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
     let playlistOwnerID: String?
     let playlistTrackCount: Int?
     let playlistSnapshotID: String?
+    /// Other pin IDs of the same item: an Apple Music album pinned by its library ID also has a
+    /// catalog ID, and either one names this pin (#487). `nil` until they were looked up, so
+    /// Spotify pins and pins saved before #487 decode unchanged.
+    var aliasIDs: [String]?
 
     init(
         id: String,
@@ -40,7 +44,8 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
         isStale: Bool,
         playlistOwnerID: String? = nil,
         playlistTrackCount: Int? = nil,
-        playlistSnapshotID: String? = nil
+        playlistSnapshotID: String? = nil,
+        aliasIDs: [String]? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -52,6 +57,7 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
         self.playlistOwnerID = playlistOwnerID
         self.playlistTrackCount = playlistTrackCount
         self.playlistSnapshotID = playlistSnapshotID
+        self.aliasIDs = aliasIDs
     }
 
     /// ID for the Liked Songs virtual row. Stable across processes / accounts;
@@ -61,6 +67,30 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
     /// Stable identifier formula for Spotify-backed pins.
     static func id(forKind kind: PinnedItemKind, spotifyID: String) -> String {
         "\(kind.rawValue):\(spotifyID)"
+    }
+
+    /// The kind a pin ID names (`album` in `album:l.abc`).
+    static func kind(ofPinID pinID: String) -> PinnedItemKind? {
+        guard let colon = pinID.firstIndex(of: ":") else { return nil }
+        return PinnedItemKind(rawValue: String(pinID[..<colon]))
+    }
+
+    /// The item ID a pin ID names (`l.abc` in `album:l.abc`).
+    static func itemID(ofPinID pinID: String) -> String? {
+        guard let colon = pinID.firstIndex(of: ":") else { return nil }
+        let id = String(pinID[pinID.index(after: colon)...])
+        return id.isEmpty ? nil : id
+    }
+
+    /// Every pin ID this pin answers to: its own and its aliases.
+    var identityIDs: Set<String> {
+        Set([id] + (aliasIDs ?? []))
+    }
+
+    /// True when `pinID` is this pin's ID or one of its aliases; no set built, since it runs
+    /// for every pin on every visible row.
+    func answers(to pinID: String) -> Bool {
+        id == pinID || aliasIDs?.contains(pinID) == true
     }
 }
 
@@ -259,7 +289,8 @@ extension PinnedItem {
             isStale: isStale,
             playlistOwnerID: playlistOwnerID,
             playlistTrackCount: playlistTrackCount,
-            playlistSnapshotID: playlistSnapshotID
+            playlistSnapshotID: playlistSnapshotID,
+            aliasIDs: aliasIDs
         )
     }
 

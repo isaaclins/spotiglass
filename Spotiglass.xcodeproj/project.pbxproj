@@ -48,6 +48,7 @@
 		SRC0000000000000000000036 /* AppleMusicArtworkRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080036 /* AppleMusicArtworkRegistry.swift */; };
 		SRC0000000000000000000034 /* AppleMusicSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080034 /* AppleMusicSession.swift */; };
 		SRC00000000000000000000A3 /* AppleMusicPlayableRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800A3 /* AppleMusicPlayableRegistry.swift */; };
+		F48700000000000000000001 /* AppleMusicPinAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48700000000000000000002 /* AppleMusicPinAliases.swift */; };
 		SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */; };
 		SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080032 /* AppleMusicContentSource.swift */; };
 		SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080031 /* AppleMusicItemMapping.swift */; };
@@ -509,6 +510,7 @@
 		SRC0000000000000000080036 /* AppleMusicArtworkRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicArtworkRegistry.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080034 /* AppleMusicSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicSession.swift; sourceTree = "<group>"; };
 		SRC00000000000000000800A3 /* AppleMusicPlayableRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPlayableRegistry.swift; sourceTree = "<group>"; };
+		F48700000000000000000002 /* AppleMusicPinAliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPinAliases.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicBrowsingProvider.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080032 /* AppleMusicContentSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicContentSource.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080031 /* AppleMusicItemMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicItemMapping.swift; sourceTree = "<group>"; };
@@ -1013,6 +1015,7 @@
 				SRC0000000000000000080036 /* AppleMusicArtworkRegistry.swift */,
 				SRC0000000000000000080034 /* AppleMusicSession.swift */,
 				SRC00000000000000000800A3 /* AppleMusicPlayableRegistry.swift */,
+				F48700000000000000000002 /* AppleMusicPinAliases.swift */,
 				SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */,
 				SRC0000000000000000080032 /* AppleMusicContentSource.swift */,
 				SRC0000000000000000080031 /* AppleMusicItemMapping.swift */,
@@ -1724,6 +1727,7 @@
 				SRC0000000000000000000036 /* AppleMusicArtworkRegistry.swift in Sources */,
 				SRC0000000000000000000034 /* AppleMusicSession.swift in Sources */,
 				SRC00000000000000000000A3 /* AppleMusicPlayableRegistry.swift in Sources */,
+				F48700000000000000000001 /* AppleMusicPinAliases.swift in Sources */,
 				SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */,
 				SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */,
 				SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */,

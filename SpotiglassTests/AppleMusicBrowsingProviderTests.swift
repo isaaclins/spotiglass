@@ -786,6 +786,22 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
     // MARK: - Album and artist detail
 
+    func testOpeningAnAlbumTeachesItsPinKey() async throws {
+        // An album opened from Home is known only by its catalog ID: opening it registers its key,
+        // so a pinned saved copy can be found for its header (#487).
+        let source = MockAppleMusicSource()
+        let album = try AppleMusicFixtures.album(id: "1225219991", title: "Opened 487k", tracks: [("1", "One")])
+        source.albumsByID["1225219991"] = album
+        _ = try await AppleMusicBrowsingProvider(source: source).albumTracks(albumID: "1225219991", market: nil, limit: 10)
+
+        let registry = AppleMusicPinAliasRegistry.shared
+        registry.register(
+            albumID: "-2428838143274209991", matchKey: AppleMusicItemMapping.albumPinKey(album),
+            query: AppleMusicAlbumQuery(title: "", artist: ""), detail: AppleMusicAlbumDetail(trackCount: nil, releaseDay: nil)
+        )
+        XCTAssertNotNil(registry.takeUnsearchedKey(ofPinID: "album:1225219991"), "the opened album shares a key with the saved copy")
+    }
+
     func testAlbumTracksCarryTheAlbumAndRespectTheLimit() async throws {
         let source = MockAppleMusicSource()
         source.albumsByID["a1"] = try AppleMusicFixtures.album(id: "a1", title: "Migration", tracks: [("1", "One"), ("2", "Two")])
