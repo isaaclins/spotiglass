@@ -628,6 +628,45 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         ].map { MusicPlayer.Queue.Entry($0) }
     }
 
+    private typealias Starts = AppleMusicQueueStarts<String>
+
+    /// One press through `starts`: the pressed queue's rows are `rows`, the rows of what the
+    /// player holds now are `holding`.
+    private static func press(
+        _ starts: Starts,
+        _ entries: [MusicPlayer.Queue.Entry],
+        at index: Int = 0,
+        rows: String,
+        holding: String = "P"
+    ) async throws -> Starts.Started {
+        try await starts.start(entries, at: index, currentRows: holding, rowsPlayed: { _ in rows })
+    }
+
+    /// What a press left in the player: "plays" for a start MusicKit took, else what the refused
+    /// start gave back.
+    private static func outcome(_ work: () async throws -> Starts.Started) async -> String {
+        do {
+            let started = try await work()
+            return "plays, \(started.leftOut) left out"
+        } catch let refused as Starts.Refused {
+            switch refused.left {
+            case let .previousQueue(rows, leftOutBefore): return "gave back \(rows), \(leftOutBefore) left out"
+            case .nothing: return "nothing"
+            case .replaced: return "replaced"
+            }
+        } catch {
+            return "failed: \(error)"
+        }
+    }
+
+    /// P: ITTY BITTY and Loca Playa, ITTY BITTY playing at 0:42.
+    private static func playingP(_ player: RefusingQueueStarter) async throws {
+        let songs = try refusedTopTracks()
+        player.setQueue([songs[0], songs[1]], startingAt: nil)
+        try await player.play()
+        player.playbackTime = 42
+    }
+
     /// #476: one song pressed on its own (a search result, the palette, a single row). MusicKit
     /// refused such a queue about half the time when it named the start song ("Prepare queue
     /// failed with unexpected start item"), and the bar went to "Paused" at 0:00. A start that is
@@ -635,10 +674,12 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     func testASongPressedOnItsOwnPlays() async throws {
         let ohYeah = try Self.refusedTopTracks()[2]
         let player = RefusingQueueStarter(refusesNamedStart: true)
+        let starts = Starts(player: player)
 
-        let leftOut = try await AppleMusicQueueStart.start([ohYeah], at: 0, on: player, isCurrent: { true })
+        let started = try await Self.press(starts, [ohYeah], rows: "oh yeah")
 
-        XCTAssertEqual(leftOut, 0)
+        XCTAssertEqual(started.leftOut, 0)
+        XCTAssertTrue(starts.holdsQueue(started))
         XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
         XCTAssertTrue(player.isPlaying)
         XCTAssertEqual(player.namedStarts, [nil], "the first song is never named as the start")
@@ -650,9 +691,9 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let songs = try Self.refusedTopTracks()
         let player = RefusingQueueStarter(refusesNamedStart: true)
 
-        let leftOut = try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
+        let started = try await Self.press(Starts(player: player), songs, at: 2, rows: "top tracks")
 
-        XCTAssertEqual(leftOut, 2)
+        XCTAssertEqual(started.leftOut, 2)
         XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
         XCTAssertEqual(player.entries.map(\.title), ["oh yeah?", "Where's Your Head At"])
         XCTAssertTrue(player.isPlaying)
@@ -664,35 +705,31 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let songs = try Self.refusedTopTracks()
         let player = RefusingQueueStarter()
 
-        let leftOut = try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
+        let started = try await Self.press(Starts(player: player), songs, at: 2, rows: "top tracks")
 
-        XCTAssertEqual(leftOut, 0)
+        XCTAssertEqual(started.leftOut, 0)
         XCTAssertEqual(player.entries.count, 4)
         XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
         XCTAssertEqual(player.namedStarts, ["oh yeah?"])
     }
 
     /// A song MusicKit won't play at all, pressed while ITTY BITTY was playing. MusicKit took
-    /// the new queue, refused it, and was left on "oh yeah?" paused at 0:00. The start puts
-    /// ITTY BITTY back, where it was, still playing.
+    /// the new queue, refused it, and was left on "oh yeah?" paused at 0:00. The start gives
+    /// back ITTY BITTY, where it was, still playing, with its rows.
     func testASongThatCantPlayGivesBackWhatWasPlaying() async throws {
         let songs = try Self.refusedTopTracks()
         let player = RefusingQueueStarter(refusing: ["6773775282"])
-        player.setQueue([songs[0], songs[1]], startingAt: nil)
-        try await player.play()
-        player.playbackTime = 42
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
 
-        do {
-            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
-            XCTFail("MusicKit refused the song")
-        } catch let refused as AppleMusicQueueStart.Refused {
-            XCTAssertEqual(refused.left, .previousQueue(leftOutBefore: 0))
-            XCTAssertEqual(MusicKitApplicationPlayer.playerError(refused.underlying).reason, .notFound)
-        }
+        let outcome = await Self.outcome { try await Self.press(starts, songs, at: 2, rows: "top tracks") }
+
+        XCTAssertEqual(outcome, "gave back P, 0 left out")
         XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
         XCTAssertEqual(player.entries.map(\.title), ["ITTY BITTY", "Loca Playa"])
         XCTAssertTrue(player.isPlaying, "it was playing, so it plays on")
         XCTAssertEqual(player.playbackTime, 42)
+        XCTAssertFalse(starts.hidesRefusedQueue)
     }
 
     /// A paused song comes back paused at its position: loaded, not played. MusicKit also refuses
@@ -704,10 +741,9 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         player.playbackTime = 95
         player.refusesNamedStart = true
 
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start([songs[2]], at: 0, on: player, isCurrent: { true }),
-            left: .previousQueue(leftOutBefore: 1)
-        )
+        let outcome = await Self.outcome { try await Self.press(Starts(player: player), [songs[2]], rows: "oh yeah") }
+
+        XCTAssertEqual(outcome, "gave back P, 1 left out")
         XCTAssertEqual(player.currentEntry?.title, "Loca Playa")
         XCTAssertEqual(player.entries.map(\.title), ["Loca Playa", "Where's Your Head At"])
         XCTAssertFalse(player.isPlaying)
@@ -715,78 +751,148 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(player.commands.filter { $0 == "play" }.count, 1, "only the refused start played")
     }
 
-    /// The refused song was the first thing played: there is nothing to go back to, so the
-    /// player is stopped and the bar shows nothing loaded, never the song as "Paused".
+    /// The refused song was the first thing played: there is nothing to give back, so the
+    /// player is stopped and the bar shows nothing loaded, never the song as "Paused". The
+    /// refused song MusicKit still holds is then nothing to give back either, and a start that
+    /// plays shows again.
     func testASongThatCantPlayFirstLeavesNothingLoaded() async throws {
         let songs = try Self.refusedTopTracks()
-        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
+        let starts = Starts(player: player)
 
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true }),
-            left: .nothing
-        )
+        let first = await Self.outcome { try await Self.press(starts, songs, at: 2, rows: "top tracks", holding: "none") }
+        XCTAssertEqual(first, "nothing")
         XCTAssertEqual(player.commands.last, "stop")
+        XCTAssertTrue(starts.hidesRefusedQueue)
+
+        let second = await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Where's Your Head At", holding: "hidden") }
+        XCTAssertEqual(second, "nothing", "the hidden refused song doesn't come back as Paused")
+        XCTAssertTrue(starts.hidesRefusedQueue)
+
+        _ = try await Self.press(starts, [songs[1]], rows: "Loca Playa", holding: "hidden")
+        XCTAssertFalse(starts.hidesRefusedQueue)
     }
 
-    /// A newer play that started while MusicKit was refusing this one owns the queue.
-    func testARefusedStartLeavesANewerPlayAlone() async throws {
+    /// The old song is refused too when it comes back: nothing could be given back, so the
+    /// player stops instead of showing what it last took as "Paused".
+    func testAGiveBackMusicKitRefusesTooLeavesNothingLoaded() async throws {
         let songs = try Self.refusedTopTracks()
-        let player = RefusingQueueStarter(refusing: ["6773775282"])
-        player.setQueue([songs[0]], startingAt: nil)
+        let player = RefusingQueueStarter(refusing: ["6773775282", "1783862517"])
+        player.setQueue([songs[0], songs[1]], startingAt: songs[1])
+        player.playbackTime = 95
+        let starts = Starts(player: player)
 
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { false }),
-            left: .newerPlay
-        )
-        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
-        XCTAssertFalse(player.commands.contains("stop"))
+        let outcome = await Self.outcome { try await Self.press(starts, [songs[2]], rows: "oh yeah") }
+
+        XCTAssertEqual(outcome, "nothing")
+        XCTAssertEqual(player.commands.last, "stop")
+        XCTAssertTrue(starts.hidesRefusedQueue)
     }
 
-    /// I press another song while the refused one's old queue is being put back (the press
+    /// I press another song while the refused one's old queue is being given back (the press
     /// failed, so I press again). The newer play owns the queue: it keeps its song at 0:00, and
     /// the old song's position isn't written onto it.
-    func testAPlayPressedWhileTheOldQueueIsPutBackKeepsItsSong() async throws {
+    func testAPlayPressedWhileTheOldQueueIsGivenBackKeepsItsSong() async throws {
         let songs = try Self.refusedTopTracks()
         let player = RefusingQueueStarter(refusing: ["6773775282"])
-        player.setQueue([songs[0], songs[1]], startingAt: nil)
-        try await player.play()
-        player.playbackTime = 42
-        var newerPlayStarted = false
-        player.duringPlay = { player in
-            guard !newerPlayStarted, player.currentEntry?.title == "ITTY BITTY" else { return }
-            newerPlayStarted = true
-            player.setQueue([songs[3]], startingAt: nil)
-        }
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
 
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { !newerPlayStarted }),
-            left: .newerPlay
-        )
+        let x = Task { await Self.outcome { try await Self.press(starts, songs, at: 2, rows: "X") } }
+        await player.waitForHeldPlays(1)
+        player.releasePlay() // refused at its named start
+        await player.waitForHeldPlays(1)
+        player.releasePlay() // refused from the pressed song on
+        await player.waitForHeldPlays(1) // P going back
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        let y = Task { try await Self.press(starts, [songs[3]], rows: "Y", holding: "X") }
+        await player.waitForHeldPlays(2)
+        player.releasePlay()
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        let yStarted = try await y.value
+        XCTAssertEqual(xOutcome, "replaced")
+        XCTAssertTrue(starts.holdsQueue(yStarted))
         XCTAssertEqual(player.currentEntry?.title, "Where's Your Head At")
         XCTAssertEqual(player.playbackTime, 0, "the old song's 0:42 stays with the old song")
     }
 
-    /// The same, when MusicKit also refuses the old queue at its song: the start doesn't try the
-    /// old queue's tail over the newer play's queue.
-    func testAPlayPressedWhileTheOldQueueIsRefusedBackIsLeftAlone() async throws {
+    /// P plays at 0:42. I press X, and press Y while MusicKit still works on X (it already holds
+    /// X's queue). Both are refused. Y gives back P, playing at 0:42, not X, which never played.
+    func testOverlappingRefusedPressesGiveBackWhatLastPlayed() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
+
+        let x = Task { await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X") } }
+        await player.waitForHeldPlays(1)
+        let y = Task { await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Y", holding: "X") } }
+        await player.waitForHeldPlays(2)
+        player.releasePlay() // X refused
+        player.releasePlay() // Y refused
+        await player.waitForHeldPlays(1) // P going back
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        let yOutcome = await y.value
+        XCTAssertEqual(xOutcome, "replaced")
+        XCTAssertEqual(yOutcome, "gave back P, 0 left out")
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.playbackTime, 42)
+    }
+
+    /// The same, when MusicKit plays X while Y still waits: X is what Y gives back. And when the
+    /// first press of the session had left nothing loaded, X now shows.
+    func testARefusedPressGivesBackAnEarlierPressThatPlayedMeanwhile() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["1838552993", "1745213459"])
+        let starts = Starts(player: player)
+        let first = await Self.outcome { try await Self.press(starts, [songs[0]], rows: "ITTY BITTY", holding: "none") }
+        XCTAssertEqual(first, "nothing")
+        player.holdsPlays = true
+
+        let x = Task { await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X", holding: "hidden") } }
+        await player.waitForHeldPlays(1)
+        let y = Task { await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Y", holding: "X") } }
+        await player.waitForHeldPlays(2)
+        player.releasePlay() // X plays
+        player.releasePlay() // Y refused
+        await player.waitForHeldPlays(1) // X going back
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        let yOutcome = await y.value
+        XCTAssertEqual(xOutcome, "plays, 0 left out")
+        XCTAssertEqual(yOutcome, "gave back X, 0 left out")
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertFalse(starts.hidesRefusedQueue, "what plays shows")
+    }
+
+    /// A sign-out stops the player while a start waits for MusicKit: the start leaves the
+    /// stopped player alone, whatever MusicKit then answers.
+    func testAStopWhileAStartWaitsLeavesThePlayerStopped() async throws {
         let songs = try Self.refusedTopTracks()
         let player = RefusingQueueStarter(refusing: ["6773775282"])
-        player.setQueue([songs[0], songs[1]], startingAt: songs[1])
-        player.playbackTime = 95
-        player.refusesNamedStart = true
-        var newerPlayStarted = false
-        player.duringPlay = { player in
-            guard !newerPlayStarted, player.currentEntry?.title == "Loca Playa" else { return }
-            newerPlayStarted = true
-            player.setQueue([songs[3]], startingAt: nil)
-        }
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
 
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start([songs[2]], at: 0, on: player, isCurrent: { !newerPlayStarted }),
-            left: .newerPlay
-        )
-        XCTAssertEqual(player.entries.map(\.title), ["Where's Your Head At"])
-        XCTAssertEqual(player.playbackTime, 0)
+        let x = Task { await Self.outcome { try await Self.press(starts, songs, at: 2, rows: "X") } }
+        await player.waitForHeldPlays(1)
+        starts.stop()
+        let commandsAtStop = player.commands.count
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        XCTAssertEqual(xOutcome, "replaced")
+        XCTAssertEqual(Array(player.commands.dropFirst(commandsAtStop)), [], "no queue is set after the stop")
+        XCTAssertFalse(player.isPlaying)
     }
 
     /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
@@ -811,76 +917,6 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         past.replace(with: ["a", "b", "c"].map { Self.row($0) }, carryingAdded: 1, after: 0)
         past.dropFirst(2)
         XCTAssertNil(past.addedAhead(of: 0), "the added song was before the song that plays on")
-    }
-
-    /// P plays at 0:42. I press X, and press Y while MusicKit still works on X (it already holds
-    /// X's queue). Both are refused. Y gives back P, playing at 0:42, not X, which never played.
-    func testOverlappingRefusedPressesGiveBackWhatLastPlayed() async throws {
-        let songs = try Self.refusedTopTracks()
-        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
-        player.setQueue([songs[0], songs[1]], startingAt: nil)
-        try await player.play()
-        player.playbackTime = 42
-        var starts = AppleMusicStartsInFlight<AppleMusicQueueStart.Previous>()
-
-        _ = starts.begin { .init(of: player) }
-        player.setQueue([songs[2]], startingAt: nil) // X: MusicKit holds it, still working
-        let forY = starts.begin { .init(of: player) }
-        starts.end() // X refused, superseded by Y
-
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start([songs[3]], at: 0, on: player, restoring: forY, isCurrent: { true }),
-            left: .previousQueue(leftOutBefore: 0)
-        )
-        starts.end()
-        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
-        XCTAssertTrue(player.isPlaying)
-        XCTAssertEqual(player.playbackTime, 42)
-        XCTAssertNil(starts.point)
-    }
-
-    /// The same, when X played while Y still waited: X is what Y gives back.
-    func testARefusedPressGivesBackAnEarlierPressThatPlayedMeanwhile() {
-        var starts = AppleMusicStartsInFlight<String>()
-        XCTAssertEqual(starts.begin { "P" }, "P")
-        XCTAssertEqual(starts.begin { "X's queue, not played yet" }, "P", "a waiting start's queue is no give-back")
-        starts.end(replacingPointWith: "X")
-        XCTAssertEqual(starts.point, "X")
-        XCTAssertEqual(starts.begin { "Y's queue" }, "X")
-        starts.end()
-        starts.end()
-        XCTAssertNil(starts.point)
-        XCTAssertEqual(starts.begin { "now" }, "now", "with none waiting it reads the player again")
-    }
-
-    /// After a refusal that left nothing loaded, MusicKit still holds the refused song (hidden).
-    /// The next refused press gives back nothing, not that song as "Paused".
-    func testARefusalAfterARefusalWithNothingPlayedLeavesNothingLoaded() async throws {
-        let songs = try Self.refusedTopTracks()
-        let player = RefusingQueueStarter(refusing: ["6773775282", "1838552993"])
-        player.setQueue([songs[2]], startingAt: nil) // the hidden refused queue
-
-        await XCTAssertThrowsRefused(
-            try await AppleMusicQueueStart.start([songs[3]], at: 0, on: player, restoring: .nothing, isCurrent: { true }),
-            left: .nothing
-        )
-        XCTAssertEqual(player.commands.last, "stop")
-    }
-
-    private func XCTAssertThrowsRefused(
-        _ work: @autoclosure () async throws -> Int,
-        left: AppleMusicQueueStart.Left,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async {
-        do {
-            _ = try await work()
-            XCTFail("Expected MusicKit to refuse the start", file: file, line: line)
-        } catch let refused as AppleMusicQueueStart.Refused {
-            XCTAssertEqual(refused.left, left, file: file, line: line)
-        } catch {
-            XCTFail("Unexpected \(error)", file: file, line: line)
-        }
     }
 
     /// What Screen Time ("Music: Clean") and a restrictions profile set, and the same keys saved
@@ -1616,23 +1652,40 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
 
     func play() async throws {
         commands.append("play")
-        try whileMusicKitWorks()
+        try await whileMusicKitWorks()
         isPlaying = currentEntry != nil
     }
 
     func prepareToPlay() async throws {
         commands.append("prepare")
-        try whileMusicKitWorks()
+        try await whileMusicKitWorks()
     }
 
-    /// Runs while MusicKit works on a play or prepare: a newer play pressed meanwhile can set
-    /// its queue here.
-    var duringPlay: ((RefusingQueueStarter) -> Void)?
+    /// Holds every play and prepare until ``releasePlay()``, like MusicKit working on it, so a
+    /// test can press again meanwhile.
+    var holdsPlays = false
+    private var held: [CheckedContinuation<Void, Never>] = []
 
-    /// MusicKit decides on the queue it was handed; what happens while it does comes after.
-    private func whileMusicKitWorks() throws {
+    /// Lets the play held longest go on.
+    func releasePlay() {
+        guard !held.isEmpty else { return XCTFail("no play is held") }
+        held.removeFirst().resume()
+    }
+
+    /// Waits until `count` plays are held.
+    func waitForHeldPlays(_ count: Int) async {
+        for _ in 0..<10_000 where held.count < count {
+            await Task.yield()
+        }
+        XCTAssertEqual(held.count, count, "plays held")
+    }
+
+    /// MusicKit decides on the queue it was handed; what happens while it works comes after.
+    private func whileMusicKitWorks() async throws {
         let refusal = Result { try refuseIfNeeded() }
-        duringPlay?(self)
+        if holdsPlays {
+            await withCheckedContinuation { held.append($0) }
+        }
         try refusal.get()
     }
 
