@@ -55,32 +55,33 @@ struct ImmersiveLyricsLeftColumnView: View {
 
             ImmersiveLyricsArtistLineView(track: track, linksToArtists: linksToLibrary, navigateToArtist: navigateToArtist)
 
-            if let album = track.albumName, !album.isEmpty, !linksToLibrary {
-                Text(album)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(isCompact ? 1 : 2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else if let album = track.albumName, !album.isEmpty {
-                Button {
-                    navigateToAlbum(
-                        AlbumTapTarget(id: track.albumID, name: album),
-                        track.artistText,
-                        track.albumArtURL
-                    )
-                } label: {
-                    Text(album)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(isCompact ? 1 : 2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if let album = track.albumName, !album.isEmpty {
+                if linksToLibrary {
+                    Button {
+                        navigateToAlbum(
+                            AlbumTapTarget(id: track.albumID, name: album),
+                            track.artistText,
+                            track.albumArtURL
+                        )
+                    } label: {
+                        albumText(album)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openAlbum"), album))
+                } else {
+                    albumText(album)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openAlbum"), album))
             }
         }
+    }
+
+    private func albumText(_ album: String) -> some View {
+        Text(album)
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.5))
+            .lineLimit(isCompact ? 1 : 2)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
