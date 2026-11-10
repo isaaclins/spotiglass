@@ -109,6 +109,9 @@ final class CommandPaletteManager: ObservableObject {
     @Published private(set) var canTogglePlayback = false
     /// Mirrors whether a current Spotify music track can open immersive lyrics.
     @Published private(set) var canToggleLyrics = false
+    /// Whether Next and Previous Track have a song to skip from: with nothing loaded (the bar
+    /// says "Ready to play") they did nothing (#500), so the palette and menu leave them out.
+    @Published private(set) var canSkipTrack = false
     /// Mirrors the session's live shuffle state for the Playback menu.
     @Published private(set) var shuffleEnabled = false
     /// Mirrors the session's live repeat mode for the Playback menu.
@@ -188,6 +191,22 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refreshListedCommands()
     }
 
+    func setSkipAvailability(_ available: Bool) {
+        guard canSkipTrack != available else { return }
+        canSkipTrack = available
+        // Like Play/Pause: the quick actions and `>` scope follow it while the panel is open.
+        viewModel.refreshListedCommands()
+    }
+
+    /// A song is playing or paused, so Next and Previous have something to skip from.
+    static func hasLoadedTrack(_ state: PlaybackConnectionState) -> Bool {
+        switch state {
+        case .playing: true
+        case let .paused(track): track != nil
+        default: false
+        }
+    }
+
     /// Show Lyrics needs a song in the bar; Hide Lyrics works whenever the lyrics show, also
     /// while they wait for a song that is on its way (#486).
     var isLyricsToggleAllowed: Bool {
@@ -222,6 +241,9 @@ final class CommandPaletteManager: ObservableObject {
         playbackReadinessCancellables.removeAll()
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
         setLyricsToggleAvailability(playback.audiblePlayer.currentLyricTrack != nil)
+        setSkipAvailability(
+            playback.isOtherServiceHeard || Self.hasLoadedTrack(playback.connectionState)
+        )
         shuffleEnabled = playback.shuffleEnabled
         repeatMode = playback.repeatMode
         canMutatePlaybackTransport = playback.isTransportMutationReady
@@ -257,6 +279,8 @@ final class CommandPaletteManager: ObservableObject {
             self?.setLyricsToggleAvailability(
                 followsOtherService ? otherServiceHasLyrics : connectionState.currentLyricTrack != nil
             )
+            // Skipping goes to the music you hear (#396): the other service's song counts too.
+            self?.setSkipAvailability(isOtherServiceHeard || Self.hasLoadedTrack(connectionState))
             let isTransportMutationReady = PlaybackSessionViewModel.isTransportMutationReady(
                 isTransportStateKnown: isTransportStateKnown,
                 connectionState: connectionState,
@@ -574,6 +598,7 @@ final class CommandPaletteManager: ObservableObject {
         trackSelectionPinState = .unavailable
         canTogglePlayback = false
         canToggleLyrics = false
+        canSkipTrack = false
         shuffleEnabled = false
         repeatMode = .off
         canMutatePlaybackTransport = false
@@ -629,8 +654,12 @@ final class CommandPaletteManager: ObservableObject {
             // subscription) leaves these unwired; listing them would offer commands that do nothing.
             guard spec.commandID != CommandPaletteCommandID.signOut || signOut != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.connectPlayback || connectPlayback != nil else { return nil }
-            guard spec.commandID != CommandPaletteCommandID.nextTrack || nextTrack != nil else { return nil }
-            guard spec.commandID != CommandPaletteCommandID.previousTrack || previousTrack != nil else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.nextTrack || (nextTrack != nil && canSkipTrack) else {
+                return nil
+            }
+            guard spec.commandID != CommandPaletteCommandID.previousTrack || (previousTrack != nil && canSkipTrack) else {
+                return nil
+            }
             guard spec.commandID != CommandPaletteCommandID.toggleSidebar || toggleSidebar != nil else { return nil }
             if let service = MusicService(switchCommandID: spec.commandID) {
                 guard switchService != nil, switchableServices.contains(service) else { return nil }

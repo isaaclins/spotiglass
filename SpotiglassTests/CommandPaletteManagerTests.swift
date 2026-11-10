@@ -202,6 +202,8 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.connectPlayback = {}
         manager.nextTrack = {}
         manager.previousTrack = {}
+        // Next and Previous also need a song to skip from (#500).
+        manager.setSkipAvailability(true)
         XCTAssertTrue(ids().isSuperset(of: gated))
     }
 
