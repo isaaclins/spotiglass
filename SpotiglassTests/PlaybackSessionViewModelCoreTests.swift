@@ -108,6 +108,35 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         )
     }
 
+    /// #470 follow-ups: a request Spotify turned down keeps its reason (retrying can't fix it),
+    /// and an Apple Music edit whose answer didn't decode never reads as Spotify's.
+    func testRejectedRequestsKeepTheirReasonAndAppleMusicNeverBlamesSpotify() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("playback-rejected-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let rejected = SpotifyAPIError.server(statusCode: 400, message: "Invalid track uri", details: nil)
+        XCTAssertEqual(PlaybackSessionViewModel.displayError(for: rejected).message, "Spotify hat diese Anfrage abgelehnt: Invalid track uri")
+        XCTAssertEqual(
+            PlaybackSessionViewModel.displayError(for: SpotifyAPIError.server(statusCode: 400, message: nil, details: nil)).message,
+            "Spotify hat diese Anfrage abgelehnt."
+        )
+
+        let previous = MusicServiceSelection.current
+        MusicServiceSelection.current = .appleMusic
+        defer { MusicServiceSelection.current = previous }
+        let unreadable = DecodingError.keyNotFound(
+            AnyCodingKey("data"),
+            DecodingError.Context(codingPath: [], debugDescription: "No value associated with key data.")
+        )
+        let toast = PlaylistBrowserViewModel.describeFailure(unreadable, operation: .createPlaylist)
+        XCTAssertFalse(toast.contains("Spotify"), toast)
+        XCTAssertEqual(toast, PlaylistBrowserViewModel.appleMusicDisplayError(for: unreadable)?.message)
+    }
+
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)
@@ -214,4 +243,12 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         )
         XCTAssertEqual(viewModel.playbackVolume, 0.42, accuracy: 0.000_001)
     }
+}
+
+private struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int? = nil
+    init(_ string: String) { stringValue = string }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
 }

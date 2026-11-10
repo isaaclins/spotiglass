@@ -47,6 +47,14 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
                 return SpotiglassL10n.format("error.spotify.rejectedRequest", message)
             }
             return SpotiglassL10n.string("error.spotify.rejectedRequestGeneric")
+        case let .server(statusCode, message, _) where statusCode < 500:
+            // A 4xx other than the ones above is Spotify turning the request down
+            // ("Invalid track uri"): its reason is what says what to change, and
+            // trying again can't fix it (#470).
+            if let message = message?.nilWhenEmpty {
+                return SpotiglassL10n.format("error.spotify.rejectedRequest", message)
+            }
+            return SpotiglassL10n.string("error.spotify.rejectedRequestGeneric")
         case .server:
             // The status code and the server's own text are developer facts, so
             // they belong in diagnosticDetails rather than in the sentence the
