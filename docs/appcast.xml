@@ -3,16 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.19</title>
-            <pubDate>Tue, 10 Nov 2026 23:01:02 +0100</pubDate>
-            <sparkle:version>30</sparkle:version>
-            <sparkle:shortVersionString>0.8.19</sparkle:shortVersionString>
+            <title>0.8.20</title>
+            <pubDate>Tue, 10 Nov 2026 23:09:16 +0100</pubDate>
+            <sparkle:version>31</sparkle:version>
+            <sparkle:shortVersionString>0.8.20</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Command palette filters stay visible when the window is short.
-• The selected filter in the command palette keeps its label in narrow windows.
-• The search palette is now one clean panel near the top of the window.
+            <description sparkle:format="plain-text"><![CDATA[• Network errors in the Spotify queue now show in the app's language, so German users see them in German.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.19/Spotiglass-0.8.19.zip" length="12910779" type="application/octet-stream" sparkle:edSignature="QyApbg1iNSDciYalyU5U87+gWi4bVGsjDE7/XxW9+RmMgxGBvhRcFBk5AIsnR12n3qlrdNRf10qecHL6uTqPDA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.20/Spotiglass-0.8.20.zip" length="12920017" type="application/octet-stream" sparkle:edSignature="k61hKerHyn4ZIy5xv0xBtBf10jREoC5tcAAKYiqysamZ/EF4IT6yyrVqVFcr0KeOxMQQCtn2i3tEMoG6DNXPAg=="/>
         </item>
     </channel>
 </rss>

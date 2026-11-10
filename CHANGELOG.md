@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.20] - 2026-11-10
+
+### Fixed
+
+- Network errors in the Spotify queue now show in the app's language, so German users see them in German.
+
 ## [0.8.19] - 2026-11-10
 
 ### Fixed
