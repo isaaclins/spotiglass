@@ -82,6 +82,53 @@ final class CommandPalettePanelTests: XCTestCase {
         XCTAssertEqual(recents.queries, ["midnight city", "older"])
     }
 
+    /// Queueing a result with ⇧↩ or pinning it with ⌘↩ uses it as much as ↩ does, but only ↩
+    /// recorded the search.
+    func testQueueingOrPinningAResultRecordsTheSearch() async {
+        let viewModel = CommandPaletteViewModel()
+        let recents = CommandPaletteRecentSearches.inMemory()
+        viewModel.recentSearches = recents
+        var queued = 0
+        var pinned = 0
+        let usable = CommandPaletteItem(
+            id: "track-q", title: "Song", subtitle: "Artist", iconSystemName: "music.note",
+            section: .tracks, keywords: [], pinAction: { pinned += 1 }, queueAction: { queued += 1 }
+        ) {}
+        viewModel.show()
+        viewModel.query = "midnight city"
+        viewModel.testingReplaceSections([(.tracks, [usable])])
+        await viewModel.executeSelectionEnqueue()
+        viewModel.query = "daft punk"
+        viewModel.testingReplaceSections([(.tracks, [usable])])
+        await viewModel.executeSelectionPinning()
+
+        XCTAssertEqual(queued, 1)
+        XCTAssertEqual(pinned, 1)
+        XCTAssertEqual(recents.queries, ["daft punk", "midnight city"])
+    }
+
+    /// The quick actions were a snapshot from when the panel opened: Lyrics stayed offered after
+    /// the song lost its lyrics, and Play/Pause stayed missing after playback became possible.
+    func testQuickActionsFollowWhatTheServiceCanDoWhileThePanelIsOpen() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.setLyricsToggleAvailability(true)
+        manager.setPlaybackToggleAvailability(false)
+        manager.viewModel.show()
+        func quickActionIDs() -> [String] {
+            manager.viewModel.sections.first { $0.section == .quickActions }?.items.map(\.id) ?? []
+        }
+        XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.toggleLyrics))
+        XCTAssertFalse(quickActionIDs().contains(CommandPaletteCommandID.togglePlayback))
+
+        manager.setLyricsToggleAvailability(false)
+        manager.setPlaybackToggleAvailability(true)
+        await manager.viewModel.waitForSearchCompletion()
+
+        XCTAssertFalse(quickActionIDs().contains(CommandPaletteCommandID.toggleLyrics))
+        XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.togglePlayback))
+    }
+
     func testCommandsAndOneLetterQueriesAreNotRecorded() async {
         let viewModel = CommandPaletteViewModel()
         let recents = CommandPaletteRecentSearches.inMemory()

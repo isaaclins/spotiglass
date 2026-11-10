@@ -273,7 +273,8 @@ final class CommandPaletteViewModel: ObservableObject {
         }
     }
 
-    /// A catalog search that led to a result (or to the Search page) becomes a recent search.
+    /// A catalog search that led to a result (played, queued, pinned, or the Search page) becomes
+    /// a recent search.
     private func recordSearchIfNeeded(leadingTo item: CommandPaletteItem) {
         guard currentScope == .songs, item.section != .recentSearches, item.section != .quickActions else { return }
         let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -289,6 +290,7 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard let pinAction = item.pinAction else { return }
+        recordSearchIfNeeded(leadingTo: item)
         pinAction()
     }
 
@@ -310,6 +312,7 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard let queueAction = item.queueAction else { return }
+        recordSearchIfNeeded(leadingTo: item)
         await queueAction()
     }
 

@@ -183,14 +183,22 @@ final class CommandPaletteManager: ObservableObject {
     func setPlaybackToggleAvailability(_ available: Bool) {
         guard canTogglePlayback != available else { return }
         canTogglePlayback = available
-        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
-        viewModel.refresh()
+        refreshListedCommands()
     }
 
     func setLyricsToggleAvailability(_ available: Bool) {
         guard canToggleLyrics != available else { return }
         canToggleLyrics = available
-        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
+        refreshListedCommands()
+    }
+
+    /// Commands show in `>` scope and, before anything is typed, as quick actions (#472): both
+    /// lists have to follow what the service can do right now.
+    private func refreshListedCommands() {
+        guard viewModel.isPresented else { return }
+        let showsCommands = viewModel.currentScope == .commands
+            || viewModel.strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard showsCommands else { return }
         viewModel.refresh()
     }
 
