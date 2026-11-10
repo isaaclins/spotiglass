@@ -73,20 +73,15 @@ final class CollectionContextMenuTests: XCTestCase {
         let card = try XCTUnwrap(viewModel.homeQuickAccessCards.first { $0.id == ownPlaylist.id })
         let target = try XCTUnwrap(card.menuTarget)
 
-        let sidebarMenu = CollectionMenu.menu(
-            for: .playlist(ownPlaylist),
-            isPinned: false,
-            canRename: viewModel.canRenamePlaylist(ownPlaylist),
-            canDelete: viewModel.canDeletePlaylist(ownPlaylist)
-        )
         let homeMenu = CollectionMenu.menu(
             for: target,
             isPinned: false,
             canRename: viewModel.canRenamePlaylist(ownPlaylist),
             canDelete: viewModel.canDeletePlaylist(ownPlaylist)
         )
-        XCTAssertEqual(homeMenu, sidebarMenu)
-        XCTAssertEqual(homeMenu.entries, [.editPlaylistName, .pin])
+        // The sidebar row's menu before #478, written out: Edit playlist name, a divider,
+        // Pin to Sidebar (Spotify can't delete playlists).
+        XCTAssertEqual(homeMenu.sections, [[.editPlaylistName], [.pin]])
 
         let items = CollectionMenuItems(menu: homeMenu, placement: .content) { _ in }
         XCTAssertEqual(try buttonTitles(in: items), [editTitle, pinTitle])
@@ -228,6 +223,29 @@ final class CollectionContextMenuTests: XCTestCase {
         try view.inspect().find(text: "Oh yeah?").find(ViewType.Button.self, relation: .parent).tap()
 
         XCTAssertTrue(openedAlbum)
+    }
+
+    /// A line without links (a search playlist's owner) used to be part of the card's button.
+    /// Moving the artist links out of it left that line dead; it opens the item again.
+    func testALineWithoutLinksStillOpensTheCard() throws {
+        let theirs = MusicPlaylistSummary(
+            id: "theirs", name: "Today's Top Hits", ownerID: "spotify", ownerName: "Spotify",
+            imageURL: nil, trackCount: 50, snapshotID: "s"
+        )
+        var opened = false
+        let view = HomeMediaCardView(
+            card: HomeMediaCard(playlist: theirs, subtitle: theirs.ownerName),
+            browserViewModel: makeBrowserViewModel(),
+            openArtist: { _ in XCTFail("an owner is not an artist") }
+        ) {
+            opened = true
+        }
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(view)
+
+        try view.inspect().find(text: "Spotify").find(ViewType.Button.self, relation: .parent).tap()
+
+        XCTAssertTrue(opened)
     }
 
     func testNamesWithoutIDsStayPlainText() throws {

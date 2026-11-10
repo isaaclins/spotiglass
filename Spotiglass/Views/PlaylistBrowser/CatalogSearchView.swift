@@ -359,14 +359,20 @@ struct CatalogSearchArtistCard: View {
     let artist: MusicArtist
     let action: () -> Void
 
+    @State private var isNameHovered = false
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: SpotiglassDesign.spacingXS) {
                 ArtworkView(url: artist.imageURL, size: SpotiglassDesign.Layout.cardWidth)
                     .clipShape(Circle())
+                // The same link look as the album and playlist cards' titles (#478).
                 Text(artist.name)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
+                    .underline(isNameHovered)
+                    .onHover { isNameHovered = $0 }
+                    .pointerStyle(.link)
                 Text(SpotiglassL10n.string("browser.palette.subtitle.artist"))
                     .font(.caption)
                     .foregroundStyle(.secondary)

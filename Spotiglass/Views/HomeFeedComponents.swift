@@ -103,6 +103,10 @@ struct HomeMediaCardView: View {
 
     @State private var isTitleHovered = false
 
+    private var hasArtistLinks: Bool {
+        card.artistCredits.contains { if case .link = $0 { true } else { false } }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             Button(action: action) {
@@ -114,6 +118,11 @@ struct HomeMediaCardView: View {
                         .underline(isTitleHovered)
                         .onHover { isTitleHovered = $0 }
                         .pointerStyle(.link)
+                    // A line without links (a playlist's owner, an artist without an ID) is
+                    // part of the card's button, so clicking it opens the item as it always did.
+                    if !hasArtistLinks {
+                        HomeCardArtistCredits(subtitle: card.subtitle, credits: [], openArtist: openArtist)
+                    }
                 }
                 .contentShape(Rectangle())
             }
@@ -122,7 +131,9 @@ struct HomeMediaCardView: View {
             // VoiceOver and keyboard users reach the menu from the card's own button.
             .collectionAccessibilityActions(card.menuTarget, browserViewModel: browserViewModel)
 
-            HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist)
+            if hasArtistLinks {
+                HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist)
+            }
         }
         .frame(width: Self.artworkSize, alignment: .leading)
         .contentShape(Rectangle())
