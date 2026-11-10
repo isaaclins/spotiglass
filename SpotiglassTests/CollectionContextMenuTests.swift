@@ -233,12 +233,76 @@ final class CollectionContextMenuTests: XCTestCase {
     // MARK: - Edit playlist name from Home
 
     func testEditPlaylistNameOpensThePlaylistAndAsksItsHeaderToEdit() async throws {
-        let viewModel = makeBrowserViewModel()
+        let viewModel = makeBrowserViewModel(api: MockBrowsingAPI(
+            playlistResults: [.success([ownPlaylist])],
+            trackResults: [ownPlaylist.id: [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        ))
 
         await viewModel.openPlaylistForNameEditing(ownPlaylist)
 
         XCTAssertEqual(viewModel.sidebarSelection, .playlist(ownPlaylist.id))
+        guard case let .playlist(detail)? = viewModel.detailState.currentValue else {
+            return XCTFail("The playlist's page should show, with the header that edits its name")
+        }
+        XCTAssertEqual(detail.playlist.id, ownPlaylist.id)
         XCTAssertEqual(viewModel.playlistNameEditRequestID, ownPlaylist.id)
+        XCTAssertNil(viewModel.sidebarPlaylistNameEditRequestID, "The header edits, not the sidebar")
+    }
+
+    /// A new playlist is empty, and an empty playlist's page shows a message, not the header.
+    /// Edit playlist name on its tile then did nothing; its sidebar row edits instead.
+    func testEditPlaylistNameOnAnEmptyPlaylistEditsItsSidebarRow() async throws {
+        let viewModel = makeBrowserViewModel(api: MockBrowsingAPI(
+            playlistResults: [.success([ownPlaylist])],
+            trackResults: [ownPlaylist.id: [.success([])]]
+        ))
+
+        await viewModel.openPlaylistForNameEditing(ownPlaylist)
+
+        guard case .empty = viewModel.detailState else {
+            return XCTFail("Expected the empty playlist's message, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(viewModel.sidebarPlaylistNameEditRequestID, ownPlaylist.id)
+
+        let playbackViewModel = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "me")
+        let sidebar = PlaylistsSidebarSectionContent(
+            playlistState: viewModel.playlistState,
+            likedSongsStubRow: PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil),
+            viewModel: viewModel,
+            playbackViewModel: playbackViewModel,
+            playlistSummaryFromRow: { _ in self.ownPlaylist }
+        )
+        .environmentObject(store)
+        let host = ViewTestHost.host(sidebar, size: CGSize(width: 320, height: 400))
+
+        // The row's name turns into the rename field, filled with the current name.
+        var field: NSTextField?
+        for _ in 0..<25 where field == nil {
+            AppKitTestSupport.pumpRunLoop(for: 0.04)
+            field = textFields(in: host.view).first { $0.isEditable }
+        }
+        XCTAssertEqual(field?.stringValue, ownPlaylist.name)
+        XCTAssertNil(viewModel.playlistNameEditRequestID, "The row took the request")
+    }
+
+    func testEditPlaylistNameIsDroppedWhenThePlaylistDoesntOpen() async {
+        let viewModel = makeBrowserViewModel(api: MockBrowsingAPI(
+            playlistResults: [.success([ownPlaylist])],
+            trackResults: [ownPlaylist.id: [.failure(URLError(.notConnectedToInternet))]]
+        ))
+
+        await viewModel.openPlaylistForNameEditing(ownPlaylist)
+
+        // Otherwise opening the playlist later, once it loads, would start editing its name.
+        XCTAssertNil(viewModel.playlistNameEditRequestID)
+        XCTAssertNil(viewModel.sidebarPlaylistNameEditRequestID)
+    }
+
+    private func textFields(in view: NSView) -> [NSTextField] {
+        ((view as? NSTextField).map { [$0] } ?? []) + view.subviews.flatMap { textFields(in: $0) }
     }
 
     func testEditPlaylistNameIgnoresPlaylistsTheUserCantRename() async {

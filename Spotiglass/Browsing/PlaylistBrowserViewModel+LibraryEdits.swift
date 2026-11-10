@@ -42,6 +42,26 @@ extension PlaylistBrowserViewModel {
         guard canRenamePlaylist(summary) else { return }
         playlistNameEditRequestID = summary.id
         await selectPlaylist(summary: summary, origin: .extend)
+        // The header takes the request once the playlist shows, and an empty playlist (no
+        // header) leaves it to its sidebar row (``sidebarPlaylistNameEditRequestID``). When the
+        // playlist didn't open (it failed to load, or the user went elsewhere first) the request
+        // goes, or opening that playlist later would start editing its name out of nowhere.
+        guard playlistNameEditRequestID == summary.id else { return }
+        if sidebarSelection == .playlist(summary.id) {
+            if case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == summary.id { return }
+            if case .empty = detailState { return }
+        }
+        playlistNameEditRequestID = nil
+    }
+
+    /// The rename request the sidebar row takes: an empty playlist shows a message instead of
+    /// its header, so the header can't (#478).
+    var sidebarPlaylistNameEditRequestID: String? {
+        guard let id = playlistNameEditRequestID,
+              sidebarSelection == .playlist(id),
+              case .empty = detailState
+        else { return nil }
+        return id
     }
 
     func canDeletePlaylist(_ summary: MusicPlaylistSummary) -> Bool {

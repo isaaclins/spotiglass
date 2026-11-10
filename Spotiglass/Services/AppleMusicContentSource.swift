@@ -173,6 +173,18 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return songs.map { byID[$0.id] ?? $0 }
     }
 
+    /// Catalog search albums arrive without their artists. The search card links each artist
+    /// under the cover (#478), so one catalog request loads them for the whole page; albums it
+    /// can't resolve keep their plain artist name.
+    private static func withArtists(_ albums: [Album]) async -> [Album] {
+        guard !albums.isEmpty else { return albums }
+        var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: albums.map(\.id))
+        request.properties = [.artists]
+        guard let detailed = try? await request.response().items else { return albums }
+        let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return albums.map { byID[$0.id] ?? $0 }
+    }
+
     func recommendedPlaylists() async throws -> [Playlist] {
         let response = try await MusicPersonalRecommendationsRequest().response()
         return response.recommendations.flatMap { Array($0.playlists) }
@@ -277,7 +289,7 @@ struct MusicKitContentSource: AppleMusicContentSource {
         let response = try await request.response()
         var items = AppleMusicSearchItems(
             songs: Array(response.songs),
-            albums: Array(response.albums),
+            albums: await Self.withArtists(Array(response.albums)),
             artists: Array(response.artists),
             playlists: Array(response.playlists)
         )

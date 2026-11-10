@@ -85,6 +85,15 @@ struct PlaylistsSidebarSectionContent: View {
             else { return }
             cancelPlaylistNameEditing()
         }
+        // "Edit playlist name" on a Home or Search tile of an empty playlist: its page has no
+        // header to edit in, so the row edits here as if it had been right-clicked (#478).
+        .onChange(of: viewModel.sidebarPlaylistNameEditRequestID, initial: true) { _, requestedID in
+            guard let requestedID,
+                  let playlist = playlistState.currentValue?.first(where: { $0.id == requestedID })
+            else { return }
+            viewModel.playlistNameEditRequestID = nil
+            beginPlaylistNameEditing(for: playlist)
+        }
         // Cancel on focus loss instead of committing on blur. This avoids
         // saving an unfinished name after focus moves to another surface.
         .onChange(of: isPlaylistNameFocused) { _, isFocused in
