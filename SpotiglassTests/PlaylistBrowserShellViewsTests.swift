@@ -193,6 +193,9 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         )
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await browserVM.load()
+        // A playlist opened from Home, so the toolbar has its Back button too.
+        await browserVM.selectPlaylist(id: "p1")
+        XCTAssertTrue(browserVM.canNavigateBack)
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
         let tokens = ShellTestTokenProvider()
@@ -217,13 +220,15 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         window.setContentSize(CGSize(width: 1_040, height: 680))
         // Only a window on screen is in the app's accessibility tree.
         window.makeKeyAndOrderFront(nil)
-        // Queue and Disconnect sit in two different toolbar items; Refresh and the sidebar
-        // toggle in two more.
-        let toolbarButtons = ["browser.queue", "browser.disconnect"].map { "AXButton: \(SpotiglassL10n.string($0))" }
+        // Back, Queue and Disconnect sit in three different toolbar items; Refresh and the
+        // sidebar toggle in two more.
+        let back = NavigationToolbarChrome.destinationDescription(for: browserVM, locale: SpotiglassL10n.locale)
+        let toolbarButtons = ([back] + ["browser.queue", "browser.disconnect"].map { SpotiglassL10n.string($0) })
+            .map { "AXButton: \($0)" }
         let reachesToolbar = { (elements: [String]) in toolbarButtons.allSatisfy(elements.contains) }
 
         let closed = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
-        XCTAssertTrue(reachesToolbar(closed), "Queue and Disconnect should be reachable: \(closed)")
+        XCTAssertTrue(reachesToolbar(closed), "\(toolbarButtons) should be reachable: \(closed)")
         // Everything named on the page and in the toolbar, except the window and its title.
         let page = Set(closed.dropFirst().filter { !$0.hasSuffix(": ") && !$0.hasSuffix(": \(window.title)") })
         XCTAssertGreaterThan(page.count, 10, "The browser should have rendered: \(closed)")
