@@ -177,12 +177,13 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
     /// Shows a stand-in cover on screen the way a row shows a library cover: the see-through
     /// placeholder, the cover image with the marker behind it, over the row's `backdrop`.
     /// `badge` draws a green square over the cover, like a pin badge; `dim` lays a same-sized
-    /// half-black image over it; `imagePlaceholder` draws the placeholder as an image; `round` clips it like an artist's cover; `inSidebar` puts it
+    /// half-black image over it; `imagePlaceholder` draws the placeholder as an image;
+    /// `emptyCoverLayer` stands in for MusicKit's cover layer before it has any contents; `round` clips it like an artist's cover; `inSidebar` puts it
     /// inside a view that draws nothing when cached.
     private func showCoverOnScreen(
         url: String, itemKey: String?, cover: NSImage = magenta, backdrop: Color = .clear,
         badge: Bool = false, dim: Bool = false, imagePlaceholder: Bool = false, round: Bool = false,
-        inSidebar: Bool = false
+        emptyCoverLayer: Bool = false, side: CGFloat = 40, inSidebar: Bool = false
     ) throws {
         let marker = OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey)
         let row = ZStack {
@@ -191,10 +192,14 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
             } else {
                 Color.gray.opacity(0.16)
             }
-            Image(nsImage: cover).resizable().frame(width: 40, height: 40).background(marker)
-            if dim { Image(nsImage: Self.tile(NSColor(white: 0, alpha: 0.5))).resizable().frame(width: 40, height: 40) }
+            if emptyCoverLayer {
+                EmptyLayer().frame(width: side, height: side).background(marker)
+            } else {
+                Image(nsImage: cover).resizable().frame(width: side, height: side).background(marker)
+            }
+            if dim { Image(nsImage: Self.tile(NSColor(white: 0, alpha: 0.5))).resizable().frame(width: side, height: side) }
         }
-        .frame(width: 40, height: 40)
+        .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: round ? 20 : 4))
         .overlay(alignment: .topTrailing) {
             if badge { Color(red: 0, green: 1, blue: 0).frame(width: 14, height: 14) }
@@ -310,6 +315,23 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
         XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
     }
 
+    /// MusicKit's cover layer before it has any contents still counts as the cover: a same-sized
+    /// layer over it (the now-playing cover has a lyrics button over it) isn't taken instead.
+    func testImageOverAnEmptyCoverLayerIsNotTakenForIt() throws {
+        let url = "musicKit://artwork/transient/40x40?id=EMPTY449"
+        try showCoverOnScreen(url: url, itemKey: nil, dim: true, emptyCoverLayer: true)
+        XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
+    }
+
+    /// With the same cover on screen twice, the preview takes the larger copy.
+    func testPreviewTakesTheLargestCopyOnScreen() throws {
+        let url = "musicKit://artwork/transient/40x40?id=TWICE449"
+        try showCoverOnScreen(url: url, itemKey: nil, side: 20)
+        try showCoverOnScreen(url: url, itemKey: nil, side: 60)
+        let image = try XCTUnwrap(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
+        XCTAssertEqual(image.size.width, 60)
+    }
+
     /// The placeholder behind the cover is never taken for it, even when it is an image too.
     func testImagePlaceholderBehindAnUndrawnCoverIsNotTakenForIt() throws {
         let url = "musicKit://artwork/transient/40x40?id=BEHIND449"
@@ -394,4 +416,15 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
 /// Stands in for the sidebar's glass and scroll views, which draw nothing into a cached image.
 private final class DrawsNothingWhenCachedView: NSView {
     override func cacheDisplay(in rect: NSRect, to bitmapImageRep: NSBitmapImageRep) {}
+}
+
+/// A layer with no contents and nothing inside: MusicKit's cover before it is filled.
+private struct EmptyLayer: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {}
 }

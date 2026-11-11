@@ -173,7 +173,10 @@ final class OnScreenArtwork {
     func snapshot(url: URL?, itemKey: String? = nil) -> NSImage? {
         for key in OnScreenArtworkMarker.keys(url: url, itemKey: itemKey) {
             guard let views = viewsByKey[key] else { continue }
-            for view in views.allObjects where view.keys.contains(key) {
+            // The sharpest copy first: a header's cover over a command palette thumbnail.
+            let showing = views.allObjects.filter { $0.keys.contains(key) }
+                .sorted { $0.drawnPixelWidth > $1.drawnPixelWidth }
+            for view in showing {
                 if let image = view.drawnCover() { return image }
             }
             if views.allObjects.isEmpty { viewsByKey[key] = nil }
@@ -245,14 +248,14 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
         /// `layer` or the first layer inside it, back to front, with contents and exactly the
         /// marker's frame.
         private func coverLayer(_ layer: CALayer, over marker: CALayer, depth: Int) -> CALayer? {
-            if layer.contents != nil {
-                let frame = layer.convert(layer.bounds, to: marker)
-                let bounds = marker.bounds
-                if abs(frame.minX - bounds.minX) <= 1, abs(frame.minY - bounds.minY) <= 1,
-                    abs(frame.width - bounds.width) <= 1, abs(frame.height - bounds.height) <= 1
-                {
-                    return layer
-                }
+            let frame = layer.convert(layer.bounds, to: marker)
+            let bounds = marker.bounds
+            let hasMarkersFrame = abs(frame.minX - bounds.minX) <= 1 && abs(frame.minY - bounds.minY) <= 1
+                && abs(frame.width - bounds.width) <= 1 && abs(frame.height - bounds.height) <= 1
+            // A layer with that frame and nothing inside is the cover before MusicKit filled it:
+            // it counts as found (and draws nothing), so a layer further in front isn't taken.
+            if hasMarkersFrame, layer.contents != nil || (layer.sublayers ?? []).isEmpty {
+                return layer
             }
             guard depth > 0 else { return nil }
             for sublayer in layer.sublayers ?? [] {
@@ -260,6 +263,9 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
             }
             return nil
         }
+
+        /// How many pixels wide this cover is drawn on its screen.
+        var drawnPixelWidth: CGFloat { bounds.width * (window?.backingScaleFactor ?? 1) }
 
         /// `layer` drawn on its own at this screen's scale, or nil when it draws nothing.
         private func drawn(_ layer: CALayer) -> NSImage? {
