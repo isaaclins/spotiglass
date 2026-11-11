@@ -433,6 +433,15 @@ struct RootView: View {
 
     var body: some View {
         content
+            // Every screen gives the window a toolbar, not only the libraries: a flexible space
+            // is the least a screen can declare and still get one. Welcome and Spotify's sign-in
+            // had none, so signing in, adding a service or disconnecting the last one made SwiftUI
+            // add or remove the window's toolbar in the middle of a layout pass. That resized the
+            // window, and AppKit laid the window out again inside the pass, which it may answer
+            // with an exception that ends the app (#515). Now only the items change.
+            .toolbar {
+                ToolbarSpacer(.flexible)
+            }
             // The dimmed page is out of VoiceOver's reach while the palette is open (#501), and the
             // Search page hides its own field then (#472). The overlay below is outside this.
             .commandPaletteModal(isPresented: commandPaletteManager.viewModel.isPresented)

@@ -19,7 +19,6 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     private let fileManager: FileManager
     private var fileWatcher: DispatchSourceFileSystemObject?
-    private var watcherDescriptor: Int32 = -1
 
     /// The last document known to be on disk before any unsaved local staging.
     /// Three-way merging against this baseline keeps an external edit to a
@@ -58,10 +57,11 @@ final class SpotiglassSettingsStore: ObservableObject {
     }
 
     deinit {
+        // The watcher's cancel handler closes its descriptor; it runs later, on the main queue.
+        // Closing it here as well freed the number first, so the cancel handler then closed
+        // whatever had opened it since: under the test host a WebKit descriptor guarded against
+        // that, which killed the process (#515).
         fileWatcher?.cancel()
-        if watcherDescriptor >= 0 {
-            close(watcherDescriptor)
-        }
     }
 
     // MARK: - Public API
@@ -552,7 +552,6 @@ final class SpotiglassSettingsStore: ObservableObject {
         source.setCancelHandler { [descriptor] in
             close(descriptor)
         }
-        watcherDescriptor = descriptor
         fileWatcher = source
         source.resume()
     }
@@ -563,7 +562,6 @@ final class SpotiglassSettingsStore: ObservableObject {
             // File replaced (atomic write, editor save) — restart the watcher on the new inode.
             fileWatcher?.cancel()
             fileWatcher = nil
-            watcherDescriptor = -1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 guard let self else { return }
                 self.processObservedFileChange()

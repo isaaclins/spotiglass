@@ -550,3 +550,175 @@ extension SpotiglassPlaybackHosts {
         }
     }
 }
+
+/// Going from a screen without a toolbar (Welcome, Spotify's sign-in) to a library made SwiftUI
+/// give the window its first toolbar in the middle of a layout pass. Showing that toolbar grows the
+/// window, and AppKit lays out the window's frame view again while it is still being laid out:
+/// "It's not legal to call -layoutSubtreeIfNeeded on a view which is already being laid out".
+/// AppKit logs that once per process and raises when it can't recover, which crashed the test host
+/// in the middle of `testPinMadeRightAfterAddingAppleMusicIsKept` (#515). In the app it is the
+/// same window on signing in to Spotify or adding a service.
+@MainActor
+final class RootViewToolbarLayoutTests: XCTestCase {
+    override func tearDown() {
+        FrameViewLayoutReentry.stop()
+        ViewTestHost.tearDownAll()
+        super.tearDown()
+    }
+
+    func testSignInScreenToAppleMusicLibraryLaysTheWindowOutOnce() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify))
+        let window = try await hostRoot(services: services)
+        let toolbar = window.toolbar
+
+        services.beginAddition(of: .appleMusic)
+        try await settle(until: { Self.showsLibrary(window) })
+
+        XCTAssertEqual(services.active, .appleMusic)
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
+        assertLaidOutOnce(window, keeping: toolbar)
+    }
+
+    func testWelcomeToAppleMusicLibraryLaysTheWindowOutOnce() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [], active: nil))
+        let window = try await hostRoot(services: services)
+        let toolbar = window.toolbar
+
+        services.beginAddition(of: .appleMusic)
+        try await settle(until: { Self.showsLibrary(window) })
+
+        XCTAssertEqual(services.active, .appleMusic)
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
+        assertLaidOutOnce(window, keeping: toolbar)
+    }
+
+    /// The other way: disconnecting the last service takes the library's toolbar items away.
+    func testAppleMusicLibraryBackToWelcomeLaysTheWindowOutOnce() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic))
+        let window = try await hostRoot(services: services)
+        try await settle(until: { Self.showsLibrary(window) })
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
+        let toolbar = window.toolbar
+        FrameViewLayoutReentry.watch(window)
+
+        services.remove(.appleMusic)
+        try await settle(until: { !Self.showsLibrary(window) })
+
+        XCTAssertNil(services.active)
+        XCTAssertFalse(Self.showsLibrary(window), "the library's toolbar items stayed")
+        assertLaidOutOnce(window, keeping: toolbar)
+    }
+
+    private func assertLaidOutOnce(
+        _ window: NSWindow,
+        keeping toolbar: NSToolbar?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            FrameViewLayoutReentry.reentries, 0,
+            "the window's frame view was laid out inside its own layout", file: file, line: line
+        )
+        XCTAssertNotNil(toolbar, "the window had no toolbar before", file: file, line: line)
+        XCTAssertTrue(window.toolbar === toolbar, "the window got another toolbar", file: file, line: line)
+        XCTAssertTrue(window.toolbar?.isVisible == true, "the window's toolbar was hidden", file: file, line: line)
+    }
+
+    private func hostRoot(services: MusicServiceStore) async throws -> NSWindow {
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+        let session = AppleMusicSession(authorization: GrantedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: SpotiglassSceneRegistry(),
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            ))),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(auth)
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        let controller = ViewTestHost.host(root, size: CGSize(width: 1100, height: 700))
+        let window = try XCTUnwrap(controller.view.window)
+        FrameViewLayoutReentry.watch(window)
+        return window
+    }
+
+    /// The library declares its own toolbar items next to the spacer every screen has; Welcome and
+    /// the sign-in screen have only that spacer.
+    private static func showsLibrary(_ window: NSWindow) -> Bool {
+        (window.toolbar?.items.count ?? 0) > 1
+    }
+
+    /// Runs the main run loop until `done` holds. The limit only stops a broken run; a passing run
+    /// returns as soon as the screen has switched.
+    private func settle(until done: () -> Bool, limit: Duration = .seconds(10)) async throws {
+        let deadline = ContinuousClock.now + limit
+        while !done(), ContinuousClock.now < deadline {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        // One more pass, so a layout the switch scheduled for the next display cycle runs while watched.
+        AppKitTestSupport.pumpRunLoop(for: 0.05)
+    }
+}
+
+/// Counts the times AppKit lays out a window's frame view (the root of all its views) while a
+/// layout of that window is already running: the call AppKit says is not legal. It wraps
+/// `-[NSView layoutSubtreeIfNeeded]`, which a window's own layout pass goes through too, and only
+/// looks at the watched window.
+@MainActor
+private enum FrameViewLayoutReentry {
+    private(set) static var reentries = 0
+    private static weak var window: NSWindow?
+    private static var depth = 0
+    private static var installed = false
+
+    static func watch(_ window: NSWindow) {
+        installIfNeeded()
+        self.window = window
+        depth = 0
+        reentries = 0
+    }
+
+    static func stop() {
+        window = nil
+        depth = 0
+    }
+
+    private static func installIfNeeded() {
+        guard !installed, let method = class_getInstanceMethod(NSView.self, #selector(NSView.layoutSubtreeIfNeeded)) else { return }
+        installed = true
+        typealias Original = @convention(c) (NSView, Selector) -> Void
+        let original = unsafeBitCast(method_getImplementation(method), to: Original.self)
+        let selector = #selector(NSView.layoutSubtreeIfNeeded)
+        let wrapped: @convention(block) (NSView) -> Void = { view in
+            // The wrapper stays installed for the rest of the run and sees every view in the
+            // process; only a main-thread call can be the watched window's.
+            guard Thread.isMainThread else {
+                original(view, selector)
+                return
+            }
+            MainActor.assumeIsolated {
+                guard let window, view.window === window else {
+                    original(view, selector)
+                    return
+                }
+                if depth > 0, view === window.contentView?.superview {
+                    reentries += 1
+                }
+                depth += 1
+                original(view, selector)
+                depth -= 1
+            }
+        }
+        method_setImplementation(method, imp_implementationWithBlock(wrapped))
+    }
+}
