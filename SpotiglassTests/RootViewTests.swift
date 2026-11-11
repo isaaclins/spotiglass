@@ -687,6 +687,12 @@ private enum FrameViewLayoutReentry {
         let original = unsafeBitCast(method_getImplementation(method), to: Original.self)
         let selector = #selector(NSView.layoutSubtreeIfNeeded)
         let wrapped: @convention(block) (NSView) -> Void = { view in
+            // The wrapper stays installed for the rest of the run and sees every view in the
+            // process; only a main-thread call can be the watched window's.
+            guard Thread.isMainThread else {
+                original(view, selector)
+                return
+            }
             MainActor.assumeIsolated {
                 guard let window, view.window === window else {
                     original(view, selector)
