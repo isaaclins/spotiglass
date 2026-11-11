@@ -251,6 +251,174 @@ final class RootViewTests: XCTestCase {
         XCTAssertFalse(services.isAdded(.spotify))
         XCTAssertEqual(services.pendingAddition, .spotify)
     }
+
+    // MARK: - The palette is modal for VoiceOver (#501)
+
+    /// Opens the palette over `root` and checks that VoiceOver reaches only the palette, then
+    /// closes it and checks the page comes back. With `typingInPage`, the page's text field is
+    /// being edited when the palette opens and must be again after esc, with the caret where it was
+    /// (a field that takes focus selects all its text, so the next key would replace it).
+    private func assertPaletteIsModal(
+        over root: some View,
+        palette paletteOfWindow: () -> CommandPaletteManager?,
+        pageElement: String,
+        typingInPage: Bool = false,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let controller = ViewTestHost.host(root, size: CGSize(width: 900, height: 640))
+        let window = try XCTUnwrap(controller.view.window)
+        AppKitTestSupport.activateAppIfNeeded()
+        window.makeKeyAndOrderFront(nil)
+        let palette = try XCTUnwrap(paletteOfWindow(), file: file, line: line)
+        let fieldPlaceholder = SpotiglassL10n.format(
+            "palette.searchPlaceholder.songs.all", MusicServiceSelection.current.displayName
+        )
+        let mentions = { (elements: [String], text: String) in elements.contains { $0.contains(text) } }
+
+        let before = try AppKitTestSupport.settledAccessibilityElements(in: window) { mentions($0, pageElement) }
+        XCTAssertTrue(mentions(before, pageElement), "The page should be reachable: \(before)", file: file, line: line)
+        var pageField: NSTextField?
+        let caret = NSRange(location: 4, length: 0)
+        if typingInPage {
+            let field = try XCTUnwrap(firstTextField(in: controller.view), "The page has no text field", file: file, line: line)
+            XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window), file: file, line: line)
+            XCTAssertTrue(isEditing(field, in: window), "The page's field should be focused", file: file, line: line)
+            // The caret in the middle of the text: neither where focusing puts it nor select-all.
+            field.currentEditor()?.selectedRange = caret
+            pageField = field
+        }
+        let pageFocus = window.firstResponder
+
+        palette.viewModel.show()
+        // With the page's field being edited, the palette's field takes the window's field editor
+        // over: that is what made handing the editor back focus nothing.
+        let paletteHasFocus = { pageField.map { !self.isEditing($0, in: window) } ?? true }
+        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) {
+            mentions($0, fieldPlaceholder) && !mentions($0, pageElement) && paletteHasFocus()
+        }
+        XCTAssertTrue(paletteHasFocus(), "The palette's field should have focus while it is open", file: file, line: line)
+        XCTAssertTrue(mentions(open, fieldPlaceholder), "The palette's field should be reachable: \(open)", file: file, line: line)
+        XCTAssertFalse(
+            mentions(open, pageElement),
+            "VoiceOver still reaches the page behind the palette: \(open)",
+            file: file,
+            line: line
+        )
+
+        palette.viewModel.hide()
+        let after = try AppKitTestSupport.settledAccessibilityElements(in: window) {
+            mentions($0, pageElement) && !mentions($0, fieldPlaceholder)
+        }
+        XCTAssertTrue(mentions(after, pageElement), "The page should be back after esc: \(after)", file: file, line: line)
+        XCTAssertFalse(mentions(after, fieldPlaceholder), "The palette should be gone: \(after)", file: file, line: line)
+        if let pageField {
+            XCTAssertTrue(
+                isEditing(pageField, in: window),
+                "The page's field should have focus again, not \(String(describing: window.firstResponder))",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                pageField.currentEditor()?.selectedRange,
+                caret,
+                "The caret should be back where it was, not the whole text selected",
+                file: file,
+                line: line
+            )
+        } else {
+            XCTAssertTrue(window.firstResponder === pageFocus, "Focus should return to where it was", file: file, line: line)
+        }
+    }
+
+    private func firstTextField(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField, field.isEditable { return field }
+        for subview in view.subviews {
+            if let field = firstTextField(in: subview) { return field }
+        }
+        return nil
+    }
+
+    /// A field being edited hands first responder to the window's field editor.
+    private func isEditing(_ field: NSTextField, in window: NSWindow) -> Bool {
+        window.firstResponder === field || (window.firstResponder as? NSTextView)?.delegate === field
+    }
+
+    /// "Show all results" puts the palette's query into the Search page's field as the palette
+    /// closes. The caret the old text had would land mid-word in the new one, so it goes to the end;
+    /// on unchanged text it goes back where it was.
+    func testFocusReturnKeepsTheCaretOnlyOnTheSameText() throws {
+        let field = NSTextField(string: "nig")
+        let controller = NSViewController()
+        controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 60))
+        controller.view.addSubview(field)
+        let window = OffscreenTestWindow(
+            contentRect: controller.view.frame, styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentViewController = controller
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window))
+        field.currentEditor()?.selectedRange = NSRange(location: 1, length: 0)
+        let focus = try XCTUnwrap(CommandPaletteFocusReturn(window: window))
+        window.makeFirstResponder(nil)
+
+        focus.restore()
+        XCTAssertTrue(isEditing(field, in: window))
+        XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 1, length: 0))
+
+        window.makeFirstResponder(nil)
+        field.stringValue = "midnight city"
+        focus.restore()
+        XCTAssertTrue(isEditing(field, in: window))
+        XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 13, length: 0))
+    }
+
+    func testPaletteHidesTheSpotifyPageFromVoiceOver() throws {
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        auth.clientID = "test-client"
+        let palette = CommandPaletteManager()
+        try assertPaletteIsModal(
+            over: try makeRootView(auth: auth, palette: palette),
+            palette: { palette },
+            pageElement: SpotiglassL10n.string("auth.clientID.label"),
+            typingInPage: true
+        )
+    }
+
+    func testPaletteHidesTheAppleMusicPageFromVoiceOver() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic], active: .appleMusic
+        ))
+        let session = AppleMusicSession(authorization: DeniedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let registry = SpotiglassSceneRegistry()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: registry,
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            ))),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {}
+        ))
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        try assertPaletteIsModal(
+            over: root,
+            palette: { registry.activeScene?.commandPaletteManager },
+            pageElement: SpotiglassL10n.string("appleMusic.permission.openSettings")
+        )
+    }
 }
 
 /// What the hosted window last rendered.

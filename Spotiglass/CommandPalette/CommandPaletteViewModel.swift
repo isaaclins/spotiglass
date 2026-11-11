@@ -51,6 +51,9 @@ final class CommandPaletteViewModel: ObservableObject {
     /// Synchronous, in-memory matches (open-playlist tracks + library playlists) rendered
     /// instantly on every keystroke so the list never blanks while the catalog fetch is in flight.
     var localResultsProvider: (String) -> CommandPaletteSearchResults = { _ in CommandPaletteSearchResults() }
+    /// Called as the palette opens, before its field takes focus: remembers what had focus in the
+    /// window it opens over and returns how to hand that back when it closes (#501).
+    var rememberFocus: () -> (() -> Void)? = { nil }
     /// Invoked when the palette wants to restore key-window focus on close.
     var restoreFocus: (() -> Void)?
     /// Hands the current catalog query off to the dedicated Search view. When
@@ -113,6 +116,9 @@ final class CommandPaletteViewModel: ObservableObject {
     }
 
     func show() {
+        if !isPresented {
+            restoreFocus = rememberFocus()
+        }
         isPresented = true
         query = ""
         searchCategoryFilter = availableSearchCategories.first ?? .all

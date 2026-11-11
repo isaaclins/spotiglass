@@ -181,6 +181,67 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: 400, sidebarWidth: SpotiglassDesign.sidebarWidth))
     }
 
+    /// #501: the toolbar is outside the window's content, so hiding the page behind the open
+    /// palette left Queue, Refresh and Back reachable for VoiceOver. This hosts the browser with
+    /// its real toolbar under the root view's palette modifier and reads the window through the
+    /// Accessibility API: nothing named on the page or in the toolbar is reachable while the
+    /// palette is open, and the toolbar is back after it closes.
+    func testPageAndToolbarAreOutOfVoiceOverReachWhileThePaletteIsOpen() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        // A playlist opened from Home, so the toolbar has its Back button too.
+        await browserVM.selectPlaylist(id: "p1")
+        XCTAssertTrue(browserVM.canNavigateBack)
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let tokens = ShellTestTokenProvider()
+        let palette = PalettePresentation()
+        let view = PalettePresentationHost(presentation: palette) {
+            PlaylistBrowserView(
+                viewModel: browserVM,
+                playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+                catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+                commandPaletteManager: CommandPaletteManager(),
+                signOut: {}
+            )
+        }
+        .environmentObject(store)
+        .environmentObject(try ViewTestHost.makeSettingsStore())
+        .environmentObject(LyricsOverlayController())
+        let controller = ViewTestHost.host(view, size: CGSize(width: 1_040, height: 680))
+        // The app's window shows the browser's toolbar; a bare hosting controller doesn't.
+        controller.sizingOptions = []
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = try XCTUnwrap(controller.view.window)
+        window.setContentSize(CGSize(width: 1_040, height: 680))
+        // Only a window on screen is in the app's accessibility tree.
+        window.makeKeyAndOrderFront(nil)
+        // Back, Queue and Disconnect sit in three different toolbar items; Refresh and the
+        // sidebar toggle in two more.
+        let back = NavigationToolbarChrome.destinationDescription(for: browserVM, locale: SpotiglassL10n.locale)
+        let toolbarButtons = ([back] + ["browser.queue", "browser.disconnect"].map { SpotiglassL10n.string($0) })
+            .map { "AXButton: \($0)" }
+        let reachesToolbar = { (elements: [String]) in toolbarButtons.allSatisfy(elements.contains) }
+
+        let closed = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
+        XCTAssertTrue(reachesToolbar(closed), "\(toolbarButtons) should be reachable: \(closed)")
+        // Everything named on the page and in the toolbar, except the window and its title.
+        let page = Set(closed.dropFirst().filter { !$0.hasSuffix(": ") && !$0.hasSuffix(": \(window.title)") })
+        XCTAssertGreaterThan(page.count, 10, "The browser should have rendered: \(closed)")
+
+        palette.isPresented = true
+        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) { !$0.contains(where: page.contains) }
+        XCTAssertEqual(open.filter(page.contains), [], "VoiceOver still reaches these behind the palette")
+
+        palette.isPresented = false
+        let reopened = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
+        XCTAssertTrue(reachesToolbar(reopened), "The toolbar should be back after the palette closes: \(reopened)")
+    }
+
     func testLibraryHomeRowHosts() throws {
         let row = LibraryHomeSidebarRow()
         ViewTestHost.host(row, size: CGSize(width: 220, height: 36))
@@ -571,4 +632,19 @@ private final class ShellTestTokenProvider: PlaybackAccessTokenProviding, Spotif
     func refreshedPlaybackAccessToken() async throws -> String { "shell-token" }
     func accessToken() async throws -> String { "shell-token" }
     func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "shell-token" }
+}
+
+/// Stands in for the root view's palette state, applied the way the root view applies it.
+@MainActor
+private final class PalettePresentation: ObservableObject {
+    @Published var isPresented = false
+}
+
+private struct PalettePresentationHost<Content: View>: View {
+    @ObservedObject var presentation: PalettePresentation
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content().commandPaletteModal(isPresented: presentation.isPresented)
+    }
 }

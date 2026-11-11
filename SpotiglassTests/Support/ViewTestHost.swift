@@ -262,3 +262,55 @@ enum ViewTestHost {
         return SpotiglassSettingsStore(fileURL: url)
     }
 }
+
+// MARK: - Accessibility tree
+
+extension AppKitTestSupport {
+    /// What VoiceOver can reach in `window`: every element under it as "role: text" lines, read
+    /// through the same Accessibility API that VoiceOver uses, so SwiftUI builds the tree exactly
+    /// as it does for an assistive app.
+    private static func voiceOverReachableElements(in window: NSWindow) throws -> [String] {
+        let app = AXUIElementCreateApplication(getpid())
+        let windows = try XCTUnwrap(axAttribute(app, kAXWindowsAttribute) as? [AXUIElement])
+        // Tests host windows of the same size, so the window is told apart by an identifier.
+        let identifier = "test-window-\(ObjectIdentifier(window).hashValue)"
+        window.setAccessibilityIdentifier(identifier)
+        let target = try XCTUnwrap(
+            windows.first { axAttribute($0, kAXIdentifierAttribute) as? String == identifier },
+            "The hosted window is not in the app's accessibility tree"
+        )
+
+        var lines: [String] = []
+        func walk(_ element: AXUIElement, depth: Int) {
+            guard depth < 80 else { return }
+            let role = axAttribute(element, kAXRoleAttribute) as? String ?? "?"
+            let texts = [kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute]
+                .compactMap { axAttribute(element, $0) as? String }
+                .filter { !$0.isEmpty }
+            lines.append("\(role): \(texts.joined(separator: " | "))")
+            for child in axAttribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+                walk(child, depth: depth + 1)
+            }
+        }
+        walk(target, depth: 0)
+        return lines
+    }
+
+    private static func axAttribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        return value
+    }
+
+    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop. The
+    /// 10 s deadline only guards against a hang; a passing read returns as soon as it holds.
+    static func settledAccessibilityElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
+        let deadline = Date().addingTimeInterval(10)
+        var elements = try voiceOverReachableElements(in: window)
+        while !done(elements), Date() < deadline {
+            pumpRunLoop(for: 0.02)
+            elements = try voiceOverReachableElements(in: window)
+        }
+        return elements
+    }
+}
