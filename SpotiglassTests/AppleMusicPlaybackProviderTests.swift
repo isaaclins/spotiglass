@@ -881,9 +881,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertFalse(starts.hidesRefusedQueue, "what plays shows")
     }
 
-    /// On a busy machine a press can reach the player long after the test starts waiting for it
-    /// (#517: the give-back of X came after the wait had given up). The wait lasts until the play
-    /// is held, not for a number of turns.
+    /// On a busy machine a press can reach the player long after the test starts waiting for it.
+    /// The wait lasts until the play is held, not for a fixed number of turns (#517).
     func testWaitingForAHeldPlayOutlastsAPressThatReachesThePlayerLate() async throws {
         let player = RefusingQueueStarter()
         player.holdsPlays = true
