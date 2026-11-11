@@ -92,7 +92,11 @@ start() {
         shift
     done
     [ -z "$(app_pid)" ] || { echo "screenshots: already running; run 'stop' first" >&2; exit 1; }
-    [ "$apple_music" = 0 ] || claim_state
+    if [ "$apple_music" = 1 ]; then
+        # Before the build and the claim: a refused run must not hold the backups until `stop`.
+        scripts/screenshot-mode/stage-app.sh --check "$REAL_BUNDLE_ID" "$REAL_BUNDLE_ID"
+        claim_state
+    fi
     mkdir -p "$WORK" "$SHOTS_DIR"
 
     echo "==> building $configuration app"

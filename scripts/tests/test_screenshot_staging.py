@@ -109,5 +109,32 @@ class StageApp(unittest.TestCase):
                          + check.stderr)
 
 
+class StartWithAppleMusic(unittest.TestCase):
+    """`screenshots.sh start --with-apple-music` on a Mac without the Developer ID identity."""
+
+    def test_it_stops_before_building_or_claiming_the_backups(self):
+        # A refusal after the build used to leave this checkout owning the real app's defaults backup,
+        # so every other checkout's `start --with-apple-music` and `appearance` were refused until a
+        # `stop` here, although nothing ran.
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp)
+        bin_dir = tmp / 'bin'
+        bin_dir.mkdir()
+        (bin_dir / 'security').write_text('#!/bin/sh\necho "     0 valid identities found"\n')
+        built = tmp / 'make-ran'
+        (bin_dir / 'make').write_text(f'#!/bin/sh\ntouch "{built}"\nexit 1\n')
+        for tool in bin_dir.iterdir():
+            tool.chmod(0o755)
+        home = tmp / 'home'
+        home.mkdir()
+        env = dict(os.environ, HOME=str(home), PATH=f'{bin_dir}:{os.environ["PATH"]}')
+        result = subprocess.run([str(REPO / 'scripts' / 'screenshots.sh'), 'start', '--with-apple-music'],
+                                capture_output=True, text=True, env=env)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('Developer ID', result.stderr)
+        self.assertFalse(built.exists(), 'it built the app before refusing')
+        self.assertEqual(list(home.rglob('*')), [], 'it changed state outside the checkout before refusing')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,7 @@
 # the copy.
 #
 #   scripts/screenshot-mode/stage-app.sh <built.app> <staged.app> <bundle-id> <real-bundle-id>
+#   scripts/screenshot-mode/stage-app.sh --check <bundle-id> <real-bundle-id>   only checks it could
 #
 # macOS keeps one Media & Apple Music permission per bundle id, tied to the signature it was given
 # to. My signed builds carry the Developer ID requirement. An ad-hoc copy under the real bundle id
@@ -13,8 +14,15 @@
 # bundle id never reaches MusicKit and stays ad-hoc.
 set -euo pipefail
 
-[ $# -eq 4 ] || { sed -n '5p' "$0" | sed 's/^# *//' >&2; exit 2; }
-src="$1" dest="$2" bundle_id="$3" real_bundle_id="$4"
+usage() { sed -n '5,6p' "$0" | sed 's/^# *//' >&2; exit 2; }
+check_only=0
+if [ "${1:-}" = "--check" ]; then
+    [ $# -eq 3 ] || usage
+    check_only=1 bundle_id="$2" real_bundle_id="$3"
+else
+    [ $# -eq 4 ] || usage
+    src="$1" dest="$2" bundle_id="$3" real_bundle_id="$4"
+fi
 
 identity="-"
 if [ "$bundle_id" = "$real_bundle_id" ]; then
@@ -27,6 +35,7 @@ if [ "$bundle_id" = "$real_bundle_id" ]; then
         exit 1
     fi
 fi
+[ "$check_only" = 0 ] || exit 0
 
 rm -rf "$dest"
 cp -R "$src" "$dest"
