@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// macOS key capture field (Raycast-style): click to focus, then press a shortcut.
+/// macOS key capture field (Raycast-style): an empty field says "Record Shortcut",
+/// recording shows the keys held as key caps, and a valid chord saves at once.
 struct HotkeyRecorderField: NSViewRepresentable {
     let commandID: String
     @ObservedObject var keymapStore: CommandPaletteKeymapStore
@@ -13,6 +14,12 @@ struct HotkeyRecorderField: NSViewRepresentable {
     var onCaptureFailure: (String) -> Void = { _ in }
     /// Invoked after a successful apply or clear from this field.
     var onApplied: () -> Void
+    /// The chord the row reports a conflict for. The field shows it in place of
+    /// the saved one, so the problem reads on the field that has it (#541).
+    var conflictingShortcut: CommandShortcut? = nil
+    /// Draws the field's problem state while its row shows a conflict or a
+    /// reason the last key press couldn't be used.
+    var showsProblem: Bool = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -27,6 +34,8 @@ struct HotkeyRecorderField: NSViewRepresentable {
     func updateNSView(_ nsView: RecorderKeyContainerView, context: Context) {
         context.coordinator.parent = self
         nsView.coordinator = context.coordinator
+        nsView.conflictingShortcut = conflictingShortcut
+        nsView.showsProblem = showsProblem
         nsView.syncFromStore()
     }
 
@@ -168,26 +177,16 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 return
             }
             if (event.keyCode == 51 || event.keyCode == 117), mods.isEmpty {
-                do {
-                    try parent.keymapStore.clearBinding(commandID: parent.commandID)
-                    parent.onApplied()
-                } catch {
-                    let message = CommandPaletteKeymapErrorPresenter.message(
-                        for: error,
-                        source: parent.keymapStore.fileURL.path,
-                        operation: "clear shortcut"
-                    )
-                    parent.keymapStore.lastError = message
-                    parent.onCaptureFailure(message)
-                }
                 view.finishRecordingAndResign()
+                clearBinding()
                 return
             }
+            // A key that can't be used keeps the field recording, with the
+            // reason on its row, so the next try is one key press away (#541).
             guard let shortcut = CommandShortcut(recordingKeyDown: event) else {
                 let message = SpotiglassL10n.string("palette.settings.recordingUnsupported")
                 parent.keymapStore.lastError = message
                 parent.onCaptureFailure(message)
-                view.finishRecordingAndResign()
                 return
             }
             do {
@@ -201,8 +200,11 @@ struct HotkeyRecorderField: NSViewRepresentable {
             } catch let conflict as KeymapConflictError {
                 switch conflict {
                 case let .conflict(otherID):
+                    // Ends recording: Replace on the row is the next step.
+                    view.finishRecordingAndResign()
                     parent.onCaptureConflict(shortcut, otherID)
                 case .reservedByMenuItem:
+                    // Like an unusable key: say why on the row, keep recording.
                     let message = CommandPaletteKeymapErrorPresenter.message(
                         for: conflict,
                         source: parent.keymapStore.fileURL.path,
@@ -211,8 +213,8 @@ struct HotkeyRecorderField: NSViewRepresentable {
                     parent.keymapStore.lastError = message
                     parent.onCaptureFailure(message)
                 }
-                view.finishRecordingAndResign()
             } catch {
+                view.finishRecordingAndResign()
                 let message = CommandPaletteKeymapErrorPresenter.message(
                     for: error,
                     source: parent.keymapStore.fileURL.path,
@@ -220,35 +222,85 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 )
                 parent.keymapStore.lastError = message
                 parent.onCaptureFailure(message)
-                view.finishRecordingAndResign()
+            }
+        }
+
+        /// Shared by Delete while recording and the clear control on the field.
+        func clearBinding() {
+            do {
+                try parent.keymapStore.clearBinding(commandID: parent.commandID)
+                parent.onApplied()
+            } catch {
+                let message = CommandPaletteKeymapErrorPresenter.message(
+                    for: error,
+                    source: parent.keymapStore.fileURL.path,
+                    operation: "clear shortcut"
+                )
+                parent.keymapStore.lastError = message
+                parent.onCaptureFailure(message)
             }
         }
     }
 }
 
+/// What a shortcut field shows: key caps, or a prompt in their place.
+enum RecorderFieldContent: Equatable {
+    case keys([String])
+    case prompt(String)
+}
+
+/// The shortcut field in Settings > Keyboard. It draws itself like Raycast's
+/// hotkey column (#541): an empty field says what to do, a bound one shows its
+/// chord as key caps with a clear control on the field, and while recording it
+/// shows the modifiers being held, live.
 @MainActor
 final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
     weak var coordinator: HotkeyRecorderField.Coordinator?
-    private let button = NSButton(title: "", target: nil, action: nil)
+    private let clearButton = NSButton()
     private(set) var isRecording = false
+    private var liveModifiers: NSEvent.ModifierFlags = []
+
+    var conflictingShortcut: CommandShortcut? {
+        didSet { if conflictingShortcut != oldValue { refresh() } }
+    }
+
+    var showsProblem = false {
+        didSet { if showsProblem != oldValue { refresh() } }
+    }
+
+    private static let cornerRadius: CGFloat = 6
+    private static let capHeight: CGFloat = 18
+    private static let capMinWidth: CGFloat = 20
+    private static let capSpacing: CGFloat = 3
+    private static let capFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize + 1, weight: .medium)
+    private static let promptFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize + 1)
+    static let clearSize: CGFloat = 18
+    static let inset: CGFloat = 6
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-        button.isBordered = true
-        button.bezelStyle = .rounded
-        button.setButtonType(.momentaryPushIn)
-        button.target = self
-        button.action = #selector(clicked)
-        button.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(button)
+        focusRingType = .default
+        let symbol = NSImage.SymbolConfiguration(pointSize: NSFont.smallSystemFontSize + 1, weight: .regular)
+            .applying(.init(hierarchicalColor: .secondaryLabelColor))
+        clearButton.image = NSImage(
+            systemSymbolName: "xmark.circle.fill",
+            accessibilityDescription: SpotiglassL10n.string("a11y.palette.clearShortcut")
+        )?.withSymbolConfiguration(symbol)
+        clearButton.isBordered = false
+        clearButton.imagePosition = .imageOnly
+        clearButton.target = self
+        clearButton.action = #selector(clearClicked)
+        clearButton.refusesFirstResponder = true
+        clearButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(clearButton)
         NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: leadingAnchor),
-            button.trailingAnchor.constraint(equalTo: trailingAnchor),
-            button.topAnchor.constraint(equalTo: topAnchor),
-            button.bottomAnchor.constraint(equalTo: bottomAnchor),
+            clearButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.inset + 1),
+            clearButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            clearButton.widthAnchor.constraint(equalToConstant: Self.clearSize),
+            clearButton.heightAnchor.constraint(equalToConstant: Self.clearSize),
             heightAnchor.constraint(greaterThanOrEqualToConstant: SpotiglassDesign.Layout.shortcutFieldMinHeight),
         ])
+        clearButton.isHidden = true
     }
 
     @available(*, unavailable)
@@ -257,14 +309,176 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
     }
 
     override var acceptsFirstResponder: Bool { true }
+    override var isFlipped: Bool { true }
 
-    @objc private func clicked() {
+    // MARK: State shown
+
+    private var savedShortcut: CommandShortcut? {
+        guard let coordinator else { return nil }
+        return coordinator.parent.keymapStore.primaryShortcut(for: coordinator.parent.commandID)
+    }
+
+    /// What the field shows right now. Recording wins, then a pending conflict,
+    /// then the saved chord.
+    var content: RecorderFieldContent {
+        if isRecording {
+            let held = Self.modifierChips(liveModifiers)
+            return held.isEmpty ? .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.recording")) : .keys(held)
+        }
+        if let shortcut = conflictingShortcut ?? savedShortcut {
+            return .keys(shortcut.displayChips)
+        }
+        return .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord"))
+    }
+
+    /// The clear control sits on the field while there is a saved chord to clear.
+    var showsClearControl: Bool {
+        !isRecording && conflictingShortcut == nil && savedShortcut != nil
+    }
+
+    private static func modifierChips(_ flags: NSEvent.ModifierFlags) -> [String] {
+        let f = flags.intersection([.command, .control, .option, .shift])
+        var parts: [String] = []
+        if f.contains(.control) { parts.append("⌃") }
+        if f.contains(.option) { parts.append("⌥") }
+        if f.contains(.shift) { parts.append("⇧") }
+        if f.contains(.command) { parts.append("⌘") }
+        return parts
+    }
+
+    private func refresh() {
+        clearButton.isHidden = !showsClearControl
+        // Read on every refresh so a live language switch reaches them.
+        clearButton.toolTip = SpotiglassL10n.string("palette.settings.clearShortcut")
+        clearButton.setAccessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
+        toolTip = SpotiglassL10n.string("palette.hotkeyRecorder.hint")
+        needsDisplay = true
+        NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+
+    func syncFromStore() {
+        refresh()
+    }
+
+    func updateLiveModifierChips(_ flags: NSEvent.ModifierFlags) {
+        guard isRecording else { return }
+        liveModifiers = flags.intersection([.command, .control, .option, .shift])
+        refresh()
+    }
+
+    // MARK: Drawing
+
+    private static let promptAttributes: [NSAttributedString.Key: Any] = [.font: promptFont]
+    private static let capAttributes: [NSAttributedString.Key: Any] = [.font: capFont]
+
+    private static func capWidths(_ chips: [String]) -> [CGFloat] {
+        chips.map { max(capMinWidth, ($0 as NSString).size(withAttributes: capAttributes).width + 10) }
+    }
+
+    /// Width the content takes inside the field. The field has one width in
+    /// every row and language, so the widest state has to fit with the insets
+    /// and the clear control beside saved keys (checked per language in tests).
+    static func contentWidth(for content: RecorderFieldContent) -> CGFloat {
+        switch content {
+        case let .prompt(text):
+            return (text as NSString).size(withAttributes: promptAttributes).width
+        case let .keys(chips):
+            return capWidths(chips).reduce(0, +) + capSpacing * CGFloat(max(0, chips.count - 1))
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let field = bounds.insetBy(dx: 0.75, dy: 0.75)
+        let path = NSBezierPath(roundedRect: field, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius)
+        let accent = NSColor.controlAccentColor
+        let problem = showsProblem && !isRecording
+        (isRecording ? accent.withAlphaComponent(0.12) : NSColor.labelColor.withAlphaComponent(0.05)).setFill()
+        path.fill()
+        let border: NSColor = problem ? .systemOrange : (isRecording ? accent : .separatorColor)
+        border.setStroke()
+        path.lineWidth = (problem || isRecording) ? 1.5 : 1
+        path.stroke()
+
+        var area = bounds.insetBy(dx: Self.inset, dy: 0)
+        if showsClearControl {
+            area.size.width -= Self.clearSize
+        }
+        switch content {
+        case let .prompt(text):
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: Self.promptFont,
+                .foregroundColor: isRecording ? accent : NSColor.secondaryLabelColor,
+            ]
+            let size = (text as NSString).size(withAttributes: attributes)
+            let origin = NSPoint(x: area.midX - Self.contentWidth(for: content) / 2, y: area.midY - size.height / 2)
+            (text as NSString).draw(at: origin, withAttributes: attributes)
+        case let .keys(chips):
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: Self.capFont,
+                .foregroundColor: problem ? NSColor.systemOrange : NSColor.labelColor,
+            ]
+            let widths = Self.capWidths(chips)
+            var x = area.midX - Self.contentWidth(for: content) / 2
+            let y = area.midY - Self.capHeight / 2
+            for (chip, width) in zip(chips, widths) {
+                let cap = NSRect(x: x, y: y, width: width, height: Self.capHeight)
+                (problem ? NSColor.systemOrange.withAlphaComponent(0.14) : NSColor.labelColor.withAlphaComponent(isRecording ? 0.14 : 0.09)).setFill()
+                NSBezierPath(roundedRect: cap, xRadius: 4, yRadius: 4).fill()
+                let size = (chip as NSString).size(withAttributes: attributes)
+                (chip as NSString).draw(
+                    at: NSPoint(x: cap.midX - size.width / 2, y: cap.midY - size.height / 2),
+                    withAttributes: attributes
+                )
+                x += width + Self.capSpacing
+            }
+        }
+    }
+
+    override var focusRingMaskBounds: NSRect { bounds }
+
+    override func drawFocusRingMask() {
+        NSBezierPath(roundedRect: bounds, xRadius: Self.cornerRadius, yRadius: Self.cornerRadius).fill()
+    }
+
+    // MARK: Accessibility
+
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .button }
+
+    override func accessibilityLabel() -> String? {
+        switch content {
+        case let .keys(chips): chips.joined(separator: " ")
+        case let .prompt(text): text
+        }
+    }
+
+    override func accessibilityHelp() -> String? {
+        SpotiglassL10n.string("palette.hotkeyRecorder.hint")
+    }
+
+    override func accessibilityPerformPress() -> Bool {
         _ = window?.makeFirstResponder(self)
         beginRecordingFromUser()
+        return true
+    }
+
+    override func accessibilityChildren() -> [Any]? {
+        showsClearControl ? [clearButton] : []
+    }
+
+    // MARK: Interaction
+
+    @objc private func clearClicked() {
+        coordinator?.clearBinding()
+        refresh()
     }
 
     override func mouseDown(with event: NSEvent) {
-        super.mouseDown(with: event)
         _ = window?.makeFirstResponder(self)
         beginRecordingFromUser()
     }
@@ -306,8 +520,9 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
     private func beginRecordingFromUser() {
         guard !isRecording else { return }
         isRecording = true
-        updateLiveModifierChips(NSEvent.modifierFlags)
+        liveModifiers = []
         coordinator?.recordingBegan(in: self)
+        updateLiveModifierChips(NSEvent.modifierFlags)
     }
 
     override func resignFirstResponder() -> Bool {
@@ -328,10 +543,7 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
     // swift-format-ignore: AlwaysUseLowerCamelCase
     // The `testing_` prefix marks this as a test-only seam at the call site.
     func testing_beginKeyCapture() {
-        guard !isRecording else { return }
-        isRecording = true
-        updateLiveModifierChips(NSEvent.modifierFlags)
-        coordinator?.recordingBegan(in: self)
+        beginRecordingFromUser()
     }
 
     func finishRecordingAndResign() {
@@ -387,30 +599,5 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
 
     private static func isArmingKeyCode(_ keyCode: UInt16) -> Bool {
         keyCode == 49 || keyCode == 36 || keyCode == 76
-    }
-
-    func updateLiveModifierChips(_ flags: NSEvent.ModifierFlags) {
-        guard isRecording else { return }
-        let f = flags.intersection([.command, .control, .option, .shift])
-        var parts: [String] = []
-        if f.contains(.control) { parts.append("⌃") }
-        if f.contains(.option) { parts.append("⌥") }
-        if f.contains(.shift) { parts.append("⇧") }
-        if f.contains(.command) { parts.append("⌘") }
-        let mod = parts.joined(separator: " ")
-        let recording = SpotiglassL10n.string("palette.hotkeyRecorder.recording")
-        button.title = mod.isEmpty ? recording : "\(recording)  \(mod)"
-    }
-
-    func syncFromStore() {
-        guard let coordinator else { return }
-        let store = coordinator.parent.keymapStore
-        let id = coordinator.parent.commandID
-        if isRecording { return }
-        if let sc = store.primaryShortcut(for: id) {
-            button.title = sc.displayChips.joined(separator: " ")
-        } else {
-            button.title = SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord")
-        }
     }
 }

@@ -75,7 +75,9 @@ final class CommandPaletteKeymapStore: ObservableObject {
     }
 
     func setBinding(commandID: String, shortcut: CommandShortcut, replaceConflicting: Bool) throws {
-        guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }) else {
+        // Only commands Settings > Keyboard lists can get a shortcut there:
+        // a destructive one stays off a single keypress (#47, #540).
+        guard let spec = CommandPaletteCommandCatalog.bindable.first(where: { $0.commandID == commandID }) else {
             return
         }
         var list = try decodedBindingsFromEditor()

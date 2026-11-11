@@ -12,6 +12,7 @@ struct CommandPaletteCommandSpec: Identifiable {
     let defaultKeystroke: String?
     /// Destructive commands (e.g. sign-out) are not bindable to a single keypress
     /// from the Keyboard settings UI, so a stray keystroke can't wipe the session.
+    /// They are missing from ``CommandPaletteCommandCatalog/bindable``.
     var isDestructive: Bool = false
 
     /// Resolved against the current ``SpotiglassSettingsStore`` locale on every read so the
@@ -179,6 +180,11 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "ctrl-2"
         ),
     ]
+
+    /// The commands Settings > Keyboard lists: every palette command a single
+    /// keypress may run. Destructive ones (Disconnect) stay palette-only, so
+    /// they are left out instead of shown as a row that can't be set (#540).
+    static let bindable: [CommandPaletteCommandSpec] = editable.filter { !$0.isDestructive }
 
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).
     private static let defaultKeymapFileOrder: [String] = [

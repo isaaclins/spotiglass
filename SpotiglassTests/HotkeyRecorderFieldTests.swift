@@ -157,23 +157,31 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         XCTAssertFalse(view.isRecording)
     }
 
-    func testUnsupportedRecordedEventShowsReasonAndEndsRecording() throws {
+    /// A key that can't be used says why and keeps recording, so the next
+    /// press is the next try, and a valid chord after it saves at once (#541).
+    func testUnsupportedRecordedEventShowsReasonAndKeepsRecording() throws {
         var failure: String?
+        var applied = 0
         let (_, keymap, view, _, _) = try makeHarness(
-            onCaptureFailure: { failure = $0 }
+            onCaptureFailure: { failure = $0 },
+            onApplied: { applied += 1 }
         )
 
         view.testing_beginKeyCapture()
-        // A modifier-only key-down cannot become a CommandShortcut. It must not
-        // leave the control stuck in its armed state.
+        // A modifier-only key-down cannot become a CommandShortcut.
         view.keyDown(with: keyEvent(virtualKey: 55, modifierFlags: [.command]))
 
-        XCTAssertFalse(view.isRecording)
+        XCTAssertTrue(view.isRecording)
         XCTAssertEqual(failure, SpotiglassL10n.string("palette.settings.recordingUnsupported"))
         XCTAssertEqual(keymap.lastError, failure)
+
+        view.keyDown(with: keyEvent(virtualKey: 38, modifierFlags: [.control, .option]))
+        XCTAssertFalse(view.isRecording)
+        XCTAssertEqual(applied, 1)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings), try CommandShortcut(keystroke: "ctrl-alt-j"))
     }
 
-    func testMenuOwnedShortcutShowsReasonAndEndsRecording() throws {
+    func testMenuOwnedShortcutShowsReasonAndKeepsRecording() throws {
         var failure: String?
         let (_, _, view, _, _) = try makeHarness(
             onCaptureFailure: { failure = $0 }
@@ -181,7 +189,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         view.testing_beginKeyCapture()
         view.keyDown(with: keyEvent(virtualKey: 124, modifierFlags: [.command]))
 
-        XCTAssertFalse(view.isRecording)
+        XCTAssertTrue(view.isRecording)
         XCTAssertEqual(
             failure,
             SpotiglassL10n.format(
@@ -189,6 +197,74 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
                 SpotiglassL10n.string("menu.playback.seekForward")
             )
         )
+    }
+
+    /// The field used to be a grey button reading "Click to record" under an
+    /// instruction line. It now says what to do itself, shows the keys being
+    /// held as key caps while recording, and the saved chord after (#541).
+    func testFieldShowsWhatToDoAndTheKeysHeldWhileRecording() throws {
+        let (field, keymap, view, _, _) = try makeHarness()
+        try keymap.clearBinding(commandID: field.commandID)
+        view.syncFromStore()
+        XCTAssertEqual(view.content, .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord")))
+        XCTAssertEqual(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord", locale: Locale(identifier: "en")), "Record Shortcut")
+        XCTAssertFalse(view.showsClearControl, "nothing to clear")
+
+        view.testing_beginKeyCapture()
+        view.updateLiveModifierChips([])
+        XCTAssertEqual(view.content, .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.recording")))
+        view.updateLiveModifierChips([.command])
+        XCTAssertEqual(view.content, .keys(["⌘"]))
+        view.updateLiveModifierChips([.command, .shift, .function])
+        XCTAssertEqual(view.content, .keys(["⇧", "⌘"]), "live, in Mac order, only the four modifiers")
+
+        view.keyDown(with: keyEvent(virtualKey: 40, modifierFlags: [.control, .option]))
+        XCTAssertFalse(view.isRecording, "a valid chord saves at once")
+        XCTAssertEqual(view.content, .keys(["⌃", "⌥", "K"]))
+        XCTAssertTrue(view.showsClearControl)
+        XCTAssertEqual(view.accessibilityRole(), .button)
+        XCTAssertEqual(view.accessibilityLabel(), "⌃ ⌥ K")
+        XCTAssertEqual(view.accessibilityHelp(), SpotiglassL10n.string("palette.hotkeyRecorder.hint"))
+    }
+
+    /// Clearing used to be a separate button beside the field. It is now a
+    /// small control on the field itself, also reachable by VoiceOver.
+    func testClearControlOnTheFieldClearsTheShortcut() throws {
+        var applied = 0
+        let (field, keymap, view, _, _) = try makeHarness(onApplied: { applied += 1 })
+        try keymap.setBinding(commandID: field.commandID, shortcut: try CommandShortcut(keystroke: "ctrl-k"), replaceConflicting: true)
+        view.syncFromStore()
+
+        let clear = try XCTUnwrap(view.subviews.compactMap { $0 as? NSButton }.first)
+        XCTAssertFalse(clear.isHidden)
+        XCTAssertEqual(clear.accessibilityLabel(), SpotiglassL10n.string("a11y.palette.clearShortcut"))
+        XCTAssertTrue((view.accessibilityChildren() ?? []).contains { ($0 as AnyObject) === clear })
+        clear.performClick(nil)
+
+        XCTAssertNil(keymap.primaryShortcut(for: field.commandID))
+        XCTAssertEqual(applied, 1)
+        XCTAssertTrue(clear.isHidden, "nothing left to clear")
+        XCTAssertEqual(view.content, .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord")))
+    }
+
+    /// A taken chord shows on the field that was recording, in its problem
+    /// state, and the row names the command that has it.
+    func testConflictShowsTheTakenChordOnTheField() throws {
+        let stolen = try CommandShortcut(keystroke: "ctrl-j")
+        var conflict: (CommandShortcut, String)?
+        let (_, keymap, view, _, _) = try makeHarness(onCaptureConflict: { conflict = ($0, $1) })
+        try keymap.setBinding(commandID: CommandPaletteCommandID.openPalette, shortcut: stolen, replaceConflicting: true)
+
+        view.testing_beginKeyCapture()
+        view.keyDown(with: try keyEvent(for: stolen))
+        XCTAssertEqual(conflict?.1, CommandPaletteCommandID.openPalette)
+        // What the Settings row hands back to its field while the conflict stands.
+        view.conflictingShortcut = conflict?.0
+        view.showsProblem = true
+        XCTAssertEqual(view.content, .keys(["⌃", "J"]))
+        XCTAssertFalse(view.showsClearControl, "Replace on the row is the way out, not clear")
+        let otherTitle = CommandPaletteCommandCatalog.editable.first { $0.commandID == CommandPaletteCommandID.openPalette }!.title
+        XCTAssertTrue(SpotiglassL10n.format("palette.settings.conflict", otherTitle).contains(otherTitle))
     }
 
     func testRecordingKeyEquivalentRoutesToRecorder() throws {
