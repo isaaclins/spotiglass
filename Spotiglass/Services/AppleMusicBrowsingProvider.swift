@@ -585,8 +585,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             if let refs = albumMatch(album, true).lazy.compactMap({ catalogAlbumArtists[$0] }).first, !refs.isEmpty { return refs }
             return pageArtistsByName[album.artistName.lowercased()].map { [$0] }
         }
+        // A saved catalog playlist is listed under a library ID and names its catalog copy in
+        // its play parameters, the pairing pins use too (#519).
         let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) { playlist, _ in
-            [playlist.id.rawValue]
+            [AppleMusicItemMapping.playlistMatchID(playlist)]
         }
         return MusicSearchResults(
             tracks: tracks.map(AppleMusicItemMapping.track),

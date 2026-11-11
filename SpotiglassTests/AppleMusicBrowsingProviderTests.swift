@@ -274,6 +274,30 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         ])
     }
 
+    /// A catalog playlist saved to the library is listed by the local library under a library ID
+    /// and names its catalog copy (`catalogId`); a search finds both. Search compared only their
+    /// own IDs, so the playlist showed twice (#519). It shows once, as the saved copy; a playlist
+    /// I made and a catalog playlist I haven't saved stay as they were.
+    func testASavedPlaylistHidesItsOwnCatalogCopyInSearch() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(playlists: [
+            try AppleMusicFixtures.playlist(id: "p.Lk2MnB7xQ4", name: "Late Night Jazz", curator: "Apple Music Jazz", catalogID: "pl.5e1a2b3c4d"),
+            try AppleMusicFixtures.playlist(id: "p.Rq8TzW1vC9", name: "Late Night Drives"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(playlists: [
+            try AppleMusicFixtures.playlist(id: "pl.5e1a2b3c4d", name: "Late Night Jazz", curator: "Apple Music Jazz"),
+            try AppleMusicFixtures.playlist(id: "pl.9f8e7d6c5b", name: "Late Night Soul", curator: "Apple Music Soul"),
+        ])
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let first = try await provider.search(query: "late night", limit: 10)
+        XCTAssertEqual(first.playlists.map(\.id), ["p.Lk2MnB7xQ4", "p.Rq8TzW1vC9", "pl.9f8e7d6c5b"])
+
+        // Later pages show no library items but still hide their catalog copies.
+        let later = try await provider.search(query: "late night", limit: 10, offset: 10, cacheMode: .freshOnly)
+        XCTAssertEqual(later.playlists.map(\.id), ["pl.9f8e7d6c5b"])
+    }
+
     /// A shared playlist pinned from Search is pinned under its catalog ID, which the library
     /// listing doesn't use. The listing keeps its cover under that ID too, so such a pin saved
     /// without a cover gets it, and draws it again after a relaunch (#477).
@@ -1856,11 +1880,15 @@ enum AppleMusicFixtures {
         kind: String? = nil,
         trackCount: Int? = nil,
         lastModified: String? = nil,
-        globalID: String? = nil
+        globalID: String? = nil,
+        catalogID: String? = nil
     ) throws -> Playlist {
         var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
         if let globalID {
             attributes["playParams"] = ["id": id, "kind": "playlist", "isLibrary": true, "globalId": globalID]
+        }
+        if let catalogID {
+            attributes["playParams"] = ["id": id, "kind": "playlist", "isLibrary": true, "catalogId": catalogID]
         }
         if let curator { attributes["curatorName"] = curator }
         if let lastModified { attributes["lastModifiedDate"] = lastModified }
