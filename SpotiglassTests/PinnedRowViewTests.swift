@@ -426,6 +426,23 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
         XCTAssertGreaterThan(try coverPixelCount(in: pin), mostOfTheCoverSquare / 2)
     }
 
+    /// A library artist whose cover isn't drawn on screen keeps the artist placeholder. The
+    /// pill's fallback drew MusicKit's view, which can't be drawn outside a window, and the
+    /// preview showed SwiftUI's yellow "can't draw this" box.
+    func testLibraryArtistNotOnScreenKeepsThePlaceholder() throws {
+        let artwork = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"musicKit://artwork/transient/{w}x{h}?id=OFFSCREENARTIST449","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(artwork, size: 40))
+        let pin = PinnedItem.artist(MusicArtist(
+            id: "r.offscreen449", name: "M83", imageURL: url, uri: "applemusic:artist:r.offscreen449"
+        ))
+
+        let yellow = try pixelCount(in: pin) { r, g, b in r > 200 && g > 200 && b < 80 }
+        XCTAssertEqual(yellow, 0, "SwiftUI's can't-draw box")
+    }
+
     /// The covers the app draws carry the marker: without it nothing is ever found on screen.
     func testMusicKitArtworkCarriesTheMarker() throws {
         let artwork = try AppleMusicFixtures.decode(

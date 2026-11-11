@@ -181,16 +181,18 @@ struct PinnedItemDragPill: View {
         case .artist:
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))
-                if let url = item.artworkURL {
+                if let url = item.artworkURL,
+                    let cover = DragPreviewArtwork.initialImage(artworkURL: url, requestURL: nil, artworkKey: item.id)
+                {
                     // A library artist's cover only draws in a window; take it from the screen (#449).
-                    if let cover = DragPreviewArtwork.initialImage(artworkURL: url, requestURL: nil, artworkKey: item.id) {
-                        Image(nsImage: cover)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        CachedCircularArtwork(url: url, diameter: artworkSize, artworkKey: item.id)
-                    }
+                    Image(nsImage: cover)
+                        .resizable()
+                        .scaledToFill()
+                } else if let url = item.artworkURL, !AppleMusicArtworkRegistry.needsMusicKit(url) {
+                    CachedCircularArtwork(url: url, diameter: artworkSize, artworkKey: item.id)
                 } else {
+                    // A library cover not drawn on screen can't be drawn into the drag image at
+                    // all: MusicKit's view needs a window.
                     Image(systemName: "person.wave.2")
                         .font(SpotiglassDesign.Typography.pinKind)
                         .foregroundStyle(.secondary)
