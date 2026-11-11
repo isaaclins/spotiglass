@@ -115,10 +115,8 @@ start() {
         fi
     fi
     echo "==> staging $APP ($bundle_id)"
-    rm -rf "$APP"
-    cp -R "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$APP/Contents/Info.plist"
-    codesign --force --deep --sign - "$APP" >/dev/null 2>&1
+    scripts/screenshot-mode/stage-app.sh "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP" \
+        "$bundle_id" "$REAL_BUNDLE_ID"
 
     echo "==> seeding settings ($scheme)"
     rm -rf "$FAKE_HOME"

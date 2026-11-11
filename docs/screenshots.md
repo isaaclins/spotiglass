@@ -52,7 +52,10 @@ another track from the library (useful for the lyrics view: View → Show Lyrics
 `--with-apple-music` to let the service switcher add the real Apple Music next to the Spotify
 stand-in. That run uses your own Apple Music library through MusicKit and the system permission
 prompt, so it keeps the real bundle id (MusicKit issues its token for that id only); the real
-app's preferences are saved at `start` and put back at `stop`. Without the option screenshot mode
+app's preferences are saved at `start` and put back at `stop`. It also needs the Developer ID
+signing identity: macOS keeps one Apple Music permission per bundle id, so an ad-hoc copy under the
+real id would take it over from the signed app (and from `make test`'s test host, #520). Without
+the identity, `start --with-apple-music` stops before staging. Without the option screenshot mode
 never reaches MusicKit.
 `--release` builds and runs the Release configuration instead of Debug.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
