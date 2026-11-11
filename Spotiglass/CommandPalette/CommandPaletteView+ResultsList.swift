@@ -20,8 +20,8 @@ struct CommandPaletteSectionedListView: View {
     var body: some View {
         let rows = CommandPaletteListRow.rows(for: sections)
         // "Show all results" stays under the list, so a short window can't scroll it away (#462).
-        let scrolling = rows.filter { $0.item.section != .showAll }
-        let pinned = rows.filter { $0.item.section == .showAll }
+        let scrolling = rows.filter { $0.section != .showAll }
+        let pinned = rows.filter { $0.section == .showAll }
 
         VStack(spacing: 0) {
             if !scrolling.isEmpty {
@@ -72,7 +72,7 @@ struct CommandPaletteSectionedListView: View {
         LazyVStack(alignment: .leading, spacing: 0) {
             ForEach(rows) { row in
                 if row.startsSection {
-                    sectionHeader(row.item.section, isFirst: row.flatIndex == rows.first?.flatIndex)
+                    sectionHeader(row.section, isFirst: row.flatIndex == rows.first?.flatIndex)
                 }
                 resultRow(row)
             }
@@ -143,6 +143,9 @@ struct CommandPaletteListRow: Identifiable {
     let id: String
     let flatIndex: Int
     let item: CommandPaletteItem
+    /// The section the row is listed under. Not always the item's own: the idle list shows
+    /// commands under Quick actions.
+    let section: CommandPaletteSection
     /// The first row of its section, which draws the section's heading above itself.
     let startsSection: Bool
 
@@ -160,6 +163,7 @@ struct CommandPaletteListRow: Identifiable {
                     id: count == 0 ? base : "\(base)\u{1f}\(count)",
                     flatIndex: rows.count,
                     item: item,
+                    section: entry.section,
                     startsSection: offset == 0
                 ))
             }

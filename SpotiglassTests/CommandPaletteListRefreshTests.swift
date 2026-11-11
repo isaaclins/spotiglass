@@ -37,6 +37,15 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         assertRows(after: idleList, then: allResults, "idle list → search")
     }
 
+    /// The idle list shows commands under "Quick actions": the heading comes from the list's
+    /// section, not from the item's own.
+    func testRowsKeepTheSectionTheyAreListedUnder() {
+        let rows = CommandPaletteListRow.rows(for: idleList)
+        XCTAssertEqual(rows.map(\.section), [.recentSearches, .quickActions, .quickActions, .quickActions])
+        XCTAssertEqual(rows.map(\.startsSection), [true, true, false, false])
+        XCTAssertEqual(Set(rows.map(\.id)).count, rows.count, "two rows share a name")
+    }
+
     // MARK: - Replay
 
     private func assertRows(
@@ -150,9 +159,9 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         [
             (.recentSearches, [item("recent-steve-lacy", "steve lacy", .recentSearches)]),
             (.quickActions, [
-                item("qa-liked", "Open Liked Songs", .quickActions),
-                item("qa-queue", "Show Queue", .quickActions),
-                item("qa-settings", "Open Settings", .quickActions),
+                item("qa-liked", "Open Liked Songs", .commands),
+                item("qa-queue", "Show Queue", .commands),
+                item("qa-settings", "Open Settings", .commands),
             ]),
         ]
     }
