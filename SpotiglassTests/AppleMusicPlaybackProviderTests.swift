@@ -865,17 +865,37 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let y = Task { await Self.outcome { try await Self.press(starts, [songs[3]], rows: "Y", holding: "X") } }
         await player.waitForHeldPlays(2)
         player.releasePlay() // X plays
+        // X's answer is handled before Y's. Released back to back, each press resumes on its own
+        // task, and on a busy machine Y's refusal could come first: then nothing had played yet
+        // and Y stopped the player (#517).
+        let xOutcome = await x.value
         player.releasePlay() // Y refused
         await player.waitForHeldPlays(1) // X going back
         player.releasePlay()
 
-        let xOutcome = await x.value
         let yOutcome = await y.value
         XCTAssertEqual(xOutcome, "plays, 0 left out")
         XCTAssertEqual(yOutcome, "gave back X, 0 left out")
         XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
         XCTAssertTrue(player.isPlaying)
         XCTAssertFalse(starts.hidesRefusedQueue, "what plays shows")
+    }
+
+    /// On a busy machine a press can reach the player long after the test starts waiting for it
+    /// (#517: the give-back of X came after the wait had given up). The wait lasts until the play
+    /// is held, not for a number of turns.
+    func testWaitingForAHeldPlayOutlastsAPressThatReachesThePlayerLate() async throws {
+        let player = RefusingQueueStarter()
+        player.holdsPlays = true
+        let late = Task { @MainActor in
+            // What the busy machine did: the press is scheduled, then runs much later.
+            try? await Task.sleep(for: .milliseconds(500))
+            try await player.play()
+        }
+        await player.waitForHeldPlays(1)
+        player.releasePlay()
+        try await late.value
+        XCTAssertEqual(player.commands, ["play"])
     }
 
     /// A sign-out stops the player while a start waits for MusicKit: the start leaves the
@@ -1854,19 +1874,41 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
         held.removeFirst().resume()
     }
 
-    /// Waits until `count` plays are held.
-    func waitForHeldPlays(_ count: Int) async {
-        for _ in 0..<10_000 where held.count < count {
-            await Task.yield()
+    /// Tests waiting for a number of held plays, resumed by the play that reaches it.
+    private var heldWaiters: [(id: UUID, count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    /// Waits until `count` plays are held, however long the press takes to reach the player on a
+    /// busy machine (#517). The deadline only keeps a press that never comes from hanging the run.
+    func waitForHeldPlays(_ count: Int, deadline: Duration = .seconds(30)) async {
+        if held.count < count {
+            let id = UUID()
+            let guardTask = Task { @MainActor [weak self] in
+                guard (try? await Task.sleep(for: deadline)) != nil else { return }
+                self?.resumeHeldWaiter(id)
+            }
+            await withCheckedContinuation { heldWaiters.append((id, count, $0)) }
+            guardTask.cancel()
         }
         XCTAssertEqual(held.count, count, "plays held")
+    }
+
+    private func resumeHeldWaiter(_ id: UUID) {
+        guard let index = heldWaiters.firstIndex(where: { $0.id == id }) else { return }
+        heldWaiters.remove(at: index).continuation.resume()
+    }
+
+    private func holdPlay(_ continuation: CheckedContinuation<Void, Never>) {
+        held.append(continuation)
+        let reached = heldWaiters.filter { $0.count <= held.count }
+        heldWaiters.removeAll { $0.count <= held.count }
+        for waiter in reached { waiter.continuation.resume() }
     }
 
     /// MusicKit decides on the queue it was handed; what happens while it works comes after.
     private func whileMusicKitWorks() async throws {
         let refusal = Result { try refuseIfNeeded() }
         if holdsPlays {
-            await withCheckedContinuation { held.append($0) }
+            await withCheckedContinuation { holdPlay($0) }
         }
         try refusal.get()
     }
