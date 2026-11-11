@@ -44,7 +44,8 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         /// A library playlist or album row: the release the library song with its persistent ID names.
         case libraryRow
         /// A library song that names no release itself (an upload, or a read that carries fewer
-        /// IDs): the release a library read found for its persistent ID, if any.
+        /// IDs): the release a library read finds for its persistent ID. Unknown until a read
+        /// has looked; clean only once one found it names none.
         case librarySong(persistentID: String)
         /// Nothing to ask (a catalog song, which carries its own rating, or no IDs at all).
         case none
@@ -131,8 +132,12 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         case .none: return false
         case let .catalog(id): catalogID = id
         case let .librarySong(persistentID):
-            guard case let .release(id)? = lock.withLock({ librarySongsByPersistentID.value(forKey: persistentID) }) else { return false }
-            catalogID = id
+            switch lock.withLock({ librarySongsByPersistentID.value(forKey: persistentID) }) {
+            case let .release(id)?: catalogID = id
+            // A library read found it names none: an upload.
+            case .noRelease?: return false
+            case .notListed?, nil: return nil
+            }
         case .libraryRow:
             switch lock.withLock({ librarySongsByPersistentID.value(forKey: song.id.rawValue) }) {
             case let .release(id)?: catalogID = id
@@ -163,8 +168,10 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             case .none: continue
             case let .catalog(id): catalogIDs.append(id)
             case let .librarySong(persistentID):
-                if case let .release(id)? = lock.withLock({ librarySongsByPersistentID.value(forKey: persistentID) }) {
-                    catalogIDs.append(id)
+                switch lock.withLock({ librarySongsByPersistentID.value(forKey: persistentID) }) {
+                case let .release(id)?: catalogIDs.append(id)
+                case .noRelease?, .notListed?: continue
+                case nil: unmapped.append(persistentID)
                 }
             case .libraryRow:
                 switch lock.withLock({ librarySongsByPersistentID.value(forKey: song.id.rawValue) }) {
@@ -272,7 +279,18 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         let songID = song.id.rawValue
         // Catalog songs carry their own rating (or have none to give).
         guard !MusicKitLibraryLookup.isCatalogID(songID) else { return .none }
-        if let known = lock.withLock({ releasesBySongID.value(forKey: songID) }) { return known }
+        if let known = lock.withLock({ releasesBySongID.value(forKey: songID) }) {
+            // A form with fewer IDs came first: a later one that names the release counts.
+            guard case let .librarySong(persistentID) = known,
+                  let catalogID = Self.identifiers(of: song.playParameters).catalogID,
+                  catalogID != songID, MusicKitLibraryLookup.isCatalogID(catalogID)
+            else { return known }
+            lock.withLock {
+                releasesBySongID.setValue(.catalog(catalogID), forKey: songID)
+                learn(.release(catalogID), persistentID: persistentID)
+            }
+            return .catalog(catalogID)
+        }
         let isLibraryRow = MusicKitLibraryLookup.isPersistentID(songID)
         // A library row's IDs come from the cache the playlist reads fill ahead of time, as
         // encoding each row on the instant playlist view cost time (#442).

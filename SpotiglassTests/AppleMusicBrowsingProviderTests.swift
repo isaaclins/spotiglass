@@ -2117,13 +2117,44 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
     func testASongReadWithoutItsReleaseFirstDoesNotMakeItsRowsClean() async throws {
         let ratings = AppleMusicContentRatings()
         let thinner = try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", persistentID: "5180000000000000121")
-        XCTAssertEqual(ratings.rating(of: thinner), false)
+        XCTAssertNil(ratings.rating(of: thinner), "unknown until a library read looked")
         let library = [try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", catalogID: "9518121", persistentID: "5180000000000000121")]
         let row = try AppleMusicFixtures.song(id: "5180000000000000121", title: "Harbour", persistentID: "5180000000000000121")
 
         await ratings.resolve([row], lookup: { _ in ["9518121": true] }, library: { _, offset in offset == 0 ? library : [] })
         XCTAssertEqual(ratings.rating(of: row), true)
         XCTAssertEqual(ratings.rating(of: thinner), true, "the library read named its release")
+    }
+
+    /// The song itself, read first in a form that names no release: it starts a library read
+    /// like its rows do, reads as unknown until one looked (clean only once one found it names
+    /// none), and its fuller form later counts.
+    func testASongReadWithoutItsReleaseIsUnknownUntilTheLibraryIsRead() async throws {
+        let thinner = try AppleMusicFixtures.song(id: "i.5180131", title: "Night Ferry", persistentID: "5180000000000000131")
+        let fuller = try AppleMusicFixtures.song(id: "i.5180131", title: "Night Ferry", catalogID: "9518131", persistentID: "5180000000000000131")
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in Dictionary(uniqueKeysWithValues: ids.map { ($0, true) }) }
+
+        // The fuller form after the thinner one: its release counts.
+        let first = AppleMusicContentRatings()
+        XCTAssertNil(first.rating(of: thinner))
+        await first.resolve([fuller], lookup: lookup, library: { _, _ in [] })
+        XCTAssertEqual(first.rating(of: fuller), true)
+
+        // A library read that doesn't list it: still unknown, not clean.
+        let unlisted = AppleMusicContentRatings()
+        await unlisted.resolve([thinner], lookup: lookup, library: { _, _ in [] })
+        XCTAssertNil(unlisted.rating(of: thinner))
+
+        // A library read that names its release: it gets the label.
+        let listed = AppleMusicContentRatings()
+        await listed.resolve([thinner], lookup: lookup, library: { _, offset in offset == 0 ? [fuller] : [] })
+        XCTAssertEqual(listed.rating(of: thinner), true)
+
+        // An upload: a library read found it names none, so it's clean.
+        let upload = try AppleMusicFixtures.song(id: "i.5180132", title: "Voice Memo Demo", persistentID: "5180000000000000132")
+        let uploads = AppleMusicContentRatings()
+        await uploads.resolve([upload], lookup: lookup, library: { _, offset in offset == 0 ? [upload] : [] })
+        XCTAssertEqual(uploads.rating(of: upload), false)
     }
 
     /// A read that names no release for a persistent ID doesn't undo a release another read
