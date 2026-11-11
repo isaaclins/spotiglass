@@ -365,6 +365,12 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         ))
         XCTAssertTrue(next())
         XCTAssertTrue(previous())
+
+        // No player wired (an Apple Music account without a subscription): the key is left alone.
+        manager.nextTrack = nil
+        manager.previousTrack = nil
+        XCTAssertFalse(next())
+        XCTAssertFalse(previous())
     }
 
     func testLyricsShortcutRequiresCurrentMusicTrack() throws {
