@@ -34,7 +34,7 @@ final class LocalizationCoverageTests: XCTestCase {
         ("palette.section.thisPlaylist", "palette.section.thisPlaylist", "Here", "Aquí", "Hier"),
         ("palette.searchCategory.all", "palette.searchCategory.all", "All", "Todo", "Alle"),
         ("palette.searchPlaceholder.commands", "palette.searchPlaceholder.commands", "Run a command", "Ejecutar un comando", "Befehl ausführen"),
-        ("palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.clickToRecord", "Click to record", "Haz clic para grabar", "Zum Aufzeichnen klicken"),
+        ("palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.clickToRecord", "Record Shortcut", "Grabar atajo", "Tastenkürzel aufnehmen"),
 
         // Browsing
         ("browser.likedSongs.title", "browser.likedSongs.title", "Liked Songs", "Canciones que te gustan", "Lieblingssongs"),

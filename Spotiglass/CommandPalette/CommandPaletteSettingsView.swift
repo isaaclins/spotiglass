@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct CommandPaletteSettingsView: View {
@@ -19,9 +20,19 @@ struct CommandPaletteSettingsView: View {
     /// A failed capture still ends recording, but keeps its localized reason on
     /// the row so an unsupported key or a menu-owned chord is never silent.
     @State private var captureErrorByCommand: [String: String] = [:]
-    /// Command whose field is currently recording, so the "Esc cancels / Delete
-    /// clears" hint can be shown inline on the active row instead of only at the top.
-    @State private var recordingCommandID: String?
+    /// Typed into the field over the list, so a command is found by name
+    /// instead of by scrolling (#541).
+    @State private var searchText = ""
+
+    /// Commands the list shows for a search: every bindable command whose title
+    /// or subtitle contains the text, ignoring case and accents.
+    static func commands(matching query: String) -> [CommandPaletteCommandSpec] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return CommandPaletteCommandCatalog.bindable }
+        return CommandPaletteCommandCatalog.bindable.filter {
+            $0.title.localizedStandardContains(query) || $0.subtitle.localizedStandardContains(query)
+        }
+    }
 
     var body: some View {
         Group {
@@ -47,7 +58,6 @@ struct CommandPaletteSettingsView: View {
         }
         .onDisappear {
             onRecordingChange(false)
-            recordingCommandID = nil
             captureErrorByCommand = [:]
         }
     }
@@ -59,15 +69,22 @@ struct CommandPaletteSettingsView: View {
                     .font(.title2.weight(.semibold))
             }
 
-            Text(SpotiglassL10n.string("palette.settings.shortcuts"))
-                .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
+            // No instruction line: each field says what to do itself (#541).
+            CommandSearchField(
+                text: $searchText,
+                prompt: SpotiglassL10n.string("palette.settings.search.placeholder")
+            )
 
-            Text(SpotiglassL10n.string("palette.settings.hint"))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            let visible = Self.commands(matching: searchText)
+            if visible.isEmpty {
+                Text(SpotiglassL10n.format("palette.settings.search.noResults", searchText.trimmingCharacters(in: .whitespacesAndNewlines)))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, SpotiglassDesign.spacingL)
+            }
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                ForEach(CommandPaletteCommandCatalog.editable) { spec in
+                ForEach(visible) { spec in
                     keybindingRow(spec: spec)
                         .transition(
                             .asymmetric(
@@ -79,7 +96,9 @@ struct CommandPaletteSettingsView: View {
             }
             .animation(
                 .spring(response: 0.34, dampingFraction: 0.86),
-                value: CommandPaletteCommandCatalog.editable.map(\.commandID)
+                // Keyed on the catalog, not the search: rows filter instantly
+                // as you type, the way every search list on the Mac does.
+                value: CommandPaletteCommandCatalog.bindable.map(\.commandID)
             )
 
             HStack(spacing: SpotiglassDesign.spacingS) {
@@ -119,22 +138,11 @@ struct CommandPaletteSettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                // One shortcut column for every row: a field of one width and a
-                // clear button beside it, whether the command is bound, unbound or
-                // can't be bound, so the trailing edge never moves (#428).
-                HStack(spacing: SpotiglassDesign.spacingXS) {
-                    shortcutField(spec: spec)
-                        .frame(width: SpotiglassDesign.Layout.shortcutFieldWidth)
-                    clearShortcutButton(spec: spec)
-                }
-            }
-
-            if recordingCommandID == spec.commandID {
-                Text(SpotiglassL10n.string("palette.settings.recordingHint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
-                    .transition(.opacity)
+                // One shortcut column for every row: a field of one width, with
+                // its clear control inside, whether the command is bound or not,
+                // so the trailing edge never moves (#428).
+                shortcutField(spec: spec)
+                    .frame(width: SpotiglassDesign.Layout.shortcutFieldWidth)
             }
 
             if let captureError = captureErrorByCommand[spec.commandID] {
@@ -203,84 +211,37 @@ struct CommandPaletteSettingsView: View {
         )
     }
 
-    @ViewBuilder
     private func shortcutField(spec: CommandPaletteCommandSpec) -> some View {
-        if spec.isDestructive {
-            // Destructive commands can't be bound to a single keypress; they run
-            // from the Command Palette only, where intent is explicit. Shown as the
-            // same field, unavailable, so the column reads the same on every row.
-            Button {} label: {
-                Label(SpotiglassL10n.string("palette.settings.notBindable"), systemImage: "lock.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .disabled(true)
-            .frame(minHeight: SpotiglassDesign.Layout.shortcutFieldMinHeight)
-            .contentShape(Rectangle())
-            .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
-            .accessibilityElement(children: .combine)
-            .accessibilityHint(SpotiglassL10n.string("palette.settings.notBindable.hint"))
-        } else {
-            HotkeyRecorderField(
-                commandID: spec.commandID,
-                keymapStore: keymapStore,
-                onRecordingChange: { active in
-                    onRecordingChange(active)
-                    recordingCommandID = active ? spec.commandID : nil
-                    if active {
-                        pendingConflictByCommand[spec.commandID] = nil
-                        captureErrorByCommand[spec.commandID] = nil
-                    }
-                },
-                onCaptureConflict: { shortcut, otherID in
-                    captureErrorByCommand[spec.commandID] = nil
-                    pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
-                        shortcut: shortcut,
-                        otherCommandID: otherID
-                    )
-                },
-                onCaptureFailure: { message in
+        HotkeyRecorderField(
+            commandID: spec.commandID,
+            keymapStore: keymapStore,
+            onRecordingChange: { active in
+                onRecordingChange(active)
+                if active {
                     pendingConflictByCommand[spec.commandID] = nil
-                    captureErrorByCommand[spec.commandID] = message
-                },
-                onApplied: {
-                    pendingConflictByCommand[spec.commandID] = nil
-                    captureErrorByCommand[spec.commandID] = nil
                 }
-            )
-        }
-    }
-
-    /// On every row, enabled only while there is a shortcut to clear. While there
-    /// is nothing to clear it only holds the column: no tooltip, and VoiceOver
-    /// skips it instead of reading a dead "Clear shortcut" on every row.
-    private func clearShortcutButton(spec: CommandPaletteCommandSpec) -> some View {
-        let canClear = !spec.isDestructive && keymapStore.primaryShortcut(for: spec.commandID) != nil
-        return Button {
-            pendingConflictByCommand[spec.commandID] = nil
-            captureErrorByCommand[spec.commandID] = nil
-            do {
-                try keymapStore.clearBinding(commandID: spec.commandID)
-            } catch {
-                keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
-                    for: error,
-                    source: keymapStore.fileURL.path,
-                    operation: "clear shortcut"
+                // A reason shown while recording belongs to that attempt.
+                captureErrorByCommand[spec.commandID] = nil
+            },
+            onCaptureConflict: { shortcut, otherID in
+                captureErrorByCommand[spec.commandID] = nil
+                pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
+                    shortcut: shortcut,
+                    otherCommandID: otherID
                 )
-            }
-        } label: {
-            Image(systemName: "xmark.circle.fill")
-                .symbolRenderingMode(.hierarchical)
-                .font(SpotiglassDesign.Typography.commandPaletteClearShortcut)
-                .foregroundStyle(.secondary)
-                .opacity(canClear ? 1 : 0.35)
-                .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!canClear)
-        .help(canClear ? SpotiglassL10n.string("palette.settings.clearShortcut") : "")
-        .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
-        .accessibilityHidden(!canClear)
+            },
+            onCaptureFailure: { message in
+                pendingConflictByCommand[spec.commandID] = nil
+                captureErrorByCommand[spec.commandID] = message
+            },
+            onApplied: {
+                pendingConflictByCommand[spec.commandID] = nil
+                captureErrorByCommand[spec.commandID] = nil
+            },
+            conflictingShortcut: pendingConflictByCommand[spec.commandID]?.shortcut,
+            showsProblem: pendingConflictByCommand[spec.commandID] != nil
+                || captureErrorByCommand[spec.commandID] != nil
+        )
     }
 
     private func displayTitle(for commandID: String) -> String {
@@ -373,4 +334,57 @@ struct CommandPaletteSettingsView: View {
 private struct PendingHotkeyConflict: Equatable {
     let shortcut: CommandShortcut
     let otherCommandID: String
+}
+
+/// The search field over the shortcut list. AppKit's own, so it looks, clears
+/// and handles Esc like every other search field on the Mac.
+private struct CommandSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let prompt: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.delegate = context.coordinator
+        // The field's own ⓧ empties it without a text-change notification;
+        // it sends the action, so read the text there too.
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.searchFieldDidSend(_:))
+        field.sendsSearchStringImmediately = true
+        field.placeholderString = prompt
+        field.setAccessibilityLabel(prompt)
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        context.coordinator.text = $text
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        field.placeholderString = prompt
+        field.setAccessibilityLabel(prompt)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSSearchField else { return }
+            text.wrappedValue = field.stringValue
+        }
+
+        @objc func searchFieldDidSend(_ field: NSSearchField) {
+            if text.wrappedValue != field.stringValue {
+                text.wrappedValue = field.stringValue
+            }
+        }
+    }
 }

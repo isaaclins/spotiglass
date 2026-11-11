@@ -273,7 +273,6 @@ enum SpotiglassDesign {
     /// accessibility text-size setting; fixed-point `Font.system(size:)` does not.
     enum Typography {
         static let commandPaletteIcon = Font.body.weight(.medium)
-        static let commandPaletteClearShortcut = Font.body
         static let commandPaletteEmptyState = Font.largeTitle
         static let commandPaletteArtworkFallback = Font.footnote.weight(.medium)
         static let pinRemove = Font.body.weight(.bold)

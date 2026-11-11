@@ -8150,19 +8150,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zum Aufzeichnen klicken"
+            "value": "Tastenkürzel aufnehmen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Click to record"
+            "value": "Record Shortcut"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Haz clic para grabar"
+            "value": "Grabar atajo"
           }
         }
       }
@@ -8173,19 +8173,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aufnahme …"
+            "value": "Tasten drücken …"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recording…"
+            "value": "Press Keys…"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Grabando…"
+            "value": "Pulsa las teclas…"
           }
         }
       }
@@ -9003,19 +9003,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bereits %@ zugewiesen. Verwende Ersetzen, um es hierher zu verschieben."
+            "value": "Bereits von „%@“ belegt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Already assigned to %@. Use Replace to move it here."
+            "value": "Already used by “%@”."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ya asignado a %@. Usa Reemplazar para moverlo aquí."
+            "value": "Ya lo usa «%@»."
           }
         }
       }
@@ -9158,75 +9158,6 @@
         }
       }
     },
-    "palette.settings.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Klicke ein Feld an und drücke ein Tastenkürzel. Esc bricht ab; Entf löscht. Konflikte können die andere Belegung ersetzen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Click a field and press a shortcut. Esc cancels; Delete clears. Conflicts can replace the other binding."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Haz clic en un campo y pulsa un atajo. Esc cancela; Suprimir borra. Los conflictos pueden reemplazar la otra asignación."
-          }
-        }
-      }
-    },
-    "palette.settings.notBindable": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nicht zuweisbar"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not bindable"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No asignable"
-          }
-        }
-      }
-    },
-    "palette.settings.notBindable.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese Aktion ist destruktiv und lässt sich daher nur über die Befehls-Palette ausführen, nicht an eine einzelne Taste binden."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This action is destructive, so it runs from the Command Palette only and can’t be bound to a single keypress."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta acción es destructiva, por lo que solo se ejecuta desde la Paleta de comandos y no puede asignarse a una sola tecla."
-          }
-        }
-      }
-    },
     "palette.settings.openJSON": {
       "extractionState": "stale",
       "localizations": {
@@ -9246,29 +9177,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir settings.json"
-          }
-        }
-      }
-    },
-    "palette.settings.recordingHint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kurzbefehl drücken · Esc bricht ab · Entf löscht"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Press a shortcut · Esc cancels · Delete clears"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pulsa un atajo · Esc cancela · Supr borra"
           }
         }
       }
@@ -9384,29 +9292,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revertir"
-          }
-        }
-      }
-    },
-    "palette.settings.shortcuts": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tastenkürzel"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shortcuts"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Atajos"
           }
         }
       }
@@ -16981,6 +16866,75 @@
           }
         }
       }
+    },
+    "palette.hotkeyRecorder.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nimmt ein Tastenkürzel für diesen Befehl auf. Esc bricht ab, Entf löscht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records a shortcut for this command. Esc cancels, Delete clears."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graba un atajo para este comando. Esc cancela, Supr borra."
+          }
+        }
+      },
+      "comment": "Tooltip and VoiceOver hint of a shortcut field in Settings > Keyboard."
+    },
+    "palette.settings.search.placeholder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehle suchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Commands"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar comandos"
+          }
+        }
+      },
+      "comment": "Placeholder of the search field over the shortcut list in Settings > Keyboard."
+    },
+    "palette.settings.search.noResults": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Befehle passen zu „%@“."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No commands match “%@”."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún comando coincide con «%@»."
+          }
+        }
+      },
+      "comment": "Shown when the Settings > Keyboard search matches no command. %@ is the search text."
     }
   },
   "version": "1.1"

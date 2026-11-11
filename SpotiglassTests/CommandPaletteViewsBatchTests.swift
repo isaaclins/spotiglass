@@ -55,7 +55,7 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
             presentation: .settingsTabs
         )
         ViewTestHost.host(tabs, size: CGSize(width: 760, height: 560))
-        XCTAssertNoThrow(try tabs.inspect().find(text: "Shortcuts"))
+        XCTAssertNoThrow(try tabs.inspect().find(text: SpotiglassL10n.string("palette.settings.reset")))
     }
 
     /// Bound and unbound rows used to end on different lines: an unbound row had
@@ -65,7 +65,7 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         let (_, keymap, _) = try makeHarness()
         try keymap.clearBinding(commandID: CommandPaletteCommandID.nextTrack)
         XCTAssertNil(keymap.primaryShortcut(for: CommandPaletteCommandID.nextTrack))
-        let bindable = CommandPaletteCommandCatalog.editable.filter { !$0.isDestructive }
+        let bindable = CommandPaletteCommandCatalog.bindable
 
         for presentation in [CommandPaletteSettingsView.Presentation.standalone, .settingsTabs] {
             let controller = ViewTestHost.host(
@@ -82,46 +82,209 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         }
     }
 
-    /// The "Not bindable" row used to show loose text with a lock where the
-    /// field goes. It now takes the same column as every other row.
-    func testNotBindableRowTakesTheSameShortcutColumn() throws {
-        let (_, keymap, _) = try makeHarness()
-        let view = CommandPaletteSettingsView(keymapStore: keymap, presentation: .standalone)
-        ViewTestHost.host(view, size: CGSize(width: 760, height: 1_600))
-
-        let columns = try view.inspect().findAll(where: {
-            (try? $0.fixedWidth()) == SpotiglassDesign.Layout.shortcutFieldWidth
-        })
-        XCTAssertEqual(columns.count, CommandPaletteCommandCatalog.editable.count, "one shortcut column per row")
-        let notBindable = SpotiglassL10n.string("palette.settings.notBindable")
-        let destructive = CommandPaletteCommandCatalog.editable.filter(\.isDestructive).count
-        XCTAssertGreaterThan(destructive, 0)
-        XCTAssertEqual(
-            columns.filter { (try? $0.find(text: notBindable)) != nil }.count, destructive,
-            "every not-bindable row shows its notice inside the shortcut column"
+    /// Settings > Keyboard used to list "Disconnect Spotify" with a locked
+    /// "Not bindable" field: the one row nothing could be done with (#540).
+    /// It now lists only commands a shortcut can be set for, while Disconnect
+    /// stays in the Command Palette.
+    func testKeyboardSettingsListOnlyCommandsAShortcutCanBeSetFor() throws {
+        let (_, keymap, manager) = try makeHarness()
+        let disconnect = try XCTUnwrap(
+            CommandPaletteCommandCatalog.editable.first { $0.commandID == CommandPaletteCommandID.signOut }
         )
+        XCTAssertTrue(disconnect.isDestructive)
+
+        for presentation in [CommandPaletteSettingsView.Presentation.standalone, .settingsTabs] {
+            let view = CommandPaletteSettingsView(keymapStore: keymap, presentation: presentation)
+            let controller = ViewTestHost.host(view, size: CGSize(width: 760, height: 1_600))
+            let listed = recorderFields(in: controller.view).compactMap { $0.coordinator?.parent.commandID }
+            XCTAssertEqual(
+                Set(listed), Set(CommandPaletteCommandCatalog.bindable.map(\.commandID)),
+                "\(presentation): every row is a command a shortcut can be set for"
+            )
+            XCTAssertFalse(listed.contains(disconnect.commandID), "\(presentation)")
+            XCTAssertThrowsError(try view.inspect().find(text: disconnect.title), "\(presentation): no Disconnect row")
+            let columns = try view.inspect().findAll(where: {
+                (try? $0.fixedWidth()) == SpotiglassDesign.Layout.shortcutFieldWidth
+            })
+            XCTAssertEqual(columns.count, CommandPaletteCommandCatalog.bindable.count, "\(presentation): no row without a field")
+        }
+
+        // The store refuses it too, so no other path gives Disconnect a keypress.
+        try keymap.setBinding(
+            commandID: disconnect.commandID,
+            shortcut: try CommandShortcut(keystroke: "ctrl-alt-d"),
+            replaceConflicting: true
+        )
+        XCTAssertNil(keymap.primaryShortcut(for: disconnect.commandID))
+
+        // Disconnect still runs from the Command Palette.
+        manager.isSignedIn = true
+        manager.signOut = {}
+        let paletteItems = manager.viewModel.staticItemsProvider()
+        XCTAssertTrue(
+            paletteItems.contains { $0.id == disconnect.commandID },
+            "Disconnect stays in the Command Palette"
+        )
+    }
+
+    /// Finding a command meant scrolling the whole list (#541). Typing into the
+    /// search field over it narrows the rows to the commands that match.
+    func testTypingInTheSearchFieldNarrowsTheShortcutList() throws {
+        let (_, keymap, _) = try makeHarness()
+        let controller = ViewTestHost.host(
+            CommandPaletteSettingsView(keymapStore: keymap, presentation: .settingsTabs),
+            size: CGSize(width: 760, height: 1_600)
+        )
+        XCTAssertEqual(recorderFields(in: controller.view).count, CommandPaletteCommandCatalog.bindable.count)
+        let search = try XCTUnwrap(searchFields(in: controller.view).first, "a search field over the list")
+        XCTAssertEqual(search.placeholderString, SpotiglassL10n.string("palette.settings.search.placeholder"))
+
+        func type(_ text: String) {
+            search.stringValue = text
+            search.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: search))
+            // The list redraws on SwiftUI's next update: wait for the row count, not for a time.
+            let expected = CommandPaletteSettingsView.commands(matching: text).count
+            XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+                controller.view.layoutSubtreeIfNeeded()
+                return recorderFields(in: controller.view).count == expected
+            }), "\"\(text)\": \(expected) rows")
+        }
+
+        let lyricsTitle = SpotiglassL10n.string(forKey: "palette.command.\(CommandPaletteCommandID.toggleLyrics).title")
+        type(lyricsTitle.uppercased())
+        let shown = recorderFields(in: controller.view).compactMap { $0.coordinator?.parent.commandID }
+        XCTAssertTrue(shown.contains(CommandPaletteCommandID.toggleLyrics), "\(shown)")
+        XCTAssertLessThan(shown.count, CommandPaletteCommandCatalog.bindable.count)
+        XCTAssertEqual(Set(shown), Set(CommandPaletteSettingsView.commands(matching: lyricsTitle).map(\.commandID)))
+
+        type("zzzz no such command")
+        XCTAssertTrue(recorderFields(in: controller.view).isEmpty)
+
+        type("")
+        XCTAssertEqual(recorderFields(in: controller.view).count, CommandPaletteCommandCatalog.bindable.count)
+
+        // The field's own ⓧ empties it without a text-change notification.
+        // The list has to come back with it, not stay filtered under an empty field.
+        type("zzzz no such command")
+        let cancel = try XCTUnwrap((search.cell as? NSSearchFieldCell)?.cancelButtonCell)
+        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(cancel.action), to: cancel.target, from: cancel))
+        XCTAssertEqual(search.stringValue, "")
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return recorderFields(in: controller.view).count == CommandPaletteCommandCatalog.bindable.count
+        }), "every command is listed again after the search field's clear button")
+    }
+
+    func testCommandSearchMatchesTitleAndSubtitleInTheAppLanguage() {
+        XCTAssertEqual(CommandPaletteSettingsView.commands(matching: "  ").count, CommandPaletteCommandCatalog.bindable.count)
+        for spec in CommandPaletteCommandCatalog.bindable {
+            XCTAssertTrue(
+                CommandPaletteSettingsView.commands(matching: spec.title.lowercased()).contains { $0.commandID == spec.commandID },
+                spec.commandID
+            )
+            XCTAssertTrue(
+                CommandPaletteSettingsView.commands(matching: spec.subtitle).contains { $0.commandID == spec.commandID },
+                spec.commandID
+            )
+        }
+        XCTAssertTrue(CommandPaletteSettingsView.commands(matching: "Disconnect").isEmpty)
     }
 
     /// The field has one width for every row, so it has to fit the longest
     /// state in every language the app ships, or German would clip.
+    /// A taken chord stays on the row's own field, in its problem state, while
+    /// the saved one is untouched; recording again and Esc bring it back (#541).
+    /// Driven through the real pane, so the row's wiring to its field counts.
+    func testConflictInThePaneShowsOnTheRowsField() throws {
+        let (_, keymap, _) = try makeHarness()
+        let taken = try XCTUnwrap(keymap.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+        let controller = ViewTestHost.host(
+            CommandPaletteSettingsView(keymapStore: keymap, presentation: .settingsTabs),
+            size: CGSize(width: 760, height: 1_600)
+        )
+        func field(_ commandID: String) throws -> RecorderKeyContainerView {
+            try XCTUnwrap(recorderFields(in: controller.view).first { $0.coordinator?.parent.commandID == commandID })
+        }
+        let settings = try field(CommandPaletteCommandID.openSettings)
+        let saved = try XCTUnwrap(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings))
+
+        settings.testing_beginKeyCapture()
+        XCTAssertEqual(taken, try CommandShortcut(keystroke: "cmd-k"), "the default palette chord")
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: taken.modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: taken.key, charactersIgnoringModifiers: taken.key,
+            isARepeat: false, keyCode: 40
+        ))
+        settings.keyDown(with: event)
+        // The row's state reaches its field on SwiftUI's next update: wait for it, not for a time.
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.showsProblem == true
+        }), "the row hands the conflict to its field")
+
+        let shown = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertFalse(shown.isRecording)
+        XCTAssertEqual(shown.content, .keys(taken.displayChips), "the taken chord stays on the field")
+        XCTAssertTrue(shown.showsProblem)
+        XCTAssertFalse(shown.showsClearControl)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings), saved, "nothing saved yet")
+
+
+        // Recording again drops the conflict, and Esc puts the saved chord back.
+        shown.testing_beginKeyCapture()
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.showsProblem == false
+        }))
+        let again = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertTrue(again.isRecording)
+        XCTAssertFalse(again.showsProblem, "a new attempt starts clean")
+        again.keyDown(with: try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
+        )))
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.content == .keys(saved.displayChips)
+        }))
+        let restored = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertEqual(restored.content, .keys(saved.displayChips))
+        XCTAssertFalse(restored.showsProblem)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openPalette), taken, "the other command keeps it")
+    }
+
     func testShortcutFieldFitsEveryStateInEveryLanguage() {
+        let field = SpotiglassDesign.Layout.shortcutFieldWidth
         for language in ["en", "de", "es"] {
             let locale = Locale(identifier: language)
-            let recording = SpotiglassL10n.string("palette.hotkeyRecorder.recording", locale: locale)
-            let states = [
-                SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord", locale: locale),
-                "\(recording)  ⌃ ⌥ ⇧ ⌘",
-                SpotiglassL10n.string("palette.settings.notBindable", locale: locale),
-            ]
-            for state in states {
-                let button = NSButton(title: state, target: nil, action: nil)
-                button.bezelStyle = .rounded
+            // The prompts are drawn as they are, so they have to fit the field.
+            for prompt in ["palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.recording"] {
+                let text = SpotiglassL10n.string(prompt, locale: locale)
                 XCTAssertLessThanOrEqual(
-                    button.fittingSize.width, SpotiglassDesign.Layout.shortcutFieldWidth,
-                    "\(language): \"\(state)\" doesn't fit the shortcut field"
+                    RecorderKeyContainerView.contentWidth(for: .prompt(text)),
+                    RecorderKeyContainerView.contentRoom(inFieldWidth: field, showsClearControl: false),
+                    "\(language): \"\(text)\" doesn't fit the shortcut field"
                 )
             }
+            // The widest chord there is: all four modifiers and Space, spelled out in
+            // the language ("Leertaste" needs about 162 pt where a saved chord gets
+            // 146). Key caps shrink to the room beside the clear control, and stay
+            // readable doing it.
+            let widest = ["⌃", "⌥", "⇧", "⌘", SpotiglassL10n.string("palette.key.space", locale: locale)]
+            let room = RecorderKeyContainerView.contentRoom(inFieldWidth: field, showsClearControl: true)
+            let scale = RecorderKeyContainerView.keysScale(for: widest, in: room)
+            XCTAssertLessThanOrEqual(
+                RecorderKeyContainerView.contentWidth(for: .keys(widest)) * scale, room + 0.001,
+                "\(language): \(widest) runs into the clear control"
+            )
+            XCTAssertGreaterThanOrEqual(scale, 0.85, "\(language): \(widest) shrinks too far to read")
+            // A usual chord is drawn at full size.
+            XCTAssertEqual(RecorderKeyContainerView.keysScale(for: ["⇧", "⌘", "K"], in: room), 1)
         }
+    }
+
+    private func searchFields(in view: NSView) -> [NSSearchField] {
+        (view as? NSSearchField).map { [$0] } ?? view.subviews.flatMap { searchFields(in: $0) }
     }
 
     private func recorderFields(in view: NSView) -> [RecorderKeyContainerView] {
