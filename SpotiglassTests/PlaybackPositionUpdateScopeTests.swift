@@ -188,10 +188,10 @@ final class ScrubberTickCostTests: XCTestCase {
         super.tearDown()
     }
 
-    private func playingAnchor(isAdvancing: Bool = true) -> PlaybackProgressAnchor {
+    private func playingAnchor(isAdvancing: Bool = true, at date: Date = Date()) -> PlaybackProgressAnchor {
         PlaybackProgressAnchor(
             positionMilliseconds: 60_000,
-            anchorDate: Date(),
+            anchorDate: date,
             durationMilliseconds: 240_000,
             isAdvancing: isAdvancing
         )
@@ -239,6 +239,9 @@ final class ScrubberTickCostTests: XCTestCase {
 
     func testTheTrackWakesOnlyWhilePlaying() throws {
         let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        // A clock of its own, so a busy machine pausing the test can't make the first tick due.
+        let clock = Date().addingTimeInterval(3600)
+        view.now = { clock }
         let colors = ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
         func drawing(_ anchor: PlaybackProgressAnchor, dragFraction: Double? = nil) -> ScrubberTrackCanvasView.Drawing {
             .init(
@@ -250,7 +253,7 @@ final class ScrubberTickCostTests: XCTestCase {
                 colors: colors
             )
         }
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         XCTAssertNil(view.tickTimer, "nothing to wake outside a window")
 
         let window = VisibilityControlledWindow(
@@ -265,19 +268,19 @@ final class ScrubberTickCostTests: XCTestCase {
 
         // 400 pt for 4:00 moves 1.67 pt a second: 4 ticks a second keep each step under half a point.
         let timer = try XCTUnwrap(view.tickTimer)
-        let wait = timer.fireDate.timeIntervalSinceNow
+        let wait = timer.fireDate.timeIntervalSince(clock)
         XCTAssertGreaterThan(wait, 0)
         XCTAssertLessThanOrEqual(wait, 0.25 + 0.01)
 
-        view.drawing = drawing(playingAnchor(isAdvancing: false))
+        view.drawing = drawing(playingAnchor(isAdvancing: false, at: clock))
         XCTAssertNil(view.tickTimer, "paused: no wakeups")
 
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         XCTAssertNotNil(view.tickTimer)
-        view.drawing = drawing(playingAnchor(), dragFraction: 0.5)
+        view.drawing = drawing(playingAnchor(at: clock), dragFraction: 0.5)
         XCTAssertNil(view.tickTimer, "dragging: the pointer moves the thumb, not the clock")
 
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         // Minimized, hidden or covered: nobody sees the track move.
         window.reportsVisible = false
         XCTAssertNil(view.tickTimer, "a window nobody sees: no wakeups")
@@ -290,7 +293,8 @@ final class ScrubberTickCostTests: XCTestCase {
 
     /// After the main thread stalls (or the Mac sleeps) while a track plays, the next tick is
     /// scheduled from now. Scheduling from the tick that fired late would fire every missed tick
-    /// at once, one right after the other.
+    /// at once, one right after the other. The view's clock stands in for the stall, and the test
+    /// fires each tick itself, so how late the run loop gets on a busy machine changes nothing.
     func testAStallDoesNotFireTheMissedTicksAtOnce() throws {
         let window = VisibilityControlledWindow(
             contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
@@ -300,7 +304,60 @@ final class ScrubberTickCostTests: XCTestCase {
         )
         window.isReleasedWhenClosed = false
         windows.append(window)
+        // Hours ahead of the real clock: the run loop never reaches these ticks by itself.
+        var clock = Date().addingTimeInterval(3600)
+        let anchor = playingAnchor(at: clock)
         let view = TickCountingTrackView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        view.now = { clock }
+        view.drawing = .init(
+            trackHeight: 4,
+            progress: ScrubberProgress(anchor: anchor, durationMilliseconds: 240_000, dragFraction: nil),
+            dragFraction: nil,
+            thumbDiameter: 12,
+            overhang: 8,
+            colors: ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
+        )
+        window.contentView?.addSubview(view)
+        defer { view.removeFromSuperview() }
+
+        // 400 pt for 4:00: 4 ticks a second, each on a fixed grid from the anchor.
+        let tick = 0.25
+        let first = try XCTUnwrap(view.tickTimer)
+        XCTAssertGreaterThan(first.fireDate, clock)
+        XCTAssertLessThanOrEqual(first.fireDate.timeIntervalSince(clock), tick + 0.01)
+
+        // On time: the next tick follows one tick later.
+        let firstDate = first.fireDate
+        clock = firstDate
+        view.ticks = 0
+        first.fire()
+        XCTAssertEqual(view.ticks, 1, "the tick redraws the track")
+        let second = try XCTUnwrap(view.tickTimer)
+        XCTAssertEqual(second.fireDate.timeIntervalSince(firstDate), tick, accuracy: 0.001)
+
+        // A 2.1 s stall misses 8 ticks; the one that was due fires late.
+        clock = second.fireDate.addingTimeInterval(2.1)
+        view.ticks = 0
+        second.fire()
+        XCTAssertEqual(view.ticks, 1, "the late tick fired once")
+        let next = try XCTUnwrap(view.tickTimer)
+        XCTAssertGreaterThan(next.fireDate, clock, "the missed ticks must not fire one after the other")
+        XCTAssertLessThanOrEqual(next.fireDate.timeIntervalSince(clock), tick, "the track moves on at its rate")
+    }
+
+    /// The stall test above fires its ticks by hand, so this one checks that the run loop fires
+    /// them by itself. It waits for the first tick to have scheduled a later one, however late a
+    /// busy machine runs it.
+    func testTheTrackTicksOnTheRunLoopByItself() throws {
+        let window = VisibilityControlledWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        windows.append(window)
+        let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
         view.drawing = .init(
             trackHeight: 4,
             progress: ScrubberProgress(anchor: playingAnchor(), durationMilliseconds: 240_000, dragFraction: nil),
@@ -310,21 +367,16 @@ final class ScrubberTickCostTests: XCTestCase {
             colors: ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
         )
         window.contentView?.addSubview(view)
-        // AppKit marks the view for display while it sets up its layer; count only the ticks.
-        AppKitTestSupport.pumpRunLoop(for: 0.3)
-        view.ticks = 0
-        AppKitTestSupport.pumpRunLoop(for: 0.6)
-        XCTAssertGreaterThanOrEqual(view.ticks, 2, "the track ticks while playing")
-        view.ticks = 0
+        defer { view.removeFromSuperview() }
 
-        // 4 ticks a second here: a 2 s stall misses about 8 of them.
-        Thread.sleep(forTimeInterval: 2)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-
-        XCTAssertGreaterThanOrEqual(view.ticks, 1, "the late tick fired")
-        XCTAssertLessThanOrEqual(view.ticks, 2, "the missed ticks must not fire one after the other")
-        let next = try XCTUnwrap(view.tickTimer)
-        XCTAssertGreaterThan(next.fireDate, Date(), "the next tick is ahead")
+        let firstFireDate = try XCTUnwrap(view.tickTimer).fireDate
+        let ticked = expectation(
+            for: NSPredicate { _, _ in
+                MainActor.assumeIsolated { (view.tickTimer?.fireDate ?? .distantPast) > firstFireDate }
+            },
+            evaluatedWith: nil
+        )
+        wait(for: [ticked], timeout: 30)
     }
 
     func testTheTrackIsNeverHitOrReadByVoiceOver() {
