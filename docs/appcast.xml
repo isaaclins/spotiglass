@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.38</title>
-            <pubDate>Wed, 11 Nov 2026 04:52:28 +0100</pubDate>
-            <sparkle:version>49</sparkle:version>
-            <sparkle:shortVersionString>0.8.38</sparkle:shortVersionString>
+            <title>0.8.39</title>
+            <pubDate>Wed, 11 Nov 2026 05:14:42 +0100</pubDate>
+            <sparkle:version>50</sparkle:version>
+            <sparkle:shortVersionString>0.8.39</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Dragging an Apple Music library pin now shows its cover.
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.38/Spotiglass-0.8.38.zip" length="13375393" type="application/octet-stream" sparkle:edSignature="dDNZieW7wFt5rogb966bAvPsha7m4I1KdcLCQm/yVUZPPYOkk6IzynNqe2G6wQSdtrE2j99MCK4Yoj+eTp3qBg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.39/Spotiglass-0.8.39.zip" length="13375333" type="application/octet-stream" sparkle:edSignature="yC2FzyclFctp/lTpGk8PeIVZFuhZvN+Eb93pIt5Iv4XK3cqlRuElQi8sFXYiEaIjZiIsHmLnRutIVVXs8KIUBA=="/>
         </item>
     </channel>
 </rss>
