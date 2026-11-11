@@ -181,10 +181,6 @@ final class WindowResizeCostTests: XCTestCase {
     func testOpeningTheQueueNarrowsTheSidebarsDragLimit() async throws {
         let window = try await hostBrowser(on: .bigPlaylist)
         let content = try XCTUnwrap(window.contentView)
-        // The widening is committed by then, so the limit is the one for this width.
-        waitUntilNothingRenders(file: #filePath, line: #line)
-        let closedLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content), "no sidebar split item")
-
         let queueShare = SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: false)
             - SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: true)
         // Waits for the limit AppKit applies to change, however late a busy Mac gets there (#533).
@@ -193,6 +189,14 @@ final class WindowResizeCostTests: XCTestCase {
                 abs((Self.sidebarMaximumThickness(in: content) ?? .infinity) - expected) < 0.5
             })
         }
+
+        // The closed limit is the one for the widened window, not one left from before the
+        // widening committed: wait for that value instead of for a quiet moment.
+        let widenedLimit = SpotiglassDesign.playlistSidebarMaxWidth(
+            browserWidth: content.bounds.width, isQueueVisible: false
+        )
+        XCTAssertTrue(limitBecomes(widenedLimit), "the drag limit never matched the widened window")
+        let closedLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content), "no sidebar split item")
 
         StoredFlag.queuePanelVisible.isOn = true
         _ = limitBecomes(closedLimit - queueShare)
