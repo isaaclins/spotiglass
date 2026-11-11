@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.25</title>
-            <pubDate>Wed, 11 Nov 2026 00:24:03 +0100</pubDate>
-            <sparkle:version>36</sparkle:version>
-            <sparkle:shortVersionString>0.8.25</sparkle:shortVersionString>
+            <title>0.8.26</title>
+            <pubDate>Wed, 11 Nov 2026 01:11:38 +0100</pubDate>
+            <sparkle:version>37</sparkle:version>
+            <sparkle:shortVersionString>0.8.26</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Pressing a top track in Apple Music now plays instead of failing and showing as Paused.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music albums can no longer be pinned to the sidebar twice.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.25/Spotiglass-0.8.25.zip" length="13079689" type="application/octet-stream" sparkle:edSignature="ekB/eklSFLVLquBTw+5npKKiwRzSWe+xKi+Kf0X5RWJNYtQa8OdSWZDvP8//d7ypMqzPUc2FO8Y/ycPMQbz4Aw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.26/Spotiglass-0.8.26.zip" length="13253986" type="application/octet-stream" sparkle:edSignature="wPVNQSADpJjpgZLoeVEDt84hL56NmSFAtEUgD9QROwT3RKA9zk31P2yEvI3cLX1bTlREHcl/sykytQ2XwjU3BA=="/>
         </item>
     </channel>
 </rss>

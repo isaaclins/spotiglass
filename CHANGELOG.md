@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.26] - 2026-11-11
+
+### Fixed
+
+- Apple Music albums can no longer be pinned to the sidebar twice.
+
 ## [0.8.25] - 2026-11-11
 
 ### Fixed
