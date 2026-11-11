@@ -31,141 +31,63 @@ enum PlaybackTransportTooltips {
 /// Responsive geometry policy for the playback transport.
 enum PlaybackTransportLayoutPolicy {
     static let scrubberMinimumWidth: CGFloat = 180
-    static let compactVolumeBreakpoint: CGFloat = 760
-    static let stackedScrubberBreakpoint: CGFloat = 680
+    /// The scrubber under the controls stops growing here, as Music's and
+    /// Spotify's do: in a wide window it stays a reach of the hand under the
+    /// buttons instead of running from edge to edge (#496).
+    static let scrubberMaximumWidth: CGFloat = 640
 
-    /// A playing summary always keeps the artwork, its gap, and enough title
-    /// width to remain readable. The title is allowed to truncate beyond this
-    /// floor rather than forcing the scrubber or timestamps off the bar.
+    /// The summary keeps the artwork, its gap and a few letters of the title
+    /// before the controls give up their place on the bar's centre. Past this
+    /// floor the title truncates (#496).
     static let nowPlayingArtworkSize: CGFloat = SpotiglassDesign.Layout.nowPlayingArtworkSize
-    static let nowPlayingSummaryTitleMinimumWidth: CGFloat = 120
+    static let nowPlayingSummaryTitleMinimumWidth: CGFloat = 56
+    /// A title too long to show whole keeps this much beside Paused; in a
+    /// narrower bar Paused waits and the title keeps the room (#496).
+    static let titleBesidePausedMinimumWidth: CGFloat = 120
     static let nowPlayingSummaryMinimumWidth: CGFloat =
         nowPlayingArtworkSize + SpotiglassDesign.spacingS + nowPlayingSummaryTitleMinimumWidth
 
-    struct TransportLayoutCandidate: Equatable {
-        let useCompactVolume: Bool
-        /// Minimum proposal width at which this candidate can be selected.
-        let minimumWidth: CGFloat
-    }
-
-    /// Candidate order is the order `PlaybackTransportArrangementLayout` tries
-    /// them in: full horizontal, compact horizontal, then stacked compact. The
-    /// layout takes the first whose minimum width and ideal row both fit the
-    /// width it is offered, so the choice never depends on a stored measurement.
-    static func transportLayoutCandidates() -> [TransportLayoutCandidate] {
-        [
-            TransportLayoutCandidate(
-                useCompactVolume: false,
-                minimumWidth: compactVolumeBreakpoint
-            ),
-            TransportLayoutCandidate(
-                useCompactVolume: true,
-                minimumWidth: stackedScrubberBreakpoint
-            ),
-            TransportLayoutCandidate(
-                useCompactVolume: true,
-                minimumWidth: 0
-            ),
-        ]
-    }
-
-    /// The volume slider's width range, and the full volume control's floor:
-    /// its speaker icon, the gap and the narrowest slider.
+    /// The volume slider's width range.
     static let volumeSliderWidths: (minimum: CGFloat, ideal: CGFloat, maximum: CGFloat) = (100, 120, 140)
-    static let fullVolumeMinimumWidth: CGFloat = SpotiglassDesign.Layout.iconSize + SpotiglassDesign.spacingS + volumeSliderWidths.minimum
-
-    /// The fixed trailing controls' floor, including the two gaps between the
-    /// controls cluster, device picker, and volume control.
-    static func transportActionsMinimumWidth(useCompactVolume: Bool) -> CGFloat {
-        let controlsClusterWidth =
-            (4 * SpotiglassDesign.Layout.iconButtonSize)
-            + (3 * SpotiglassDesign.spacingS)
-        let volumeWidth = useCompactVolume ? SpotiglassDesign.Layout.iconButtonSize : fullVolumeMinimumWidth
-        return controlsClusterWidth
-            + (2 * SpotiglassDesign.spacingM)
-            + SpotiglassDesign.Layout.iconButtonSize
-            + volumeWidth
-    }
 }
 
-/// Lays the transport out as one row, or as two rows (summary and controls
-/// above the scrubber) once the row no longer fits (#394).
+/// Lays the player bar out the way Music and Spotify do (#496): the transport
+/// buttons centred on the bar, so play/pause sits on the window's centre line
+/// at every width, the song on the left, the device menu and the volume on the
+/// right, and the scrubber centred under the buttons.
 ///
-/// It replaced a `ViewThatFits` over three complete copies of the transport,
-/// which builds a copy anew whenever its pick changes. In the app's window,
-/// whose minimum size SwiftUI measures from its content, the pick kept
-/// changing: traces of a paused Apple Music track showed the scrubber rebuilt
-/// about 120 times a second, each new scrubber's timeline asking for the next
-/// layout pass, and a CPU core busy. Here the same subviews only move, and the
+/// The bar spans the window with equal margins, so its centre is the
+/// window's whether the sidebar shows or not. The controls view is
+/// symmetric around play/pause (Lyrics mirrors Repeat), so centring the view
+/// centres the button. Each side gets the same half of what is left: the
+/// summary and any Reconnect or Retry button share the left one, and the
+/// title truncates before the controls move; the device menu and the volume
+/// take the right one, the volume falling back to its compact button when the
+/// slider no longer fits.
+///
+/// One set of subviews at every width, each carrying its `Part`, so a layout
+/// pass only moves them and never rebuilds the scrubber (#394), and every
 /// choice is a pure function of the offered width.
-///
-/// Each subview carries its `Part`. Within an arrangement the space is shared
-/// out the way the stacks this replaced shared it, so the bar looks the same:
-/// least flexible part first, each offered an even share of what is left.
 struct PlaybackTransportArrangementLayout: Layout {
     enum Part: Equatable {
-        case summary, scrubber, controls, device, volume
+        case summary, recovery, controls, device, volume, scrubber
     }
 
     struct PartKey: LayoutValueKey {
         static let defaultValue = Part.controls
     }
 
-    enum Arrangement: Equatable {
-        case row(compactVolume: Bool)
-        case stacked
-    }
-
     var spacing: CGFloat
     var rowSpacing: CGFloat
 
+    /// The summary's share of an ideal-size query.
     static let summaryIdealWidth: CGFloat = 280
-    static let summaryMaximumWidth: CGFloat = 320
-
-    /// The arrangement for an offered width: the first candidate whose minimum
-    /// and ideal row both fit, the stacked one otherwise. No width (an ideal-size
-    /// query) means the full row, as the first candidate always was.
-    static func arrangement(
-        forWidth width: CGFloat?,
-        idealRowWidth: (_ compactVolume: Bool) -> CGFloat
-    ) -> Arrangement {
-        guard let width else { return .row(compactVolume: false) }
-        for candidate in PlaybackTransportLayoutPolicy.transportLayoutCandidates() where candidate.minimumWidth > 0 {
-            if width >= max(candidate.minimumWidth, idealRowWidth(candidate.useCompactVolume)) {
-                return .row(compactVolume: candidate.useCompactVolume)
-            }
-        }
-        return .stacked
-    }
-
-    /// One child of a stack: how far it can stretch, and how wide it is when
-    /// offered a width.
-    struct Sizing {
-        var flexibility: CGFloat
-        var width: (CGFloat) -> CGFloat
-    }
-
-    /// How a stack shares `total` among its children: the least flexible first,
-    /// each offered an even share of what is still left.
-    static func distribute(_ total: CGFloat, spacing: CGFloat, among children: [Sizing]) -> [CGFloat] {
-        var remaining = total - spacing * CGFloat(max(children.count - 1, 0))
-        var widths = [CGFloat](repeating: 0, count: children.count)
-        let order = children.indices.sorted { children[$0].flexibility < children[$1].flexibility }
-        for (position, index) in order.enumerated() {
-            let offer = max(remaining / CGFloat(children.count - position), 0)
-            widths[index] = children[index].width(offer)
-            remaining -= widths[index]
-        }
-        return widths
-    }
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         frames(forWidth: proposal.width, subviews: subviews).size
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        // The offered width decides, as it did for the stacks this replaced; the
-        // bounds are wider only when the content cannot shrink to the offer.
         let frames = frames(forWidth: proposal.width ?? bounds.width, subviews: subviews)
         for (subview, frame) in zip(subviews, frames.subviews) {
             subview.place(
@@ -183,135 +105,109 @@ struct PlaybackTransportArrangementLayout: Layout {
 
     private func frames(forWidth proposedWidth: CGFloat?, subviews: Subviews) -> Frames {
         func index(of part: Part) -> Int? { subviews.firstIndex { $0[PartKey.self] == part } }
-        guard let summaryIndex = index(of: .summary), let scrubberIndex = index(of: .scrubber) else {
+        guard let summary = index(of: .summary),
+              let controls = index(of: .controls),
+              let scrubber = index(of: .scrubber)
+        else {
             return Frames(size: .zero, subviews: subviews.map { _ in .zero })
         }
-        let summary = subviews[summaryIndex], scrubber = subviews[scrubberIndex]
-        // The trailing controls in their order: transport buttons, device menu, volume.
-        let trailing = [Part.controls, .device, .volume].compactMap(index(of:))
+        let recovery = index(of: .recovery), device = index(of: .device), volume = index(of: .volume)
 
-        func measuredWidth(_ subview: LayoutSubview, _ offer: CGFloat?) -> CGFloat {
-            subview.sizeThatFits(ProposedViewSize(width: offer, height: nil)).width
+        func measuredWidth(_ index: Int?, _ offer: CGFloat?) -> CGFloat {
+            guard let index else { return 0 }
+            return subviews[index].sizeThatFits(ProposedViewSize(width: offer, height: nil)).width
         }
-        // Offered its switch-over width (see `PlaybackTransportVolumeSlot`), the
-        // volume shows the slider at its narrowest: that is its floor. Its
-        // ideal is the slider's own ideal on top.
-        let sliderWidths = PlaybackTransportLayoutPolicy.volumeSliderWidths
-        let fullVolumeMinimum = index(of: .volume).map {
-            measuredWidth(subviews[$0], PlaybackTransportVolumeSlot<EmptyView, EmptyView>.switchOverWidth)
-        } ?? 0
-        let fullVolumeIdeal = fullVolumeMinimum + sliderWidths.ideal - sliderWidths.minimum
-        func sizing(_ index: Int, compactVolume: Bool) -> Sizing {
-            let subview = subviews[index]
-            if subview[PartKey.self] == .volume {
-                // The volume offers its slider or its compact button by the width
-                // it gets: the arrangement decides which by what it offers.
-                if compactVolume {
-                    let compact = measuredWidth(subview, 0)
-                    return Sizing(flexibility: 0) { _ in compact }
-                }
-                let maximum = measuredWidth(subview, .infinity)
-                return Sizing(flexibility: maximum - fullVolumeMinimum) { offer in
-                    measuredWidth(subview, max(offer, fullVolumeMinimum))
-                }
-            }
-            let minimum = measuredWidth(subview, 0), maximum = measuredWidth(subview, .infinity)
-            return Sizing(flexibility: maximum - minimum) { offer in measuredWidth(subview, offer) }
-        }
-        func trailingIdeal(compactVolume: Bool) -> CGFloat {
-            let widths = trailing.map { index -> CGFloat in
-                if subviews[index][PartKey.self] == .volume {
-                    return compactVolume ? measuredWidth(subviews[index], 0) : fullVolumeIdeal
-                }
-                return measuredWidth(subviews[index], nil)
-            }
-            return widths.reduce(0, +) + spacing * CGFloat(max(widths.count - 1, 0))
-        }
-        let scrubberIdeal = measuredWidth(scrubber, nil)
-        func idealRowWidth(compactVolume: Bool) -> CGFloat {
-            let floor = PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume)
-            return Self.summaryIdealWidth + scrubberIdeal + max(floor, trailingIdeal(compactVolume: compactVolume)) + 2 * spacing
-        }
-
-        var frames = [CGRect](repeating: .zero, count: subviews.count)
         func height(_ index: Int, _ width: CGFloat) -> CGFloat {
             subviews[index].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
         }
+        /// The gap before a part that takes room; a part with nothing to show takes none.
+        func gap(_ width: CGFloat) -> CGFloat { width > 0 ? spacing : 0 }
 
-        switch Self.arrangement(forWidth: proposedWidth, idealRowWidth: { idealRowWidth(compactVolume: $0) }) {
-        case .row(let compactVolume):
-            let width = proposedWidth ?? max(
-                PlaybackTransportLayoutPolicy.compactVolumeBreakpoint,
-                idealRowWidth(compactVolume: false)
-            )
-            // The actions keep their reserved floor and sit at its trailing end.
-            let floor = PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume)
-            let trailingSizings = trailing.map { sizing($0, compactVolume: compactVolume) }
-            func trailingWidths(_ offer: CGFloat) -> [CGFloat] {
-                Self.distribute(max(floor, offer), spacing: spacing, among: trailingSizings)
-            }
-            func trailingTotal(_ widths: [CGFloat]) -> CGFloat {
-                widths.reduce(0, +) + spacing * CGFloat(max(widths.count - 1, 0))
-            }
-            let trailingMaximum = trailingTotal(trailingWidths(.infinity))
-            // The share the controls were offered, to place them as measured.
-            var actionsOffer: CGFloat = 0
-            let row = Self.distribute(width, spacing: spacing, among: [
-                Sizing(flexibility: Self.summaryMaximumWidth - PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth) {
-                    min(max($0, PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth), Self.summaryMaximumWidth)
-                },
-                Sizing(flexibility: .infinity) { max($0, measuredWidth(scrubber, 0)) },
-                Sizing(flexibility: max(floor, trailingMaximum) - floor) { offer in
-                    actionsOffer = offer
-                    return max(floor, trailingTotal(trailingWidths(offer)))
-                },
-            ])
-            let actionsWidths = trailingWidths(actionsOffer)
-            let actionsHeights: [CGFloat] = zip(trailing, actionsWidths).map { height($0, $1) }
-            let summaryHeight = height(summaryIndex, row[0])
-            let scrubberHeight = height(scrubberIndex, row[1])
-            let rowHeight = max(summaryHeight, scrubberHeight, actionsHeights.max() ?? 0)
-            frames[summaryIndex] = CGRect(x: 0, y: (rowHeight - summaryHeight) / 2, width: row[0], height: summaryHeight)
-            frames[scrubberIndex] = CGRect(
-                x: row[0] + spacing,
-                y: (rowHeight - scrubberHeight) / 2,
-                width: row[1],
-                height: scrubberHeight
-            )
-            var x = row[0] + spacing + row[1] + spacing + row[2] - trailingTotal(actionsWidths)
-            for (index, partWidth) in zip(trailing, actionsWidths) {
-                let partHeight = height(index, partWidth)
-                frames[index] = CGRect(x: x, y: (rowHeight - partHeight) / 2, width: partWidth, height: partHeight)
-                x += partWidth + spacing
-            }
-            return Frames(size: CGSize(width: width, height: rowHeight), subviews: frames)
+        let controlsWidth = measuredWidth(controls, nil)
+        // Offered its switch-over width (see `PlaybackTransportVolumeSlot`), the
+        // volume shows the slider at its narrowest: that is the slider's floor.
+        let sliderMinimum = measuredWidth(volume, PlaybackTransportVolumeSlot<EmptyView, EmptyView>.switchOverWidth)
+        let sliderMaximum = measuredWidth(volume, .infinity)
+        let compactVolume = measuredWidth(volume, 0)
+        let deviceMinimum = measuredWidth(device, 0), deviceIdeal = measuredWidth(device, nil)
 
-        case .stacked:
-            let summaryMinimum = PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
-            let topSizings = [Sizing(flexibility: .infinity) { max($0, summaryMinimum) }]
-                + trailing.map { sizing($0, compactVolume: true) }
-            func topTotal(_ widths: [CGFloat]) -> CGFloat {
-                widths.reduce(0, +) + spacing * CGFloat(trailing.count)
-            }
-            // The row is shared out over the offered width, as the stack did; when
-            // its parts cannot shrink that far it reports the width they take.
-            let top = Self.distribute(proposedWidth ?? 0, spacing: spacing, among: topSizings)
-            let width = max(proposedWidth ?? 0, topTotal(top), measuredWidth(scrubber, 0))
-            let topParts = [summaryIndex] + trailing
-            let topHeight = zip(topParts, top).map { height($0, $1) }.max() ?? 0
-            var x: CGFloat = 0
-            for (index, partWidth) in zip(topParts, top) {
-                let partHeight = height(index, partWidth)
-                frames[index] = CGRect(x: x, y: (topHeight - partHeight) / 2, width: partWidth, height: partHeight)
-                x += partWidth + spacing
-            }
-            // The scrubber takes the offered width, even when the row above
-            // overflows it, as it did in the stack this replaced.
-            let scrubberWidth = max(proposedWidth ?? width, measuredWidth(scrubber, 0))
-            let scrubberHeight = height(scrubberIndex, scrubberWidth)
-            frames[scrubberIndex] = CGRect(x: 0, y: topHeight + rowSpacing, width: scrubberWidth, height: scrubberHeight)
-            return Frames(size: CGSize(width: width, height: topHeight + rowSpacing + scrubberHeight), subviews: frames)
+        // The narrowest each side can be: the summary's floor, or with a
+        // Reconnect or Retry button, the artwork and the button's compact form.
+        let recoveryMinimum = measuredWidth(recovery, 0)
+        let leadingMinimum = recoveryMinimum > 0
+            ? PlaybackTransportLayoutPolicy.nowPlayingArtworkSize + spacing + recoveryMinimum
+            : PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
+        let trailingMinimum = deviceMinimum + gap(compactVolume) + compactVolume
+        let sliderIdeal = sliderMinimum
+            + PlaybackTransportLayoutPolicy.volumeSliderWidths.ideal
+            - PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum
+        let trailingIdeal = deviceIdeal + gap(sliderIdeal) + sliderIdeal
+
+        func barWidth(side: CGFloat) -> CGFloat { controlsWidth + 2 * (spacing + side) }
+        let minimumWidth = barWidth(side: max(leadingMinimum, trailingMinimum))
+        let width = max(
+            proposedWidth ?? barWidth(side: max(Self.summaryIdealWidth, trailingIdeal)),
+            minimumWidth
+        )
+        let side = (width - controlsWidth) / 2 - spacing
+
+        var widths = [CGFloat](repeating: 0, count: subviews.count)
+        widths[controls] = controlsWidth
+        // The right side: the slider when it fits beside the device menu at its
+        // narrowest, the compact volume button otherwise.
+        if let volume {
+            let sliderFits = side >= deviceMinimum + spacing + sliderMinimum
+            widths[volume] = sliderFits
+                ? measuredWidth(volume, min(max(side - deviceIdeal - spacing, sliderMinimum), sliderMaximum))
+                : compactVolume
         }
+        let volumeWidth = volume.map { widths[$0] } ?? 0
+        if let device {
+            widths[device] = measuredWidth(device, max(side - gap(volumeWidth) - volumeWidth, 0))
+        }
+        // The left side. The text that says what went wrong comes first: the
+        // Reconnect or Retry button shows its title only once that text fits
+        // whole beside it, its symbol alone otherwise. The summary then takes
+        // only the room its text needs, so the button sits right after the
+        // line it belongs to instead of at the far end of the left half.
+        let summaryIdeal = measuredWidth(summary, nil)
+        if let recovery {
+            let fullFits = side >= summaryIdeal + spacing + measuredWidth(recovery, nil)
+            widths[recovery] = measuredWidth(recovery, fullFits ? nil : 0)
+        }
+        let recoveryWidth = recovery.map { widths[$0] } ?? 0
+        let summaryRoom = max(side - gap(recoveryWidth) - recoveryWidth, 0)
+        widths[summary] = recoveryWidth > 0
+            ? measuredWidth(summary, min(summaryIdeal, summaryRoom))
+            : measuredWidth(summary, summaryRoom)
+
+        let topRow = [summary, recovery, controls, device, volume].compactMap { $0 }
+        let heights = topRow.map { height($0, widths[$0]) }
+        let topHeight = heights.max() ?? 0
+        var frames = [CGRect](repeating: .zero, count: subviews.count)
+        func place(_ index: Int, x: CGFloat) {
+            let partHeight = height(index, widths[index])
+            frames[index] = CGRect(x: x, y: (topHeight - partHeight) / 2, width: widths[index], height: partHeight)
+        }
+        place(summary, x: 0)
+        if let recovery { place(recovery, x: widths[summary] + gap(recoveryWidth)) }
+        place(controls, x: (width - controlsWidth) / 2)
+        if let volume { place(volume, x: width - volumeWidth) }
+        if let device { place(device, x: width - volumeWidth - gap(volumeWidth) - widths[device]) }
+
+        // Under the controls, centred on the same line as play/pause.
+        let scrubberWidth = max(
+            min(width, PlaybackTransportLayoutPolicy.scrubberMaximumWidth),
+            measuredWidth(scrubber, 0)
+        )
+        let scrubberHeight = height(scrubber, scrubberWidth)
+        frames[scrubber] = CGRect(
+            x: (width - scrubberWidth) / 2,
+            y: topHeight + rowSpacing,
+            width: scrubberWidth,
+            height: scrubberHeight
+        )
+        return Frames(size: CGSize(width: width, height: topHeight + rowSpacing + scrubberHeight), subviews: frames)
     }
 }
 
@@ -321,8 +217,7 @@ struct PlaybackTransportArrangementLayout: Layout {
 ///
 /// `ViewThatFits` compares ideal widths, so the slider reports a width below
 /// its real floor as its ideal here. That lets the arrangement give it any
-/// width from its floor up, as the row it replaced did, without the button
-/// taking over.
+/// width from its floor up without the button taking over.
 struct PlaybackTransportVolumeSlot<Full: View, Compact: View>: View {
     /// The narrowest slider and its gap, less than the control's real floor
     /// whatever width the speaker icon takes.
@@ -404,8 +299,9 @@ struct PlaybackControlsView: View {
     }
 
     /// One set of views, moved by `PlaybackTransportArrangementLayout`: the
-    /// summary, scrubber and controls keep their identity at every width, so a
-    /// layout pass never rebuilds the scrubber (#394).
+    /// summary, controls and scrubber keep their identity at every width, so a
+    /// layout pass never rebuilds the scrubber (#394). They are declared in
+    /// reading order, the scrubber under the controls last.
     private var adaptiveTransportLayout: some View {
         PlaybackTransportArrangementLayout(
             spacing: SpotiglassDesign.spacingM,
@@ -413,19 +309,16 @@ struct PlaybackControlsView: View {
         ) {
             nowPlayingSummary
                 .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize,
                     maxWidth: .infinity,
                     alignment: .leading
                 )
                 .clipped()
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .summary)
 
-            centerScrubberGroup
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
-                    maxWidth: .infinity
-                )
-                .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .scrubber)
+            recoveryControl
+                .animation(.smooth(duration: 0.22), value: recoveryControlKey)
+                .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .recovery)
 
             controlsCluster
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .controls)
@@ -440,7 +333,32 @@ struct PlaybackControlsView: View {
                 }
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .volume)
             }
+
+            centerScrubberGroup
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
+                    maxWidth: .infinity
+                )
+                .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .scrubber)
         }
+    }
+
+    private var pausedBadge: some View {
+        Text(SpotiglassL10n.string("playback.paused.label"))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private var titleText: some View {
+        Text(title)
+            .font(.headline)
+            .lineLimit(1)
+            .contentTransition(.opacity)
+            .animation(.smooth(duration: 0.28), value: title)
+            // A narrow bar truncates the title; hovering shows it whole.
+            .help(title)
     }
 
     private var nowPlayingSummary: some View {
@@ -448,70 +366,59 @@ struct PlaybackControlsView: View {
             leadingNowPlayingVisual
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
-                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-                        .contentTransition(.opacity)
-                        .animation(.smooth(duration: 0.28), value: title)
-                    if let otherService {
-                        Text(SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .layoutPriority(1)
-                            .transition(.opacity)
-                    } else if shouldShowPausedIndicator {
-                        Text(SpotiglassL10n.string("playback.paused.label"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                // The title takes the room its text needs and Paused follows it,
+                // whole; the free room goes after both, so the badge never drifts
+                // towards the play controls. Paused shows once the title fits whole
+                // beside it, or a long title keeps its floor (the play button shows
+                // the state either way), so a narrow bar never trades the song's
+                // name for the badge (#496).
+                if shouldShowPausedIndicator {
+                    // The whole title with Paused, then a long title cut to the floor
+                    // it had beside Paused before #496, then the title alone.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
+                            titleText
+                                .fixedSize()
+                            pausedBadge
+                            Spacer(minLength: 0)
+                        }
+                        HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
+                            titleText
+                                .frame(
+                                    minWidth: PlaybackTransportLayoutPolicy.titleBesidePausedMinimumWidth,
+                                    idealWidth: PlaybackTransportLayoutPolicy.titleBesidePausedMinimumWidth,
+                                    alignment: .leading
+                                )
+                            pausedBadge
+                            Spacer(minLength: 0)
+                        }
+                        HStack(spacing: 0) {
+                            titleText
+                            Spacer(minLength: 0)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        titleText
+                        Spacer(minLength: 0)
                     }
                 }
-                .animation(.smooth(duration: 0.22), value: shouldShowPausedIndicator)
 
                 if artistTapTargets.isEmpty {
-                    Text(subtitle)
+                    Text(summarySubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .contentTransition(.opacity)
-                        .animation(.smooth(duration: 0.28), value: subtitle)
-                        .help(viewModel.refusedPlayPause?.message ?? subtitle)
+                        .animation(.smooth(duration: 0.28), value: summarySubtitle)
+                        .help(viewModel.refusedPlayPause?.message ?? summarySubtitle)
                 } else {
                     artistLine
                 }
             }
-
-            // A sibling of the title and artist block, not part of the title's
-            // row: there it sat on the title's baseline, above the centre line
-            // every other part of the bar shares (#427).
-            if showsLyricsButton {
-                // The bar stays under the open lyrics (#438), so the button toggles them and
-                // shows when they are open, like Repeat and Shuffle show their state.
-                PlaybackTransportButton(
-                    accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
-                    accessibilityHint: lyricsButtonHint,
-                    size: SpotiglassDesign.Layout.inlineButtonFrame,
-                    action: { isLyricsPresented.toggle() }
-                ) {
-                    Image(systemName: "music.note.list")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(
-                            isLyricsPresented
-                                ? AnyShapeStyle(SpotiglassAccentStyle())
-                                : AnyShapeStyle(.secondary)
-                        )
-                }
-                .frame(width: SpotiglassDesign.Layout.inlineButtonSize, height: SpotiglassDesign.Layout.inlineButtonSize)
-                .accessibilityAddTraits(isLyricsPresented ? .isSelected : [])
-                .help(lyricsButtonTooltip)
-            }
         }
         // Keep the summary as an accessibility container, not a replacement
-        // element. The artwork and title Lyrics controls and each artist are
+        // element. The artwork's Lyrics control and each artist are
         // real Buttons and must remain separate VoiceOver actions (#267).
         .accessibilityElement(children: .contain)
     }
@@ -606,10 +513,38 @@ struct PlaybackControlsView: View {
         }
     }
 
+    /// The bar stays under the open lyrics (#438), so the button toggles them and
+    /// shows when they are open, like Repeat shows its state.
+    private var lyricsButton: some View {
+        PlaybackTransportButton(
+            accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
+            accessibilityHint: lyricsButtonHint,
+            size: SpotiglassDesign.Layout.iconButtonFrame,
+            action: { isLyricsPresented.toggle() }
+        ) {
+            Image(systemName: "music.note.list")
+                .foregroundStyle(
+                    isLyricsPresented
+                        ? AnyShapeStyle(SpotiglassAccentStyle())
+                        : AnyShapeStyle(.secondary)
+                )
+        }
+        .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
+        .accessibilityAddTraits(isLyricsPresented ? .isSelected : [])
+        .help(lyricsButtonTooltip)
+    }
+
     private var controlsCluster: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            recoveryLeadingControl
-                .animation(.smooth(duration: 0.22), value: recoveryControlKey)
+            // Lyrics mirrors Repeat, so play/pause is the middle of the cluster and
+            // the bar centres it on the window (#496). Its slot keeps the room
+            // while no song has lyrics to show, so play/pause never moves.
+            ZStack {
+                if showsLyricsButton {
+                    lyricsButton
+                }
+            }
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
 
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
@@ -878,21 +813,22 @@ struct PlaybackControlsView: View {
         )
     }
 
+    /// Reconnect or Retry beside the line that says what went wrong, or the
+    /// spinner while the player connects. Off the transport cluster, so it
+    /// never pushes play/pause off the bar's centre (#496).
     @ViewBuilder
-    private var recoveryLeadingControl: some View {
+    private var recoveryControl: some View {
         switch viewModel.connectionState {
         case .disconnected, .unavailable:
             // Apple Music's player is this Mac: there is no connection to restore (#430).
             if viewModel.canReconnectPlayer {
-                PlaybackTransportButton(
+                recoveryButton(
+                    title: SpotiglassL10n.string("playback.controls.reconnect"),
+                    systemImage: "dot.radiowaves.left.and.right",
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.hint"),
-                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { viewModel.start() }
-                ) {
-                    Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
-                }
-                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
+                )
             }
         case .connecting:
             ProgressView()
@@ -901,41 +837,68 @@ struct PlaybackControlsView: View {
         case let .error(error):
             switch error.recoveryAction {
             case .reconnect:
-                PlaybackTransportButton(
+                recoveryButton(
+                    title: SpotiglassL10n.string("playback.controls.reconnect"),
+                    systemImage: "dot.radiowaves.left.and.right",
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"),
-                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { viewModel.start() }
-                ) {
-                    Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
-                }
-                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
+                )
             case .retryTransfer:
-                PlaybackTransportButton(
+                recoveryButton(
+                    title: SpotiglassL10n.string("playback.controls.retry"),
+                    systemImage: "arrow.clockwise",
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.retry.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.retry.hint"),
-                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { Task { await viewModel.retryPlaybackTransfer() } }
-                ) {
-                    Label(SpotiglassL10n.string("playback.controls.retry"), systemImage: "arrow.clockwise")
-                }
-                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
+                )
             case .reauthenticate:
-                PlaybackTransportButton(
+                recoveryButton(
+                    title: SpotiglassL10n.string("auth.reconnect.button"),
+                    systemImage: "gear",
                     accessibilityLabel: SpotiglassL10n.string("auth.reconnect.button"),
                     accessibilityHint: error.message,
-                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { openSettingsAction() }
-                ) {
-                    Label(SpotiglassL10n.string("auth.reconnect.button"), systemImage: "gear")
-                }
-                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
+                )
             case .none:
                 EmptyView()
             }
         case .ready, .transferring, .playing, .paused:
             EmptyView()
         }
+    }
+
+    /// The button with its title while the left half of the bar has room for
+    /// it beside the summary, its symbol alone otherwise; the tooltip and
+    /// VoiceOver keep the title either way.
+    private func recoveryButton(
+        title: String,
+        systemImage: String,
+        accessibilityLabel: String,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            PlaybackTransportButton(
+                accessibilityLabel: accessibilityLabel,
+                accessibilityHint: accessibilityHint,
+                size: SpotiglassDesign.Layout.wideButtonFrame,
+                action: action
+            ) {
+                Label(title, systemImage: systemImage)
+            }
+            .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
+
+            PlaybackTransportButton(
+                accessibilityLabel: accessibilityLabel,
+                accessibilityHint: accessibilityHint,
+                action: action
+            ) {
+                Image(systemName: systemImage)
+            }
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
+        }
+        .help(title)
     }
 
     /// The Apple Music wording for text whose Spotify version names Spotify's player.
@@ -1014,6 +977,15 @@ struct PlaybackControlsView: View {
     /// The service whose player the bar shows.
     private var shownService: MusicService {
         otherService ?? MusicServiceSelection.current
+    }
+
+    /// The line under the title. With the other service's player in the bar it
+    /// starts with that service ("In Apple Music · M83"): at the start of its own
+    /// line it shows at every width and takes no room from the title (#396, #496).
+    private var summarySubtitle: String {
+        guard let otherService else { return subtitle }
+        let service = SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName)
+        return subtitle.isEmpty ? service : "\(service) · \(subtitle)"
     }
 
     private var subtitle: String {
