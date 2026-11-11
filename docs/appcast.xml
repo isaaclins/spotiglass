@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.32</title>
-            <pubDate>Wed, 11 Nov 2026 03:05:15 +0100</pubDate>
-            <sparkle:version>43</sparkle:version>
-            <sparkle:shortVersionString>0.8.32</sparkle:shortVersionString>
+            <title>0.8.33</title>
+            <pubDate>Wed, 11 Nov 2026 03:15:28 +0100</pubDate>
+            <sparkle:version>44</sparkle:version>
+            <sparkle:shortVersionString>0.8.33</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Search palette no longer shows old results when its list updates, and Return now runs the item you see.
+            <description sparkle:format="plain-text"><![CDATA[• Resizing the Spotiglass window with a window manager is now as fast as resizing a Finder window.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.32/Spotiglass-0.8.32.zip" length="13291432" type="application/octet-stream" sparkle:edSignature="UhH/B0e3Tgv18paUEsQygJ/D8M1Drzt2w44XfffUdG169UA2u7tNU/cbZsxaeoQe4HeDWF1uBKselmrIJnvDBw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.33/Spotiglass-0.8.33.zip" length="13304157" type="application/octet-stream" sparkle:edSignature="ffhtwfwSWxuYmweqOCrasYFFCg1FyZhAjAJ1eK7HIeqrSvicsBfdjAhaEWP1DehmyUlp5UhznxfKBHS/4gOTAg=="/>
         </item>
     </channel>
 </rss>
