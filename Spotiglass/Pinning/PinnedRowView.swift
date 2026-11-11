@@ -181,9 +181,18 @@ struct PinnedItemDragPill: View {
         case .artist:
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))
-                if let url = item.artworkURL {
+                if let url = item.artworkURL,
+                    let cover = DragPreviewArtwork.initialImage(artworkURL: url, requestURL: nil, artworkKey: item.id)
+                {
+                    // A library artist's cover only draws in a window; take it from the screen (#449).
+                    Image(nsImage: cover)
+                        .resizable()
+                        .scaledToFill()
+                } else if let url = item.artworkURL, !AppleMusicArtworkRegistry.needsMusicKit(url) {
                     CachedCircularArtwork(url: url, diameter: artworkSize, artworkKey: item.id)
                 } else {
+                    // A library cover not drawn on screen can't be drawn into the drag image at
+                    // all: MusicKit's view needs a window.
                     Image(systemName: "person.wave.2")
                         .font(SpotiglassDesign.Typography.pinKind)
                         .foregroundStyle(.secondary)
@@ -208,7 +217,7 @@ struct PinnedItemDragPill: View {
     }
 }
 
-private struct DragPreviewArtwork: View {
+struct DragPreviewArtwork: View {
     let url: URL?
     let size: CGFloat
     @Environment(\.colorScheme) private var colorScheme
@@ -216,18 +225,36 @@ private struct DragPreviewArtwork: View {
 
     init(url: URL?, size: CGFloat, artworkKey: String? = nil) {
         // The same sized URL the pin row draws, so the preview finds its cover in the cache.
+        let artworkURL = url
         let url = url.map {
             ArtworkRequest.url($0, points: size, scale: NSScreen.main?.backingScaleFactor ?? 2, itemKey: artworkKey)
         }
         self.url = url
         self.size = size
-        let initialImage = url.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }
+        let initialImage = Self.initialImage(artworkURL: artworkURL, requestURL: url, artworkKey: artworkKey)
         _artworkLoader = StateObject(
             wrappedValue: ArtworkImageLoader(
                 initialImage: initialImage,
                 initialURL: url
             )
         )
+    }
+
+    /// The cover the preview has the moment the drag begins: macOS takes the drag image right
+    /// away, so a cover that loads later never shows. Downloaded covers come from the disk cache.
+    /// Library covers (`musicKit://`) are never there and only MusicKit draws them, so they are
+    /// taken from a view that shows that cover on screen, such as the row being dragged (#449).
+    @MainActor
+    static func initialImage(
+        artworkURL: URL?,
+        requestURL: URL?,
+        artworkKey: String?
+    ) -> NSImage? {
+        guard let artworkURL else { return nil }
+        if AppleMusicArtworkRegistry.needsMusicKit(artworkURL) {
+            return OnScreenArtwork.shared.snapshot(url: artworkURL, itemKey: artworkKey)
+        }
+        return requestURL.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }
     }
 
     var body: some View {
