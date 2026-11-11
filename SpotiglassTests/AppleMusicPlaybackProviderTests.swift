@@ -619,6 +619,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// release's rating is known, the clean-only filter leaves it out like a catalog one; before
     /// the fix it got past and was queued.
     func testAMacThatOnlyAllowsCleanMusicLeavesOutSavedExplicitSongs() async throws {
+        AppleMusicContentRatings.shared.resetSharedStateForTesting()
         let saved = try AppleMusicFixtures.song(id: "i.5180041", title: "Paper Lanterns", catalogID: "9518041")
         let clean = try AppleMusicFixtures.song(id: "i.5180042", title: "Low Tide", catalogID: "9518042")
         await AppleMusicContentRatings.shared.resolve([saved, clean], lookup: { _ in ["9518041": true, "9518042": false] }, library: nil)
@@ -640,6 +641,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// catalog error) is left out like an explicit one: a failed lookup mustn't open up the
     /// restriction. An upload names no release, so it plays as before.
     func testAMacThatOnlyAllowsCleanMusicLeavesOutSavedSongsWhoseRatingIsUnknown() async throws {
+        AppleMusicContentRatings.shared.resetSharedStateForTesting()
         let saved = try AppleMusicFixtures.song(id: "i.5180061", title: "Paper Lanterns", catalogID: "9518061")
         let upload = try AppleMusicFixtures.song(id: "i.5180062", title: "Voice Memo Demo")
         await AppleMusicContentRatings.shared.resolve(
@@ -656,6 +658,30 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: false).count, 2)
         // The label reads as before: unknown isn't shown as explicit.
         XCTAssertFalse(AppleMusicItemMapping.track(saved).isExplicit)
+    }
+
+    /// With clean-only on, songs whose rating stays unknown after the lookups are left out too: a
+    /// playlist row the library read didn't list (a library past the read's bound) and a release
+    /// the catalog doesn't list. Neither shows a label. A playlist row of an upload has no release
+    /// and plays.
+    func testAMacThatOnlyAllowsCleanMusicLeavesOutRowsTheLookupsCouldNotRate() async throws {
+        AppleMusicContentRatings.shared.resetSharedStateForTesting()
+        let notListed = try AppleMusicFixtures.song(id: "5180000000000000071", title: "Paper Lanterns", persistentID: "5180000000000000071")
+        let uploadRow = try AppleMusicFixtures.song(id: "5180000000000000072", title: "Voice Memo Demo", persistentID: "5180000000000000072")
+        let goneFromCatalog = try AppleMusicFixtures.song(id: "i.5180073", title: "Low Tide", catalogID: "9518073")
+        let library = [try AppleMusicFixtures.song(id: "i.5180072", title: "Voice Memo Demo", persistentID: "5180000000000000072")]
+        await AppleMusicContentRatings.shared.resolve(
+            [notListed, uploadRow, goneFromCatalog],
+            lookup: { _ in [:] },
+            library: { _, offset in offset == 0 ? library : [] }
+        )
+        let songs = [notListed, uploadRow, goneFromCatalog].map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
+
+        XCTAssertEqual(
+            MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: true).map(\.uri),
+            ["applemusic:song:5180000000000000072"]
+        )
+        XCTAssertEqual([notListed, uploadRow, goneFromCatalog].map { AppleMusicItemMapping.track($0).isExplicit }, [false, false, false])
     }
 
     // MARK: - Starts MusicKit refuses (#476)

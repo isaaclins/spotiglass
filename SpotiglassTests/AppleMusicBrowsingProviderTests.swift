@@ -1857,11 +1857,23 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
 // MARK: - Saved songs get their catalog release's rating (#518)
 
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
 /// MusicKit on macOS gives songs saved to the library no content rating; each names its catalog
 /// release (`playParams.catalogId`) instead. Read as they came, saved explicit songs had no
 /// Explicit label anywhere and got past the clean-only filter. Song and catalog IDs are made up
 /// and differ per test: the ratings are kept app-wide, like the songs behind the rows.
 final class AppleMusicSavedSongRatingTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        AppleMusicContentRatings.shared.resetSharedStateForTesting()
+    }
+
     private static func explicitFlags(_ items: [MusicPlaylistTrackItem]) -> [Bool?] {
         items.map { item -> Bool? in
             guard case let .track(track) = item.content else { return nil }
@@ -1947,6 +1959,29 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         provider.ratingsDeadline = { try? await Task.sleep(for: .seconds(3_600)) }
         let next = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
         XCTAssertEqual(Self.explicitFlags(next.tracks), [true])
+    }
+
+    /// A read that comes along while a lookup is still asking (its list stopped waiting) waits
+    /// for that lookup instead of asking for the same songs again.
+    func testALookupStillRunningIsNotAskedAgain() async throws {
+        let song = try AppleMusicFixtures.song(id: "i.5180081", title: "Night Ferry", catalogID: "9518081")
+        let (answer, release) = AsyncStream<Void>.makeStream()
+        let asked = LockedCounter()
+        let lookup: AppleMusicContentRatings.CatalogLookup = { _ in
+            asked.increment()
+            for await _ in answer { break }
+            return ["9518081": true]
+        }
+        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil, deadline: {})
+        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil, deadline: {})
+        XCTAssertNil(AppleMusicContentRatings.shared.rating(of: song), "the catalog hasn't answered")
+
+        // A read that waits for the answer: it either waits for the lookup still asking or finds
+        // its answer, so the lookup has run by the time it returns.
+        release.finish()
+        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil)
+        XCTAssertEqual(AppleMusicContentRatings.shared.rating(of: song), true)
+        XCTAssertEqual(asked.value, 1, "the reads that came along meanwhile didn't ask again")
     }
 
     /// The case from the real library: a saved explicit song and its clean catalog version both
