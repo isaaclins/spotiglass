@@ -226,16 +226,40 @@ enum AppleMusicItemMapping {
 
     // MARK: - Helpers
 
-    /// What says "same album" across the library and the catalog, whose IDs differ: title,
-    /// artist and rating (a clean and an explicit version share the rest). Search hides a catalog
-    /// album the library already shows by it, and pins treat both copies as one album (#487).
-    static func albumMatchKey(_ album: Album) -> String {
+    /// What Search says "same item" by across the library and the catalog, whose IDs differ. A
+    /// catalog item goes by its own ID and by `content` (title, artist and rating: a clean and an
+    /// explicit version share the rest). A saved item goes by the catalog ID it carries, which
+    /// names the very release it is: MusicKit on macOS gives saved songs and albums no rating, so
+    /// by content every saved item would be clean, and a saved explicit album would hide its clean
+    /// catalog copy and show next to its own explicit one (#512). Only a saved item without a
+    /// catalog ID (an upload, say) goes by its content.
+    static func searchMatchKeys<Item: MusicItem & Encodable>(
+        _ item: Item,
+        isSaved: Bool,
+        content: (Item) -> String
+    ) -> [String] {
+        guard isSaved else { return ["catalog:\(item.id.rawValue)", content(item)] }
+        // MusicKit writes an item's own ID as its catalog ID when it took the item for a catalog one.
+        if let catalogID = AppleMusicSongIdentity(encoding: item).catalogID, catalogID != item.id.rawValue {
+            return ["catalog:\(catalogID)"]
+        }
+        return [content(item)]
+    }
+
+    /// An album's content for ``searchMatchKeys(_:isSaved:content:)``: title, artist and rating.
+    static func albumContentKey(_ album: Album) -> String {
         "\(album.title)|\(album.artistName)|\(album.contentRating == .explicit)".lowercased()
     }
 
-    /// What pins say "same album" by: title and artist. Unlike ``albumMatchKey(_:)`` it leaves the
-    /// rating out, since MusicKit gives saved albums none on macOS; the release day and track
-    /// count tell a clean and an explicit release apart instead (``AppleMusicPinAliasRegistry``).
+    /// A song's content for ``searchMatchKeys(_:isSaved:content:)``: title, artist, album and
+    /// rating (the same title and artist on another album is another recording).
+    static func songContentKey(_ song: Song) -> String {
+        "\(song.title)|\(song.artistName)|\(song.albumTitle ?? "")|\(song.contentRating == .explicit)".lowercased()
+    }
+
+    /// What pins say "same album" by: title and artist. It leaves the rating out, since MusicKit
+    /// gives saved albums none on macOS; the release day and track count tell a clean and an
+    /// explicit release apart instead (``AppleMusicPinAliasRegistry``).
     static func albumPinKey(_ album: Album) -> String {
         "\(album.title)|\(album.artistName)".lowercased()
     }
