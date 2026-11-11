@@ -22,8 +22,9 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         assertRows(after: allResults, then: tracksResults, "All → Tracks")
     }
 
+    /// In the palette Artists is reached from All, so the list has been All before it.
     func testSwitchingArtistsToTracksShowsOnlyTheSongs() {
-        assertRows(after: artistResults, then: tracksResults, "Artists → Tracks")
+        assertRows(through: [allResults, artistResults, tracksResults], "All → Artists → Tracks")
     }
 
     /// The field cleared after a search, or ⌘K after playing a result: the idle list is shorter
@@ -55,9 +56,20 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        assertRows(through: [old, new], step, file: file, line: line)
+    }
+
+    /// Shows each list in turn, as the palette does, and checks the rows and the highlight after
+    /// every change and after ↓ ↓.
+    private func assertRows(
+        through lists: [Sections],
+        _ step: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let vm = CommandPaletteViewModel()
         vm.show()
-        vm.testingReplaceSections(old)
+        vm.testingReplaceSections(lists[0])
         ViewBodyTally.onScreen = [:]
         // The body view reads `sections` from the model, as the palette does, so the list on
         // screen changes in place instead of being built fresh.
@@ -69,14 +81,33 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         // A lazy list puts on screen only the rows it can see. The window stays outside every display.
         controller.view.window?.orderFrontRegardless()
         settle(controller)
-        assertOnScreen(old, "before \(step)", file: file, line: line)
+        assertOnScreen(lists[0], "before \(step)", file: file, line: line)
 
-        vm.testingReplaceSections(new)
-        settle(controller)
+        for (offset, list) in lists.enumerated().dropFirst() {
+            let label = "\(step), list \(offset + 1)"
+            // A new list starts on its first row, as a fresh search or filter does.
+            vm.testingReplaceSections(list)
+            vm.selectedIndex = 0
+            settle(controller)
+            assertOnScreen(list, label, file: file, line: line)
+            assertHighlight(vm, label, file: file, line: line)
 
-        // Return runs `visibleItems[selectedIndex]`; the rows on screen have to be those items.
-        XCTAssertEqual(vm.visibleItems.map(\.id), new.flatMap(\.items).map(\.id), file: file, line: line)
-        assertOnScreen(new, step, file: file, line: line)
+            // ↓ ↓: the highlight moves to the row Return would run.
+            vm.moveSelection(delta: 2)
+            settle(controller)
+            assertHighlight(vm, "\(label) after ↓ ↓", file: file, line: line)
+        }
+    }
+
+    /// Return runs `visibleItems[selectedIndex]`; the one highlighted row on screen has to show it.
+    private func assertHighlight(_ vm: CommandPaletteViewModel, _ step: String, file: StaticString, line: UInt) {
+        XCTAssertEqual(
+            highlightedOnScreen(),
+            [vm.visibleItems[vm.selectedIndex].id],
+            "\(step): the highlighted row isn't the item Return runs",
+            file: file,
+            line: line
+        )
     }
 
     /// The rows on screen are the top of `sections` (a long list scrolls, and only what it shows
@@ -96,9 +127,20 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         )
     }
 
+    /// The items of the rows on screen, highlighted or not.
     private func rowsOnScreen() -> Set<String> {
+        Set(tallied().map { $0.replacingOccurrences(of: CommandPaletteResultRowView.selectedTallySuffix, with: "") })
+    }
+
+    /// The items of the highlighted rows on screen.
+    private func highlightedOnScreen() -> Set<String> {
+        let suffix = CommandPaletteResultRowView.selectedTallySuffix
+        return Set(tallied().filter { $0.hasSuffix(suffix) }.map { String($0.dropLast(suffix.count)) })
+    }
+
+    private func tallied() -> [String] {
         let prefix = "CommandPaletteResultRow:"
-        return Set((ViewBodyTally.onScreen ?? [:]).keys.filter { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) })
+        return (ViewBodyTally.onScreen ?? [:]).keys.filter { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) }
     }
 
     private func settle(_ controller: NSHostingController<AnyView>) {
@@ -126,13 +168,9 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         ]
     }
 
-    /// The Artists filter: up to 30 artists, more than the list shows at once.
+    /// The Artists filter for `steve lacy`: the one artist.
     private var artistResults: Sections {
-        [
-            (.artists, [item("artist-steve-lacy", "Steve Lacy", .artists)]
-                + (1 ... 13).map { item("artist-\($0)", "Steve Lacy feature \($0)", .artists) }),
-            showAll,
-        ]
+        [(.artists, [item("artist-steve-lacy", "Steve Lacy", .artists)]), showAll]
     }
 
     /// ⇥ to Tracks: one section of songs, longer than the list shows at once.
