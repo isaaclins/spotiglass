@@ -1,4 +1,5 @@
 import AppKit
+import MusicKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -145,25 +146,33 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
     }
 
     /// Shows a stand-in cover on screen the way a sidebar or pin row shows a library cover.
-    /// `inSidebar` puts it inside a view that draws nothing when cached, like the sidebar.
+    /// `inSidebar` puts it inside a view that draws nothing when cached, like the sidebar;
+    /// `backdrop` is what the row draws behind it.
     private func showCoverOnScreen(
-        url: String, itemKey: String?, fill: Color = Color(red: 1, green: 0, blue: 1), inSidebar: Bool = false
+        url: String, itemKey: String?, fill: Color = Color(red: 1, green: 0, blue: 1), inSidebar: Bool = false,
+        backdrop: Color = .clear
     ) throws {
-        let cover = fill
+        let marked = fill
             .frame(width: 40, height: 40)
             .background(OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey))
+        show(marked, backdrop: backdrop, inSidebar: inSidebar)
+    }
+
+    /// Puts `cover` in the middle of an 80 pt window over `backdrop`.
+    private func show(_ cover: some View, backdrop: Color = .clear, inSidebar: Bool = false) {
+        let cover = cover.frame(width: 80, height: 80).background(backdrop)
         let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 80),
             styleMask: [.borderless], backing: .buffered, defer: false
         )
         if inSidebar {
             let sidebar = DrawsNothingWhenCachedView(frame: NSRect(x: 0, y: 0, width: 80, height: 80))
-            let host = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+            let host = NSHostingView(rootView: cover)
             host.frame = sidebar.bounds
             sidebar.addSubview(host)
             window.contentView = sidebar
         } else {
-            window.contentView = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+            window.contentView = NSHostingView(rootView: cover)
         }
         window.orderFrontRegardless()
         windows.append(window)
@@ -231,6 +240,50 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
         XCTAssertNil(DragPreviewArtwork.initialImage(
             artworkURL: pin.artworkURL, requestURL: pin.artworkURL, artworkKey: pin.id
         ))
+    }
+
+    /// The main column and Home draw a solid background behind their rows. A cover MusicKit
+    /// hasn't drawn (a cloud-only song, or one still loading) shows the see-through placeholder
+    /// over it, which is opaque there; the preview copied that flat tile instead of its note.
+    func testCoverNotDrawnYetOverASolidBackgroundKeepsThePlaceholder() throws {
+        for (name, backdrop) in [("light", Color.white), ("dark", Color(white: 0.12))] {
+            let url = "musicKit://artwork/transient/40x40?id=SOLID449\(name)"
+            try showCoverOnScreen(url: url, itemKey: nil, fill: Color.gray.opacity(0.16), backdrop: backdrop)
+            XCTAssertNil(
+                DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil),
+                "\(name) background"
+            )
+        }
+    }
+
+    /// A drawn cover over that solid background is still taken.
+    func testCoverOverASolidBackgroundShowsInThePreview() throws {
+        let url = "musicKit://artwork/transient/40x40?id=ONWHITE449"
+        let pin = libraryPlaylistPin(artwork: url)
+        try showCoverOnScreen(url: url, itemKey: nil, backdrop: .white)
+
+        let size = SpotiglassDesign.Layout.thumbnailSize
+        XCTAssertGreaterThan(try coverPixelCount(in: pin), Int(size * size * 0.6))
+    }
+
+    /// The covers the app draws carry the marker: without it nothing is ever found on screen.
+    /// MusicKit draws nothing for a made-up artwork, so a cover-like gradient behind it shows
+    /// through where the cover would be.
+    func testMusicKitArtworkMarksItsCoverForThePreview() throws {
+        let artwork = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"musicKit://artwork/transient/{w}x{h}?id=MARKED449","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(artwork, size: 40))
+        show(
+            ZStack {
+                LinearGradient(colors: [.red, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                MusicKitArtwork(url: url, width: 40, height: 40)
+            }
+            .frame(width: 40, height: 40)
+        )
+
+        XCTAssertNotNil(DragPreviewArtwork.initialImage(artworkURL: url, requestURL: nil, artworkKey: nil))
     }
 
     func testLibraryCoverNotOnScreenKeepsThePlaceholder() throws {
