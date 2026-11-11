@@ -4,7 +4,10 @@ extension PlaylistBrowserView {
     /// True when the window is narrow enough that the playlist sidebar and queue panel must be
     /// mutually exclusive (opening one closes the other) so neither side ever clips off-screen.
     var isMutualExclusionWidth: Bool {
-        Self.mutualExclusionWidth(for: browserContentWidth, sidebarWidth: playlistSidebarWidth)
+        Self.mutualExclusionWidth(
+            for: browserWidthSampler.committedWidth,
+            sidebarWidth: browserWidthSampler.playlistSidebarWidth
+        )
     }
 
     static func mutualExclusionWidth(for width: CGFloat, sidebarWidth: CGFloat) -> Bool {
@@ -19,9 +22,9 @@ extension PlaylistBrowserView {
     func recordPlaylistSidebarWidth(_ width: CGFloat) {
         guard playlistColumnVisibility != .detailOnly,
               width >= SpotiglassDesign.playlistSidebarMinWidth - 0.5,
-              abs(width - playlistSidebarWidth) >= 0.5
+              abs(width - browserWidthSampler.playlistSidebarWidth) >= 0.5
         else { return }
-        playlistSidebarWidth = width
+        browserWidthSampler.playlistSidebarWidth = width
     }
 
     /// Once the throttle has passed, commits the newest width a skipped frame measured, so the
@@ -50,12 +53,12 @@ extension PlaylistBrowserView {
         let result = BrowserWidthCommitPolicy.evaluate(
             BrowserWidthCommitPolicy.CommitInput(
                 newWidth: newWidth,
-                committedWidth: browserContentWidth,
-                lastCommitTime: lastBrowserWidthCommitTime,
+                committedWidth: browserWidthSampler.committedWidth,
+                lastCommitTime: browserWidthSampler.lastCommitTime,
                 now: now,
-                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: playlistSidebarWidth),
+                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: browserWidthSampler.playlistSidebarWidth),
                 sidebarCollapseMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth(
-                    sidebarWidth: playlistSidebarWidth
+                    sidebarWidth: browserWidthSampler.playlistSidebarWidth
                 )
             )
         )
@@ -65,8 +68,7 @@ extension PlaylistBrowserView {
         }
         browserWidthSampler.trailingCommit?.invalidate()
         browserWidthSampler.trailingCommit = nil
-        lastBrowserWidthCommitTime = result.lastCommitTime
-        browserContentWidth = result.committedWidth
+        browserWidthSampler.commit(width: result.committedWidth, at: result.lastCommitTime)
 
         if result.crossedIntoNarrow,
            isQueueVisible, playlistColumnVisibility != .detailOnly {

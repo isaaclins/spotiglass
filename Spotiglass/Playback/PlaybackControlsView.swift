@@ -391,6 +391,9 @@ struct PlaybackControlsView: View {
     @State private var isVolumePopoverPresented = false
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaybackControlsView")
+        #endif
         GlassPanel {
             adaptiveTransportLayout
                 .padding(.horizontal, SpotiglassDesign.spacingM)

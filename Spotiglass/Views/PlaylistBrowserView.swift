@@ -17,7 +17,13 @@ struct PlaylistBrowserView: View {
     @EnvironmentObject var pinnedStore: PinnedItemsStore
     @EnvironmentObject var lyricsOverlay: LyricsOverlayController
     @Environment(\.spotiglassLocale) private var spotiglassLocale
-    @AppStorage("queue.panel.visible") var isQueueVisible = false
+    /// Not `@AppStorage`: that re-ran this whole body on every write to the defaults, and AppKit
+    /// writes the window frame there on each resize step (#473).
+    @ObservedObject var queuePanel = StoredFlag.queuePanelVisible
+    var isQueueVisible: Bool {
+        get { queuePanel.isOn }
+        nonmutating set { queuePanel.isOn = newValue }
+    }
     /// Best-effort scroll anchor when the playlist `List` is torn down for lyrics (playback URI match, else last row `onAppear`).
     @State var detailLastVisibleTrackID: String?
     /// When lyrics opens we snapshot here; when the playlist list remounts, `ScrollViewReader` scrolls to this id then clears it.
@@ -31,15 +37,12 @@ struct PlaylistBrowserView: View {
     @State var isPromptingNewPlaylist = false
     @State var newPlaylistName = ""
     @State var newPlaylistInitialRows: [TrackRowViewModel] = []
-    /// Drives the narrow-window mutual-exclusion rule: when this drops below
-    /// ``SpotiglassDesign/dualSidebarComfortableMinWidth(sidebarWidth:)`` the playlist sidebar and queue panel can no
-    /// longer coexist (opening one closes the other; resizing wide→narrow auto-closes the LRU one).
-    @State var browserContentWidth: CGFloat = 2000
-    /// The playlist sidebar's measured width; the collapse breakpoints are worked out from it,
-    /// not from its declared minimum (#459).
-    @State var playlistSidebarWidth: CGFloat = SpotiglassDesign.sidebarWidth
+    /// Drives the narrow-window mutual-exclusion rule and the sidebar's drag limit: when its
+    /// committed width drops below ``SpotiglassDesign/dualSidebarComfortableMinWidth(sidebarWidth:)``
+    /// the playlist sidebar and queue panel can no longer coexist (opening one closes the other;
+    /// resizing wide→narrow auto-closes the LRU one). A reference held once, so a resize never
+    /// writes the browser's SwiftUI state (#473).
     @State var browserWidthSampler = BrowserWidthSampler()
-    @State var lastBrowserWidthCommitTime: CFAbsoluteTime = 0
     /// Cached previous selection so pinned-track activations can revert the
     /// list highlight to whatever was selected before the click.
     @State var lastNonPinnedSelection: SidebarSelection?
@@ -193,14 +196,7 @@ struct PlaylistBrowserView: View {
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
                 recordPlaylistSidebarWidth(width)
             }
-            .navigationSplitViewColumnWidth(
-                min: SpotiglassDesign.playlistSidebarMinWidth,
-                ideal: SpotiglassDesign.sidebarWidth,
-                max: SpotiglassDesign.playlistSidebarMaxWidth(
-                    browserWidth: browserContentWidth,
-                    isQueueVisible: isQueueVisible
-                )
-            )
+            .modifier(PlaylistSidebarColumnWidth(limit: browserWidthSampler.sidebarDragLimit, queuePanel: queuePanel))
         } detail: {
             PlaylistBrowserDetailWithQueueSplit(
                 unifiedRefreshFocus: $unifiedRefreshFocus,
@@ -408,7 +404,7 @@ struct PlaylistBrowserView: View {
                     openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL, origin: .reset)
                 }
             )
-            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+            bindCommandPalette(queueVisible: $queuePanel.isOn, lyricsPresented: isLyricsPresentedBinding)
             commandPaletteManager.dismissLyricsOverlayIfPresented = { [lyricsOverlay] in
                 guard lyricsOverlay.isPresented else { return false }
                 lyricsOverlay.dismiss()
@@ -424,10 +420,10 @@ struct PlaylistBrowserView: View {
     private var browserCommandBindings: some View {
         browserLifecycle
         .onChange(of: viewModel.sidebarSelection) { _, _ in
-            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+            bindCommandPalette(queueVisible: $queuePanel.isOn, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: viewModel.detailState) { _, _ in
-            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+            bindCommandPalette(queueVisible: $queuePanel.isOn, lyricsPresented: isLyricsPresentedBinding)
             syncTrackSelectionMenuState()
         }
         .onChange(of: viewModel.prefetchAllPlaylistsProgress) { _, newValue in
@@ -465,7 +461,7 @@ struct PlaylistBrowserView: View {
             guard commandPaletteManager.isSignedIn else { return }
             syncTrackSelectionMenuState()
             syncLibraryRowOrder()
-            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+            bindCommandPalette(queueVisible: $queuePanel.isOn, lyricsPresented: isLyricsPresentedBinding)
         }
     }
 
@@ -476,8 +472,7 @@ struct PlaylistBrowserView: View {
         browserCommandBindings
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
-            browserContentWidth = browserWidthSampler.latestWidth
-            lastBrowserWidthCommitTime = CFAbsoluteTimeGetCurrent()
+            browserWidthSampler.commitLatestWidth()
             if !visible {
                 unifiedRefreshFocus = .mainContent
             }
@@ -624,6 +619,9 @@ private struct BrowserTransportBar: View {
     let openArtist: (ArtistTapTarget) -> Void
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("BrowserTransportBar")
+        #endif
         // The bar shows and controls the music you hear (#396): the other service's player
         // while it plays and nothing plays here.
         let transport = playbackViewModel.audiblePlayer

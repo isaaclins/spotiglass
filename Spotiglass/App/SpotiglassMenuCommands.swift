@@ -26,7 +26,7 @@ struct SpotiglassMenuCommands: Commands {
     /// session is live, so those items dim instead of silently doing nothing.
     let isSignedIn: Bool
     /// Drives the "Show Queue" / "Hide Queue" title, read from the same
-    /// `queue.panel.visible` app storage the browser writes.
+    /// `StoredFlag.queuePanelVisible` the browser writes.
     let isQueueVisible: Bool
 
     /// Every menu item targets the key main window's scene. One active-scene

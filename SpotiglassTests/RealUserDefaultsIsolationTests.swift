@@ -24,7 +24,8 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
         "spotify.clientID",
         "spotify.grantedScope",
         "spotiglass.playbackVolume",
-        "queue.panel.visible"
+        "queue.panel.visible",
+        "lyrics.popOut.pinned"
     ]
 
     private func snapshotRealDomain() -> [String: String] {
@@ -105,6 +106,34 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
                 return isComment ? "" : line
             }
             .joined(separator: "\n")
+    }
+
+    /// The app's yes/no flags left `@AppStorage` (#473). Under the test host they stay in memory
+    /// only because each is made with `StoredFlag.app(key:defaultValue:)`; one made with
+    /// `StoredFlag(key:defaultValue:defaults: .standard)` would let a test that opens the queue
+    /// open it in the real app's next launch.
+    func testEveryAppFlagIsMadeTheWayThatSkipsTheRealDomainUnderTests() throws {
+        let appDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Spotiglass")
+        let paths = try FileManager.default.subpathsOfDirectory(atPath: appDirectory.path)
+            .filter { $0.hasSuffix(".swift") && !$0.hasSuffix("StoredFlag.swift") }
+        var offenders: [String] = []
+        for path in paths {
+            let source = strippingWholeLineComments(
+                try String(contentsOf: appDirectory.appendingPathComponent(path), encoding: .utf8)
+            )
+            for (index, line) in source.components(separatedBy: .newlines).enumerated()
+            where line.contains("StoredFlag(") || line.contains("@AppStorage") {
+                offenders.append("\(path):\(index + 1)")
+            }
+        }
+        // No `@AppStorage` either: it re-runs its view on every write to the defaults, and AppKit
+        // writes the window frame there on each resize step, which made window managers wait (#473).
+        XCTAssertTrue(
+            offenders.isEmpty,
+            "Make app flags with StoredFlag.app(key:defaultValue:), not StoredFlag(...) or @AppStorage: "
+                + offenders.joined(separator: ", ")
+        )
     }
 
     /// No test may reach `UserDefaults.standard`. Use `makeEphemeralDefaults()`.
