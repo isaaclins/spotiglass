@@ -291,6 +291,7 @@
 		TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E0 /* PinnedRowViewTests.swift */; };
 		TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */; };
 		TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E2 /* CommandPaletteViewTests.swift */; };
+		F49900000000000000000001 /* CommandPaletteListRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */; };
 		TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */; };
 		TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */; };
 		TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */; };
@@ -809,6 +810,7 @@
 		TST00000000000000000100E0 /* PinnedRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRowViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebViewSmokeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E2 /* CommandPaletteViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewTests.swift; sourceTree = "<group>"; };
+		F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteListRefreshTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRowViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistOwnerDisplayTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewsBatchTests.swift; sourceTree = "<group>"; };
@@ -1213,6 +1215,7 @@
 				TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */,
 				TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */,
 				TST00000000000000000100E2 /* CommandPaletteViewTests.swift */,
+				F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */,
 				TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */,
 				TST00000000000000000100E0 /* PinnedRowViewTests.swift */,
 				TST00000000000000000100DF /* ArtworkViewTests.swift */,
@@ -2037,6 +2040,7 @@
 				TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */,
 				TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */,
 				TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */,
+				F49900000000000000000001 /* CommandPaletteListRefreshTests.swift in Sources */,
 				TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */,
 				TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */,
 				TST00000000000000000000DF /* ArtworkViewTests.swift in Sources */,

@@ -15,20 +15,13 @@ struct CommandPaletteSectionedListView: View {
         viewModel.visibleItems.map(\.id).joined(separator: "\u{1e}")
     }
 
-    private typealias Row = (flatIndex: Int, item: CommandPaletteItem)
+    private typealias Row = CommandPaletteListRow
 
     var body: some View {
-        var running = 0
-        let chunks: [(section: CommandPaletteSection, rows: [Row])] = sections.map { entry in
-            let rows: [Row] = entry.items.map { item in
-                defer { running += 1 }
-                return (flatIndex: running, item: item)
-            }
-            return (entry.section, rows)
-        }
+        let rows = CommandPaletteListRow.rows(for: sections)
         // "Show all results" stays under the list, so a short window can't scroll it away (#462).
-        let scrolling = chunks.filter { $0.section != .showAll }
-        let pinned = chunks.first { $0.section == .showAll }?.rows ?? []
+        let scrolling = rows.filter { $0.section != .showAll }
+        let pinned = rows.filter { $0.section == .showAll }
 
         VStack(spacing: 0) {
             if !scrolling.isEmpty {
@@ -42,13 +35,13 @@ struct CommandPaletteSectionedListView: View {
                     .scrollBounceBehavior(.basedOnSize)
                     .frame(maxHeight: min(contentHeight, SpotiglassDesign.Layout.paletteResultsHeight))
                     .onChange(of: viewModel.selectedIndex) { _, newIndex in
-                        scrollPaletteSelectionToIndex(proxy: proxy, index: newIndex)
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: newIndex, rows: rows)
                     }
                     .onChange(of: paletteResultsScrollSignature) { _, _ in
-                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex, rows: rows)
                     }
                     .onAppear {
-                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex, rows: rows)
                     }
                 }
             }
@@ -57,7 +50,7 @@ struct CommandPaletteSectionedListView: View {
                     Divider()
                 }
                 VStack(spacing: 0) {
-                    ForEach(pinned, id: \.flatIndex) { row in
+                    ForEach(pinned) { row in
                         resultRow(row)
                     }
                 }
@@ -70,30 +63,39 @@ struct CommandPaletteSectionedListView: View {
     /// Lazy, so a long uncapped list ("Here" in a big playlist) builds and loads artwork only for
     /// the rows on screen. A short list is built whole, so its measured height is exact; a long
     /// one is taller than the cap either way.
-    private func sectionStack(_ chunks: [(section: CommandPaletteSection, rows: [Row])]) -> some View {
+    ///
+    /// One flat `ForEach` whose rows are named by the item they show, not by their place. Named by
+    /// place, inside one `ForEach` per section, the lazy stack kept drawing the old rows when the
+    /// sections changed under them (All → Tracks, results → idle list), while the highlight and
+    /// Return went by the new list (#499).
+    private func sectionStack(_ rows: [Row]) -> some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(chunks.enumerated()), id: \.offset) { sectionIndex, chunk in
-                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
-                    // Title case, no letter spacing: section headers no longer render in all caps.
-                    Text(chunk.section.displayLabel)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer(minLength: 0)
-                    if chunk.section == .recentSearches {
-                        CommandPaletteClearRecentsButton(viewModel: viewModel)
-                    }
+            ForEach(rows) { row in
+                if row.startsSection {
+                    sectionHeader(row.section, isFirst: row.flatIndex == rows.first?.flatIndex)
                 }
-                .padding(.horizontal, SpotiglassDesign.spacingS)
-                .padding(.top, sectionIndex == 0 ? SpotiglassDesign.spacingXS : SpotiglassDesign.spacingS)
-                .padding(.bottom, SpotiglassDesign.spacingXXS)
-                ForEach(chunk.rows, id: \.flatIndex) { row in
-                    resultRow(row)
-                }
+                resultRow(row)
             }
         }
         .padding(SpotiglassDesign.spacingXS)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sectionHeader(_ section: CommandPaletteSection, isFirst: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
+            // Title case, no letter spacing: section headers no longer render in all caps.
+            Text(section.displayLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            if section == .recentSearches {
+                CommandPaletteClearRecentsButton(viewModel: viewModel)
+            }
+        }
+        .padding(.horizontal, SpotiglassDesign.spacingS)
+        .padding(.top, isFirst ? SpotiglassDesign.spacingXS : SpotiglassDesign.spacingS)
+        .padding(.bottom, SpotiglassDesign.spacingXXS)
     }
 
     private func resultRow(_ row: Row) -> some View {
@@ -106,7 +108,6 @@ struct CommandPaletteSectionedListView: View {
                     .fill(isSelected ? Color.primary.opacity(0.10) : Color.clear)
             }
             .contentShape(Rectangle())
-            .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
             .onTapGesture {
                 viewModel.selectedIndex = row.flatIndex
                 Task { await viewModel.executeSelection() }
@@ -117,10 +118,10 @@ struct CommandPaletteSectionedListView: View {
             }
     }
 
-    /// Stable ids for ``ScrollViewReader`` / `scrollTo`; aligned with ``CommandPaletteViewModel/selectedIndex`` (flat ``visibleItems`` order).
-    private func scrollPaletteSelectionToIndex(proxy: ScrollViewProxy, index: Int) {
-        guard viewModel.visibleItems.indices.contains(index) else { return }
-        let id = CommandPaletteRowScrollIDs.id(flatIndex: index)
+    /// Scrolls to the row ``CommandPaletteViewModel/selectedIndex`` points at (flat ``visibleItems`` order).
+    private func scrollPaletteSelectionToIndex(proxy: ScrollViewProxy, index: Int, rows: [Row]) {
+        guard rows.indices.contains(index) else { return }
+        let id = rows[index].id
         let scroll = {
             if accessibilityReduceMotion {
                 proxy.scrollTo(id, anchor: .center)
@@ -136,9 +137,38 @@ struct CommandPaletteSectionedListView: View {
     }
 }
 
-enum CommandPaletteRowScrollIDs {
-    static func id(flatIndex: Int) -> String {
-        "palette-result-\(flatIndex)"
+/// One result in the palette's list: the item, its place in ``CommandPaletteViewModel/visibleItems``
+/// and a name that stays with the item, so a row is only ever reused for the item it showed.
+struct CommandPaletteListRow: Identifiable {
+    let id: String
+    let flatIndex: Int
+    let item: CommandPaletteItem
+    /// The section the row is listed under. Not always the item's own: the idle list shows
+    /// commands under Quick actions.
+    let section: CommandPaletteSection
+    /// The first row of its section, which draws the section's heading above itself.
+    let startsSection: Bool
+
+    static func rows(for sections: [(section: CommandPaletteSection, items: [CommandPaletteItem])]) -> [Self] {
+        var rows: [Self] = []
+        var seen: [String: Int] = [:]
+        for entry in sections {
+            for (offset, item) in entry.items.enumerated() {
+                // Section and item id; the same item twice in one list gets a count, so no two
+                // rows share a name.
+                let base = "\(entry.section.rawValue)\u{1f}\(item.id)"
+                let count = seen[base, default: 0]
+                seen[base] = count + 1
+                rows.append(Self(
+                    id: count == 0 ? base : "\(base)\u{1f}\(count)",
+                    flatIndex: rows.count,
+                    item: item,
+                    section: entry.section,
+                    startsSection: offset == 0
+                ))
+            }
+        }
+        return rows
     }
 }
 
@@ -147,6 +177,11 @@ struct CommandPaletteResultRowView: View {
     /// The arrow keys move a background colour today. Assistive technology reads
     /// no colour, so the selection has to be stated as a trait (#119).
     var isSelected: Bool = false
+    #if DEBUG
+    /// The name this row is counted under while on screen, so it leaves the count under the same
+    /// name even when it disappears after its item or highlight changed.
+    @State private var tallied = TalliedName()
+    #endif
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -178,7 +213,33 @@ struct CommandPaletteResultRowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityLabel(for: item))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        #if DEBUG
+        .onAppear { tallied.set(tallyName) }
+        .onDisappear { tallied.set(nil) }
+        .onChange(of: tallyName) { _, new in tallied.set(new) }
+        #endif
     }
+
+    #if DEBUG
+    /// The item this row draws and whether it draws the highlight, for tests that check what is
+    /// on screen (#499).
+    private var tallyName: String {
+        "CommandPaletteResultRow:\(item.id)" + (isSelected ? Self.selectedTallySuffix : "")
+    }
+
+    static let selectedTallySuffix = "\u{1f}selected"
+
+    @MainActor
+    private final class TalliedName {
+        private var name: String?
+
+        func set(_ new: String?) {
+            if let name { ViewBodyTally.disappeared(name) }
+            name = new
+            if let new { ViewBodyTally.appeared(new) }
+        }
+    }
+    #endif
 
     /// One sentence per result: title, the explicit badge, then the subtitle.
     static func accessibilityLabel(for item: CommandPaletteItem) -> String {
