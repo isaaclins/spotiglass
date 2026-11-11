@@ -175,6 +175,17 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         XCTAssertEqual(failure, SpotiglassL10n.string("palette.settings.recordingUnsupported"))
         XCTAssertEqual(keymap.lastError, failure)
 
+        // A key that becomes a shortcut but can't be stored (⌃F1) is no different.
+        failure = nil
+        let f1 = String(Character(UnicodeScalar(NSF1FunctionKey)!))
+        view.keyDown(with: try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [.control, .function], timestamp: 0, windowNumber: 0,
+            context: nil, characters: f1, charactersIgnoringModifiers: f1, isARepeat: false, keyCode: 122
+        )))
+        XCTAssertTrue(view.isRecording, "⌃F1 keeps recording")
+        XCTAssertEqual(failure, SpotiglassL10n.string("palette.settings.recordingUnsupported"))
+        XCTAssertEqual(applied, 0)
+
         view.keyDown(with: keyEvent(virtualKey: 38, modifierFlags: [.control, .option]))
         XCTAssertFalse(view.isRecording)
         XCTAssertEqual(applied, 1)

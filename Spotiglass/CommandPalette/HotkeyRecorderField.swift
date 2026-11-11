@@ -183,7 +183,11 @@ struct HotkeyRecorderField: NSViewRepresentable {
             }
             // A key that can't be used keeps the field recording, with the
             // reason on its row, so the next try is one key press away (#541).
-            guard let shortcut = CommandShortcut(recordingKeyDown: event) else {
+            // A key the keymap can't store (an F key, say) is as unusable as a
+            // lone modifier: same reason, and recording goes on.
+            guard let shortcut = CommandShortcut(recordingKeyDown: event),
+                  (try? shortcut.canonicalToken()) != nil
+            else {
                 let message = SpotiglassL10n.string("palette.settings.recordingUnsupported")
                 parent.keymapStore.lastError = message
                 parent.onCaptureFailure(message)
