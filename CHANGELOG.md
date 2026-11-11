@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.34] - 2026-11-11
+
+### Fixed
+
+- The play controls are centred in the player bar again.
+
 ## [0.8.33] - 2026-11-11
 
 ### Fixed

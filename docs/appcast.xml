@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.33</title>
-            <pubDate>Wed, 11 Nov 2026 03:15:28 +0100</pubDate>
-            <sparkle:version>44</sparkle:version>
-            <sparkle:shortVersionString>0.8.33</sparkle:shortVersionString>
+            <title>0.8.34</title>
+            <pubDate>Wed, 11 Nov 2026 03:30:23 +0100</pubDate>
+            <sparkle:version>45</sparkle:version>
+            <sparkle:shortVersionString>0.8.34</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Resizing the Spotiglass window with a window manager is now as fast as resizing a Finder window.
+            <description sparkle:format="plain-text"><![CDATA[• The play controls are centred in the player bar again.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.33/Spotiglass-0.8.33.zip" length="13304157" type="application/octet-stream" sparkle:edSignature="ffhtwfwSWxuYmweqOCrasYFFCg1FyZhAjAJ1eK7HIeqrSvicsBfdjAhaEWP1DehmyUlp5UhznxfKBHS/4gOTAg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.34/Spotiglass-0.8.34.zip" length="13299650" type="application/octet-stream" sparkle:edSignature="81PePpmkSmlj8/G7gl0RBDGvRn9y3Sz5MQr1QtRRjMMQ7qWwf4fX/Yr723iZYEN822/770lZfFq5G2K2eIslAA=="/>
         </item>
     </channel>
 </rss>
