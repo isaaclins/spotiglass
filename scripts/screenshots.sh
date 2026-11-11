@@ -42,14 +42,18 @@ REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
-# Makes this checkout the backups' owner, or stops when another checkout owns them.
-claim_state() {
+# Stops when another checkout owns the backups.
+refuse_if_owned_elsewhere() {
     local owner; owner="$(state_owner)"
     if [ -n "$owner" ] && [ "$owner" != "$ROOT" ]; then
         echo "screenshots: the run in $owner has changed the real app's defaults or the macOS" \
             "appearance; run 'stop' there first" >&2
         exit 1
     fi
+}
+# Makes this checkout the backups' owner, or stops when another checkout owns them.
+claim_state() {
+    refuse_if_owned_elsewhere
     mkdir -p "$STATE_DIR"
     echo "$ROOT" >"$STATE_OWNER"
 }
@@ -93,9 +97,10 @@ start() {
     done
     [ -z "$(app_pid)" ] || { echo "screenshots: already running; run 'stop' first" >&2; exit 1; }
     if [ "$apple_music" = 1 ]; then
-        # Before the build and the claim: a refused run must not hold the backups until `stop`.
+        # Refuse before the build. The backups are claimed only once the copy is staged, so a run
+        # refused on the way never holds them until `stop`.
         scripts/screenshot-mode/stage-app.sh --check "$REAL_BUNDLE_ID" "$REAL_BUNDLE_ID"
-        claim_state
+        refuse_if_owned_elsewhere
     fi
     mkdir -p "$WORK" "$SHOTS_DIR"
 
@@ -110,17 +115,18 @@ start() {
     fi
 
     local bundle_id="$BUNDLE_ID"
+    [ "$apple_music" = 0 ] || bundle_id="$REAL_BUNDLE_ID"
+    echo "==> staging $APP ($bundle_id)"
+    scripts/screenshot-mode/stage-app.sh "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP" \
+        "$bundle_id" "$REAL_BUNDLE_ID"
     if [ "$apple_music" = 1 ]; then
-        bundle_id="$REAL_BUNDLE_ID"
+        claim_state
         if [ ! -f "$REAL_DEFAULTS_MARKER" ]; then
             rm -f "$REAL_DEFAULTS_BACKUP"
             defaults export "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP" >/dev/null 2>&1 || true
             touch "$REAL_DEFAULTS_MARKER"
         fi
     fi
-    echo "==> staging $APP ($bundle_id)"
-    scripts/screenshot-mode/stage-app.sh "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP" \
-        "$bundle_id" "$REAL_BUNDLE_ID"
 
     echo "==> seeding settings ($scheme)"
     rm -rf "$FAKE_HOME"

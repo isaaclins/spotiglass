@@ -65,8 +65,11 @@ class StageApp(unittest.TestCase):
         self.staged = self.tmp / 'screenshot-mode' / 'Spotiglass.app'
         self.staged.parent.mkdir()
 
-    def stage(self, bundle_id, without_signing_identities=False):
+    def stage(self, bundle_id, without_signing_identities=False, local_sign_identity=None):
         env = dict(os.environ)
+        env.pop('LOCAL_SIGN_IDENTITY', None)
+        if local_sign_identity is not None:
+            env['LOCAL_SIGN_IDENTITY'] = local_sign_identity
         if without_signing_identities:
             # A Mac with no signing identity: `security` lists none.
             bin_dir = self.tmp / 'bin'
@@ -98,6 +101,11 @@ class StageApp(unittest.TestCase):
         self.assertIn('Apple Music', result.stderr)
         self.assertFalse(self.staged.exists())
 
+    def test_an_ad_hoc_local_sign_identity_is_refused_too(self):
+        result = self.stage(REAL_BUNDLE_ID, local_sign_identity='-')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse(self.staged.exists())
+
     def test_a_copy_under_the_real_bundle_id_matches_the_signed_apps_apple_music_permission(self):
         team = developer_id_team()
         if team is None:
@@ -113,14 +121,14 @@ class StageApp(unittest.TestCase):
 
 
 class StartWithAppleMusic(unittest.TestCase):
-    """`screenshots.sh start --with-apple-music` when the copy can't be signed with Developer ID.
+    """`screenshots.sh start --with-apple-music` when the copy can't be staged.
 
     A refusal after the build used to leave this checkout owning the real app's defaults backup, so
     every other checkout's `start --with-apple-music` and `appearance` were refused until a `stop`
     here, although nothing ran.
     """
 
-    def start(self, security_output, codesign_script='exec /usr/bin/codesign "$@"'):
+    def start(self, security_output, codesign_script='exec /usr/bin/codesign "$@"', make_status=1):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp)
         bin_dir = tmp / 'bin'
@@ -128,7 +136,7 @@ class StartWithAppleMusic(unittest.TestCase):
         self.built = tmp / 'make-ran'
         (bin_dir / 'security').write_text(f"#!/bin/sh\ncat <<'EOF'\n{security_output}\nEOF\n")
         (bin_dir / 'codesign').write_text(f'#!/bin/sh\n{codesign_script}\n')
-        (bin_dir / 'make').write_text(f'#!/bin/sh\ntouch "{self.built}"\nexit 1\n')
+        (bin_dir / 'make').write_text(f'#!/bin/sh\ntouch "{self.built}"\nexit {make_status}\n')
         for tool in bin_dir.iterdir():
             tool.chmod(0o755)
         self.home = tmp / 'home'
@@ -146,7 +154,7 @@ class StartWithAppleMusic(unittest.TestCase):
     def test_without_a_developer_id_identity_it_stops_before_building_or_claiming_the_backups(self):
         result = self.start('     0 valid identities found')
         self.assert_refused_before_anything_changed(result)
-        self.assertIn('Developer ID', result.stderr)
+        self.assertIn('signing identity', result.stderr)
 
     def test_with_a_locked_keychain_it_stops_before_building_or_claiming_the_backups(self):
         # A locked keychain still lists its identities; only signing fails.
@@ -157,6 +165,19 @@ class StartWithAppleMusic(unittest.TestCase):
         self.assert_refused_before_anything_changed(result)
         self.assertIn('errSecInternalComponent', result.stderr)
         self.assertIn('unlock', result.stderr)
+
+    def test_a_failed_staging_after_the_build_leaves_the_backups_unclaimed(self):
+        # The identity passes the check, the build succeeds, and signing the staged copy fails (an
+        # identity that can sign a binary but not this bundle, or a keychain locked meanwhile).
+        # Nothing is launched: staging stops the run either way.
+        result = self.start(
+            '  1) 0123456789ABCDEF0123456789ABCDEF01234567 "Developer ID Application: Someone (TEAM123456)"\n'
+            '     1 valid identities found',
+            codesign_script='case "$*" in *.app*) echo "errSecInternalComponent" >&2; exit 1 ;; esac',
+            make_status=0)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertTrue(self.built.exists())
+        self.assertEqual(list(self.home.rglob('*')), [], 'it claimed the backups before the copy was staged')
 
 if __name__ == '__main__':
     unittest.main()

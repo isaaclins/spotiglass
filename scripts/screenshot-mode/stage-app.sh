@@ -10,7 +10,7 @@
 # doesn't match it, so macOS asks again, and allowing that moves the permission to the ad-hoc copy:
 # from then on every signed build is refused, test hosts already running included, and MusicKit
 # fails with MusicTokenRequestError.unknown (#520). So a copy under the real bundle id is signed
-# with the Developer ID identity, and without one it isn't staged at all. A copy under its own
+# with the identity my builds are signed with, and without one it isn't staged at all. A copy under its own
 # bundle id never reaches MusicKit and stays ad-hoc.
 set -euo pipefail
 
@@ -24,14 +24,20 @@ else
     src="$1" dest="$2" bundle_id="$3" real_bundle_id="$4"
 fi
 
-# The identity `make build` signs with: LOCAL_SIGN_IDENTITY when it's set, else the first Developer ID
-# Application (Makefile). Signing with any other one would ask for the permission again.
+# The identity `make build` signs with, found the same way as in the Makefile: LOCAL_SIGN_IDENTITY
+# when it's set, else Developer ID Application, else Apple Development, else "Spotiglass Local Dev".
+# Signing with any other one, or ad-hoc, would ask for the permission again.
 identity="-"
 if [ "$bundle_id" = "$real_bundle_id" ]; then
-    identity="${LOCAL_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
-        | awk '/Developer ID Application/ { print $2; exit }')}"
-    if [ -z "$identity" ]; then
-        echo "screenshots: --with-apple-music needs a Developer ID Application signing identity." >&2
+    identity="${LOCAL_SIGN_IDENTITY:-}"
+    [ -n "$identity" ] || identity="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Developer ID Application/ { print $2; exit }')"
+    [ -n "$identity" ] || identity="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Apple Development/ { print $2; exit }')"
+    [ -n "$identity" ] || identity="$(security find-identity -p codesigning 2>/dev/null \
+        | awk '/"Spotiglass Local Dev"/ { print $2; exit }')"
+    if [ -z "$identity" ] || [ "$identity" = "-" ]; then
+        echo "screenshots: --with-apple-music needs the signing identity make build signs with." >&2
         echo "  An ad-hoc copy under $real_bundle_id would take over the signed app's Apple Music" >&2
         echo "  permission, and signed builds would lose Apple Music until it is allowed again." >&2
         exit 1
