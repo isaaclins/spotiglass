@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.41] - 2026-11-11
+
+### Fixed
+
+- Saved Apple Music songs that are explicit now show the Explicit label, and the clean-only setting hides them.
+
 ## [0.8.40] - 2026-11-11
 
 ### Fixed

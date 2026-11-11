@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.40</title>
-            <pubDate>Wed, 11 Nov 2026 05:46:49 +0100</pubDate>
-            <sparkle:version>51</sparkle:version>
-            <sparkle:shortVersionString>0.8.40</sparkle:shortVersionString>
+            <title>0.8.41</title>
+            <pubDate>Wed, 11 Nov 2026 11:09:32 +0100</pubDate>
+            <sparkle:version>52</sparkle:version>
+            <sparkle:shortVersionString>0.8.41</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
+            <description sparkle:format="plain-text"><![CDATA[• Saved Apple Music songs that are explicit now show the Explicit label, and the clean-only setting hides them.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.40/Spotiglass-0.8.40.zip" length="13375380" type="application/octet-stream" sparkle:edSignature="eTXeSXE3S8afjngcohby6WXkE48uASn96DQnmodz0JuVAJ+tF30HSneJ8893mLn+pqAp97oQ2ic2hvwbBDrzCw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.41/Spotiglass-0.8.41.zip" length="13479477" type="application/octet-stream" sparkle:edSignature="YnGKYXL6XRqYdNdJPuocgpeGBWv0OTWASC/uJUzI/Ek+KRoV3iRqNdxCYYNgTQaSN3Oh6CPpRBG+vrnCieUfAQ=="/>
         </item>
     </channel>
 </rss>
