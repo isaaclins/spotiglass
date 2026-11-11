@@ -552,36 +552,41 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             let next = more ? Self.continuationURL(offset: offset + pageLimit) : nil
             return MusicSearchPaging(total: offset + count + (more ? pageLimit : 0), next: next)
         }
-        // The match key says "same recording" across library and catalog, whose IDs differ:
-        // title, artist, album and rating (a clean and an explicit version share the rest).
+        // Songs and albums match by the catalog ID a saved item carries, else by content
+        // (``AppleMusicItemMapping/searchMatchKeys(_:isSaved:content:)``).
         let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
-            "\($0.title)|\($0.artistName)|\($0.albumTitle ?? "")|\($0.contentRating == .explicit)".lowercased()
+            AppleMusicItemMapping.searchMatchKeys($0, isSaved: $1, content: AppleMusicItemMapping.songContentKey)
         }
         // Artists match by name on purpose: the same artist in the library and in the catalog
         // is far more common than two different artists with one name, one of them saved.
-        let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
-            $0.name.lowercased()
+        let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) { artist, _ in
+            [artist.name.lowercased()]
         }
-        let albumMatch: (Album) -> String = AppleMusicItemMapping.albumMatchKey
+        let albumMatch: (Album, Bool) -> [String] = {
+            AppleMusicItemMapping.searchMatchKeys($0, isSaved: $1, content: AppleMusicItemMapping.albumContentKey)
+        }
         let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }, match: albumMatch)
         // Saved albums come without their artists, and the IDs a saved album's own artists
         // relationship gives don't open an artist page. So a saved album links the artists of
         // its catalog copy when that is on this page, else the artist of the same name among
         // this page's artist results, which open; with neither its name stays plain (#478).
-        let catalogAlbumArtists = Dictionary(
-            catalogItems.albums.map { (albumMatch($0), AppleMusicItemMapping.album($0).artistRefs) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        var catalogAlbumArtists: [String: [MusicArtistRef]] = [:]
+        for album in catalogItems.albums {
+            let refs = AppleMusicItemMapping.album(album).artistRefs
+            for key in albumMatch(album, false) where catalogAlbumArtists[key] == nil {
+                catalogAlbumArtists[key] = refs
+            }
+        }
         let pageArtistsByName = Dictionary(
             (libraryItems.artists + catalogItems.artists).map { ($0.name.lowercased(), MusicArtistRef(id: $0.id.rawValue, name: $0.name)) },
             uniquingKeysWith: { first, _ in first }
         )
         func linkedArtists(of album: Album) -> [MusicArtistRef]? {
-            if let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty { return refs }
+            if let refs = albumMatch(album, true).lazy.compactMap({ catalogAlbumArtists[$0] }).first, !refs.isEmpty { return refs }
             return pageArtistsByName[album.artistName.lowercased()].map { [$0] }
         }
-        let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
-            $0.id.rawValue
+        let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) { playlist, _ in
+            [playlist.id.rawValue]
         }
         return MusicSearchResults(
             tracks: tracks.map(AppleMusicItemMapping.track),
@@ -619,8 +624,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// page: the next page starts after this page's catalog items, so a catalog item cut here
     /// would never be shown at all. Within a side, items are told apart by `id`, so two
     /// recordings with the same title stay two rows. A catalog item is only dropped as a
-    /// duplicate when the library shows the same `match` (library and catalog IDs differ for
-    /// the same song).
+    /// duplicate when one of its `match` keys is one of a library item's (library and catalog
+    /// IDs differ for the same song); `match` is told which side the item is from.
     /// `showsLibrary` is `false` on later pages: the library items are only used to hide their
     /// catalog copies there.
     static func merged<Item>(
@@ -629,17 +634,17 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         limit: Int,
         showsLibrary: Bool = true,
         id: (Item) -> String,
-        match: (Item) -> String
+        match: (_ item: Item, _ isSaved: Bool) -> [String]
     ) -> [Item] {
         var seenIDs: Set<String> = []
         var libraryMatches: Set<String> = []
         var result: [Item] = []
         for item in library where seenIDs.insert(id(item)).inserted {
-            libraryMatches.insert(match(item))
+            libraryMatches.formUnion(match(item, true))
             if showsLibrary { result.append(item) }
         }
         for item in catalog.prefix(limit)
-        where !libraryMatches.contains(match(item)) && seenIDs.insert(id(item)).inserted {
+        where libraryMatches.isDisjoint(with: match(item, false)) && seenIDs.insert(id(item)).inserted {
             result.append(item)
         }
         return result
