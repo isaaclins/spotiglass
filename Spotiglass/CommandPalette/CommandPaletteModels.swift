@@ -308,6 +308,9 @@ struct CommandPaletteItem: Identifiable {
     /// Dynamic guard for actions whose readiness can change while the palette is open.
     /// A failed guard leaves the palette visible instead of claiming the action ran.
     let canExecute: (@MainActor () -> Bool)?
+    /// IDs of other rows that are the same item: a saved Apple Music playlist's catalog copy,
+    /// paired by the catalog ID it carries, as pins and Search pair it (#523).
+    var sameItemIDs: Set<String> = []
 
     init(
         id: String,
@@ -388,19 +391,23 @@ struct CommandPaletteSearchResults {
     /// Current user's library playlists that match the query (filtered in-app).
     var myPlaylists: [CommandPaletteItem] = []
 
-    /// Catalog hits first, then library playlists not already in the catalog list.
+    /// Catalog hits first, then library playlists not already in the catalog list. A library
+    /// playlist takes its catalog copy's place, so a saved Apple Music playlist shows once, as
+    /// my copy, also when only the palette's own filter found it (#523).
     func mergedPlaylistsForAllCategory() -> [CommandPaletteItem] {
-        let catalogIDs = Set(catalogPlaylists.compactMap { Self.playlistSpotifyID(fromItemID: $0.id) })
-        let libraryExtras = myPlaylists.filter { item in
-            guard let sid = Self.playlistSpotifyID(fromItemID: item.id) else { return true }
-            return !catalogIDs.contains(sid)
+        var libraryCopies: [String: CommandPaletteItem] = [:]
+        for item in myPlaylists {
+            for id in item.sameItemIDs where libraryCopies[id] == nil {
+                libraryCopies[id] = item
+            }
         }
-        return catalogPlaylists + libraryExtras
-    }
-
-    private static func playlistSpotifyID(fromItemID id: String) -> String? {
-        guard id.hasPrefix("playlist-") else { return nil }
-        return String(id.dropFirst("playlist-".count))
+        var shownIDs = Set<String>()
+        var merged: [CommandPaletteItem] = []
+        for item in catalogPlaylists {
+            let shown = libraryCopies[item.id] ?? item
+            if shownIDs.insert(shown.id).inserted { merged.append(shown) }
+        }
+        return merged + myPlaylists.filter { !shownIDs.contains($0.id) }
     }
 }
 

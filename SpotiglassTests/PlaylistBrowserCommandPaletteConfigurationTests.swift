@@ -152,7 +152,8 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
             queueViewModel: queue,
             isPinnedByID: { pinnedIDs.contains($0) },
             pin: { pinnedIDs.insert($0.id) },
-            unpin: { pinnedIDs.remove($0) }
+            unpin: { pinnedIDs.remove($0) },
+            otherPinIDs: { _ in [] }
         )
         XCTAssertTrue(results.tracks.isEmpty)
     }
