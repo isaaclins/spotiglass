@@ -553,30 +553,47 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
     /// descriptor guarded against it, and the process died with EXC_GUARD in the next test (#515).
     func testReleasingAStoreClosesOnlyItsOwnDescriptor() throws {
         let url = makeTempFileURL()
-        let before = Self.openDescriptors()
         var store: SpotiglassSettingsStore? = SpotiglassSettingsStore(fileURL: url)
-        let watcher = try XCTUnwrap(Self.openDescriptors().subtracting(before).min(), "the store watches no file")
         XCTAssertNotNil(store)
+        // The watcher is the descriptor open on the settings file itself, whatever else the test
+        // host's other threads open meanwhile.
+        let watcher = try XCTUnwrap(Self.descriptor(openOn: url), "the store watches no file")
 
         store = nil
-        // Opened before the cancel handler has run, like WebKit's descriptor was.
-        let other = open("/dev/null", O_RDONLY)
+        // Opened before the cancel handler has run, like WebKit's descriptor was: the lowest free
+        // number from the watcher's up, which is the watcher's own once it has been closed.
+        var other = open("/dev/null", O_RDONLY)
+        XCTAssertGreaterThanOrEqual(other, 0)
+        if other < watcher {
+            let lower = other
+            other = fcntl(lower, F_DUPFD, watcher)
+            close(lower)
+        }
         XCTAssertGreaterThanOrEqual(other, 0)
         defer { close(other) }
-        // The cancel handler runs on the main queue; it has run once the watcher's descriptor is
-        // closed. On main that close hit `other`, which had taken the watcher's number.
+        // The cancel handler runs on the main queue; it has run once the watcher's number no
+        // longer refers to the settings file. On main that close hit `other`, which had taken it.
         let deadline = Date().addingTimeInterval(10)
-        while fcntl(watcher, F_GETFD) != -1, Date() < deadline {
+        while Self.descriptor(watcher, isOpenOn: url) || (other == watcher && fcntl(other, F_GETFD) != -1),
+              Date() < deadline {
             AppKitTestSupport.pumpRunLoop(for: 0.01)
         }
 
-        XCTAssertEqual(fcntl(watcher, F_GETFD), -1, "the released store left its watcher's descriptor open")
+        XCTAssertFalse(Self.descriptor(watcher, isOpenOn: url), "the released store left its watcher's descriptor open")
         XCTAssertNotEqual(fcntl(other, F_GETFD), -1, "the released store closed descriptor \(other), which it no longer owned")
     }
 
-    private static func openDescriptors() -> Set<Int32> {
+    private static func descriptor(openOn url: URL) -> Int32? {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd")) ?? []
-        return Set(names.compactMap(Int32.init).filter { fcntl($0, F_GETFD) != -1 })
+        return names.compactMap(Int32.init).filter { descriptor($0, isOpenOn: url) }.min()
+    }
+
+    /// Whether `descriptor` is open on the file at `url` (same device and inode).
+    private static func descriptor(_ descriptor: Int32, isOpenOn url: URL) -> Bool {
+        var opened = stat()
+        var file = stat()
+        guard fstat(descriptor, &opened) == 0, stat(url.path, &file) == 0 else { return false }
+        return opened.st_dev == file.st_dev && opened.st_ino == file.st_ino
     }
 
     private func makeTempFileURL() -> URL {
