@@ -17,12 +17,14 @@ requirement to the ad-hoc copy, and the signed test host was refused from then o
 These tests stage a small app the way screenshot mode stages Spotiglass.app and check the
 signature the permission is matched against.
 
-Run from the repository root:  python3 -m unittest discover -s scripts/tests
+They need macOS (codesign, security, PlistBuddy), so they skip elsewhere; CI runs them in the macOS
+job. Run from the repository root:  python3 -m unittest discover -s scripts/tests
 """
 import os
 import plistlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,6 +32,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 STAGE = REPO / 'scripts' / 'screenshot-mode' / 'stage-app.sh'
 REAL_BUNDLE_ID = 'com.isaaclins.spotiglass'
+ON_MACOS = sys.platform == 'darwin'
 SCREENSHOT_BUNDLE_ID = 'com.isaaclins.spotiglass.screenshots'
 # The requirement the signed app's Apple Music permission is stored under, as tccd logged it (with my
 # team, BHAF4L4726, in the last line).
@@ -60,6 +63,7 @@ def make_app(app):
                        'CFBundlePackageType': 'APPL'}, f)
 
 
+@unittest.skipUnless(ON_MACOS, 'needs codesign, security and PlistBuddy')
 class StageApp(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -124,6 +128,7 @@ class StageApp(unittest.TestCase):
                          + check.stderr)
 
 
+@unittest.skipUnless(ON_MACOS, 'needs codesign, security and PlistBuddy')
 class StartWithAppleMusic(unittest.TestCase):
     """`screenshots.sh start --with-apple-music` when the copy can't be staged.
 
