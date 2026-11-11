@@ -72,22 +72,27 @@ final class WindowResizeCostTests: XCTestCase {
         ViewBodyTally.counts = [:]
         let controller = ViewTestHost.host(view, size: CGSize(width: 1_400, height: 900))
         let window = try XCTUnwrap(controller.view.window)
-        AppKitTestSupport.pumpRunLoop(for: 0.5)
+        // Each step waits for what it needs to see, not for a time: on a busy Mac the sidebar
+        // rows came after a fixed 0.5 s (#533).
+        let rendered = { (view: String) in ViewBodyTally.counts?[view] != nil }
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { rendered("PlaybackControlsView") }), "the browser never rendered")
         // The browser starts at a width of zero and collapses the sidebar; a widening brings it
         // back, as it does when a real window opens.
         window.setContentSize(NSSize(width: 1_450, height: 900))
-        AppKitTestSupport.pumpRunLoop(for: 0.5)
 
         // What is on screen before the resize, so the test can't pass on an empty window.
-        let shown = ViewBodyTally.counts ?? [:]
-        XCTAssertNotNil(shown["PlaybackControlsView"], "the live player bar isn't on screen")
-        XCTAssertNotNil(shown["PlaylistListRow:p1"], "the sidebar doesn't list the playlists")
-        XCTAssertNotNil(shown["PlaylistListRow:p2"], "the sidebar doesn't list the playlists")
-        switch page {
-        case .home:
-            XCTAssertNotNil(shown["HomeView"], "Home isn't on screen")
-        case .bigPlaylist:
-            XCTAssertTrue(shown.keys.contains { $0.hasPrefix("TrackListRow:") }, "no song rows on screen")
+        let onScreen: [(String, (String) -> Bool)] = [
+            ("the live player bar isn't on screen", { $0 == "PlaybackControlsView" }),
+            ("the sidebar doesn't list the playlist p1", { $0 == "PlaylistListRow:p1" }),
+            ("the sidebar doesn't list the playlist p2", { $0 == "PlaylistListRow:p2" }),
+            page == .home
+                ? ("Home isn't on screen", { $0 == "HomeView" })
+                : ("no song rows on screen", { $0.hasPrefix("TrackListRow:") }),
+        ]
+        let missing = { onScreen.filter { _, matches in !(ViewBodyTally.counts ?? [:]).keys.contains(where: matches) } }
+        _ = AppKitTestSupport.pumpRunLoop(until: { missing().isEmpty })
+        for (message, _) in missing() {
+            XCTFail(message)
         }
         return window
     }
@@ -176,17 +181,26 @@ final class WindowResizeCostTests: XCTestCase {
     func testOpeningTheQueueNarrowsTheSidebarsDragLimit() async throws {
         let window = try await hostBrowser(on: .bigPlaylist)
         let content = try XCTUnwrap(window.contentView)
+        // The widening is committed by then, so the limit is the one for this width.
+        waitUntilNothingRenders(file: #filePath, line: #line)
         let closedLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content), "no sidebar split item")
 
-        StoredFlag.queuePanelVisible.isOn = true
-        AppKitTestSupport.pumpRunLoop(for: 0.5)
-        let openLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content))
         let queueShare = SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: false)
             - SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 2_000, isQueueVisible: true)
+        // Waits for the limit AppKit applies to change, however late a busy Mac gets there (#533).
+        let limitBecomes = { (expected: CGFloat) in
+            AppKitTestSupport.pumpRunLoop(until: {
+                abs((Self.sidebarMaximumThickness(in: content) ?? .infinity) - expected) < 0.5
+            })
+        }
+
+        StoredFlag.queuePanelVisible.isOn = true
+        _ = limitBecomes(closedLimit - queueShare)
+        let openLimit = try XCTUnwrap(Self.sidebarMaximumThickness(in: content))
         XCTAssertEqual(closedLimit - openLimit, queueShare, accuracy: 0.5, "closed \(closedLimit), open \(openLimit)")
 
         StoredFlag.queuePanelVisible.isOn = false
-        AppKitTestSupport.pumpRunLoop(for: 0.5)
+        _ = limitBecomes(closedLimit)
         XCTAssertEqual(try XCTUnwrap(Self.sidebarMaximumThickness(in: content)), closedLimit, accuracy: 0.5)
     }
 

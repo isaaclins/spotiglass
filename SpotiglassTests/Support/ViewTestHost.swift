@@ -121,18 +121,31 @@ enum ViewTestHost {
     /// needs to be visible: layout, hit testing, ViewInspector and first
     /// responder all work in an off-screen window. Tests that genuinely need a
     /// key window ask for one through `AppKitTestSupport.makeFirstResponder`.
+    ///
+    /// `measuresLayout` is for tests that read view frames (#532). By default the hosting
+    /// controller sizes the window to the content's ideal size, which for the browser is no width
+    /// at all, and SwiftUI animates layout changes over wall-clock time. A test that then set the
+    /// size it wanted in the same pass as an animated change (opening the lyrics) got the whole
+    /// resize animated, and on a busy machine read a frame part-way through it. With it on, the
+    /// window keeps `size` and nothing in the hosted tree animates, so every layout pass lands on
+    /// the final frames, however late the run loop gets to it.
     @discardableResult
     static func host<V: View>(
         _ view: V,
-        size: CGSize = CGSize(width: 640, height: 480)
+        size: CGSize = CGSize(width: 640, height: 480),
+        measuresLayout: Bool = false
     ) -> NSHostingController<AnyView> {
         hostLock.lock()
         defer { hostLock.unlock() }
 
         AppKitTestSupport.activateAppIfNeeded()
+        let rootView = AnyView(view.defaultAppStorage(appStorageDefaults))
         let controller = NSHostingController(
-            rootView: AnyView(view.defaultAppStorage(appStorageDefaults))
+            rootView: measuresLayout ? AnyView(rootView.transaction(Self.withoutAnimation)) : rootView
         )
+        if measuresLayout {
+            controller.sizingOptions = []
+        }
         let window = OffscreenTestWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
@@ -140,11 +153,22 @@ enum ViewTestHost {
             defer: false
         )
         window.contentViewController = controller
+        if measuresLayout {
+            // Taking the controller sized the window to its view, which has no size yet.
+            window.setContentSize(size)
+        }
         window.isReleasedWhenClosed = false
         windows.append(window)
         controller.view.layoutSubtreeIfNeeded()
         AppKitTestSupport.pumpRunLoop()
         return controller
+    }
+
+    /// Every update in the tree, `withAnimation` and `.animation(_:value:)` ones included, lands
+    /// at once: `disablesAnimations` keeps `.animation` modifiers below from adding theirs.
+    private static func withoutAnimation(_ transaction: inout Transaction) {
+        transaction.animation = nil
+        transaction.disablesAnimations = true
     }
 
     static func tearDownAll() {
