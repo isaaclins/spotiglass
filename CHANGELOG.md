@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.32] - 2026-11-11
+
+### Fixed
+
+- Search palette no longer shows old results when its list updates, and Return now runs the item you see.
+
 ## [0.8.31] - 2026-11-11
 
 ### Fixed
