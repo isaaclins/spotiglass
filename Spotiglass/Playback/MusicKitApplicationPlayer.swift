@@ -78,6 +78,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
         let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
+        if explicitBlocked {
+            await Self.lookUpRatings(resolved.map(\.entry) + carriedAddedSongs().map(\.entry))
+            guard isCurrent() else { throw CancellationError() }
+        }
         let queueable = try Self.leavingOutBlocked(resolved, startURI: startURI, explicitBlocked: explicitBlocked)
         // No row was picked (an album, playlist or artist from its header): with shuffle on it
         // starts at a random song, like Spotify. Shuffle only reorders what comes after the
@@ -261,7 +265,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
-        _ = try Self.leavingOutBlocked([resolved], startURI: uri, explicitBlocked: AppleMusicContentRestrictions.isExplicitMusicBlocked())
+        let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
+        if explicitBlocked { await Self.lookUpRatings([resolved.entry]) }
+        _ = try Self.leavingOutBlocked([resolved], startURI: uri, explicitBlocked: explicitBlocked)
         // Signed out during the lookup: the queue belongs to the session that ended.
         guard isCurrent() else { throw CancellationError() }
         let rememberedKeys = remember(uri, for: resolved.entry)
@@ -537,13 +543,29 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         return items.filter { !isExplicit($0.entry) }
     }
 
+    /// Saved songs have no rating of their own on macOS; their catalog release's counts, looked
+    /// up by ``lookUpRatings(_:)`` (#518). One whose release's rating couldn't be read counts as
+    /// explicit: a failed lookup mustn't open up the restriction.
     private static func isExplicit(_ entry: MusicPlayer.Queue.Entry) -> Bool {
         switch entry.item {
-        case let .song(song): song.contentRating == .explicit
+        case let .song(song): AppleMusicContentRatings.shared.rating(of: song) ?? true
         case let .musicVideo(video): video.contentRating == .explicit
         case nil: false
         @unknown default: false
         }
+    }
+
+    /// Looks up the catalog rating of the saved songs among `entries` that no list has shown yet.
+    private static func lookUpRatings(_ entries: [MusicPlayer.Queue.Entry]) async {
+        let songs = entries.compactMap { entry -> Song? in
+            if case let .song(song) = entry.item { return song }
+            return nil
+        }
+        await AppleMusicContentRatings.shared.resolve(
+            songs,
+            lookup: { try await MusicKitContentSource.catalogSongRatings(catalogIDs: $0) },
+            library: { try await MusicKitContentSource().librarySongs(limit: $0, offset: $1) }
+        )
     }
 
     private static func explicitRestricted(_ uri: String) -> MusicPlaybackError {

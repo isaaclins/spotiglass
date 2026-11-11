@@ -1762,8 +1762,14 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         return playlistTracksByID[playlistID]
     }
 
+    /// The library's songs as given, in place of `librarySongCount` generated ones.
+    var savedSongs: [Song]?
+
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] {
         record("librarySongs(\(limit),\(offset))")
+        if let savedSongs {
+            return Array(savedSongs.dropFirst(offset).prefix(limit))
+        }
         let end = min(librarySongCount, offset + limit)
         guard offset < end else { return [] }
         return try (offset..<end).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)") }
@@ -1830,6 +1836,375 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func storefrontCountryCode() async throws -> String {
         guard let countryCode else { throw URLError(.userAuthenticationRequired) }
         return countryCode
+    }
+
+    /// The catalog's ratings, `true` for explicit, by catalog song ID.
+    var catalogRatings: [String: Bool] = [:]
+    var catalogRatingsError: Error?
+    private var recordedRatingLookups: [[String]] = []
+    var ratingLookups: [[String]] { lock.withLock { recordedRatingLookups } }
+
+    /// Awaited before a rating lookup answers: a catalog that is slow to answer.
+    var ratingLookupHold: (@Sendable () async -> Void)?
+
+    func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        lock.withLock { recordedRatingLookups.append(catalogIDs) }
+        if let ratingLookupHold { await ratingLookupHold() }
+        if let catalogRatingsError { throw catalogRatingsError }
+        return catalogRatings.filter { catalogIDs.contains($0.key) }
+    }
+}
+
+// MARK: - Saved songs get their catalog release's rating (#518)
+
+/// Lets any number of waiters go at once when opened.
+private final class Latch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let goNow = lock.withLock {
+                if isOpen { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if goNow { continuation.resume() }
+        }
+    }
+
+    func open() {
+        let waiting = lock.withLock {
+            isOpen = true
+            defer { waiters = [] }
+            return waiters
+        }
+        waiting.forEach { $0.resume() }
+    }
+}
+
+private final class LockedPages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [(limit: Int, offset: Int)] = []
+    var reads: [(limit: Int, offset: Int)] { lock.withLock { recorded } }
+    func append(limit: Int, offset: Int) { lock.withLock { recorded.append((limit, offset)) } }
+}
+
+
+/// MusicKit on macOS gives songs saved to the library no content rating; each names its catalog
+/// release (`playParams.catalogId`) instead. Read as they came, saved explicit songs had no
+/// Explicit label anywhere and got past the clean-only filter. Song and catalog IDs are made up
+/// and differ per test: the ratings are kept app-wide, like the songs behind the rows.
+final class AppleMusicSavedSongRatingTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        AppleMusicContentRatings.shared.resetSharedStateForTesting()
+    }
+
+    /// A provider that waits for every rating, so a test doesn't race the two-second deadline.
+    private static func provider(_ source: MockAppleMusicSource) -> AppleMusicBrowsingProvider {
+        var provider = AppleMusicBrowsingProvider(source: source)
+        provider.ratingsDeadline = { try? await Task.sleep(for: .seconds(3_600)) }
+        return provider
+    }
+
+    private static func explicitFlags(_ items: [MusicPlaylistTrackItem]) -> [Bool?] {
+        items.map { item -> Bool? in
+            guard case let .track(track) = item.content else { return nil }
+            return track.isExplicit
+        }
+    }
+
+    func testASavedExplicitSongWithoutARatingShowsTheExplicitLabel() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [
+            try AppleMusicFixtures.song(id: "i.5180001", title: "Paper Lanterns", catalogID: "9518001"),
+            try AppleMusicFixtures.song(id: "i.5180002", title: "Low Tide", catalogID: "9518002"),
+            // Uploaded: no catalog release to ask.
+            try AppleMusicFixtures.song(id: "i.5180003", title: "Voice Memo Demo"),
+        ]
+        source.catalogRatings = ["9518001": true, "9518002": false]
+        let result = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
+
+        let rows = result.tracks.enumerated().map { TrackRowViewModel($1, listPosition: $0 + 1) }
+        XCTAssertEqual(rows.map(\.isExplicit), [true, false, false])
+        XCTAssertEqual(rows.map(\.badgeText), [SpotiglassL10n.string("browser.trackBadge.explicit"), nil, nil])
+        // One lookup, only for the songs that name a release.
+        XCTAssertEqual(source.ratingLookups.map(Set.init), [["9518001", "9518002"]])
+
+        // Read again (another list, the player): known ratings aren't asked for again.
+        _ = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(source.ratingLookups.count, 1)
+    }
+
+    /// Library playlists and saved albums list their songs under the Music app's persistent ID
+    /// alone: no rating and no catalog ID, as MusicKit gave every row of four real playlists. The
+    /// same songs read from the library name both IDs, so one read of it gives each row its release.
+    func testPlaylistAndAlbumRowsListedUnderAPersistentIDShowTheLabel() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [
+            try AppleMusicFixtures.song(id: "i.5180011", title: "Paper Lanterns", catalogID: "9518011", persistentID: "5180000000000000011"),
+            try AppleMusicFixtures.song(id: "i.5180013", title: "Harbour", catalogID: "9518012", persistentID: "-5180000000000000013"),
+            // Uploaded: in the library, with no release to ask.
+            try AppleMusicFixtures.song(id: "i.5180014", title: "Voice Memo Demo", persistentID: "5180000000000000014"),
+        ]
+        source.playlistTracksByID["p.5180011"] = try [
+            .song(AppleMusicFixtures.song(id: "5180000000000000011", title: "Paper Lanterns", persistentID: "5180000000000000011")),
+            .song(AppleMusicFixtures.song(id: "5180000000000000014", title: "Voice Memo Demo", persistentID: "5180000000000000014")),
+            // Not in the library read (gone since): stays as it is.
+            .song(AppleMusicFixtures.song(id: "5180000000000000015", title: "Low Tide", persistentID: "5180000000000000015")),
+        ]
+        source.albumsByID["-5180000000000000012"] = try AppleMusicFixtures.album(
+            id: "-5180000000000000012", title: "Paper Lanterns", tracks: []
+        )
+        source.extraTracksByAlbumID["-5180000000000000012"] = [.song(
+            try AppleMusicFixtures.song(id: "-5180000000000000013", title: "Harbour", persistentID: "-5180000000000000013")
+        )]
+        source.catalogRatings = ["9518011": true, "9518012": true]
+        let provider = Self.provider(source)
+
+        let playlist = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
+        XCTAssertEqual(Self.explicitFlags(playlist), [true, false, false])
+        let album = try await provider.albumTracks(albumID: "-5180000000000000012", market: nil, limit: 50)
+        XCTAssertEqual(album.map(\.isExplicit), [true])
+
+        // One library read served both, and a row it didn't find doesn't read it again.
+        _ = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("librarySongs") }.count, 1)
+        XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518011", "9518012"])
+    }
+
+    /// MusicKit can also name a song's release only in its identifier set (`meta`), as for a song
+    /// it has only on this Mac: a playlist row like that carries its own release, and a library
+    /// song like that tells its playlist rows theirs.
+    func testReleasesNamedOnlyInTheIdentifierSetCount() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [
+            try AppleMusicFixtures.song(
+                id: "i.5180091", title: "Glass Harbour", playable: false,
+                persistentID: "5180000000000000091", identifierSetCatalogID: "9518091"
+            ),
+        ]
+        source.playlistTracksByID["p.5180091"] = try [
+            .song(AppleMusicFixtures.song(id: "5180000000000000091", title: "Glass Harbour", persistentID: "5180000000000000091")),
+            .song(AppleMusicFixtures.song(
+                id: "-5180000000000000092", title: "Night Ferry", playable: false,
+                persistentID: "-5180000000000000092", identifierSetCatalogID: "9518092"
+            )),
+        ]
+        source.catalogRatings = ["9518091": true, "9518092": true]
+
+        let playlist = try await Self.provider(source).playlistTracks(playlistID: "p.5180091", limit: 100, maxPages: 1)
+        XCTAssertEqual(Self.explicitFlags(playlist), [true, true])
+        XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518091", "9518092"])
+    }
+
+    /// A list read from the library shows without waiting on a slow catalog; the ratings that
+    /// arrive later are there on the next read.
+    func testASlowRatingLookupDoesNotHoldUpTheList() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [try AppleMusicFixtures.song(id: "i.5180051", title: "Night Ferry", catalogID: "9518051")]
+        source.catalogRatings = ["9518051": true]
+        let (answer, release) = AsyncStream<Void>.makeStream()
+        source.ratingLookupHold = { for await _ in answer { break } }
+        var provider = Self.provider(source)
+        provider.ratingsDeadline = {}
+
+        let first = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(first.tracks), [false], "shown before the catalog answered")
+
+        source.ratingLookupHold = nil
+        release.finish()
+        provider.ratingsDeadline = { try? await Task.sleep(for: .seconds(3_600)) }
+        let next = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(next.tracks), [true])
+    }
+
+    /// A read that comes along while a lookup is still asking waits for that lookup instead of
+    /// asking for the same songs again. Lookups are counted when they start, which happens
+    /// before a read waits, so the count doesn't depend on when they run.
+    func testALookupStillRunningIsNotAskedAgain() async throws {
+        let ratings = AppleMusicContentRatings()
+        let song = try AppleMusicFixtures.song(id: "i.5180081", title: "Night Ferry", catalogID: "9518081")
+        let answer = Latch()
+        let lookup: AppleMusicContentRatings.CatalogLookup = { _ in
+            await answer.wait()
+            return ["9518081": true]
+        }
+        // Both lists stop waiting at their deadline; the first one's lookup keeps asking.
+        await ratings.resolve([song], lookup: lookup, library: nil, deadline: {})
+        await ratings.resolve([song], lookup: lookup, library: nil, deadline: {})
+        XCTAssertEqual(ratings.lookupsStarted, 1)
+        XCTAssertNil(ratings.rating(of: song), "the catalog hasn't answered")
+
+        // A read that waits for the answer gets the running lookup's.
+        let waiting = Task { await ratings.resolve([song], lookup: lookup, library: nil) }
+        answer.open()
+        await waiting.value
+        XCTAssertEqual(ratings.rating(of: song), true)
+        XCTAssertEqual(ratings.lookupsStarted, 1)
+    }
+
+    /// After one read covered the library (here up to its bound), rows that read didn't list
+    /// can't be found by reading it all again: a row not seen yet only reads the newest page,
+    /// where a song added since would be. Rows past the bound stay unknown, not clean.
+    func testTheLibraryIsReadInFullOnce() async throws {
+        let ratings = AppleMusicContentRatings(libraryPageSize: 2, maxLibrarySongs: 4)
+        // Newest first, like `librarySongs`; the last two are past the bound.
+        let library = try (1...6).map {
+            try AppleMusicFixtures.song(id: "i.51801\($0)", title: "Song \($0)", catalogID: "95181\($0)", persistentID: "51800000000000001\($0)")
+        }
+        let pages = LockedPages()
+        let read: AppleMusicContentRatings.LibraryPage = { limit, offset in
+            pages.append(limit: limit, offset: offset)
+            return Array(library.dropFirst(offset).prefix(limit))
+        }
+        func row(_ n: Int) throws -> Song {
+            try AppleMusicFixtures.song(id: "51800000000000001\(n)", title: "Song \(n)", persistentID: "51800000000000001\(n)")
+        }
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in Dictionary(uniqueKeysWithValues: ids.map { ($0, true) }) }
+
+        await ratings.resolve([try row(5)], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.map(\.offset), [0, 2], "the whole bound, once")
+        XCTAssertNil(ratings.rating(of: try row(5)), "past the bound: unknown, not clean")
+
+        await ratings.resolve([try row(6)], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.map(\.offset), [0, 2, 0], "then only the newest page")
+        XCTAssertNil(ratings.rating(of: try row(6)))
+
+        await ratings.resolve([try row(1), try row(2)], lookup: lookup, library: read)
+        XCTAssertEqual([try row(1), try row(2)].map { ratings.rating(of: $0) }, [true, true])
+    }
+
+    /// A list whose rows a library read running for another list has mapped meanwhile doesn't
+    /// read the library again.
+    func testAListDoesNotReadTheLibraryAgainForRowsAnotherReadMapped() async throws {
+        let ratings = AppleMusicContentRatings()
+        let library = [try AppleMusicFixtures.song(id: "i.5180101", title: "Harbour", catalogID: "9518101", persistentID: "5180000000000000101")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000101", title: "Harbour", persistentID: "5180000000000000101")
+        let saved = try AppleMusicFixtures.song(id: "i.5180102", title: "Low Tide", catalogID: "9518102")
+        let pages = LockedPages()
+        let read: AppleMusicContentRatings.LibraryPage = { limit, offset in
+            pages.append(limit: limit, offset: offset)
+            return Array(library.dropFirst(offset).prefix(limit))
+        }
+        let asked = Latch()
+        let answer = Latch()
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in
+            if ids.contains("9518102") {
+                asked.open()
+                await answer.wait()
+            }
+            return Dictionary(uniqueKeysWithValues: ids.map { ($0, true) })
+        }
+
+        // The first list finds the row unmapped and waits for its catalog lookup first.
+        let first = Task { await ratings.resolve([saved, row], lookup: lookup, library: read) }
+        await asked.wait()
+        // Meanwhile another list reads the library, which maps the row.
+        await ratings.resolve([row], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.count, 1)
+
+        answer.open()
+        await first.value
+        XCTAssertEqual(pages.reads.count, 1, "the first list didn't read the library again")
+        XCTAssertEqual(ratings.rating(of: row), true)
+    }
+
+    /// A library song read first in a form that names no release doesn't make its playlist rows
+    /// read as clean: only a library read concludes that a song has none.
+    func testASongReadWithoutItsReleaseFirstDoesNotMakeItsRowsClean() async throws {
+        let ratings = AppleMusicContentRatings()
+        let thinner = try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", persistentID: "5180000000000000121")
+        XCTAssertNil(ratings.rating(of: thinner), "unknown until a library read looked")
+        let library = [try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", catalogID: "9518121", persistentID: "5180000000000000121")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000121", title: "Harbour", persistentID: "5180000000000000121")
+
+        await ratings.resolve([row], lookup: { _ in ["9518121": true] }, library: { _, offset in offset == 0 ? library : [] })
+        XCTAssertEqual(ratings.rating(of: row), true)
+        XCTAssertEqual(ratings.rating(of: thinner), true, "the library read named its release")
+    }
+
+    /// The song itself, read first in a form that names no release: it starts a library read
+    /// like its rows do, reads as unknown until one looked (clean only once one found it names
+    /// none), and its fuller form later counts.
+    func testASongReadWithoutItsReleaseIsUnknownUntilTheLibraryIsRead() async throws {
+        let thinner = try AppleMusicFixtures.song(id: "i.5180131", title: "Night Ferry", persistentID: "5180000000000000131")
+        let fuller = try AppleMusicFixtures.song(id: "i.5180131", title: "Night Ferry", catalogID: "9518131", persistentID: "5180000000000000131")
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in Dictionary(uniqueKeysWithValues: ids.map { ($0, true) }) }
+
+        // The fuller form after the thinner one: its release counts.
+        let first = AppleMusicContentRatings()
+        XCTAssertNil(first.rating(of: thinner))
+        await first.resolve([fuller], lookup: lookup, library: { _, _ in [] })
+        XCTAssertEqual(first.rating(of: fuller), true)
+
+        // A library read that doesn't list it: still unknown, not clean.
+        let unlisted = AppleMusicContentRatings()
+        await unlisted.resolve([thinner], lookup: lookup, library: { _, _ in [] })
+        XCTAssertNil(unlisted.rating(of: thinner))
+
+        // A library read that names its release: it gets the label.
+        let listed = AppleMusicContentRatings()
+        await listed.resolve([thinner], lookup: lookup, library: { _, offset in offset == 0 ? [fuller] : [] })
+        XCTAssertEqual(listed.rating(of: thinner), true)
+
+        // An upload: a library read found it names none, so it's clean.
+        let upload = try AppleMusicFixtures.song(id: "i.5180132", title: "Voice Memo Demo", persistentID: "5180000000000000132")
+        let uploads = AppleMusicContentRatings()
+        await uploads.resolve([upload], lookup: lookup, library: { _, offset in offset == 0 ? [upload] : [] })
+        XCTAssertEqual(uploads.rating(of: upload), false)
+    }
+
+    /// A read that names no release for a persistent ID doesn't undo a release another read
+    /// found: the row would otherwise read as clean.
+    func testAReadWithoutTheReleaseDoesNotUndoAKnownOne() async throws {
+        let ratings = AppleMusicContentRatings()
+        let library = [try AppleMusicFixtures.song(id: "i.5180111", title: "Harbour", catalogID: "9518111", persistentID: "5180000000000000111")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000111", title: "Harbour", persistentID: "5180000000000000111")
+        await ratings.resolve([row], lookup: { _ in ["9518111": true] }, library: { _, offset in offset == 0 ? library : [] })
+        XCTAssertEqual(ratings.rating(of: row), true)
+
+        // The same library song read in a shape that carries its persistent ID but no release.
+        let thinner = try AppleMusicFixtures.song(id: "i.5180112", title: "Harbour", persistentID: "5180000000000000111")
+        XCTAssertEqual(ratings.rating(of: thinner), true, "itself: the release the library read found")
+        XCTAssertEqual(ratings.rating(of: row), true)
+    }
+
+    /// The case from the real library: a saved explicit song and its clean catalog version both
+    /// matched "the same recording" (title, artist, album, rating), as the saved one read as
+    /// clean. Search hid the clean version and showed the saved song unlabelled next to its own
+    /// explicit copy, so neither could be told apart.
+    func testSearchShowsASavedExplicitSongLabelledNextToItsCleanVersion() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.5180021", title: "Glass Harbour", album: "Glass Harbour", catalogID: "9518021"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "9518021", title: "Glass Harbour", album: "Glass Harbour", explicit: true),
+            try AppleMusicFixtures.song(id: "9518022", title: "Glass Harbour", album: "Glass Harbour"),
+        ])
+        source.catalogRatings = ["9518021": true]
+        let results = try await Self.provider(source).search(query: "glass harbour", limit: 10)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["i.5180021", "9518022"], "the clean version is another song")
+        XCTAssertEqual(results.tracks.map(\.isExplicit), [true, false])
+    }
+
+    /// A failed lookup keeps today's reading (no label) and asks again next time.
+    func testAFailedLookupLeavesTheSongUnlabelledAndAsksAgain() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [try AppleMusicFixtures.song(id: "i.5180031", title: "Night Ferry", catalogID: "9518031")]
+        source.catalogRatingsError = URLError(.notConnectedToInternet)
+        let failed = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(failed.tracks), [false])
+
+        source.catalogRatingsError = nil
+        source.catalogRatings = ["9518031": true]
+        let retried = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(retried.tracks), [true])
+        XCTAssertEqual(source.ratingLookups.count, 2)
     }
 }
 
@@ -1939,7 +2314,9 @@ enum AppleMusicFixtures {
         playable: Bool = true,
         artistRefs: [(String, String)] = [],
         clean: Bool = false,
-        catalogID: String? = nil
+        catalogID: String? = nil,
+        persistentID: String? = nil,
+        identifierSetCatalogID: String? = nil
     ) throws -> Song {
         var attributes: [String: Any] = ["name": title, "durationInMillis": durationMs]
         if let artist { attributes["artistName"] = artist }
@@ -1947,13 +2324,27 @@ enum AppleMusicFixtures {
         if explicit { attributes["contentRating"] = "explicit" }
         if clean { attributes["contentRating"] = "clean" }
         if withArtwork { attributes["artwork"] = artwork(id) }
-        // A saved song names its catalog release in its play parameters, and has no rating.
-        if let catalogID {
-            attributes["playParams"] = ["id": id, "kind": "song", "catalogId": catalogID, "isLibrary": true]
+        // A saved song names its catalog release in its play parameters, and has no rating. Read
+        // from the library it also names the Music app's persistent ID; a library playlist or
+        // album lists it under that persistent ID alone, with no catalog ID (#518).
+        if catalogID != nil || persistentID != nil {
+            var parameters: [String: Any] = ["id": id, "kind": "song", "isLibrary": true]
+            parameters["catalogId"] = catalogID
+            parameters["musicKit_persistentID"] = persistentID
+            attributes["playParams"] = parameters
         } else if playable {
             attributes["playParams"] = ["id": id, "kind": "song"]
         }
         var resource: [String: Any] = ["id": id, "type": "songs", "attributes": attributes]
+        // A song MusicKit has only on this Mac names its release only in its identifier set.
+        if let identifierSetCatalogID {
+            var identifiers: [String: Any] = [
+                "id": id, "type": "Song", "isLibrary": true, "dataSources": ["localLibrary", "legacyModel"],
+                "catalogID": ["kind": "subscriptionAdamID", "value": identifierSetCatalogID],
+            ]
+            if let persistentID { identifiers["deviceLocalID"] = ["databaseID": "785BA2D7E82AE547", "value": persistentID] }
+            resource["meta"] = ["musicKit_identifierSet": identifiers]
+        }
         if !artistRefs.isEmpty {
             resource["relationships"] = ["artists": ["data": artistRefs.map {
                 ["id": $0.0, "type": "artists", "attributes": ["name": $0.1]]
