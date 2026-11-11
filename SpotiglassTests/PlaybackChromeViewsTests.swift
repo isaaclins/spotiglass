@@ -743,9 +743,12 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// space under them. In a narrow bar the sides join the buttons' row and
     /// the scrubber runs under all of them. The Lyrics button once sat in the
     /// title's text row and stood above the transport buttons. The bar is laid
-    /// out for real in each state that changes its parts, at four widths, in
-    /// light and dark, and the buttons stay at the same height whatever plays,
-    /// so nothing jumps when a song starts.
+    /// out for real in each state that changes its parts, at five widths, in
+    /// light and dark. The buttons stay at the same height whatever plays and
+    /// at every width, so nothing jumps when a song starts or the window
+    /// crosses the width where the bar stacks. Beside the sides, the scrubber's
+    /// row keeps two fifths of the bar, as Spotify's does, so a window half a
+    /// screen wide doesn't leave it at its narrowest.
     func testEveryPlayerBarControlSharesTheBarsCentreLine() async throws {
         let lyricsLabel = SpotiglassL10n.string("playback.controls.lyrics")
         let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
@@ -753,7 +756,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         var buttonsLine: [String: CGFloat] = [:]
         for (state, makePlayback) in try await playerBarStates() {
             for (appearance, width) in [NSAppearance.Name.darkAqua, .aqua].flatMap({ name in
-                [CGFloat(1_400), 1_100, 760, 640, 520].map { (name, $0) }
+                [CGFloat(1_400), 1_100, 900, 760, 640, 520].map { (name, $0) }
             }) {
                 try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: appearance) { elements, window in
                     let controls = playerBarControls(in: elements)
@@ -796,6 +799,14 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     let isStacked = sideControls.contains { maxX($0) > scrubberRowMinX - 0.5 && minX($0) < scrubberRowMaxX + 0.5 }
                     XCTAssertEqual(isStacked, width < 640, "the bar \(isStacked ? "stacks" : "doesn't stack"), \(label)")
                     let sidesLine = isStacked ? midY(previous) : barMiddle
+                    if !isStacked {
+                        let barInnerWidth = width - 4 * SpotiglassDesign.spacingM
+                        XCTAssertGreaterThanOrEqual(
+                            scrubberRowMaxX - scrubberRowMinX,
+                            min(barInnerWidth * PlaybackTransportLayoutPolicy.scrubberShareOfBar, PlaybackTransportLayoutPolicy.scrubberMaximumWidth) - 1,
+                            "the scrubber's row is narrower than two fifths of the bar, \(label)"
+                        )
+                    }
                     for control in sideControls {
                         XCTAssertEqual(midY(control), sidesLine, accuracy: 0.5, "\(name(control)) is off the \(isStacked ? "buttons' row" : "bar's middle"), \(label)")
                     }
@@ -803,8 +814,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
                         controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || !state.contains("play"),
                         "the device menu is missing, \(label)"
                     )
-                    // Whatever plays, the buttons stay where they are.
-                    let key = "\(appearance.rawValue) \(Int(width))"
+                    // Whatever plays and at every width, the buttons stay where
+                    // they are.
+                    let key = appearance.rawValue
                     // Accessibility frames count from the top of the main screen.
                     let windowTop = (NSScreen.screens.first?.frame.maxY ?? 0) - window.frame.maxY
                     let line = midY(previous) - windowTop

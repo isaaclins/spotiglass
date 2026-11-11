@@ -35,6 +35,9 @@ enum PlaybackTransportLayoutPolicy {
     /// Spotify's do: in a wide window it stays a reach of the hand under the
     /// buttons instead of running from edge to edge (#496).
     static let scrubberMaximumWidth: CGFloat = 640
+    /// Where the song and the right side sit beside the scrubber, it keeps this
+    /// share of the bar's width, as Spotify's middle column does (#538).
+    static let scrubberShareOfBar: CGFloat = 0.4
 
     /// The summary keeps the artwork, its gap and a few letters of the title
     /// before the controls give up their place on the bar's centre. Past this
@@ -156,14 +159,15 @@ struct PlaybackTransportArrangementLayout: Layout {
         // Where the bar has room, the song and the right side sit on the middle
         // of the bar, the middle line of the buttons and the scrubber together,
         // not on the buttons' row (#538). The scrubber then keeps to the middle
-        // column between them, as Spotify's does: the right side and the song's
-        // share of an ideal bar either side of it. The column depends on the
-        // width only, so a song starting or a long title never moves it; the
-        // title truncates instead. In a bar too narrow for that column beside
-        // both sides at their narrowest, the bar stacks: the song and the right
-        // side join the buttons' row and the scrubber runs under all of them.
+        // column between them, as Spotify's does: two fifths of the bar, so a
+        // window half a screen wide still has a scrubber you can aim at. The
+        // column depends on the width only, so a song starting or a long title
+        // never moves it; the title truncates instead. In a bar too narrow for
+        // that column beside both sides at their narrowest, the bar stacks: the
+        // song and the right side join the buttons' row and the scrubber runs
+        // under all of them.
         let centredScrubberWidth = min(
-            max(width - 2 * (spacing + max(Self.summaryIdealWidth, trailingIdeal)), scrubberMinimum),
+            max(width * PlaybackTransportLayoutPolicy.scrubberShareOfBar, scrubberMinimum),
             PlaybackTransportLayoutPolicy.scrubberMaximumWidth
         )
         let centredSide = (width - max(controlsWidth, centredScrubberWidth)) / 2 - spacing
@@ -218,13 +222,18 @@ struct PlaybackTransportArrangementLayout: Layout {
             sides.map { height($0, widths[$0]) }.max() ?? 0,
             PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
         )
-        // Stacked, the top row is as tall as its tallest part.
-        let topHeight = isStacked ? max(controlsHeight, sidesHeight) : controlsHeight
-        let middleHeight = topHeight + rowSpacing + scrubberHeight
-        let barHeight = max(middleHeight, sidesHeight)
+        // The bar is as tall at every width as it is stacked, its top row as
+        // tall as its tallest part, so the bar and the buttons keep their
+        // height when the window crosses the width where it stacks. Beside the
+        // scrubber, the buttons and the scrubber sit on the bar's middle as one
+        // block, and so do the sides.
+        let topHeight = max(controlsHeight, sidesHeight)
+        let barHeight = topHeight + rowSpacing + scrubberHeight
+        let buttonsRowHeight = isStacked ? topHeight : controlsHeight
+        let middleHeight = buttonsRowHeight + rowSpacing + scrubberHeight
         let middleTop = (barHeight - middleHeight) / 2
         // The line the sides are centred on.
-        let sidesMidY = isStacked ? middleTop + topHeight / 2 : barHeight / 2
+        let sidesMidY = isStacked ? topHeight / 2 : barHeight / 2
 
         var frames = [CGRect](repeating: .zero, count: subviews.count)
         func placeSide(_ index: Int, x: CGFloat) {
@@ -237,14 +246,14 @@ struct PlaybackTransportArrangementLayout: Layout {
         if let device { placeSide(device, x: width - volumeWidth - gap(volumeWidth) - widths[device]) }
         frames[controls] = CGRect(
             x: (width - controlsWidth) / 2,
-            y: middleTop + (topHeight - controlsHeight) / 2,
+            y: middleTop + (buttonsRowHeight - controlsHeight) / 2,
             width: controlsWidth,
             height: controlsHeight
         )
         // Under the controls, centred on the same line as play/pause.
         frames[scrubber] = CGRect(
             x: (width - scrubberWidth) / 2,
-            y: middleTop + topHeight + rowSpacing,
+            y: middleTop + buttonsRowHeight + rowSpacing,
             width: scrubberWidth,
             height: scrubberHeight
         )
