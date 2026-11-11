@@ -24,7 +24,6 @@ enum AppKitTestSupport {
     /// Runs the main run loop until `condition` holds: for something an app timer does, so the
     /// test waits for it however late a busy machine fires it, instead of for a fixed time
     /// (#510). Returns whether it held before `timeout`.
-    @discardableResult
     static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
