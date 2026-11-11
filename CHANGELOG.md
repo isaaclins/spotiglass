@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.31] - 2026-11-11
+
+### Fixed
+
+- Apple Music search no longer lists a saved album twice, but other versions of it, such as the clean edit, still show.
+
 ## [0.8.30] - 2026-11-11
 
 ### Fixed

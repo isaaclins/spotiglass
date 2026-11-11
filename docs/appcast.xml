@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.30</title>
-            <pubDate>Wed, 11 Nov 2026 02:37:26 +0100</pubDate>
-            <sparkle:version>41</sparkle:version>
-            <sparkle:shortVersionString>0.8.30</sparkle:shortVersionString>
+            <title>0.8.31</title>
+            <pubDate>Wed, 11 Nov 2026 02:47:55 +0100</pubDate>
+            <sparkle:version>42</sparkle:version>
+            <sparkle:shortVersionString>0.8.31</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music search no longer lists a saved album twice, but other versions of it, such as the clean edit, still show.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.30/Spotiglass-0.8.30.zip" length="13295913" type="application/octet-stream" sparkle:edSignature="iCClO+Y248hIiNva1dka12BdcrWKrDfDDUGGsScstCO38GPDeP43+vLBOh+LAGhoRI7GxYyCT5kn6Btr9Z5yDA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.31/Spotiglass-0.8.31.zip" length="13291569" type="application/octet-stream" sparkle:edSignature="bIXcDFEHwDb8mGR4AzIvxO9QdTl7cP1NEycppj0qUrx22tom6UmRN6hBZLrZTLr0o256/b6JOj+8dt98WJ3tDA=="/>
         </item>
     </channel>
 </rss>
