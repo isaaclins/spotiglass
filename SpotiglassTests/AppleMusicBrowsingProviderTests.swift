@@ -1857,12 +1857,40 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
 // MARK: - Saved songs get their catalog release's rating (#518)
 
-private final class LockedCounter: @unchecked Sendable {
+/// Lets any number of waiters go at once when opened.
+private final class Latch: @unchecked Sendable {
     private let lock = NSLock()
-    private var count = 0
-    var value: Int { lock.withLock { count } }
-    func increment() { lock.withLock { count += 1 } }
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            let goNow = lock.withLock {
+                if isOpen { return true }
+                waiters.append(continuation)
+                return false
+            }
+            if goNow { continuation.resume() }
+        }
+    }
+
+    func open() {
+        let waiting = lock.withLock {
+            isOpen = true
+            defer { waiters = [] }
+            return waiters
+        }
+        waiting.forEach { $0.resume() }
+    }
 }
+
+private final class LockedPages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [(limit: Int, offset: Int)] = []
+    var reads: [(limit: Int, offset: Int)] { lock.withLock { recorded } }
+    func append(limit: Int, offset: Int) { lock.withLock { recorded.append((limit, offset)) } }
+}
+
 
 /// MusicKit on macOS gives songs saved to the library no content rating; each names its catalog
 /// release (`playParams.catalogId`) instead. Read as they came, saved explicit songs had no
@@ -1986,27 +2014,60 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(Self.explicitFlags(next.tracks), [true])
     }
 
-    /// A read that comes along while a lookup is still asking (its list stopped waiting) waits
-    /// for that lookup instead of asking for the same songs again.
+    /// A read that comes along while a lookup is still asking waits for that lookup instead of
+    /// asking for the same songs again. Lookups are counted when they start, which happens
+    /// before a read waits, so the count doesn't depend on when they run.
     func testALookupStillRunningIsNotAskedAgain() async throws {
+        let ratings = AppleMusicContentRatings()
         let song = try AppleMusicFixtures.song(id: "i.5180081", title: "Night Ferry", catalogID: "9518081")
-        let (answer, release) = AsyncStream<Void>.makeStream()
-        let asked = LockedCounter()
+        let answer = Latch()
         let lookup: AppleMusicContentRatings.CatalogLookup = { _ in
-            asked.increment()
-            for await _ in answer { break }
+            await answer.wait()
             return ["9518081": true]
         }
-        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil, deadline: {})
-        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil, deadline: {})
-        XCTAssertNil(AppleMusicContentRatings.shared.rating(of: song), "the catalog hasn't answered")
+        // Both lists stop waiting at their deadline; the first one's lookup keeps asking.
+        await ratings.resolve([song], lookup: lookup, library: nil, deadline: {})
+        await ratings.resolve([song], lookup: lookup, library: nil, deadline: {})
+        XCTAssertEqual(ratings.lookupsStarted, 1)
+        XCTAssertNil(ratings.rating(of: song), "the catalog hasn't answered")
 
-        // A read that waits for the answer: it either waits for the lookup still asking or finds
-        // its answer, so the lookup has run by the time it returns.
-        release.finish()
-        await AppleMusicContentRatings.shared.resolve([song], lookup: lookup, library: nil)
-        XCTAssertEqual(AppleMusicContentRatings.shared.rating(of: song), true)
-        XCTAssertEqual(asked.value, 1, "the reads that came along meanwhile didn't ask again")
+        // A read that waits for the answer gets the running lookup's.
+        let waiting = Task { await ratings.resolve([song], lookup: lookup, library: nil) }
+        answer.open()
+        await waiting.value
+        XCTAssertEqual(ratings.rating(of: song), true)
+        XCTAssertEqual(ratings.lookupsStarted, 1)
+    }
+
+    /// A library past the read's bound: rows for older songs can't be found by reading again, so
+    /// after one read stopped at the bound, a row not seen yet only reads the newest page (where
+    /// a song added since would be), not the whole bound again.
+    func testALibraryPastTheReadBoundIsReadInFullOnce() async throws {
+        let ratings = AppleMusicContentRatings(libraryPageSize: 2, maxLibrarySongs: 4)
+        // Newest first, like `librarySongs`; the last two are past the bound.
+        let library = try (1...6).map {
+            try AppleMusicFixtures.song(id: "i.51801\($0)", title: "Song \($0)", catalogID: "95181\($0)", persistentID: "51800000000000001\($0)")
+        }
+        let pages = LockedPages()
+        let read: AppleMusicContentRatings.LibraryPage = { limit, offset in
+            pages.append(limit: limit, offset: offset)
+            return Array(library.dropFirst(offset).prefix(limit))
+        }
+        func row(_ n: Int) throws -> Song {
+            try AppleMusicFixtures.song(id: "51800000000000001\(n)", title: "Song \(n)", persistentID: "51800000000000001\(n)")
+        }
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in Dictionary(uniqueKeysWithValues: ids.map { ($0, true) }) }
+
+        await ratings.resolve([try row(5)], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.map(\.offset), [0, 2], "the whole bound, once")
+        XCTAssertNil(ratings.rating(of: try row(5)), "past the bound: unknown, not clean")
+
+        await ratings.resolve([try row(6)], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.map(\.offset), [0, 2, 0], "then only the newest page")
+        XCTAssertNil(ratings.rating(of: try row(6)))
+
+        await ratings.resolve([try row(1), try row(2)], lookup: lookup, library: read)
+        XCTAssertEqual([try row(1), try row(2)].map { ratings.rating(of: $0) }, [true, true])
     }
 
     /// The case from the real library: a saved explicit song and its clean catalog version both

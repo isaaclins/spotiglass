@@ -32,8 +32,10 @@ final class AppleMusicContentRatings: @unchecked Sendable {
 
     /// Lookups running at once, so a large library's first read doesn't wait on each in turn.
     static let parallelLookups = 4
-    static let libraryPageSize = AppleMusicBrowsingProvider.librarySongsPageSize
-    static let maxLibrarySongs = AppleMusicBrowsingProvider.maxLibrarySongs
+    /// Songs per page of a library read, and the most one read covers (newest first, like
+    /// Liked Songs). Tests make them small.
+    let libraryPageSize: Int
+    let maxLibrarySongs: Int
 
     /// Where an unrated song's rating comes from.
     private enum Release {
@@ -74,9 +76,22 @@ final class AppleMusicContentRatings: @unchecked Sendable {
     private var lookupsInFlight: [String: Task<Void, Never>] = [:]
     /// The library read running now, so lists opening together read it once.
     private var libraryRead: Task<Bool, Never>?
+    private var startedLookups = 0
+    /// Catalog lookups started, counted when they start (`SpotiglassTests` only).
+    // periphery:ignore
+    var lookupsStarted: Int { lock.withLock { startedLookups } }
+    /// A read stopped at ``maxLibrarySongs``: the older songs past it can't be found by reading
+    /// again, so later reads only look at the newest page, for songs added since.
+    private var libraryIsPastTheReadBound = false
 
-    init(capacity: Int = 20_000) {
+    init(
+        capacity: Int = 20_000,
+        libraryPageSize: Int = AppleMusicBrowsingProvider.librarySongsPageSize,
+        maxLibrarySongs: Int = AppleMusicBrowsingProvider.maxLibrarySongs
+    ) {
         self.capacity = max(2, capacity)
+        self.libraryPageSize = max(1, libraryPageSize)
+        self.maxLibrarySongs = max(1, maxLibrarySongs)
         releasesBySongID = LRUDictionary(capacity: self.capacity)
         librarySongsByPersistentID = LRUDictionary(capacity: self.capacity)
         ratingsByCatalogID = LRUDictionary(capacity: self.capacity)
@@ -91,6 +106,8 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             ratingsByCatalogID = LRUDictionary(capacity: capacity)
             lookupsInFlight.removeAll()
             libraryRead = nil
+            libraryIsPastTheReadBound = false
+            startedLookups = 0
         }
     }
 
@@ -150,7 +167,11 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         let started = startLookups(catalogIDs, lookup: lookup)
         let work = Task {
             for lookup in started { await lookup.value }
-            guard !unmapped.isEmpty, let library, await self.readLibrary(library) else { return }
+            // A read of another list may have mapped them while this one waited.
+            let stillUnmapped = self.lock.withLock {
+                unmapped.filter { self.librarySongsByPersistentID.value(forKey: $0) == nil }
+            }
+            guard !stillUnmapped.isEmpty, let library, await self.readLibrary(library) else { return }
             for lookup in self.startLookups(self.releasesAfterLibraryRead(unmapped), lookup: lookup) {
                 await lookup.value
             }
@@ -179,6 +200,7 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             }
             guard !missing.isEmpty else { return waits }
             let started = Task { await self.lookUp(missing, lookup: lookup) }
+            startedLookups += 1
             for id in missing { lookupsInFlight[id] = started }
             return waits + [started]
         }
@@ -266,12 +288,14 @@ final class AppleMusicContentRatings: @unchecked Sendable {
 
     // MARK: - Reading the library
 
-    /// Reads the whole library once for the catalog ID behind each persistent ID; `false` when
-    /// it failed, so nothing is concluded from it.
+    /// Reads the library for the catalog ID behind each persistent ID: all of it up to
+    /// ``maxLibrarySongs``, or only the newest page once a read stopped there. `false` when it
+    /// failed, so nothing is concluded from it.
     private func readLibrary(_ page: @escaping LibraryPage) async -> Bool {
         let read: Task<Bool, Never> = lock.withLock {
             if let running = libraryRead { return running }
-            let read = Task { await self.readWholeLibrary(page) }
+            let limit = libraryIsPastTheReadBound ? libraryPageSize : maxLibrarySongs
+            let read = Task { await self.readWholeLibrary(page, upTo: limit) }
             libraryRead = read
             return read
         }
@@ -280,10 +304,10 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         return succeeded
     }
 
-    private func readWholeLibrary(_ page: LibraryPage) async -> Bool {
+    private func readWholeLibrary(_ page: LibraryPage, upTo limit: Int) async -> Bool {
         var offset = 0
-        while offset < Self.maxLibrarySongs {
-            guard let songs = try? await page(min(Self.libraryPageSize, Self.maxLibrarySongs - offset), offset) else { return false }
+        while offset < limit {
+            guard let songs = try? await page(min(libraryPageSize, limit - offset), offset) else { return false }
             var learned: [(persistentID: String, song: LibrarySong)] = []
             for song in songs {
                 let ids = Self.identifiers(of: song) { AppleMusicSongIdentity(encoding: song) }
@@ -297,8 +321,9 @@ final class AppleMusicContentRatings: @unchecked Sendable {
                 }
             }
             offset += songs.count
-            if songs.count < Self.libraryPageSize { break }
+            if songs.count < libraryPageSize { break }
         }
+        if offset >= maxLibrarySongs { lock.withLock { libraryIsPastTheReadBound = true } }
         return true
     }
 
