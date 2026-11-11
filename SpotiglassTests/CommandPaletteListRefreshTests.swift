@@ -47,6 +47,21 @@ final class CommandPaletteListRefreshTests: XCTestCase {
         XCTAssertEqual(Set(rows.map(\.id)).count, rows.count, "two rows share a name")
     }
 
+    /// The same item twice in a section, or in two sections, still gives every row its own name,
+    /// so the list never reuses one row for another.
+    func testRepeatedItemsGetTheirOwnRows() {
+        let song = item("t-bad-habit", "Bad Habit", .tracks)
+        let other = item("t-dark-red", "Dark Red", .tracks)
+        let rows = CommandPaletteListRow.rows(for: [
+            (.tracks, [song, song, other, song]),
+            (.thisPlaylist, [song]),
+        ])
+        XCTAssertEqual(rows.map(\.flatIndex), Array(0 ..< 5))
+        XCTAssertEqual(rows.map(\.item.id), ["t-bad-habit", "t-bad-habit", "t-dark-red", "t-bad-habit", "t-bad-habit"])
+        XCTAssertEqual(Set(rows.map(\.id)).count, rows.count, "two rows share a name")
+        XCTAssertEqual(rows.map(\.startsSection), [true, false, false, false, true])
+    }
+
     // MARK: - Replay
 
     private func assertRows(
