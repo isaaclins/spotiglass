@@ -213,6 +213,11 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         other.$repeatMode
             .sink { [weak starting] in starting?.otherServiceRepeatMode = $0 }
             .store(in: &cancellables)
+        other.connectionStatePublisher
+            .map { $0.currentLyricTrack != nil }
+            .removeDuplicates()
+            .sink { [weak starting] in starting?.otherServiceHasLyrics = $0 }
+            .store(in: &cancellables)
         // From the published values, not `other.isTransportMutationReady`: a sink runs before
         // the property changes.
         Publishers.CombineLatest4(other.$isTransportStateKnown, other.connectionStatePublisher, other.$deviceID, other.$activePlaybackDeviceID)

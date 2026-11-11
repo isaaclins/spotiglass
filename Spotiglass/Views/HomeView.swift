@@ -59,7 +59,7 @@ struct HomeView: View {
     private var quickAccessGrid: some View {
         LazyVGrid(columns: quickAccessColumns, spacing: SpotiglassDesign.spacingS) {
             ForEach(viewModel.homeQuickAccessCards) { card in
-                HomeQuickAccessTile(card: card) {
+                HomeQuickAccessTile(card: card, browserViewModel: viewModel) {
                     open(card.destination)
                 }
             }
@@ -89,7 +89,7 @@ struct HomeView: View {
                     ScrollView(.horizontal, showsIndicators: true) {
                         HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                             ForEach(cards) { card in
-                                HomeMediaCardView(card: card) {
+                                HomeMediaCardView(card: card, browserViewModel: viewModel, openArtist: openArtist) {
                                     open(card.destination)
                                 }
                             }
@@ -191,6 +191,10 @@ struct HomeView: View {
     }
 
     // MARK: - Navigation
+
+    private func openArtist(_ artist: MusicArtistRef) {
+        Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
+    }
 
     private func open(_ destination: HomeMediaCard.Destination) {
         switch destination {

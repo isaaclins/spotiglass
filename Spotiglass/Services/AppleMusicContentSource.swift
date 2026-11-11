@@ -78,8 +78,6 @@ protocol AppleMusicContentSource: Sendable {
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
     /// Two-letter storefront country code, e.g. `ch`.
     func storefrontCountryCode() async throws -> String
-    /// What the Apple Music API says about each library playlist's cover (#444).
-    func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover]
 }
 
 /// Live MusicKit requests. Library reads use `MusicLibraryRequest` (read-only on macOS),
@@ -163,15 +161,28 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return await Self.withAlbums(songs)
     }
 
-    /// Recently played songs arrive without their album, and Home groups them by album. One
-    /// catalog request loads the albums for all of them; songs it can't resolve stay as they are.
+    /// Recently played songs arrive without their album and artists. Home groups them by album
+    /// and links each artist under the card (#478), so one catalog request loads both for all
+    /// of them; songs it can't resolve stay as they are.
     private static func withAlbums(_ songs: [Song]) async -> [Song] {
         guard !songs.isEmpty else { return songs }
         var request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: songs.map(\.id))
-        request.properties = [.albums]
+        request.properties = [.albums, .artists]
         guard let detailed = try? await request.response().items else { return songs }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return songs.map { byID[$0.id] ?? $0 }
+    }
+
+    /// Catalog search albums arrive without their artists. The search card links each artist
+    /// under the cover (#478), so one catalog request loads them for the whole page; albums it
+    /// can't resolve keep their plain artist name.
+    private static func withArtists(_ albums: [Album]) async -> [Album] {
+        guard !albums.isEmpty else { return albums }
+        var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: albums.map(\.id))
+        request.properties = [.artists]
+        guard let detailed = try? await request.response().items else { return albums }
+        let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return albums.map { byID[$0.id] ?? $0 }
     }
 
     func recommendedPlaylists() async throws -> [Playlist] {
@@ -278,7 +289,7 @@ struct MusicKitContentSource: AppleMusicContentSource {
         let response = try await request.response()
         var items = AppleMusicSearchItems(
             songs: Array(response.songs),
-            albums: Array(response.albums),
+            albums: await Self.withArtists(Array(response.albums)),
             artists: Array(response.artists),
             playlists: Array(response.playlists)
         )
@@ -308,25 +319,6 @@ struct MusicKitContentSource: AppleMusicContentSource {
 
     func storefrontCountryCode() async throws -> String {
         try await MusicDataRequest.currentCountryCode
-    }
-
-    /// Upper bound for pages of library playlists, 100 each; only stops a runaway.
-    static let maxPlaylistCoverPages = AppleMusicBrowsingProvider.maxLibraryPlaylists / 100
-
-    func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover] {
-        var covers: [AppleMusicPlaylistCover] = []
-        var next: String? = AppleMusicCloudRequests.libraryPlaylistsPath
-        var pages = 0
-        while let path = next, pages < Self.maxPlaylistCoverPages {
-            try Task.checkCancellation()
-            let page = try AppleMusicPlaylistCover.page(
-                from: try await MusicDataRequestCloudLibrary.musicDataRequest(AppleMusicCloudRequests.get(path))
-            )
-            covers += page.covers
-            next = page.next
-            pages += 1
-        }
-        return covers
     }
 
     /// Follows MusicKit batches until `limit` items are collected or the collection ends.
@@ -447,5 +439,82 @@ struct SystemAppleMusicAuthorization: AppleMusicAuthorizing {
             return subscription.canPlayCatalogContent
         }
         return nil
+    }
+}
+
+// MARK: - Pin identity (#487)
+
+/// The MusicKit reads behind ``AppleMusicPinAliases``: they need a real library and catalog, so
+/// tests replace them.
+extension MusicKitContentSource {
+    /// Pinned albums by ID: library albums from the library, catalog albums from the catalog.
+    static func pinnedAlbums(ids: [String]) async throws -> [Album] {
+        let library = ids.filter(AppleMusicPinAliasRegistry.isLibraryID).map { MusicItemID($0) }
+        let catalog = ids.filter { !AppleMusicPinAliasRegistry.isLibraryID($0) }.map { MusicItemID($0) }
+        var result: [Album] = []
+        for batch in MusicKitLibraryLookup.batches(library.map(\.rawValue)) {
+            var request = MusicLibraryRequest<Album>()
+            request.filter(matching: \.id, memberOf: batch.map { MusicItemID($0) })
+            result += try await request.response().items
+        }
+        for start in stride(from: 0, to: catalog.count, by: pinnedAlbumBatchSize) {
+            let batch = Array(catalog[start..<min(start + pinnedAlbumBatchSize, catalog.count)])
+            result += try await MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: batch).response().items
+        }
+        return result
+    }
+
+    /// Albums a search for a title and artist finds in the catalog and in the library, to tell
+    /// whether one saved album and one catalog release share a key or several do. The library is
+    /// searched by title only: it finds nothing for title and artist together.
+    static func albums(matching query: AppleMusicAlbumQuery) async throws -> AppleMusicAlbumSearch {
+        var catalog = MusicCatalogSearchRequest(term: "\(query.title) \(query.artist)", types: [Album.self])
+        catalog.limit = pinnedAlbumSearchLimit
+        var library = MusicLibrarySearchRequest(term: query.title, types: [Album.self])
+        library.limit = pinnedAlbumSearchLimit
+        async let catalogAlbums = catalog.response().albums
+        async let libraryAlbums = library.response().albums
+        return AppleMusicAlbumSearch(catalog: Array(try await catalogAlbums), library: Array(try await libraryAlbums))
+    }
+
+    /// How many albums that search reads: same-name releases of one artist sit near the top.
+    static let pinnedAlbumSearchLimit = 25
+
+    /// How many catalog albums one request asks for.
+    static let pinnedAlbumBatchSize = 100
+
+    /// The other ID of each song, artist or playlist in `itemIDs` the library has: a library
+    /// item's catalog ID, or the library ID of a catalog item in the library (a library request
+    /// by ID matches either). One request; callers keep it to ``MusicKitLibraryLookup/batchSize``.
+    static func pinAliases(kind: PinnedItemKind, itemIDs: [String]) async throws -> [String: String] {
+        let asked = Set(itemIDs)
+        let ids = itemIDs.map { MusicItemID($0) }
+        func pairs<Item>(_ items: some Sequence<Item>, id: (Item) -> String, other: (Item) -> String?) -> [String: String] {
+            var result: [String: String] = [:]
+            for item in items {
+                guard let otherID = other(item) else { continue }
+                let itemID = id(item)
+                if asked.contains(itemID) { result[itemID] = otherID }
+                if asked.contains(otherID) { result[otherID] = itemID }
+            }
+            return result
+        }
+        switch kind {
+        case .playlist:
+            var request = MusicLibraryRequest<Playlist>()
+            request.filter(matching: \.id, memberOf: ids)
+            return pairs(try await request.response().items, id: \.id.rawValue, other: AppleMusicItemMapping.catalogID(of:))
+        case .track:
+            var request = MusicLibraryRequest<Song>()
+            request.filter(matching: \.id, memberOf: ids)
+            return pairs(try await request.response().items, id: \.id.rawValue) { AppleMusicSongIdentity(encoding: $0).catalogID }
+        case .artist:
+            var request = MusicLibraryRequest<Artist>()
+            request.filter(matching: \.id, memberOf: ids)
+            return pairs(try await request.response().items, id: \.id.rawValue) { AppleMusicSongIdentity(encoding: $0).catalogID }
+        case .album, .likedSongs:
+            // Albums are matched by their match key (see `pinnedAlbums(ids:)`).
+            return [:]
+        }
     }
 }

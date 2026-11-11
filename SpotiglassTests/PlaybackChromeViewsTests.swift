@@ -679,7 +679,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 XCTAssertGreaterThan(text.count, 1, "the title and the line under it were not both found, \(text), \(label)")
                 XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title block is off the centre line, \(text), \(label)")
 
-                let showsLyrics = ["playing", "paused", "apple music"].contains(state)
+                // The other service's song in the bar opens its own lyrics (#486).
+                let showsLyrics = ["playing", "paused", "apple music", "other service"].contains(state)
                 XCTAssertEqual(
                     controls.contains { $0.axDescription == lyricsLabel }, showsLyrics,
                     showsLyrics ? "the Lyrics button is missing, \(label)" : "no track, no Lyrics button, \(label)"

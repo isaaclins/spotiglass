@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.8.26] - 2026-11-11
+
+### Fixed
+
+- Apple Music albums can no longer be pinned to the sidebar twice.
+
+## [0.8.25] - 2026-11-11
+
+### Fixed
+
+- Pressing a top track in Apple Music now plays instead of failing and showing as Paused.
+
+## [0.8.24] - 2026-11-11
+
+### Fixed
+
+- Album and playlist covers on Home and Search now open the right-click menu, and their artist names are clickable.
+
+## [0.8.23] - 2026-11-10
+
+### Fixed
+
+- Apple Music playlists without their own picture now show the cover from the Music app instead of a grey tile.
+
+## [0.8.22] - 2026-11-10
+
+### Fixed
+
+- Lyrics now follow the song in the player bar, even when you're browsing the other service.
+
 ## [0.8.21] - 2026-11-10
 
 ### Fixed

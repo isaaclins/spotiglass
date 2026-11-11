@@ -124,6 +124,13 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         }
     }
 
+    /// Loading, for a song that is on its way: a play just started and the player has no song
+    /// yet. Whatever was loading for the previous song no longer shows.
+    func waitForTrack() {
+        _ = beginLoad()
+        phase = .loading
+    }
+
     private func beginLoad() -> Int {
         loadGeneration += 1
         return loadGeneration

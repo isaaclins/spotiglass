@@ -236,6 +236,47 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         }
     }
 
+    /// #486: while the lyrics show the other service's song, its album, artists and queue are
+    /// not in the library on screen, so the column shows them as plain text and leaves out
+    /// Next in Queue. The on-screen service's song keeps its links and its queue.
+    func testLyricsOfTheOtherServicesSongLinkNowhere() throws {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        let queue = QueueViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        let track = sampleTrack(spotifyID: "otherServiceColumn")
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(track, isPaused: true, nextTracks: []))
+        let nextInQueue = SpotiglassL10n.string("lyrics.nextInQueue")
+
+        for linksToLibrary in [true, false] {
+            let column = ImmersiveLyricsLeftColumnView(
+                playbackViewModel: playback,
+                queueViewModel: queue,
+                navigateToArtist: { _ in },
+                navigateToAlbum: { _, _, _ in },
+                currentTrack: track,
+                linksToLibrary: linksToLibrary
+            )
+            ViewTestHost.host(column, size: CGSize(width: 320, height: 640))
+            XCTAssertNoThrow(try column.inspect().find(text: "Album"), "the album name is missing, links \(linksToLibrary)")
+            let buttons = try column.inspect().findAll(ViewType.Button.self)
+            let showsQueue = (try? column.inspect().find(text: nextInQueue)) != nil
+            if linksToLibrary {
+                XCTAssertFalse(buttons.isEmpty, "the album link is missing")
+                XCTAssertTrue(showsQueue, "Next in Queue is missing")
+            } else {
+                XCTAssertEqual(buttons.count, 0, "the other service's album or artists link into this library")
+                XCTAssertFalse(showsQueue, "Next in Queue shows this library's queue under the other service's song")
+            }
+        }
+    }
+
     func testLyricsOverlayAccessibilityContract() throws {
         let projectRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

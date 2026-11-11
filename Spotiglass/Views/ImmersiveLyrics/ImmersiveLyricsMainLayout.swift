@@ -7,6 +7,7 @@ struct ImmersiveLyricsMainLayout: View {
     let navigateToArtist: (ArtistTapTarget) -> Void
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let currentTrack: PlaybackNowPlaying?
+    var followsOtherService = false
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
@@ -40,7 +41,8 @@ struct ImmersiveLyricsMainLayout: View {
                             queueViewModel: queueViewModel,
                             navigateToArtist: navigateToArtist,
                             navigateToAlbum: navigateToAlbum,
-                            currentTrack: currentTrack
+                            currentTrack: currentTrack,
+                            linksToLibrary: !followsOtherService
                         )
                         .frame(width: min(SpotiglassDesign.Layout.lyricsSideColumnMaxWidth, geo.size.width * 0.36), alignment: .leading)
                         ImmersiveLyricsLyricsPhaseColumn(
@@ -65,6 +67,7 @@ struct ImmersiveLyricsMainLayout: View {
                             navigateToArtist: navigateToArtist,
                             navigateToAlbum: navigateToAlbum,
                             currentTrack: currentTrack,
+                            linksToLibrary: !followsOtherService,
                             isCompact: true
                         )
                         .onGeometryChange(for: CGFloat.self, of: \.size.height) { compactHeaderHeight = $0 }

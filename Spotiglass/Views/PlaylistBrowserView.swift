@@ -435,6 +435,16 @@ struct PlaylistBrowserView: View {
         .onChange(of: playbackDeviceID) { _, _ in
             syncTrackSelectionMenuState()
         }
+        .onReceive(viewModel.$playlistState) { state in
+            guard let playlists = state.currentValue else { return }
+            pinnedStore.fillMissingPlaylistArtwork(from: playlists)
+        }
+        // A shared playlist pinned from Search is pinned under its catalog ID, which only a
+        // search result carries (#477).
+        .onReceive(viewModel.catalogSearch.$state) { state in
+            guard let results = state.currentValue else { return }
+            pinnedStore.fillMissingPlaylistArtwork(from: results.playlists)
+        }
         .onChange(of: pinnedStore.items) { _, _ in
             // Auth teardown detaches this scene before clearing account-bound
             // pins. Do not let that published clear rebind browser callbacks
@@ -466,6 +476,16 @@ struct PlaylistBrowserView: View {
                     playlistColumnVisibility = .detailOnly
                 }
             }
+        }
+        // "Edit playlist name" on the tile of an empty playlist renames it in its sidebar row
+        // (its page has no header), so a hidden sidebar comes back for it (#478).
+        .onChange(of: viewModel.pendingSidebarPlaylistNameEditID) { _, requestedID in
+            if requestedID != nil, playlistColumnVisibility == .detailOnly {
+                playlistColumnVisibility = .doubleColumn
+            }
+        }
+        .onChange(of: playlistColumnVisibility, initial: true) { _, newValue in
+            viewModel.isSidebarShown = newValue != .detailOnly
         }
         .onChange(of: playlistColumnVisibility) { _, newValue in
             commandPaletteManager.setSidebarVisible(newValue != .detailOnly)

@@ -384,8 +384,8 @@ struct PlaybackControlsView: View {
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
     /// Set while the bar shows the other service's player because that is what you hear (#396):
-    /// the bar says which service plays, and its artists and lyrics, which belong to the other
-    /// library, aren't offered here.
+    /// the bar says which service plays, and its artists, which belong to the other library,
+    /// aren't offered here. Its Lyrics button opens that song's lyrics (#486).
     var otherService: MusicService? = nil
     @Environment(\.openSettings) private var openSettingsAction
     @State private var isVolumePopoverPresented = false
@@ -1000,8 +1000,9 @@ struct PlaybackControlsView: View {
         return false
     }
 
+    /// The lyrics follow the song the bar shows, whichever service plays it (#486).
     private var showsLyricsButton: Bool {
-        otherService == nil && viewModel.currentLyricTrack != nil
+        viewModel.currentLyricTrack != nil
     }
 
     /// The service whose player the bar shows.
@@ -1295,7 +1296,7 @@ private struct PlaybackArtistLine: View {
                             // ellipsize a credit that it is meant to reveal.
                             .fixedSize(horizontal: true, vertical: false)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.spotiglassTextLink)
                     .accessibilityLabel(
                         String(
                             format: SpotiglassL10n.string("playback.controls.openArtist"),

@@ -64,6 +64,13 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
         return sized
     }
 
+    /// A URL for the artwork registered under `itemKey` (a pin's ID), at `size` pixels, for a pin
+    /// saved without a cover (#477).
+    func url(forItemKey itemKey: String, size: Int) -> URL? {
+        let artwork = lock.withLock { artworkByItemKey.value(forKey: itemKey) }
+        return artwork?.url(width: size, height: size)
+    }
+
     /// The artwork for `url`, or else the artwork last registered for `itemKey`. A hit counts
     /// as a use, which keeps drawn covers from being evicted.
     func artwork(for url: URL, itemKey: String? = nil) -> Artwork? {

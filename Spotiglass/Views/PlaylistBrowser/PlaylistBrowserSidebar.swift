@@ -81,6 +81,13 @@ struct PlaylistBrowserSidebar: View {
                 onSidebarListSelectionChange(oldValue, newValue)
             }
             // The first value is the playlist playing already: like `onChange`, only a new one scrolls.
+            // An empty playlist renamed from its Home or Search tile edits in its row here, which
+            // may be scrolled out of view (#478).
+            // `initial`: a sidebar that comes back for it may be built anew with the request set.
+            .onChange(of: viewModel.sidebarPlaylistNameEditRequestID, initial: true) { _, requestedID in
+                guard let requestedID else { return }
+                proxy.scrollTo(requestedID, anchor: .center)
+            }
             .onReceive(playbackViewModel.$activePlaylistID.dropFirst()) { newActiveID in
                 guard let newActiveID else { return }
                 proxy.scrollTo(newActiveID, anchor: .center)

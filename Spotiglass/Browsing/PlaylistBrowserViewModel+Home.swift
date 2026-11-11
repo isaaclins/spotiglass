@@ -16,12 +16,9 @@ extension PlaylistBrowserViewModel {
         ]
         cards.append(contentsOf: visiblePlaylists.prefix(11).map { playlist in
             HomeMediaCard(
-                id: playlist.id,
-                title: playlist.title,
+                playlist: PlaylistBrowserLibraryActions.playlistSummaryFromRow(playlist),
                 // The row keeps the owner it was loaded with; resolve it like the sidebar (#398).
-                subtitle: playlist.localizedOwner(),
-                artworkURL: playlist.artworkURL,
-                destination: .playlist(id: playlist.id)
+                subtitle: playlist.localizedOwner()
             )
         })
         return cards

@@ -345,6 +345,30 @@ final class LyricsOverlayController: ObservableObject {
     func dismiss() {
         isPresented = false
     }
+
+    /// Opens the lyrics only when there is a song to show them for: the one in the player bar,
+    /// whichever service is on screen (#486).
+    func setPresented(_ presented: Bool) {
+        guard !presented || hasLyricsToShow else { return }
+        isPresented = presented
+    }
+
+    /// What the bar's Lyrics button and View › Show Lyrics toggle. `willOpen` runs when the
+    /// lyrics are about to open.
+    func presentedBinding(willOpen: @escaping () -> Void) -> Binding<Bool> {
+        Binding(
+            get: { self.isPresented },
+            set: { newValue in
+                if newValue, !self.isPresented, self.hasLyricsToShow { willOpen() }
+                self.setPresented(newValue)
+            }
+        )
+    }
+
+    var hasLyricsToShow: Bool {
+        guard let playbackViewModel else { return false }
+        return playbackViewModel.audiblePlayer.currentLyricTrack != nil
+    }
 }
 
 /// Renders ``ImmersiveLyricsView`` in the browser's main column, in place of the page that was
@@ -376,8 +400,8 @@ struct LyricsOverlayLayer: View {
                 let navigateAlbum = lyricsOverlay.navigateToAlbum
             {
                 LyricsOverlayFocusContainer(
-                    content: ImmersiveLyricsView(
-                        playbackViewModel: playback,
+                    content: LyricsOverlayPlayerResolver(
+                        onScreenPlayer: playback,
                         queueViewModel: queue,
                         lyricsModel: lyrics,
                         navigateToArtist: navigateArtist,
@@ -403,5 +427,31 @@ struct LyricsOverlayLayer: View {
         .clipped()
         .ignoresSafeArea(.container, edges: .top)
         .allowsHitTesting(immersiveLyricsReady)
+    }
+}
+
+/// Shows the lyrics of the song in the player bar (``PlaybackSessionViewModel/audiblePlayer``,
+/// #486): the on-screen player, or the other service's while its music is the one you hear,
+/// playing or paused. The bar, View › Show Lyrics and the pop-out window follow the same player.
+struct LyricsOverlayPlayerResolver: View {
+    @ObservedObject var onScreenPlayer: PlaybackSessionViewModel
+    let queueViewModel: QueueViewModel
+    let lyricsModel: ImmersiveLyricsViewModel
+    let navigateToArtist: (ArtistTapTarget) -> Void
+    let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        let player = onScreenPlayer.audiblePlayer
+        ImmersiveLyricsView(
+            playbackViewModel: player,
+            queueViewModel: queueViewModel,
+            lyricsModel: lyricsModel,
+            navigateToArtist: navigateToArtist,
+            navigateToAlbum: navigateToAlbum,
+            onDismiss: onDismiss,
+            followsOtherService: player !== onScreenPlayer
+        )
+        .id(ObjectIdentifier(player))
     }
 }

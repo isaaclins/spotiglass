@@ -1,17 +1,11 @@
 import SwiftUI
 
 extension PlaylistBrowserView {
+    /// The bar's Lyrics button and View › Show Lyrics (#486).
     var isLyricsPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { lyricsOverlay.isPresented },
-            set: { newValue in
-                guard !newValue || playbackViewModel.currentLyricTrack != nil else { return }
-                if newValue, !lyricsOverlay.isPresented {
-                    pendingPlaylistListScrollRestoreID = anchorTrackIDForPlaylistListScrollRestore()
-                }
-                lyricsOverlay.isPresented = newValue
-            }
-        )
+        lyricsOverlay.presentedBinding {
+            pendingPlaylistListScrollRestoreID = anchorTrackIDForPlaylistListScrollRestore()
+        }
     }
 
     /// Prefer the visible playlist row that matches the current Spotify URI; otherwise last `TrackListRow.onAppear` id.

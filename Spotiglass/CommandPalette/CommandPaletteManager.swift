@@ -188,6 +188,12 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refreshListedCommands()
     }
 
+    /// Show Lyrics needs a song in the bar; Hide Lyrics works whenever the lyrics show, also
+    /// while they wait for a song that is on its way (#486).
+    var isLyricsToggleAllowed: Bool {
+        canToggleLyrics || isLyricsPresented?() == true
+    }
+
     func setLyricsToggleAvailability(_ available: Bool) {
         guard canToggleLyrics != available else { return }
         canToggleLyrics = available
@@ -215,14 +221,14 @@ final class CommandPaletteManager: ObservableObject {
     func bindPlaybackReadiness(to playback: PlaybackSessionViewModel) {
         playbackReadinessCancellables.removeAll()
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
-        setLyricsToggleAvailability(playback.currentLyricTrack != nil)
+        setLyricsToggleAvailability(playback.audiblePlayer.currentLyricTrack != nil)
         shuffleEnabled = playback.shuffleEnabled
         repeatMode = playback.repeatMode
         canMutatePlaybackTransport = playback.isTransportMutationReady
         canMutateRepeat = playback.audiblePlayer.isTransportMutationReady
 
         let playerPushesState = playback.playerPushesState
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 playback.connectionStatePublisher,
                 playback.$deviceID,
@@ -230,9 +236,10 @@ final class CommandPaletteManager: ObservableObject {
                 playback.$isTransportStateKnown
             ),
             playback.$isOtherServiceHeard,
-            playback.$isOtherServiceTransportMutationReady
+            playback.$isOtherServiceTransportMutationReady,
+            playback.$otherServiceHasLyrics
         )
-        .sink { [weak self] state, isOtherServiceHeard, isOtherServiceTransportMutationReady in
+        .sink { [weak self] state, isOtherServiceHeard, isOtherServiceTransportMutationReady, otherServiceHasLyrics in
             let (connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown) = state
             // While the other service's music is what you hear, Play/Pause pauses or resumes it
             // (#396, #468).
@@ -246,7 +253,10 @@ final class CommandPaletteManager: ObservableObject {
                     playerPushesState: playerPushesState
                 )
             )
-            self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
+            // View › Show Lyrics opens the lyrics of the song in the bar (#486).
+            self?.setLyricsToggleAvailability(
+                followsOtherService ? otherServiceHasLyrics : connectionState.currentLyricTrack != nil
+            )
             let isTransportMutationReady = PlaybackSessionViewModel.isTransportMutationReady(
                 isTransportStateKnown: isTransportStateKnown,
                 connectionState: connectionState,
@@ -390,7 +400,7 @@ final class CommandPaletteManager: ObservableObject {
                 return playbackTogglePrerequisite?() ?? true
             }
             if binding.command == CommandPaletteCommandID.toggleLyrics {
-                return canToggleLyrics
+                return isLyricsToggleAllowed
             }
             if binding.command == CommandPaletteCommandID.popOutLyrics {
                 return popOutLyrics != nil
@@ -502,7 +512,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
         case CommandPaletteCommandID.toggleLyrics:
-            guard canToggleLyrics else { return }
+            guard isLyricsToggleAllowed else { return }
             toggleLyrics?()
         case CommandPaletteCommandID.popOutLyrics:
             viewModel.hide()
@@ -610,7 +620,7 @@ final class CommandPaletteManager: ObservableObject {
         CommandPaletteCommandCatalog.editable.compactMap { spec in
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
-            guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.toggleLyrics || isLyricsToggleAllowed else { return nil }
             guard spec.commandID != CommandPaletteCommandID.popOutLyrics || popOutLyrics != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.refreshPlaylists || isLyricsPresented?() != true else {
                 return nil
