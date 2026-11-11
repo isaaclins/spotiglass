@@ -570,7 +570,9 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testLyricsAutoCenterControllerEngageAndIdleResume() async {
-        let controller = LyricsAutoCenterController()
+        // The idle wait runs on a stepped clock, so a busy machine can't make it late (#510).
+        let clock = ManualPlaybackClock()
+        let controller = LyricsAutoCenterController(clock: clock)
         XCTAssertTrue(controller.isAutoCentering)
 
         controller.noteUserScrollActivity()
@@ -586,7 +588,12 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         } onChange: {
             resumeSignal.signal()
         }
-        let didResume = await resumeSignal.wait(timeout: .seconds(3))
+        let delay = ImmersiveLyricsLayout.autoCenterResumeDelay
+        clock.advance(by: delay - .milliseconds(1))
+        await clock.waitForSleepers()
+        XCTAssertFalse(controller.isAutoCentering, "auto-centering came back before the idle period ended")
+        clock.advance(by: .milliseconds(1))
+        let didResume = await resumeSignal.wait(timeout: .seconds(30))
         XCTAssertTrue(
             didResume,
             "auto-centering should resume after the idle period"

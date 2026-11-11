@@ -9,11 +9,15 @@ extension PlaylistBrowserViewModel {
         await selectAdjacentPlaylist(offset: -1)
     }
 
+    static let adjacentPlaylistDebounce: Duration = .milliseconds(150)
+
     private func selectAdjacentPlaylist(offset: Int) async {
         pendingAdjacentPlaylistOffset += offset
         adjacentPlaylistSelectionTask?.cancel()
+        let clock = adjacentPlaylistClock
+        let deadline = clock.now.advanced(by: Self.adjacentPlaylistDebounce)
         adjacentPlaylistSelectionTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await clock.sleep(until: deadline, tolerance: nil)
             guard let self, !Task.isCancelled else { return }
             let order: [SidebarSelection] = [.home, .likedSongs] + self.visiblePlaylists.map { .playlist($0.id) }
             guard !order.isEmpty else { return }

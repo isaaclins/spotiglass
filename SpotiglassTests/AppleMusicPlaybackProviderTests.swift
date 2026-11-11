@@ -1272,18 +1272,22 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// the recovery is due: the recovery waits for it instead of putting the old song (or
     /// "Ready") back under it, and once the play is through, the next read shows its song.
     func testAppleMusicRecoveryWaitsForAPlayStillRunning() async throws {
-        // Long enough that the held play is surely running before the recovery is due, even on
-        // a busy machine; the wait below is well past it.
-        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(300))
+        // The session's clock is stepped: the recovery is due exactly when the test says, while
+        // the play is held, however busy the machine is (#510).
+        let clock = ManualPlaybackClock()
+        let (player, session) = try await Self.playingSession(clock: clock)
         try await Self.read(session, player, at: 30)
         player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
         await session.next()
         guard case let .error(failed) = session.connectionState else { return XCTFail("Expected the failed Next") }
+        XCTAssertNotNil(session.passingErrorRecoveryTask)
 
         player.holdLookups = true
         let play = Task { await session.play(uri: Self.uris[3]) }
         while player.waitingLookups.isEmpty { await Task.yield() }
-        try await Task.sleep(for: .milliseconds(700))
+        clock.advance(by: session.passingErrorRecoveryDelay)
+        // Due: the recovery sees the play still running and waits once more instead of reading.
+        await clock.waitForSleeper(dueAt: clock.now.advanced(by: session.passingErrorRecoveryDelay))
         XCTAssertEqual(session.connectionState, .error(failed), "the recovery ran under the running play")
 
         player.releaseLookups()
@@ -1298,14 +1302,16 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// failure: the bar keeps saying so instead of going back to controls that fail again.
     func testAppleMusicAccessAndSubscriptionErrorsStayOnScreen() async throws {
         for reason in [MusicPlaybackError.Reason.missingPermission, .subscriptionRequired(message: nil)] {
-            let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+            let clock = ManualPlaybackClock()
+            let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20), clock: clock)
             player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: reason)
             await session.next()
             guard case .error = session.connectionState else {
                 return XCTFail("Expected \(reason) to show, got \(session.connectionState)")
             }
             XCTAssertNil(session.passingErrorRecoveryTask, "\(reason) must stay on screen")
-            try await Task.sleep(for: .milliseconds(60))
+            clock.advance(by: session.passingErrorRecoveryDelay)
+            await Task.yield()
             guard case .error = session.connectionState else {
                 return XCTFail("\(reason) went away: \(session.connectionState)")
             }
@@ -1575,11 +1581,16 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
     private static func playingSession(
         startIndex: Int = 0,
-        passingErrorRecoveryDelay: Duration = .seconds(5)
+        passingErrorRecoveryDelay: Duration = .seconds(5),
+        clock: any PlaybackClock = ContinuousClock()
     ) async throws -> (ScriptedAppleMusicPlayer, PlaybackSessionViewModel) {
         let player = ScriptedAppleMusicPlayer()
         let provider = AppleMusicPlaybackProvider(player: player)
-        let session = PlaybackSessionViewModel(provider: provider, passingErrorRecoveryDelay: passingErrorRecoveryDelay)
+        let session = PlaybackSessionViewModel(
+            provider: provider,
+            clock: clock,
+            passingErrorRecoveryDelay: passingErrorRecoveryDelay
+        )
         session.deviceID = AppleMusicPlaybackProvider.deviceID
         session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
         try await provider.play(.items(uris: uris, startURI: uris[startIndex]), deviceID: "x")

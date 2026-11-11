@@ -105,7 +105,8 @@ struct PlaylistBrowserView: View {
         playbackMode: BrowserPlaybackMode = .live,
         canDisconnect: Bool = true,
         disconnectSwitchesTo: MusicService? = nil,
-        sidebarHeader: AnyView? = nil
+        sidebarHeader: AnyView? = nil,
+        widthSampler: BrowserWidthSampler = BrowserWidthSampler()
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
@@ -124,6 +125,7 @@ struct PlaylistBrowserView: View {
         self.canDisconnect = canDisconnect
         self.disconnectSwitchesTo = disconnectSwitchesTo
         self.sidebarHeader = sidebarHeader
+        _browserWidthSampler = State(initialValue: widthSampler)
     }
 
     /// Disconnect only removes Spotify when another service is added; the window then shows that
