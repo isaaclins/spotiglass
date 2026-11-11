@@ -439,13 +439,14 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop(for: 0.6)
         root.layoutSubtreeIfNeeded()
 
-        let barButton = try XCTUnwrap(
-            Self.allNSButtons(in: root).first {
-                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
-            },
+        // The bar's controls: every button outside the columns' lists. Its top edge is above
+        // the highest of them.
+        let barButtons = Self.allNSButtons(in: root).filter { $0.enclosingScrollView == nil }
+        XCTAssertTrue(
+            barButtons.contains { $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics") },
             "the player bar is gone"
         )
-        let barFrame = barButton.convert(barButton.bounds, to: nil)
+        let barFrame = barButtons.map { $0.convert($0.bounds, to: nil) }.reduce(CGRect.null) { $0.union($1) }
 
         let lists = Self.allViews(in: root).compactMap { $0 as? NSTableView }.filter { $0.numberOfRows > 0 }
         let trackList = try XCTUnwrap(lists.first { $0.numberOfRows >= tracks.count }, "the playlist shows no tracks")
@@ -467,7 +468,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             let lastRow = list.convert(list.rect(ofRow: list.numberOfRows - 1), to: nil)
             XCTAssertGreaterThanOrEqual(
                 lastRow.minY, barFrame.maxY,
-                "the \(name)'s last row stays under the player bar: row \(lastRow), bar button \(barFrame), "
+                "the \(name)'s last row stays under the player bar: row \(lastRow), bar controls \(barFrame), "
                     + "insets \(scrollView.contentInsets), clip \(clip.bounds), document \(list.frame)"
             )
         }
