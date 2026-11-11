@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.28] - 2026-11-11
+
+### Fixed
+
+- The sidebar's glass now runs all the way behind the player bar instead of stopping at its edge.
+- The lyrics backdrop now fades smoothly behind the player bar instead of ending in a hard line above it.
+
 ## [0.8.27] - 2026-11-11
 
 ### Fixed
