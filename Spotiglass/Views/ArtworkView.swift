@@ -133,9 +133,8 @@ struct MusicKitArtwork: View {
 
 /// Library covers on screen right now, so a drag preview can show one (#449). MusicKit draws
 /// library artwork only inside a window: `ImageRenderer`, and with it the image macOS takes for
-/// a drag, gets blank pixels even after the same cover was drawn. A snapshot of the window
-/// where a cover already shows has it, so the preview takes the cover from there when the drag
-/// begins.
+/// a drag, gets blank pixels even after the same cover was drawn. In the window the cover is an
+/// image layer MusicKit has filled, so the preview takes that image when the drag begins.
 @MainActor
 final class OnScreenArtwork {
     static let shared = OnScreenArtwork()
@@ -144,9 +143,10 @@ final class OnScreenArtwork {
     private var viewsByKey: [String: NSHashTable<OnScreenArtworkMarker.MarkerView>] = [:]
 
     func register(_ view: OnScreenArtworkMarker.MarkerView) {
-        // Scrolling a large library registers thousands of covers; drop the ones that are gone.
+        // Scrolling a large library registers thousands of covers; drop keys no live view
+        // carries anymore (gone, or reused for another cover).
         if viewsByKey.count > 1_000 {
-            viewsByKey = viewsByKey.filter { !$0.value.allObjects.isEmpty }
+            viewsByKey = viewsByKey.filter { key, views in views.allObjects.contains { $0.keys.contains(key) } }
         }
         for key in view.keys {
             let views = viewsByKey[key] ?? .weakObjects()
@@ -155,13 +155,22 @@ final class OnScreenArtwork {
         }
     }
 
-    /// The cover for `url` (or the pin `itemKey`) as it shows on screen, or nil when no view
-    /// shows it. A pin keeps last session's library URL, so the pin ID finds it too.
+    /// A reused row's marker now shows another cover: it no longer answers for `keys`.
+    func unregister(_ view: OnScreenArtworkMarker.MarkerView, keys: [String]) {
+        for key in keys {
+            guard let views = viewsByKey[key] else { continue }
+            views.remove(view)
+            if views.allObjects.isEmpty { viewsByKey[key] = nil }
+        }
+    }
+
+    /// The cover for `url` (or the pin `itemKey`) as MusicKit drew it on screen, or nil when no
+    /// view shows it drawn. A pin keeps last session's library URL, so the pin ID finds it too.
     func snapshot(url: URL?, itemKey: String? = nil) -> NSImage? {
         for key in OnScreenArtworkMarker.keys(url: url, itemKey: itemKey) {
             guard let views = viewsByKey[key] else { continue }
             for view in views.allObjects where view.keys.contains(key) {
-                if let image = view.snapshot() { return image }
+                if let image = view.drawnCover() { return image }
             }
             if views.allObjects.isEmpty { viewsByKey[key] = nil }
         }
@@ -187,6 +196,7 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
     func updateNSView(_ view: MarkerView, context: Context) {
         let keys = Self.keys(url: url, itemKey: itemKey)
         guard view.keys != keys else { return }
+        OnScreenArtwork.shared.unregister(view, keys: view.keys)
         view.keys = keys
         if view.window != nil { OnScreenArtwork.shared.register(view) }
     }
@@ -201,117 +211,70 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        /// What is drawn over this view's frame: the cover in front of it.
-        ///
-        /// Asks the nearest enclosing view that draws anything there, not the window's root: the
-        /// sidebar sits in a glass view with its own layers, and the root draws nothing over it,
-        /// so sidebar covers came back as an empty tile. When that view draws something that
-        /// isn't a cover (MusicKit hasn't drawn it yet, so the see-through placeholder shows),
-        /// there is no cover to take; looking further out would only find the row's or window's
-        /// background.
-        func snapshot() -> NSImage? {
-            guard window != nil, !visibleRect.isEmpty else { return nil }
-            var ancestor = superview
-            while let view = ancestor {
-                let cover = convert(bounds, to: view).integral
-                guard cover.width >= 1, cover.height >= 1, view.bounds.contains(cover) else { return nil }
-                // A thin ring around the cover shows what is behind it.
-                let ringed = cover.insetBy(dx: -Self.ringWidth, dy: -Self.ringWidth)
-                let rect = view.bounds.contains(ringed) ? ringed : cover
-                guard let rep = view.bitmapImageRepForCachingDisplay(in: rect) else { return nil }
-                view.cacheDisplay(in: rect, to: rep)
-                let drawn = DrawnCover(rep: rep, ring: (rect.width - cover.width) / 2 / rect.width)
-                switch drawn.coverage() {
-                case .nothing:
-                    ancestor = view.superview
-                case .cover:
-                    return drawn.image(size: cover.size)
-                case .notACover:
-                    return nil
+        /// The cover MusicKit drew in front of this view: the image layer that covers exactly
+        /// this view's frame, drawn on its own. Drawing that one layer, not a picture of the
+        /// window, leaves out whatever is around or over the cover (the row's background, a pin
+        /// badge). Before MusicKit has drawn the cover the layer is empty, and there is no cover
+        /// to take yet.
+        func drawnCover() -> NSImage? {
+            guard window != nil, !visibleRect.isEmpty, let marker = layer else { return nil }
+            var container = marker.superlayer
+            for _ in 0..<4 {
+                guard let current = container else { break }
+                if let image = drawnCover(in: current, over: marker, depth: 3) { return image }
+                container = current.superlayer
+            }
+            return nil
+        }
+
+        private func drawnCover(in container: CALayer, over marker: CALayer, depth: Int) -> NSImage? {
+            for layer in container.sublayers ?? [] where layer !== marker {
+                if layer.contents != nil {
+                    let frame = layer.convert(layer.bounds, to: marker)
+                    let bounds = marker.bounds
+                    if abs(frame.minX - bounds.minX) <= 1, abs(frame.minY - bounds.minY) <= 1,
+                        abs(frame.width - bounds.width) <= 1, abs(frame.height - bounds.height) <= 1,
+                        let image = drawn(layer)
+                    {
+                        return image
+                    }
+                }
+                if depth > 0, let image = drawnCover(in: layer, over: marker, depth: depth - 1) {
+                    return image
                 }
             }
             return nil
         }
 
-        private static let ringWidth: CGFloat = 2
-    }
-}
-
-/// A snapshot of a cover's frame, with an optional ring of what is around it.
-private struct DrawnCover {
-    enum Coverage { case nothing, cover, notACover }
-
-    let rep: NSBitmapImageRep
-    /// Ring width as a share of the snapshot's width (0 when there is no ring).
-    let ring: CGFloat
-    private static let samples = 8
-
-    /// A drawn cover is opaque over at least half of an 8 x 8 grid (a round artist cover fills
-    /// about 80% of its square); a blank view is clear everywhere. Over a solid background the
-    /// see-through placeholder is opaque too, but its edge is that background with a faint
-    /// tint, so a cover whose edge matches what is around it is not taken.
-    func coverage() -> Coverage {
-        let n = Self.samples
-        var drawn = 0
-        var opaque = 0
-        var edge: [SIMD4<Double>] = []
-        for row in 0..<n {
-            for column in 0..<n {
-                let color = sample(Double(column * 2 + 1) / Double(n * 2), Double(row * 2 + 1) / Double(n * 2))
-                if color.w > 0.02 { drawn += 1 }
-                if color.w > 0.9 { opaque += 1 }
-                if row == 0 || row == n - 1 || column == 0 || column == n - 1 { edge.append(color) }
+        /// `layer` drawn on its own at this screen's scale, or nil when it draws nothing.
+        private func drawn(_ layer: CALayer) -> NSImage? {
+            let scale = window?.backingScaleFactor ?? 2
+            let width = max(1, Int((layer.bounds.width * scale).rounded()))
+            let height = max(1, Int((layer.bounds.height * scale).rounded()))
+            guard let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0
+            ), let context = NSGraphicsContext(bitmapImageRep: rep)?.cgContext else { return nil }
+            context.scaleBy(x: CGFloat(width) / layer.bounds.width, y: CGFloat(height) / layer.bounds.height)
+            // SwiftUI's layers are flipped, the bitmap is not: draw the cover the right way up.
+            if layer.contentsAreFlipped() {
+                context.translateBy(x: 0, y: layer.bounds.height)
+                context.scaleBy(x: 1, y: -1)
             }
+            context.translateBy(x: -layer.bounds.minX, y: -layer.bounds.minY)
+            layer.render(in: context)
+            let samples = 8
+            let hasPixels = (0..<samples * samples).contains { i in
+                let x = (i % samples * 2 + 1) * width / (samples * 2)
+                let y = (i / samples * 2 + 1) * height / (samples * 2)
+                return (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0
+            }
+            guard hasPixels else { return nil }
+            let image = NSImage(size: layer.bounds.size)
+            image.addRepresentation(rep)
+            return image
         }
-        if drawn == 0 { return .nothing }
-        guard opaque * 2 >= n * n else { return .notACover }
-        guard ring > 0 else { return .cover }
-        let around = Self.median(ringSamples())
-        let matching = edge.filter { Self.distance($0, around) < 0.15 }.count
-        return matching * 10 >= edge.count * 9 ? .notACover : .cover
-    }
-
-    /// The cover without the ring.
-    func image(size: CGSize) -> NSImage? {
-        let inset = ring * CGFloat(rep.pixelsWide)
-        let crop = CGRect(
-            x: inset, y: inset,
-            width: CGFloat(rep.pixelsWide) - 2 * inset, height: CGFloat(rep.pixelsHigh) - 2 * inset
-        ).integral
-        guard let cgImage = rep.cgImage?.cropping(to: crop) else { return nil }
-        return NSImage(cgImage: cgImage, size: size)
-    }
-
-    /// Color at (`u`, `v`) inside the cover, both from 0 to 1, as premultiplied RGBA.
-    private func sample(_ u: Double, _ v: Double) -> SIMD4<Double> {
-        let r = Double(ring)
-        return pixel(r + u * (1 - 2 * r), r + v * (1 - 2 * r))
-    }
-
-    /// The middle of the ring on all four sides.
-    private func ringSamples() -> [SIMD4<Double>] {
-        let middle = Double(ring) / 2
-        return (0..<Self.samples).flatMap { i -> [SIMD4<Double>] in
-            let t = Double(i * 2 + 1) / Double(Self.samples * 2)
-            return [pixel(t, middle), pixel(t, 1 - middle), pixel(middle, t), pixel(1 - middle, t)]
-        }
-    }
-
-    private func pixel(_ u: Double, _ v: Double) -> SIMD4<Double> {
-        let x = min(rep.pixelsWide - 1, Int(u * Double(rep.pixelsWide)))
-        let y = min(rep.pixelsHigh - 1, Int(v * Double(rep.pixelsHigh)))
-        guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return .zero }
-        let a = Double(color.alphaComponent)
-        return SIMD4(Double(color.redComponent) * a, Double(color.greenComponent) * a, Double(color.blueComponent) * a, a)
-    }
-
-    private static func median(_ colors: [SIMD4<Double>]) -> SIMD4<Double> {
-        func mid(_ values: [Double]) -> Double { values.sorted()[values.count / 2] }
-        return SIMD4(mid(colors.map(\.x)), mid(colors.map(\.y)), mid(colors.map(\.z)), mid(colors.map(\.w)))
-    }
-
-    private static func distance(_ a: SIMD4<Double>, _ b: SIMD4<Double>) -> Double {
-        max(abs(a.x - b.x), abs(a.y - b.y), abs(a.z - b.z), abs(a.w - b.w))
     }
 }
 
