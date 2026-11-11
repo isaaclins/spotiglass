@@ -743,10 +743,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// space under them. In a narrow bar the sides join the buttons' row and
     /// the scrubber runs under all of them. The Lyrics button once sat in the
     /// title's text row and stood above the transport buttons. The bar is laid
-    /// out for real in each state that changes its parts, at five widths, in
+    /// out for real in each state that changes its parts, at seven widths, in
     /// light and dark. The buttons stay at the same height whatever plays and
     /// at every width, so nothing jumps when a song starts or the window
-    /// crosses the width where the bar stacks. Beside the sides, the scrubber's
+    /// crosses the width where the bar stacks, and the bar stacks at the same
+    /// width whatever it shows. Beside the sides, the scrubber's
     /// row keeps two fifths of the bar, as Spotify's does, so a window half a
     /// screen wide doesn't leave it at its narrowest.
     func testEveryPlayerBarControlSharesTheBarsCentreLine() async throws {
@@ -756,7 +757,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         var buttonsLine: [String: CGFloat] = [:]
         for (state, makePlayback) in try await playerBarStates() {
             for (appearance, width) in [NSAppearance.Name.darkAqua, .aqua].flatMap({ name in
-                [CGFloat(1_400), 1_100, 900, 760, 640, 520].map { (name, $0) }
+                [CGFloat(1_400), 1_100, 900, 760, 640, 580, 520].map { (name, $0) }
             }) {
                 try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: appearance) { elements, window in
                     let controls = playerBarControls(in: elements)

@@ -153,7 +153,15 @@ struct PlaybackTransportArrangementLayout: Layout {
             proposedWidth ?? barWidth(side: max(Self.summaryIdealWidth, trailingIdeal)),
             minimumWidth
         )
-        let sideMinimum = max(leadingMinimum, trailingMinimum)
+        // Where the bar stacks depends on the width and the service only, not on
+        // what plays: Reconnect or Retry needs less room than a song, so without
+        // the song's floor here a song starting in a bar just wide enough for
+        // Reconnect would stack it, and the scrubber and the sides would move.
+        let sideMinimum = max(
+            leadingMinimum,
+            PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+            trailingMinimum
+        )
         let scrubberMinimum = measuredWidth(scrubber, 0)
 
         // Where the bar has room, the song and the right side sit on the middle
