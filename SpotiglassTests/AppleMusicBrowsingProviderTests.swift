@@ -1074,6 +1074,68 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(results.tracks.map(\.id), ["i.1", "2"])
     }
 
+    /// The real shapes MusicKit gives on macOS (checked on a real library): a saved album and a
+    /// saved song carry no rating but name their catalog release; the catalog lists the explicit
+    /// and the clean release side by side, a day apart. Search used to treat the saved explicit
+    /// album as clean, hide the clean release and show the saved album next to its own explicit
+    /// copy (#512).
+    func testASavedExplicitAlbumHidesItsOwnCatalogCopyNotTheCleanOne() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            songs: [try AppleMusicFixtures.song(id: "i.night", title: "Night Drive", album: "Night Drive", catalogID: "9100003")],
+            albums: [try AppleMusicFixtures.album(
+                id: "-3141592653589793238", title: "Night Drive", releaseDate: "2024-03-15", catalogID: "9100001"
+            )]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            songs: [
+                try AppleMusicFixtures.song(id: "9100003", title: "Night Drive", album: "Night Drive", explicit: true),
+                try AppleMusicFixtures.song(id: "9200003", title: "Night Drive", album: "Night Drive", clean: true),
+            ],
+            albums: [
+                try AppleMusicFixtures.album(
+                    id: "9100001", title: "Night Drive", artists: [("501", "Bonobo")],
+                    rating: "explicit", releaseDate: "2024-03-15"
+                ),
+                try AppleMusicFixtures.album(
+                    id: "9200001", title: "Night Drive", artists: [("502", "Bonobo")],
+                    rating: "clean", releaseDate: "2024-03-14"
+                ),
+            ]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "night drive", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["-3141592653589793238", "9200001"], "the clean release is another album")
+        XCTAssertEqual(results.tracks.map(\.id), ["i.night", "9200003"], "the clean recording is another song")
+        // The saved album links the artists of its own release, not those of the clean one.
+        XCTAssertEqual(results.albums.first?.artistRefs.map(\.id), ["501"])
+    }
+
+    /// A saved clean album hides its clean release and leaves the explicit one; with nothing
+    /// saved both releases show.
+    func testCleanAndExplicitReleasesStayApartUnlessOneIsSaved() async throws {
+        let catalog = AppleMusicSearchItems(albums: [
+            try AppleMusicFixtures.album(id: "9100001", title: "Night Drive", rating: "explicit", releaseDate: "2024-03-15"),
+            try AppleMusicFixtures.album(id: "9200001", title: "Night Drive", rating: "clean", releaseDate: "2024-03-14"),
+        ])
+        let source = MockAppleMusicSource()
+        source.catalogSearchItems = catalog
+        let unsaved = try await AppleMusicBrowsingProvider(source: source).search(query: "night drive", limit: 10)
+        XCTAssertEqual(unsaved.albums.map(\.id), ["9100001", "9200001"])
+
+        source.librarySearchItems = AppleMusicSearchItems(albums: [try AppleMusicFixtures.album(
+            id: "-2718281828459045235", title: "Night Drive", releaseDate: "2024-03-14", catalogID: "9200001"
+        )])
+        let savedClean = try await AppleMusicBrowsingProvider(source: source).search(query: "night drive", limit: 10)
+        XCTAssertEqual(savedClean.albums.map(\.id), ["-2718281828459045235", "9100001"])
+
+        // Later pages show only the catalog, still without the saved album's own release.
+        let later = try await AppleMusicBrowsingProvider(source: source).search(
+            query: "night drive", limit: 10, offset: 10, cacheMode: .bypassCache
+        )
+        XCTAssertEqual(later.albums.map(\.id), ["9100001"])
+    }
+
     /// MusicKit's library search can't be paged, so the first page must carry every library
     /// match (up to its bound), not just the page size, or the rest never shows.
     func testTheFirstSearchPageCarriesEveryLibraryMatch() async throws {
@@ -1714,14 +1776,22 @@ enum AppleMusicFixtures {
         explicit: Bool = false,
         withArtwork: Bool = true,
         playable: Bool = true,
-        artistRefs: [(String, String)] = []
+        artistRefs: [(String, String)] = [],
+        clean: Bool = false,
+        catalogID: String? = nil
     ) throws -> Song {
         var attributes: [String: Any] = ["name": title, "durationInMillis": durationMs]
         if let artist { attributes["artistName"] = artist }
         if let album { attributes["albumName"] = album }
         if explicit { attributes["contentRating"] = "explicit" }
+        if clean { attributes["contentRating"] = "clean" }
         if withArtwork { attributes["artwork"] = artwork(id) }
-        if playable { attributes["playParams"] = ["id": id, "kind": "song"] }
+        // A saved song names its catalog release in its play parameters, and has no rating.
+        if let catalogID {
+            attributes["playParams"] = ["id": id, "kind": "song", "catalogId": catalogID, "isLibrary": true]
+        } else if playable {
+            attributes["playParams"] = ["id": id, "kind": "song"]
+        }
         var resource: [String: Any] = ["id": id, "type": "songs", "attributes": attributes]
         if !artistRefs.isEmpty {
             resource["relationships"] = ["artists": ["data": artistRefs.map {
@@ -1738,21 +1808,26 @@ enum AppleMusicFixtures {
         isSingle: Bool = false,
         isCompilation: Bool = false,
         tracks: [(id: String, title: String)] = [],
-        artists: [(id: String, name: String)] = []
+        artists: [(id: String, name: String)] = [],
+        rating: String? = nil,
+        releaseDate: String = "2019-01-11",
+        catalogID: String? = nil
     ) throws -> Album {
-        var resource: [String: Any] = [
-            "id": id,
-            "type": "albums",
-            "attributes": [
-                "name": title,
-                "artistName": "Bonobo",
-                "trackCount": trackCount,
-                "releaseDate": "2019-01-11",
-                "isSingle": isSingle,
-                "isCompilation": isCompilation,
-                "artwork": artwork(id),
-            ] as [String: Any],
+        var attributes: [String: Any] = [
+            "name": title,
+            "artistName": "Bonobo",
+            "trackCount": trackCount,
+            "releaseDate": releaseDate,
+            "isSingle": isSingle,
+            "isCompilation": isCompilation,
+            "artwork": artwork(id),
         ]
+        if let rating { attributes["contentRating"] = rating }
+        // A saved album names its catalog release in its play parameters, and has no rating.
+        if let catalogID {
+            attributes["playParams"] = ["id": id, "kind": "album", "catalogId": catalogID, "isLibrary": true]
+        }
+        var resource: [String: Any] = ["id": id, "type": catalogID == nil ? "albums" : "library-albums", "attributes": attributes]
         if !tracks.isEmpty {
             // Album tracks arrive without their own artwork or album reference.
             resource["relationships"] = ["tracks": ["data": tracks.map {

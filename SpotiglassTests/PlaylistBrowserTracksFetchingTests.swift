@@ -258,11 +258,13 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             ]
         )
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB, playlistC], playlistListCacheAge: 20_000)
+        let clock = ManualPlaybackClock()
         let viewModel = PlaylistBrowserViewModel(
             api: api,
             cache: cache,
             playlistListAutoRefreshMinInterval: 50_000,
-            tracksRevalidateMinInterval: 30
+            tracksRevalidateMinInterval: 30,
+            adjacentPlaylistClock: clock
         )
 
         await viewModel.load()
@@ -271,10 +273,14 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
         await viewModel.selectPlaylist(id: "a")
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await viewModel.selectNextPlaylist() }
-            group.addTask { await viewModel.selectNextPlaylist() }
-        }
+        // Both presses land inside the debounce however busy the machine is: its clock is stepped
+        // only once both are in (#510).
+        let first = Task { await viewModel.selectNextPlaylist() }
+        let second = Task { await viewModel.selectNextPlaylist() }
+        while viewModel.pendingAdjacentPlaylistOffset < 2 { await Task.yield() }
+        clock.advance(by: PlaylistBrowserViewModel.adjacentPlaylistDebounce)
+        await first.value
+        await second.value
 
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"] ?? 0, 0)
         XCTAssertEqual(api.playlistTracksInvocationCountByID["c"], 1)

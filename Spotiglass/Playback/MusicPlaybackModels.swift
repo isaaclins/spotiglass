@@ -85,13 +85,26 @@ extension PlaybackConnectionState {
         }
     }
 
-    /// Whether a player is there to take Previous and Next: the player bar and the pop-out lyrics
-    /// window enable their skip buttons by it.
+    /// Whether a player is there to take commands (Play, the device picker).
     var hasReadyDevice: Bool {
         switch self {
         case .ready, .transferring, .playing, .paused:
             true
         case .disconnected, .connecting, .unavailable, .error:
+            false
+        }
+    }
+
+    /// Whether Previous and Next have something to skip from: something is playing or paused.
+    /// With nothing loaded (the bar says "Ready to play") they did nothing (#500), so the player
+    /// bar, the pop-out lyrics window, the palette, its shortcuts and the Playback menu leave them
+    /// off. A pause without a readable item still counts: Spotify reports a podcast episode or a
+    /// local file paused on another device that way, and skipping works there.
+    var hasTrackToSkipFrom: Bool {
+        switch self {
+        case .playing, .paused:
+            true
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             false
         }
     }

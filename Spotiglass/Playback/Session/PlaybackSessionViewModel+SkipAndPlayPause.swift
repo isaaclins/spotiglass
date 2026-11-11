@@ -24,11 +24,12 @@ extension PlaybackSessionViewModel {
 
     private func waitForPreviousPress(_ previous: Task<Void, Never>?) async {
         guard let previous else { return }
-        let limit = playPauseQueueWait
+        let deadline = clock.now.advanced(by: playPauseQueueWait)
+        let clock = clock
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let once = ResumeOnce(continuation)
             once.timeout = Task { @MainActor in
-                try? await Task.sleep(for: limit)
+                try? await clock.sleep(until: deadline, tolerance: nil)
                 once.resume()
             }
             Task { @MainActor in
@@ -395,9 +396,11 @@ extension PlaybackSessionViewModel {
     private func beginInAppCommand(_ request: PlayPauseRequest) {
         inAppCommandInFlight = request
         inAppCommandAckTimeoutTask?.cancel()
-        inAppCommandAckTimeoutTask = Task { @MainActor [weak self] in
+        // The wait starts with the press, on the session's clock (a test steps it).
+        let deadline = clock.now.advanced(by: inAppCommandAckTimeout)
+        inAppCommandAckTimeoutTask = Task { @MainActor [weak self, clock] in
+            try? await clock.sleep(until: deadline, tolerance: nil)
             guard let self else { return }
-            try? await Task.sleep(for: self.inAppCommandAckTimeout)
             guard !Task.isCancelled, self.inAppCommandInFlight?.serial == request.serial else { return }
             SpotiglassLog.info(.playback, "Spotify playback SDK didn't answer \(request.inAppCommand); sending the next press")
             self.inAppCommandsUnanswered.append(request)
@@ -443,9 +446,10 @@ extension PlaybackSessionViewModel {
     private func expectPushedPlayState(serial: UInt64, isPlaying: Bool) {
         pushedPlayStateExpectations.append(PushedPlayStateExpectation(serial: serial, isPlaying: isPlaying))
         pushedPlayStateExpectationTask?.cancel()
-        pushedPlayStateExpectationTask = Task { @MainActor [weak self] in
+        let deadline = clock.now.advanced(by: pushedPlayStateExpectationTimeout)
+        pushedPlayStateExpectationTask = Task { @MainActor [weak self, clock] in
+            try? await clock.sleep(until: deadline, tolerance: nil)
             guard let self else { return }
-            try? await Task.sleep(for: self.pushedPlayStateExpectationTimeout)
             guard !Task.isCancelled else { return }
             // The page never reported the last press: its latest report is its own last word.
             let held = self.heldBackPageReport

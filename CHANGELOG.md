@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.8.32] - 2026-11-11
+
+### Fixed
+
+- Search palette no longer shows old results when its list updates, and Return now runs the item you see.
+
+## [0.8.31] - 2026-11-11
+
+### Fixed
+
+- Apple Music search no longer lists a saved album twice, but other versions of it, such as the clean edit, still show.
+
+## [0.8.30] - 2026-11-11
+
+### Fixed
+
+- Small fixes behind the scenes.
+
+## [0.8.29] - 2026-11-11
+
+### Fixed
+
+- The search palette no longer offers Next Track or Previous Track when nothing is loaded.
+
+## [0.8.28] - 2026-11-11
+
+### Fixed
+
+- The sidebar's glass now runs all the way behind the player bar instead of stopping at its edge.
+- The lyrics backdrop now fades smoothly behind the player bar instead of ending in a hard line above it.
+
+## [0.8.27] - 2026-11-11
+
+### Fixed
+
+- Small fixes behind the scenes.
+
 ## [0.8.26] - 2026-11-11
 
 ### Fixed

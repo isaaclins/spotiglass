@@ -66,6 +66,11 @@ struct SpotiglassMenuCommands: Commands {
     /// transport items that only check sign-in would be enabled and do nothing there.
     var hasPlayback = true
 
+    /// Next and Previous Track need a song to skip from (#500).
+    var isSkipEnabled: Bool {
+        isAvailable && hasPlayback && (activeCommandPaletteManager?.canSkipTrack ?? false)
+    }
+
     var isPlaybackToggleEnabled: Bool {
         isAvailable && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
@@ -230,13 +235,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.nextTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.nextTrack))
-            .disabled(!isAvailable || !hasPlayback)
+            .disabled(!isSkipEnabled)
 
             Button(SpotiglassL10n.string("menu.playback.previous", locale: currentLocale)) {
                 run(CommandPaletteCommandID.previousTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.previousTrack))
-            .disabled(!isAvailable || !hasPlayback)
+            .disabled(!isSkipEnabled)
 
             Divider()
 

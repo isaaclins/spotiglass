@@ -198,8 +198,37 @@ final class CommandPaletteViewModel: ObservableObject {
             searchTask?.cancel()
             showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines), keepingSelection: true)
         } else if currentScope == .commands {
-            refresh()
+            // `>` lists the commands too: the highlight stays on its row there as well (#500).
+            searchTask?.cancel()
+            showCommands(
+                matching: CommandPaletteScope.parse(query).query.trimmingCharacters(in: .whitespacesAndNewlines),
+                keepingSelection: true
+            )
         }
+    }
+
+    /// The `>` list: every static command, or those matching `query` by score.
+    private func showCommands(matching query: String, keepingSelection: Bool = false) {
+        let previous = keepingSelection && visibleItems.indices.contains(selectedIndex)
+            ? visibleItems[selectedIndex].id : nil
+        let staticItems = staticItemsProvider()
+        let filtered: [CommandPaletteItem]
+        if query.isEmpty {
+            filtered = staticItems
+        } else {
+            filtered = staticItems
+                .map { (item: $0, score: $0.score(for: query)) }
+                .filter { $0.score < 100 }
+                .sorted { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score < rhs.score }
+                    return lhs.item.title < rhs.item.title
+                }
+                .map(\.item)
+        }
+        errorText = nil
+        isLoading = false
+        sections = filtered.isEmpty ? [] : [(.commands, filtered)]
+        selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
     }
 
     /// True while the songs scope shows suggestions instead of a search: the field is empty or
@@ -401,24 +430,7 @@ final class CommandPaletteViewModel: ObservableObject {
         case .commands:
             resetSongSearchCache()
             // `>` alone lists every static command. Any query filters by score.
-            let staticItems = staticItemsProvider()
-            let filtered: [CommandPaletteItem]
-            if trimmed.isEmpty {
-                filtered = staticItems
-            } else {
-                filtered = staticItems
-                    .map { (item: $0, score: $0.score(for: trimmed)) }
-                    .filter { $0.score < 100 }
-                    .sorted { lhs, rhs in
-                        if lhs.score != rhs.score { return lhs.score < rhs.score }
-                        return lhs.item.title < rhs.item.title
-                    }
-                    .map(\.item)
-            }
-            errorText = nil
-            isLoading = false
-            sections = filtered.isEmpty ? [] : [(.commands, filtered)]
-            selectedIndex = 0
+            showCommands(matching: trimmed)
 
         case .songs:
             guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else {

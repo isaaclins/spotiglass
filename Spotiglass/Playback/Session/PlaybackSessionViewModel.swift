@@ -1135,11 +1135,16 @@ final class PlaybackSessionViewModel: ObservableObject {
               !canReconnectPlayer, deviceID != nil else { return }
         let generation = playbackHostGeneration
         let delay = passingErrorRecoveryDelay
+        let clock = clock
+        // The wait starts with the failure, on the session's clock (a test steps it).
+        let firstDeadline = clock.now.advanced(by: delay)
         passingErrorRecoveryTask = Task { @MainActor [weak self] in
+            var deadline = firstDeadline
             // A command still running (a play chosen meanwhile) sets the bar itself when it
             // ends; reading the player under it would publish the state from before it.
             repeat {
-                try? await Task.sleep(for: delay)
+                try? await clock.sleep(until: deadline, tolerance: nil)
+                deadline = clock.now.advanced(by: delay)
                 guard let self, !Task.isCancelled, self.ownsPlaybackHostGeneration(generation),
                       self.connectionState == state else { return }
             } while self?.controlCommandsInFlight ?? 0 > 0

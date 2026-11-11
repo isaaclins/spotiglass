@@ -322,6 +322,57 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertFalse(toggled)
     }
 
+    /// #500: with nothing loaded the Playback menu greys out Next and Previous; their shortcuts
+    /// must not run them either (they did nothing). A pause without a readable item (a podcast
+    /// paused on another Spotify device) still skips.
+    func testSkipShortcutsNeedSomethingToSkipFrom() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.nextTrack,
+            shortcut: try CommandShortcut(keystroke: "cmd-j"),
+            replaceConflicting: true
+        )
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.previousTrack,
+            shortcut: try CommandShortcut(keystroke: "cmd-u"),
+            replaceConflicting: true
+        )
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        playback.deviceID = "local-device"
+        playback.setConnectionState(.ready(deviceID: "local-device"))
+        manager.bindPlaybackReadiness(to: playback)
+        manager.nextTrack = {}
+        manager.previousTrack = {}
+        let next = { manager.handleKeyEvent(self.keyDown(keyCode: 38, characters: "j", modifiers: [.command])) }
+        let previous = { manager.handleKeyEvent(self.keyDown(keyCode: 32, characters: "u", modifiers: [.command])) }
+
+        XCTAssertFalse(next(), "Ready to play: nothing to skip from")
+        XCTAssertFalse(previous())
+
+        playback.setConnectionState(.paused(nil))
+        XCTAssertTrue(next(), "a podcast paused on another device still skips")
+
+        playback.setConnectionState(.playing(
+            PlaybackNowPlaying(
+                name: "Song", artists: ["Artist"], albumName: nil, albumID: nil, albumArtURL: nil,
+                durationMilliseconds: 100, positionMilliseconds: 0, uri: "spotify:track:1"
+            )
+        ))
+        XCTAssertTrue(next())
+        XCTAssertTrue(previous())
+
+        // No player wired (an Apple Music account without a subscription): the key is left alone.
+        manager.nextTrack = nil
+        manager.previousTrack = nil
+        XCTAssertFalse(next())
+        XCTAssertFalse(previous())
+    }
+
     func testLyricsShortcutRequiresCurrentMusicTrack() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)

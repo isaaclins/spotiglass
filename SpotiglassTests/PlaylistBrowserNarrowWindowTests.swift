@@ -48,6 +48,7 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         let header = AnyView(MusicServiceSwitcher(
             store: services, keymapStore: palette.keymapStore, switchTo: { _ in }, add: { _ in }
         ))
+        let sampler = BrowserWidthSampler()
         let view = PlaylistBrowserView(
             viewModel: browserVM,
             playbackHost: playbackHost,
@@ -58,7 +59,8 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
                 ? .unavailable(SpotiglassL10n.string("error.playback.appleMusic.subscription.message"))
                 : .live,
             canDisconnect: service != .appleMusic,
-            sidebarHeader: header
+            sidebarHeader: header,
+            widthSampler: sampler
         )
         .environmentObject(store)
         .environmentObject(settings)
@@ -73,6 +75,7 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             window.setContentSize(CGSize(width: width, height: 600))
             controller.view.layoutSubtreeIfNeeded()
             AppKitTestSupport.pumpRunLoop(for: 0.6)
+            Self.waitForCommittedWidth(width, sampler)
 
             let split = try XCTUnwrap(Self.splitView(in: controller.view), "no split view at \(width) pt")
             let columns = split.arrangedSubviews
@@ -108,11 +111,13 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         // The resize ends the way a fast live resize does: the last frame comes one frame after
         // the one before it, inside the width throttle, and crosses nothing. The drag limit used
         // to stay at the 850 pt that frame before it committed.
-        for (width, wait) in [(CGFloat(850), 0.016), (800, 0.6)] {
+        for (width, wait) in [(CGFloat(850), 0.016), (800, 0.1)] {
             window.setContentSize(CGSize(width: width, height: 600))
             controller.view.layoutSubtreeIfNeeded()
             AppKitTestSupport.pumpRunLoop(for: wait)
         }
+        // The 800 pt frame came inside the throttle: it lands by the trailing commit's timer.
+        Self.waitForCommittedWidth(800, sampler)
         let split = try XCTUnwrap(Self.splitView(in: controller.view))
         split.setPosition(620, ofDividerAt: 0)
         controller.view.layoutSubtreeIfNeeded()
@@ -129,6 +134,20 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             detailFrame.maxX - sidebarFrame.maxX, SpotiglassDesign.detailColumnMinWidth - 0.5,
             "detail column squeezed after the drag (sidebar \(sidebarFrame), detail \(detailFrame))"
         )
+    }
+
+    /// Waits until the browser has committed the width the window ends on, directly or by the
+    /// trailing commit's run loop timer, however late a busy machine fires it (#510).
+    private static func waitForCommittedWidth(
+        _ width: CGFloat,
+        _ sampler: BrowserWidthSampler,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let committed = AppKitTestSupport.pumpRunLoop(until: {
+            abs(sampler.latestWidth - width) < 0.5 && sampler.trailingCommit == nil
+        })
+        XCTAssertTrue(committed, "the browser never committed \(width) pt (latest \(sampler.latestWidth))", file: file, line: line)
     }
 
     private static func splitView(in view: NSView) -> NSSplitView? {

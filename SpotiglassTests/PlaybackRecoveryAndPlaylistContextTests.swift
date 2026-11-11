@@ -265,13 +265,15 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
     func testConnectingResolvesToRetryableErrorAfterTimeout() async {
         let commander = MockWebPlaybackCommander()
+        let clock = ManualPlaybackClock()
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
+            clock: clock,
             playbackHostConnectTimeout: .milliseconds(20)
         )
 
         viewModel.start()
-        try? await Task.sleep(for: .milliseconds(100))
+        await Self.endConnectTimeout(of: viewModel, on: clock)
 
         guard case let .error(error) = viewModel.connectionState else {
             return XCTFail("Expected a connection timeout error")
@@ -282,8 +284,10 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     }
 
     func testStaleReadyDoesNotCancelConnectionTimeout() async {
+        let clock = ManualPlaybackClock()
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
+            clock: clock,
             playbackHostConnectTimeout: .milliseconds(20)
         )
 
@@ -291,12 +295,22 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         viewModel.handle(.notReady(deviceID: "old-device"))
         viewModel.start()
         viewModel.handle(.ready(deviceID: "old-device"))
-        try? await Task.sleep(for: .milliseconds(100))
+        await Self.endConnectTimeout(of: viewModel, on: clock)
 
         guard case let .error(error) = viewModel.connectionState else {
             return XCTFail("Expected a connection timeout after ignoring stale ready")
         }
         XCTAssertEqual(error.recoveryAction, .reconnect)
+    }
+
+    /// Lets the connect timeout run out on the session's stepped clock, once it is armed (#510).
+    private static func endConnectTimeout(of viewModel: PlaybackSessionViewModel, on clock: ManualPlaybackClock) async {
+        let armed = await clock.waitForSleepers()
+        XCTAssertTrue(armed, "no connect timeout is armed")
+        let timeout = viewModel.playbackHostConnectTimeoutTask
+        XCTAssertNotNil(timeout, "no connect timeout is armed")
+        clock.advance(by: viewModel.playbackHostConnectTimeout)
+        await timeout?.value
     }
 
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {

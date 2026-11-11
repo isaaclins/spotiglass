@@ -148,14 +148,21 @@ private struct LyricsListFocusModifier: ViewModifier {
 final class LyricsAutoCenterController {
     var isAutoCentering: Bool = true
     private var idleTask: Task<Void, Never>?
+    /// The idle wait runs on this clock (a test steps it).
+    @ObservationIgnored private let clock: any PlaybackClock
+
+    init(clock: any PlaybackClock = ContinuousClock()) {
+        self.clock = clock
+    }
 
     /// Called from `.onScrollPhaseChange` when the user is actively scrolling
     /// (tracking / interacting / decelerating). Hover events don't reach here.
     func noteUserScrollActivity() {
         isAutoCentering = false
         idleTask?.cancel()
-        idleTask = Task { [weak self] in
-            try? await Task.sleep(for: ImmersiveLyricsLayout.autoCenterResumeDelay)
+        let deadline = clock.now.advanced(by: ImmersiveLyricsLayout.autoCenterResumeDelay)
+        idleTask = Task { [weak self, clock] in
+            try? await clock.sleep(until: deadline, tolerance: nil)
             guard !Task.isCancelled else { return }
             self?.isAutoCentering = true
         }

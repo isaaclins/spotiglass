@@ -93,7 +93,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
     }
 
     func testPendingPlayTimerExpiresWithoutAnotherSDKEventUsingInjectedClock() async throws {
-        let clock = TestPlaybackClock()
+        let clock = ManualPlaybackClock()
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
             clock: clock
@@ -116,7 +116,8 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         XCTAssertEqual(viewModel.currentNowPlayingURI, "spotify:track:real")
         XCTAssertNotNil(viewModel.pendingPlayURI)
 
-        await clock.waitUntilSleeping()
+        let armed = await clock.waitForSleepers()
+        XCTAssertTrue(armed, "the pending play's timeout was never armed")
         let timeoutTask = try XCTUnwrap(viewModel.pendingPlayTransitionTimeoutTask)
         clock.advance(by: .seconds(7))
         await timeoutTask.value
@@ -503,76 +504,6 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         )
         viewModel.refreshTrayOutputSymbol()
         XCTAssertEqual(viewModel.trayOutputSymbolName, "headphones")
-    }
-}
-
-private final class TestPlaybackClock: PlaybackClock, @unchecked Sendable {
-    private typealias Waiter = (deadline: ContinuousClock.Instant, continuation: CheckedContinuation<Void, Error>)
-
-    private let lock = NSLock()
-    private var current: ContinuousClock.Instant
-    private var waiters: [UUID: Waiter] = [:]
-    private let sleepStarted = AsyncSignal()
-
-    init() {
-        current = ContinuousClock().now
-    }
-
-    var now: ContinuousClock.Instant {
-        lock.lock()
-        defer { lock.unlock() }
-        return current
-    }
-
-    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {
-        let waiterID = UUID()
-        try await withTaskCancellationHandler(operation: {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                var resumeImmediately = false
-                var canceled = false
-                lock.lock()
-                if Task.isCancelled {
-                    canceled = true
-                } else if current >= deadline {
-                    resumeImmediately = true
-                } else {
-                    waiters[waiterID] = (deadline, continuation)
-                }
-                lock.unlock()
-                sleepStarted.signal()
-                if canceled {
-                    continuation.resume(throwing: CancellationError())
-                } else if resumeImmediately {
-                    continuation.resume()
-                }
-            }
-        }, onCancel: {
-            self.cancel(waiterID)
-        })
-    }
-
-    func advance(by duration: Duration) {
-        lock.lock()
-        current = current.advanced(by: duration)
-        let dueIDs = waiters.compactMap { id, waiter in
-            waiter.deadline <= current ? id : nil
-        }
-        let dueContinuations = dueIDs.compactMap { waiters.removeValue(forKey: $0)?.continuation }
-        lock.unlock()
-        for continuation in dueContinuations {
-            continuation.resume()
-        }
-    }
-
-    func waitUntilSleeping() async {
-        await sleepStarted.wait()
-    }
-
-    private func cancel(_ waiterID: UUID) {
-        lock.lock()
-        let continuation = waiters.removeValue(forKey: waiterID)?.continuation
-        lock.unlock()
-        continuation?.resume(throwing: CancellationError())
     }
 }
 

@@ -43,6 +43,8 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
     func testHandleKeyEventDropsAutoRepeatedHotkey() async {
         let manager = CommandPaletteManager()
         manager.isSignedIn = true
+        // A song to skip from: without one the shortcut is left alone (#500).
+        manager.setSkipAvailability(true)
         var invocations = 0
         let invocationSignal = AsyncSignal()
         manager.previousTrack = {

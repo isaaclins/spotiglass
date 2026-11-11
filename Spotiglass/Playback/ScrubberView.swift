@@ -405,6 +405,9 @@ class ScrubberTrackCanvasView: NSView {
     /// Fires at the schedule's next tick. Internal so tests can see whether
     /// the view still wakes.
     private(set) var tickTimer: Timer?
+    /// The clock ticks are scheduled from. Internal so a test can stall it
+    /// without stalling the main thread.
+    var now: () -> Date = Date.init
     private var ticks: AnyIterator<Date>?
     private var scheduledTrackWidth: CGFloat = -1
 
@@ -466,7 +469,7 @@ class ScrubberTrackCanvasView: NSView {
             isPaused: false,
             trackWidth: trackWidth
         )
-        let now = Date()
+        let now = now()
         let entries = schedule.entries(from: now, mode: .normal)
         ticks = entries
         scheduleNextTick(after: now)
@@ -500,7 +503,7 @@ class ScrubberTrackCanvasView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         guard let drawing, let context = NSGraphicsContext.current?.cgContext else { return }
-        let fraction = drawing.fraction(at: Date())
+        let fraction = drawing.fraction(at: now())
         let size = CGSize(width: trackWidth, height: bounds.height)
         context.translateBy(x: drawing.overhang, y: 0)
 

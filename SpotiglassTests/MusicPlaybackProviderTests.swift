@@ -753,16 +753,37 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     }
 
     /// Lets the tasks that are ready run, until `condition` holds.
+    /// Ends the wait for Spotify's page to answer the press in flight, as if it never answered.
+    /// The session's clock is stepped, so a busy machine can't fire it late (#510).
+    private static func endAckWait(_ session: PlaybackSessionViewModel, on clock: ManualPlaybackClock) async {
+        let wait = session.inAppCommandAckTimeoutTask
+        XCTAssertNotNil(wait, "no press waits for the page")
+        clock.advance(by: session.inAppCommandAckTimeout)
+        await wait?.value
+    }
+
+    /// Ends the wait for Spotify's page to report the last press.
+    private static func endReportWait(
+        _ wait: Task<Void, Never>?,
+        of session: PlaybackSessionViewModel,
+        on clock: ManualPlaybackClock
+    ) async {
+        clock.advance(by: session.pushedPlayStateExpectationTimeout)
+        await wait?.value
+    }
+
     private static func settle(until condition: () -> Bool = { false }) async {
         for _ in 0..<50 where !condition() { await Task.yield() }
     }
 
     /// Apple Music: a player whose state is read, and which reports "playing" a while after it
     /// was paused.
-    private func playingReadPlayer() -> (ReadOnlyStatePlaybackProvider, PlaybackSessionViewModel) {
+    private func playingReadPlayer(
+        clock: any PlaybackClock = ContinuousClock()
+    ) -> (ReadOnlyStatePlaybackProvider, PlaybackSessionViewModel) {
         let provider = ReadOnlyStatePlaybackProvider()
         provider.state = Self.snapshot(isPlaying: true)
-        let session = PlaybackSessionViewModel(provider: provider)
+        let session = PlaybackSessionViewModel(provider: provider, clock: clock)
         session.deviceID = "local"
         session.setActivePlaybackDeviceID("local")
         session.setConnectionState(.playing(Self.song))
@@ -881,10 +902,13 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
 
     /// Spotify in the app: its page reports the new state only after the toggle, sometimes with
     /// a report from before it first.
-    private func playingSpotify() -> (MockWebPlaybackCommander, PlaybackSessionViewModel) {
+    private func playingSpotify(
+        clock: any PlaybackClock = ContinuousClock()
+    ) -> (MockWebPlaybackCommander, PlaybackSessionViewModel) {
         let commander = MockWebPlaybackCommander()
         let session = PlaybackSessionViewModel(
-            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
+            clock: clock
         )
         session.handle(.ready(deviceID: "sdk-device"))
         session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
@@ -1089,7 +1113,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// The wait for a slow service has an end: after it, a read that still disagrees is
     /// believed (the music was started again elsewhere).
     func testLateReadsAreBelievedAfterTheWait() async {
-        let clock = SteppedPlaybackClock()
+        let clock = ManualPlaybackClock()
         let provider = ReadOnlyStatePlaybackProvider()
         provider.state = Self.snapshot(isPlaying: true)
         let session = PlaybackSessionViewModel(provider: provider, clock: clock)
@@ -1206,22 +1230,28 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
 
     /// A page that never answers doesn't hold the next press for ever.
     func testSpotifyPlayGoesOutWhenThePageNeverAnswers() async {
-        let (commander, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (commander, session) = playingSpotify(clock: clock)
         session.inAppCommandAckTimeout = .milliseconds(20)
 
         await session.requestTogglePlayPause()?.value
-        await session.requestTogglePlayPause()?.value
+        let play = session.requestTogglePlayPause()
+        await Self.settle()
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause], "the play went out before the wait ended")
+        await Self.endAckWait(session, on: clock)
+        await play?.value
         XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume])
     }
 
     /// The page answers a pause only after the 3 s wait, and it's a refusal: the controls still
     /// go back and the bar says so, instead of showing a pause that never happened.
     func testSpotifyPageRefusingAPauseLateStillGoesBack() async {
-        let (_, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (_, session) = playingSpotify(clock: clock)
         session.inAppCommandAckTimeout = .milliseconds(20)
 
         await session.requestTogglePlayPause()?.value
-        try? await Task.sleep(for: .milliseconds(150))
+        await Self.endAckWait(session, on: clock)
         XCTAssertNil(session.inAppCommandInFlight, "the wait for the page ended")
         session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
 
@@ -1250,30 +1280,33 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// A report held back while a press waited belongs to the page that sent it: after a
     /// reconnect starts a new page, it is never shown.
     func testSpotifyAHeldBackReportFromAReplacedPageIsDropped() async {
-        let (_, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (_, session) = playingSpotify(clock: clock)
         session.pushedPlayStateExpectationTimeout = .milliseconds(20)
 
         session.requestTogglePlayPause()
         session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
         XCTAssertNotNil(session.heldBackPageReport)
+        let wait = session.pushedPlayStateExpectationTask
         _ = session.beginPlaybackHostLifecycle()
         XCTAssertNil(session.heldBackPageReport)
         XCTAssertTrue(session.pushedPlayStateExpectations.isEmpty)
 
         let state = session.connectionState
-        try? await Task.sleep(for: .milliseconds(150))
+        await Self.endReportWait(wait, of: session, on: clock)
         XCTAssertEqual(session.connectionState, state, "the old page's report was shown after the reconnect")
     }
 
     /// Pause, play, pause, and the page answers the first pause only after the wait: its late
     /// refusal carries that press's id, so it isn't taken for the last pause's (#437).
     func testSpotifyALateRefusalIsMatchedByItsPressNotItsName() async {
-        let (_, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (_, session) = playingSpotify(clock: clock)
         session.inAppCommandAckTimeout = .milliseconds(20)
 
         await session.requestTogglePlayPause()?.value
         let firstPause = session.playPauseRequestSerial
-        try? await Task.sleep(for: .milliseconds(150))
+        await Self.endAckWait(session, on: clock)
         await session.requestTogglePlayPause()?.value
         session.handle(.playerCommandFinished(command: "resume", id: session.playPauseRequestSerial))
         await session.requestTogglePlayPause()?.value
@@ -1324,7 +1357,8 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// takes its time). The pause doesn't wait for ever, and if the play lands after it, the
     /// pause is sent again: the last press wins.
     func testAPauseDuringASlowPlayStillEndsPaused() async {
-        let (provider, session) = playingReadPlayer()
+        let clock = ManualPlaybackClock()
+        let (provider, session) = playingReadPlayer(clock: clock)
         session.setConnectionState(.paused(Self.song))
         provider.state = Self.snapshot(isPlaying: false)
         session.playPauseQueueWait = .milliseconds(20)
@@ -1333,8 +1367,13 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let play = session.requestTogglePlayPause()
         await Self.settle { provider.waitingCommandCount == 1 }
         provider.holdsCommands = false
+        let armed = clock.sleeperCount
         let pause = session.requestTogglePlayPause()
-        try? await Task.sleep(for: .milliseconds(150))
+        // The pause waits its turn behind the play, up to the queue wait.
+        let queued = await clock.waitForSleepers(armed + 1)
+        XCTAssertTrue(queued, "the pause never waited its turn behind the play")
+        XCTAssertEqual(provider.commands, ["resume local"], "the pause went out before its wait ended")
+        clock.advance(by: session.playPauseQueueWait)
         await pause?.value
         XCTAssertEqual(provider.commands, ["resume local", "pause local"], "the pause waited for the slow play")
 
@@ -1365,13 +1404,14 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// A sign-in error while a press waits for Spotify's page: the report held back for the
     /// press must not replace it when the wait ends, or the Sign In button goes away.
     func testSpotifyAHeldBackReportDoesntReplaceASignInError() async {
-        let (_, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (_, session) = playingSpotify(clock: clock)
         session.pushedPlayStateExpectationTimeout = .milliseconds(20)
 
         session.requestTogglePlayPause()
         session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
         session.handle(.authenticationError("token expired"))
-        try? await Task.sleep(for: .milliseconds(150))
+        await Self.endReportWait(session.pushedPlayStateExpectationTask, of: session, on: clock)
 
         guard case .error = session.connectionState else {
             return XCTFail("the held-back report replaced the sign-in error: \(session.connectionState)")
@@ -1381,12 +1421,13 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// Pause takes longer than the wait in Spotify's player, the play goes out meanwhile and
     /// finishes first, then the pause lands: the play is sent again, so the last press wins.
     func testSpotifyALatePauseIsFollowedByThePlayAgain() async {
-        let (commander, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (commander, session) = playingSpotify(clock: clock)
         session.inAppCommandAckTimeout = .milliseconds(20)
 
         await session.requestTogglePlayPause()?.value
         let pause = session.playPauseRequestSerial
-        try? await Task.sleep(for: .milliseconds(150))
+        await Self.endAckWait(session, on: clock)
         await session.requestTogglePlayPause()?.value
         let play = session.playPauseRequestSerial
         session.handle(.playerCommandFinished(command: "resume", id: play))
@@ -1428,7 +1469,8 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     /// The wait for the page ends without the page reporting the last press: its latest report
     /// is then shown, so the bar doesn't keep a song the page has moved on from.
     func testSpotifyShowsThePagesLastReportWhenTheWaitEnds() async {
-        let (_, session) = playingSpotify()
+        let clock = ManualPlaybackClock()
+        let (_, session) = playingSpotify(clock: clock)
         session.pushedPlayStateExpectationTimeout = .milliseconds(20)
 
         session.requestTogglePlayPause()
@@ -1439,7 +1481,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         session.handle(.stateChanged(next, isPaused: false, nextTracks: []))
         XCTAssertNotEqual(session.currentNowPlaying?.name, "Next")
 
-        try? await Task.sleep(for: .milliseconds(200))
+        await Self.endReportWait(session.pushedPlayStateExpectationTask, of: session, on: clock)
         XCTAssertEqual(session.currentNowPlaying?.name, "Next")
         XCTAssertTrue(Self.isPlaying(session))
     }
@@ -1456,27 +1498,6 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
     }
 }
 
-/// A clock the test moves on by hand.
-private final class SteppedPlaybackClock: PlaybackClock, @unchecked Sendable {
-    private let lock = NSLock()
-    private var current = ContinuousClock().now
-
-    var now: ContinuousClock.Instant {
-        lock.lock()
-        defer { lock.unlock() }
-        return current
-    }
-
-    func advance(by duration: Duration) {
-        lock.lock()
-        current = current.advanced(by: duration)
-        lock.unlock()
-    }
-
-    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {
-        try await Task.sleep(for: .seconds(3_600))
-    }
-}
 
 /// Holds a read until the test lets it go.
 @MainActor

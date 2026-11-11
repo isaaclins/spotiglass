@@ -379,6 +379,10 @@ struct LyricsOverlayLayer: View {
     let keymapStore: CommandPaletteKeymapStore
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @State private var keyboardFocus = LyricsKeyboardFocusProbe()
+    /// How much of the column's bottom the player bar covers. The lyrics run behind the bar
+    /// (#474), and the column doesn't get the bar's safe area (the split view hosts it), so
+    /// the browser measures the bar and hands its height in.
+    var playerBarInset: CGFloat = 0
 
     /// Avoid blocking the column when `isPresented` is true before the browser has called `attach` (nil models).
     private var immersiveLyricsReady: Bool {
@@ -411,7 +415,8 @@ struct LyricsOverlayLayer: View {
                     .environmentObject(settingsStore)
                     .environment(\.locale, settingsStore.appLocale)
                     .environment(\.spotiglassLocale, settingsStore.appLocale)
-                    .environment(\.lyricsKeyboardFocus, keyboardFocus),
+                    .environment(\.lyricsKeyboardFocus, keyboardFocus)
+                    .safeAreaPadding(.bottom, playerBarInset),
                     isActive: immersiveLyricsReady,
                     keymapStore: keymapStore,
                     keyboardFocus: keyboardFocus
@@ -422,8 +427,9 @@ struct LyricsOverlayLayer: View {
         }
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The lines scroll unclipped for the edge fade; in a short window they would draw over
-        // the player bar right below the column (#438).
+        // The lines scroll unclipped for the edge fade; without this they would draw past the
+        // column's edges (#438). The column runs behind the player bar, so the backdrop reaches
+        // the window's bottom edge and the lines fade out above the bar (#474).
         .clipped()
         .ignoresSafeArea(.container, edges: .top)
         .allowsHitTesting(immersiveLyricsReady)

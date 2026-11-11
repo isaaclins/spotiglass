@@ -291,6 +291,7 @@
 		TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E0 /* PinnedRowViewTests.swift */; };
 		TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */; };
 		TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E2 /* CommandPaletteViewTests.swift */; };
+		F49900000000000000000001 /* CommandPaletteListRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */; };
 		TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */; };
 		TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */; };
 		TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */; };
@@ -321,6 +322,7 @@
 		TST00000000000000000000FE /* QueueViewModelCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FE /* QueueViewModelCoreTests.swift */; };
 		TST00000000000000000000FF /* PlaylistBrowserDisplayErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */; };
 		TST00000000000000000001 /* TestTemporaryDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000051 /* TestTemporaryDirectories.swift */; };
+		F5100000000000000000001 /* ManualPlaybackClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5100000000000000000002 /* ManualPlaybackClock.swift */; };
 		TST0000000000000000E001 /* EphemeralUserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000E051 /* EphemeralUserDefaults.swift */; };
 		TST0000000000000000000101 /* LibrarySidebarOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */; };
 		TST0000000000000000000102 /* LyricsOverlayControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */; };
@@ -722,6 +724,7 @@
 		SRC0000000000000000080014 /* EQCoefficientPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQCoefficientPublisher.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080015 /* EqualizerHALPluginController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerHALPluginController.swift; sourceTree = "<group>"; };
 		TST00000000000000000051 /* TestTemporaryDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestTemporaryDirectories.swift; sourceTree = "<group>"; };
+		F5100000000000000000002 /* ManualPlaybackClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualPlaybackClock.swift; sourceTree = "<group>"; };
 		TST0000000000000000E051 /* EphemeralUserDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EphemeralUserDefaults.swift; sourceTree = "<group>"; };
 		TST00000000000000000052 /* PlaylistBrowsingTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowsingTestFixtures.swift; sourceTree = "<group>"; };
 		TST00000000000000000053 /* CommandPaletteTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteTestSupport.swift; sourceTree = "<group>"; };
@@ -807,6 +810,7 @@
 		TST00000000000000000100E0 /* PinnedRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRowViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebViewSmokeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E2 /* CommandPaletteViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewTests.swift; sourceTree = "<group>"; };
+		F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteListRefreshTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRowViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistOwnerDisplayTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewsBatchTests.swift; sourceTree = "<group>"; };
@@ -1211,6 +1215,7 @@
 				TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */,
 				TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */,
 				TST00000000000000000100E2 /* CommandPaletteViewTests.swift */,
+				F49900000000000000000002 /* CommandPaletteListRefreshTests.swift */,
 				TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */,
 				TST00000000000000000100E0 /* PinnedRowViewTests.swift */,
 				TST00000000000000000100DF /* ArtworkViewTests.swift */,
@@ -1305,6 +1310,7 @@
 			isa = PBXGroup;
 			children = (
 				TST00000000000000000051 /* TestTemporaryDirectories.swift */,
+				F5100000000000000000002 /* ManualPlaybackClock.swift */,
 				TST0000000000000000E051 /* EphemeralUserDefaults.swift */,
 				TST00000000000000000052 /* PlaylistBrowsingTestFixtures.swift */,
 				TST00000000000000000053 /* CommandPaletteTestSupport.swift */,
@@ -1916,6 +1922,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				TST00000000000000000001 /* TestTemporaryDirectories.swift in Sources */,
+				F5100000000000000000001 /* ManualPlaybackClock.swift in Sources */,
 				TST0000000000000000E001 /* EphemeralUserDefaults.swift in Sources */,
 				TST00000000000000000002 /* PlaylistBrowsingTestFixtures.swift in Sources */,
 				TST00000000000000000003 /* CommandPaletteTestSupport.swift in Sources */,
@@ -2033,6 +2040,7 @@
 				TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */,
 				TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */,
 				TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */,
+				F49900000000000000000001 /* CommandPaletteListRefreshTests.swift in Sources */,
 				TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */,
 				TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */,
 				TST00000000000000000000DF /* ArtworkViewTests.swift in Sources */,
@@ -2105,7 +2113,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2126,7 +2134,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2273,7 +2281,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2292,7 +2300,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.26;
+				MARKETING_VERSION = 0.8.32;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2309,7 +2317,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2328,7 +2336,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.26;
+				MARKETING_VERSION = 0.8.32;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2341,7 +2349,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2350,7 +2358,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.26;
+				MARKETING_VERSION = 0.8.32;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -2363,7 +2371,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 43;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2372,7 +2380,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.26;
+				MARKETING_VERSION = 0.8.32;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

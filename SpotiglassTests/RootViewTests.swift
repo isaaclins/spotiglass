@@ -225,7 +225,8 @@ final class RootViewTests: XCTestCase {
         .environmentObject(settings)
         .environmentObject(auth)
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
-        ViewTestHost.host(root)
+        let seen = SeenByWindow()
+        ViewTestHost.host(WindowUpdateProbe(services: services, auth: auth, seen: seen) { root })
 
         // Spotify connected from Settings: added without moving the window.
         services.completeAddition(of: .spotify)
@@ -237,13 +238,15 @@ final class RootViewTests: XCTestCase {
         XCTAssertTrue(auth.isSigningOut)
 
         services.beginAddition(of: .spotify)
-        try await Task.sleep(for: .milliseconds(150))
+        // The window has run its change handlers for the new addition (#510).
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { seen.pendingAddition == .spotify }))
+        XCTAssertEqual(seen.isSigningOut, true, "the window never saw the sign-out start")
         XCTAssertFalse(services.isAdded(.spotify), "Deleted credentials must require a fresh sign-in")
         XCTAssertEqual(services.pendingAddition, .spotify)
 
         finishCleanup.signal()
         await signingOut.value
-        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { seen.isSigningOut == false }))
         XCTAssertFalse(auth.isSigningOut)
         XCTAssertFalse(services.isAdded(.spotify))
         XCTAssertEqual(services.pendingAddition, .spotify)
@@ -415,6 +418,29 @@ final class RootViewTests: XCTestCase {
             palette: { registry.activeScene?.commandPaletteManager },
             pageElement: SpotiglassL10n.string("appleMusic.permission.openSettings")
         )
+    }
+}
+
+/// What the hosted window last rendered.
+@MainActor
+private final class SeenByWindow {
+    var pendingAddition: MusicService?
+    var isSigningOut: Bool?
+}
+
+/// Wraps a root view and notes each change it renders. SwiftUI runs every `onChange` of one
+/// update together, so once the probe saw a change, the root's own handlers for it have run:
+/// a test waits for that instead of for a fixed time.
+private struct WindowUpdateProbe<Content: View>: View {
+    @ObservedObject var services: MusicServiceStore
+    @ObservedObject var auth: AuthViewModel
+    let seen: SeenByWindow
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .onChange(of: services.pendingAddition, initial: true) { _, new in seen.pendingAddition = new }
+            .onChange(of: auth.isSigningOut, initial: true) { _, new in seen.isSigningOut = new }
     }
 }
 
