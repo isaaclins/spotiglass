@@ -123,10 +123,13 @@ enum AppleMusicItemMapping {
     /// library listings always do.
     /// The cover is the one the Music app shows, also the one Apple generates for a playlist
     /// without a picture of its own (#477).
+    /// `catalogCopy` is the catalog playlist a saved one is a copy of, when the caller has it: its
+    /// cover loads without the library (#524).
     static func playlistSummary(
         _ playlist: Playlist,
         fallbackOwnerName: String,
-        cachedTrackCount: Int? = nil
+        cachedTrackCount: Int? = nil,
+        catalogCopy: Playlist? = nil
     ) -> MusicPlaylistSummary {
         // Playlists the user made have no curator; Apple's own and shared ones name theirs.
         let curator = playlist.curatorName
@@ -135,11 +138,12 @@ enum AppleMusicItemMapping {
         // A blank name would read as a broken response to the browser's playlist check (built
         // for Spotify's error items) and fail the whole library with a Spotify-style error.
         let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let imageURL = artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id)
+        let cover = catalogCopy.flatMap { $0.id == playlist.id ? nil : $0.artwork } ?? playlist.artwork
+        let imageURL = artworkURL(cover, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id)
         // Search lists a shared library playlist under its catalog ID too, and pins made there
         // carry that ID, so the cover is also kept under it: such a pin draws it after a relaunch,
         // and one saved without a cover gets it from the library listing (#477).
-        if let imageURL, let artwork = playlist.artwork, let catalogID = catalogID(of: playlist),
+        if let imageURL, let artwork = cover, let catalogID = catalogID(of: playlist),
            catalogID != playlist.id.rawValue {
             AppleMusicArtworkRegistry.shared.register(
                 artwork, for: imageURL, itemKey: PinnedItem.id(forKind: .playlist, spotifyID: catalogID)
