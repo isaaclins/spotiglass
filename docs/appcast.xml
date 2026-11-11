@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.37</title>
-            <pubDate>Wed, 11 Nov 2026 04:47:07 +0100</pubDate>
-            <sparkle:version>48</sparkle:version>
-            <sparkle:shortVersionString>0.8.37</sparkle:shortVersionString>
+            <title>0.8.38</title>
+            <pubDate>Wed, 11 Nov 2026 04:52:28 +0100</pubDate>
+            <sparkle:version>49</sparkle:version>
+            <sparkle:shortVersionString>0.8.38</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Pinned Apple Music playlists show their cover again, even while they stay saved.
+            <description sparkle:format="plain-text"><![CDATA[• Dragging an Apple Music library pin now shows its cover.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.37/Spotiglass-0.8.37.zip" length="13333938" type="application/octet-stream" sparkle:edSignature="OpYLrHQWmo5PvKb6wTadt69jcsDKOpvUD+JtXn1Li6OxIjYYQ9DC+ZTwjTIpF06aKblmN9irHEGWqUjkNRfvCg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.38/Spotiglass-0.8.38.zip" length="13375393" type="application/octet-stream" sparkle:edSignature="dDNZieW7wFt5rogb966bAvPsha7m4I1KdcLCQm/yVUZPPYOkk6IzynNqe2G6wQSdtrE2j99MCK4Yoj+eTp3qBg=="/>
         </item>
     </channel>
 </rss>

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.38] - 2026-11-11
+
+### Fixed
+
+- Dragging an Apple Music library pin now shows its cover.
+
 ## [0.8.37] - 2026-11-11
 
 ### Fixed
