@@ -63,9 +63,10 @@ never reaches MusicKit.
 `setFrame`, Rectangle or Magnet do (size, position, size again through the Accessibility API) and
 prints how long one resize and an animated one of `steps` steps took
 ([`resize_timing.swift`](../scripts/screenshot-mode/resize_timing.swift)). With `max-ms-per-step` it
-exits with an error when the median step is slower. It times the app's main window and stops with
-an error when a resize call fails or the window doesn't take any one of the sizes it was given
-(checked after each resize, outside the timing), so a full-screen or clamped window can't pass. Measure a Release build:
+exits with an error when the median step is slower. It times the app's main window and reads the size back after
+every resize, inside the timing: the read waits for the app the way a window manager's next call
+does, so work the app puts off until after a resize still counts. A resize call that fails, or a
+window that doesn't take a size it was given (full screen, clamped), stops the run with an error. Measure a Release build:
 
 ```sh
 scripts/screenshots.sh start --release
@@ -75,8 +76,7 @@ scripts/screenshots.sh stop
 
 Compare it with Finder in the same minute, since other work on the Mac slows both: after a
 `resize`, `build/screenshot-mode/resize_timing $(pgrep -x Finder) 8 12` times a Finder window the
-same way. On a quiet Mac mini M4 both take about 15 ms a step in Spotify mode, and Apple Music mode
-is faster still (#473). The terminal needs the Accessibility permission.
+same way. On a quiet Mac mini M4 both take about 15 ms a step in Spotify mode (#473). The terminal needs the Accessibility permission.
 
 `appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
 System Settings does, to check how the window takes a live theme change (set Settings → Appearance

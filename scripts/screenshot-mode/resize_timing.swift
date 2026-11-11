@@ -86,12 +86,15 @@ setFrame(wide)
 usleep(500_000)
 expectSize(wide.size)
 var single: [Double] = []
-// Every timed resize is checked afterwards (outside the timing), so a window that ignores or
-// clamps a size can't make a run look fast.
+// Every timed resize reads the size back inside the timing. The read waits for the app like the
+// window manager's next call does, so work the app puts off until after the set calls still
+// counts, and a window that ignores or clamps a size can't make a run look fast.
 for round in 0..<rounds {
     let target = round % 2 == 0 ? narrow : wide
-    single.append(seconds { setFrame(target) })
-    expectSize(target.size)
+    single.append(seconds {
+        setFrame(target)
+        expectSize(target.size)
+    })
     usleep(300_000)
 }
 setFrame(wide)
@@ -102,8 +105,10 @@ for round in 0..<rounds {
     for step in 1...steps {
         let progress = CGFloat(step) / CGFloat(steps)
         let target = between(round % 2 == 0 ? progress : 1 - progress)
-        total += seconds { setFrame(target) }
-        expectSize(target.size)
+        total += seconds {
+            setFrame(target)
+            expectSize(target.size)
+        }
     }
     animated.append(total)
     usleep(300_000)
