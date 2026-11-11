@@ -4,8 +4,9 @@ import SwiftUI
 /// re-ran the whole browser body, its toolbar and the window scene on every resize step: about
 /// 0.1 s per step when a window manager resizes the window from code (#473). The breakpoint rules
 /// only act on the widths; the one thing on screen they decide, the sidebar's drag limit, lives in
-/// ``sidebarDragLimit`` and redraws only the sidebar column's width.
-@MainActor
+/// ``sidebarDragLimit`` and redraws only the sidebar column's width. Not main-actor isolated, so a
+/// view's `@State` can create it from its nonisolated initializer; the browser only touches it on
+/// the main thread.
 final class BrowserWidthSampler {
     /// The width last measured.
     var latestWidth: CGFloat = 2000
@@ -36,7 +37,6 @@ final class BrowserWidthSampler {
 
 /// The committed browser width the sidebar's drag limit (#459) is worked out from. Its own
 /// object, so a new width redraws only the sidebar column's width and not the browser (#473).
-@MainActor
 final class SidebarDragLimit: ObservableObject {
     @Published private(set) var browserWidth: CGFloat = 2000
 
