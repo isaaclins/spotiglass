@@ -590,6 +590,13 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) { playlist, _ in
             [AppleMusicItemMapping.playlistMatchID(playlist)]
         }
+        // The saved copy's cover is a `musicKit://` one, which draws only while the playlist is
+        // in the library. It shows the cover of the catalog copy it hid, which loads on its own,
+        // so a pin of the playlist keeps a cover after the playlist leaves the library (#524).
+        let catalogPlaylists = Dictionary(
+            catalogItems.playlists.map { (AppleMusicItemMapping.playlistMatchID($0), $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         return MusicSearchResults(
             tracks: tracks.map(AppleMusicItemMapping.track),
             artists: artists.map(AppleMusicItemMapping.artist),
@@ -599,7 +606,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 return mapped.withArtistRefs(refs)
             },
             playlists: playlists.map {
-                AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
+                AppleMusicItemMapping.playlistSummary(
+                    $0, fallbackOwnerName: libraryOwnerName, catalogCopy: catalogPlaylists[AppleMusicItemMapping.playlistMatchID($0)]
+                )
             },
             tracksPaging: paging(tracks.count, more: catalogItems.moreSongs),
             artistsPaging: paging(artists.count, more: catalogItems.moreArtists),

@@ -377,10 +377,21 @@ final class PinnedItemsStore: ObservableObject {
     }
 
     private func fillMissingPlaylistArtwork(covers: [(id: String, url: URL?)]) {
-        let artworkByID = Dictionary(
+        var artworkByID = Dictionary(
             covers.compactMap { cover in cover.url.map { (cover.id, $0) } },
             uniquingKeysWith: { first, _ in first }
         )
+        // Search lists a saved Apple Music playlist by its library ID only, while a pin made from
+        // Search before may carry its catalog ID: the cover counts for the playlist's other IDs
+        // too (#524). A row that names that ID itself keeps its own cover.
+        if let aliases {
+            for (id, url) in artworkByID {
+                for alias in aliases.knownAliases(ofPinID: PinnedItem.id(forKind: .playlist, spotifyID: id), checkingAlbum: false) {
+                    guard let aliasID = PinnedItem.itemID(ofPinID: alias), artworkByID[aliasID] == nil else { continue }
+                    artworkByID[aliasID] = url
+                }
+            }
+        }
         if knownPlaylistCovers.count + artworkByID.count > Self.maxKnownPlaylistCovers {
             knownPlaylistCovers = [:]
         }

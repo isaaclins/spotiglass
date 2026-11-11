@@ -398,6 +398,43 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         }
     }
 
+    /// A playlist pinned from Search under its catalog ID got the catalog copy's `https` cover
+    /// from Search, so it kept a cover after the playlist left the library. Since Search hides
+    /// that copy behind the saved one (#519) it offered only the saved copy's `musicKit://`
+    /// cover, under the library ID, and the pin kept a cover that draws only from the library
+    /// (#524). The saved row shows the cover of the copy it hid, and the pin gets it.
+    @MainActor
+    func testAPinOfASavedPlaylistGetsTheCatalogCoverFromASearchThatHidesTheCatalogCopy() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(playlists: [
+            try AppleMusicFixtures.playlist(
+                id: "p.F524Saved", name: "Late Night Jazz", curator: "Apple Music Jazz",
+                catalogID: "pl.f524catalog", libraryArtwork: true
+            ),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(playlists: [
+            try AppleMusicFixtures.playlist(id: "pl.f524catalog", name: "Late Night Jazz", curator: "Apple Music Jazz"),
+        ])
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache(), aliases: AppleMusicPinAliases(
+            lookUp: { _, _ in [:] }, albums: { _ in [] },
+            searchAlbums: { _ in AppleMusicAlbumSearch(catalog: [], library: []) },
+            songReferences: AppleMusicSongReferenceRegistry()
+        ))
+        store.bind(userID: AppleMusicBrowsingProvider.libraryUserID)
+        store.pin(.playlist(MusicPlaylistSummary(
+            id: "pl.f524catalog", name: "Late Night Jazz", ownerID: "me", ownerName: "Apple Music Jazz",
+            imageURL: URL(string: "musicKit://artwork/p.F524Saved/600x600"), trackCount: nil, snapshotID: "applemusic"
+        )))
+
+        let page = try await AppleMusicBrowsingProvider(source: source).search(query: "late night", limit: 10)
+        XCTAssertEqual(page.playlists.map(\.id), ["p.F524Saved"], "the catalog copy stays hidden (#519)")
+        store.fillMissingPlaylistArtwork(from: page.playlists)
+
+        let catalogCover = "https://example.com/art/pl.f524catalog/600x600bb.jpg"
+        XCTAssertEqual(page.playlists.first?.imageURL?.absoluteString, catalogCover)
+        XCTAssertEqual(store.items.map(\.artworkURL?.absoluteString), [catalogCover])
+    }
+
     /// A shared playlist pinned from Search is pinned under its catalog ID, which the library
     /// listing doesn't use. The listing keeps its cover under that ID too, so such a pin saved
     /// without a cover gets it, and draws it again after a relaunch (#477).
@@ -1981,9 +2018,14 @@ enum AppleMusicFixtures {
         trackCount: Int? = nil,
         lastModified: String? = nil,
         globalID: String? = nil,
-        catalogID: String? = nil
+        catalogID: String? = nil,
+        libraryArtwork: Bool = false
     ) throws -> Playlist {
-        var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
+        // The local library gives its covers as `musicKit://` URLs only MusicKit can draw.
+        let cover = libraryArtwork
+            ? ["url": "musicKit://artwork/\(id)/{w}x{h}", "width": 3000, "height": 3000]
+            : artwork(id)
+        var attributes: [String: Any] = ["name": name, "artwork": cover]
         if globalID != nil || catalogID != nil {
             var playParams: [String: Any] = ["id": id, "kind": "playlist", "isLibrary": true]
             if let globalID { playParams["globalId"] = globalID }
