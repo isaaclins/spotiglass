@@ -305,7 +305,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
     /// Lets the connect timeout run out on the session's stepped clock, once it is armed (#510).
     private static func endConnectTimeout(of viewModel: PlaybackSessionViewModel, on clock: ManualPlaybackClock) async {
-        await clock.waitForSleepers()
+        let armed = await clock.waitForSleepers()
+        XCTAssertTrue(armed, "no connect timeout is armed")
         let timeout = viewModel.playbackHostConnectTimeoutTask
         XCTAssertNotNil(timeout, "no connect timeout is armed")
         clock.advance(by: viewModel.playbackHostConnectTimeout)

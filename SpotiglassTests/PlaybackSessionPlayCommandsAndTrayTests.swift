@@ -116,7 +116,8 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         XCTAssertEqual(viewModel.currentNowPlayingURI, "spotify:track:real")
         XCTAssertNotNil(viewModel.pendingPlayURI)
 
-        await clock.waitForSleepers()
+        let armed = await clock.waitForSleepers()
+        XCTAssertTrue(armed, "the pending play's timeout was never armed")
         let timeoutTask = try XCTUnwrap(viewModel.pendingPlayTransitionTimeoutTask)
         clock.advance(by: .seconds(7))
         await timeoutTask.value

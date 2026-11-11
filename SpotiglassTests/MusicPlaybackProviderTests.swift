@@ -1370,7 +1370,8 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let armed = clock.sleeperCount
         let pause = session.requestTogglePlayPause()
         // The pause waits its turn behind the play, up to the queue wait.
-        await clock.waitForSleepers(armed + 1)
+        let queued = await clock.waitForSleepers(armed + 1)
+        XCTAssertTrue(queued, "the pause never waited its turn behind the play")
         XCTAssertEqual(provider.commands, ["resume local"], "the pause went out before its wait ended")
         clock.advance(by: session.playPauseQueueWait)
         await pause?.value

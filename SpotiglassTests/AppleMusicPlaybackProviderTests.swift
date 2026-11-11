@@ -1287,7 +1287,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         while player.waitingLookups.isEmpty { await Task.yield() }
         clock.advance(by: session.passingErrorRecoveryDelay)
         // Due: the recovery sees the play still running and waits once more instead of reading.
-        await clock.waitForSleeper(dueAt: clock.now.advanced(by: session.passingErrorRecoveryDelay))
+        let waitsAgain = await clock.waitForSleeper(dueAt: clock.now.advanced(by: session.passingErrorRecoveryDelay))
+        XCTAssertTrue(waitsAgain, "the recovery didn't go back to waiting for the running play")
         XCTAssertEqual(session.connectionState, .error(failed), "the recovery ran under the running play")
 
         player.releaseLookups()

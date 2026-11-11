@@ -590,7 +590,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         }
         let delay = ImmersiveLyricsLayout.autoCenterResumeDelay
         clock.advance(by: delay - .milliseconds(1))
-        await clock.waitForSleepers()
+        let stillWaiting = await clock.waitForSleepers()
+        XCTAssertTrue(stillWaiting, "the idle wait ended before its time")
         XCTAssertFalse(controller.isAutoCentering, "auto-centering came back before the idle period ended")
         clock.advance(by: .milliseconds(1))
         let didResume = await resumeSignal.wait(timeout: .seconds(30))

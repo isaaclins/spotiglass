@@ -244,12 +244,12 @@ final class LyricsOverlayControllerTests: XCTestCase {
 
         XCTAssertTrue(AppKitTestSupport.makeFirstResponder(previousResponder, in: window))
         focusContainer.setActive(true)
-        // The focus request retries on its own timer (up to 1.35 s in): wait until it is done,
-        // however late a busy machine runs it, not for a fixed time (#510).
-        XCTAssertTrue(
-            AppKitTestSupport.pumpRunLoop(until: { box.requestFinished }),
-            "the focus request never finished"
-        )
+        // The focus request retries on its own timer (up to 1.35 s in): wait until it is done
+        // and its last focus change has reached the view, however late a busy machine runs it,
+        // not for a fixed time (#510). The request ends right after it sets focus, one SwiftUI
+        // pass before `box.focused` follows, so waiting for the end alone is too early.
+        _ = AppKitTestSupport.pumpRunLoop(until: { box.requestFinished && box.focused })
+        XCTAssertTrue(box.requestFinished, "the focus request never finished")
 
         XCTAssertTrue(box.focused, "the lyrics list does not have the keyboard after opening")
         let responder = try XCTUnwrap(window.firstResponder as? NSView, "nothing has the keyboard")
