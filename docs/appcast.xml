@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.26</title>
-            <pubDate>Wed, 11 Nov 2026 01:11:38 +0100</pubDate>
-            <sparkle:version>37</sparkle:version>
-            <sparkle:shortVersionString>0.8.26</sparkle:shortVersionString>
+            <title>0.8.27</title>
+            <pubDate>Wed, 11 Nov 2026 01:43:54 +0100</pubDate>
+            <sparkle:version>38</sparkle:version>
+            <sparkle:shortVersionString>0.8.27</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Apple Music albums can no longer be pinned to the sidebar twice.
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.26/Spotiglass-0.8.26.zip" length="13253986" type="application/octet-stream" sparkle:edSignature="wPVNQSADpJjpgZLoeVEDt84hL56NmSFAtEUgD9QROwT3RKA9zk31P2yEvI3cLX1bTlREHcl/sykytQ2XwjU3BA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.27/Spotiglass-0.8.27.zip" length="13255511" type="application/octet-stream" sparkle:edSignature="YgmBBtBbznZjkKBrCoOvD86aloO7i/LuZyL6wWtGde3L+F24pOtM9NPSTteAvfVArNIj/PveNHiU8hV8M5rJAQ=="/>
         </item>
     </channel>
 </rss>
