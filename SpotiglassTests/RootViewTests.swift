@@ -572,9 +572,10 @@ final class RootViewToolbarLayoutTests: XCTestCase {
         let toolbar = window.toolbar
 
         services.beginAddition(of: .appleMusic)
-        try await settle(until: { services.isAdded(.appleMusic) })
+        try await settle(until: { Self.showsLibrary(window) })
 
         XCTAssertEqual(services.active, .appleMusic)
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
         assertLaidOutOnce(window, keeping: toolbar)
     }
 
@@ -584,9 +585,10 @@ final class RootViewToolbarLayoutTests: XCTestCase {
         let toolbar = window.toolbar
 
         services.beginAddition(of: .appleMusic)
-        try await settle(until: { services.isAdded(.appleMusic) })
+        try await settle(until: { Self.showsLibrary(window) })
 
         XCTAssertEqual(services.active, .appleMusic)
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
         assertLaidOutOnce(window, keeping: toolbar)
     }
 
@@ -594,14 +596,16 @@ final class RootViewToolbarLayoutTests: XCTestCase {
     func testAppleMusicLibraryBackToWelcomeLaysTheWindowOutOnce() async throws {
         let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic))
         let window = try await hostRoot(services: services)
-        try await settle(until: { false }, rounds: 10)
+        try await settle(until: { Self.showsLibrary(window) })
+        XCTAssertTrue(Self.showsLibrary(window), "the library never appeared")
         let toolbar = window.toolbar
         FrameViewLayoutReentry.watch(window)
 
         services.remove(.appleMusic)
-        try await settle(until: { false }, rounds: 10)
+        try await settle(until: { !Self.showsLibrary(window) })
 
         XCTAssertNil(services.active)
+        XCTAssertFalse(Self.showsLibrary(window), "the library's toolbar items stayed")
         assertLaidOutOnce(window, keeping: toolbar)
     }
 
@@ -647,13 +651,22 @@ final class RootViewToolbarLayoutTests: XCTestCase {
         return window
     }
 
-    private func settle(until done: () -> Bool, rounds: Int = 40) async throws {
-        for _ in 0..<rounds {
+    /// The library declares its own toolbar items next to the spacer every screen has; Welcome and
+    /// the sign-in screen have only that spacer.
+    private static func showsLibrary(_ window: NSWindow) -> Bool {
+        (window.toolbar?.items.count ?? 0) > 1
+    }
+
+    /// Runs the main run loop until `done` holds. The limit only stops a broken run; a passing run
+    /// returns as soon as the screen has switched.
+    private func settle(until done: () -> Bool, limit: Duration = .seconds(10)) async throws {
+        let deadline = ContinuousClock.now + limit
+        while !done(), ContinuousClock.now < deadline {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
-            try await Task.sleep(for: .milliseconds(50))
-            if done() { break }
+            try await Task.sleep(for: .milliseconds(10))
         }
-        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        // One more pass, so a layout the switch scheduled for the next display cycle runs while watched.
+        AppKitTestSupport.pumpRunLoop(for: 0.05)
     }
 }
 

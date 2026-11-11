@@ -563,12 +563,15 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let other = open("/dev/null", O_RDONLY)
         XCTAssertGreaterThanOrEqual(other, 0)
         defer { close(other) }
-        AppKitTestSupport.pumpRunLoop(for: 0.2)
-
-        XCTAssertNotEqual(fcntl(other, F_GETFD), -1, "the released store closed descriptor \(other), which it no longer owned")
-        if other != watcher {
-            XCTAssertEqual(fcntl(watcher, F_GETFD), -1, "the released store left its watcher's descriptor open")
+        // The cancel handler runs on the main queue; it has run once the watcher's descriptor is
+        // closed. On main that close hit `other`, which had taken the watcher's number.
+        let deadline = Date().addingTimeInterval(10)
+        while fcntl(watcher, F_GETFD) != -1, Date() < deadline {
+            AppKitTestSupport.pumpRunLoop(for: 0.01)
         }
+
+        XCTAssertEqual(fcntl(watcher, F_GETFD), -1, "the released store left its watcher's descriptor open")
+        XCTAssertNotEqual(fcntl(other, F_GETFD), -1, "the released store closed descriptor \(other), which it no longer owned")
     }
 
     private static func openDescriptors() -> Set<Int32> {
