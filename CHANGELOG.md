@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.35] - 2026-11-11
+
+### Fixed
+
+- VoiceOver now stays inside the search palette while it is open, so it no longer reaches the page behind it.
+
 ## [0.8.34] - 2026-11-11
 
 ### Fixed

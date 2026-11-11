@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.34</title>
-            <pubDate>Wed, 11 Nov 2026 03:30:23 +0100</pubDate>
-            <sparkle:version>45</sparkle:version>
-            <sparkle:shortVersionString>0.8.34</sparkle:shortVersionString>
+            <title>0.8.35</title>
+            <pubDate>Wed, 11 Nov 2026 03:50:33 +0100</pubDate>
+            <sparkle:version>46</sparkle:version>
+            <sparkle:shortVersionString>0.8.35</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The play controls are centred in the player bar again.
+            <description sparkle:format="plain-text"><![CDATA[• VoiceOver now stays inside the search palette while it is open, so it no longer reaches the page behind it.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.34/Spotiglass-0.8.34.zip" length="13299650" type="application/octet-stream" sparkle:edSignature="81PePpmkSmlj8/G7gl0RBDGvRn9y3Sz5MQr1QtRRjMMQ7qWwf4fX/Yr723iZYEN822/770lZfFq5G2K2eIslAA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.35/Spotiglass-0.8.35.zip" length="13318458" type="application/octet-stream" sparkle:edSignature="qTSWYqirnFa8BQXTsy5fQ9YWieHcY2twojk38U8A5oAmoj4mINXcTohhWn4K4BUznNWfIF2xfdB8rwoo7hkFBA=="/>
         </item>
     </channel>
 </rss>
