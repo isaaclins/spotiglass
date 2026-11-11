@@ -56,6 +56,7 @@ enum AppleMusicItemMapping {
         let uri = uri(kind: "song", id: song.id)
         // Playback queues this exact song for the row (see AppleMusicPlayableRegistry).
         AppleMusicPlayableRegistry.shared.register(song, for: uri)
+        registerPinAlias(.track, song)
         return MusicTrack(
             id: song.id.rawValue,
             name: song.title,
@@ -144,6 +145,9 @@ enum AppleMusicItemMapping {
                 artwork, for: imageURL, itemKey: PinnedItem.id(forKind: .playlist, spotifyID: catalogID)
             )
         }
+        AppleMusicPinAliasRegistry.shared.register(kind: .playlist, itemID: playlist.id.rawValue) {
+            catalogID(of: playlist)
+        }
         return MusicPlaylistSummary(
             id: playlist.id.rawValue,
             name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
@@ -166,7 +170,8 @@ enum AppleMusicItemMapping {
     }
 
     static func album(_ album: Album) -> MusicAlbum {
-        MusicAlbum(
+        registerAlbumPin(album)
+        return MusicAlbum(
             id: album.id.rawValue,
             name: album.title,
             artists: artistNames(album.artistName),
@@ -185,6 +190,7 @@ enum AppleMusicItemMapping {
         } else {
             group = .album
         }
+        registerAlbumPin(album)
         return MusicArtistAlbum(
             id: album.id.rawValue,
             name: album.title,
@@ -197,7 +203,8 @@ enum AppleMusicItemMapping {
     }
 
     static func artist(_ artist: Artist) -> MusicArtist {
-        MusicArtist(
+        registerPinAlias(.artist, artist)
+        return MusicArtist(
             id: artist.id.rawValue,
             name: artist.name,
             imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover, pinKind: .artist, itemID: artist.id),
@@ -206,7 +213,8 @@ enum AppleMusicItemMapping {
     }
 
     static func artistDetail(_ artist: Artist) -> MusicArtistDetail {
-        MusicArtistDetail(
+        registerPinAlias(.artist, artist)
+        return MusicArtistDetail(
             id: artist.id.rawValue,
             name: artist.name,
             imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover, pinKind: .artist, itemID: artist.id),
@@ -217,6 +225,37 @@ enum AppleMusicItemMapping {
     }
 
     // MARK: - Helpers
+
+    /// What says "same album" across the library and the catalog, whose IDs differ: title,
+    /// artist and rating (a clean and an explicit version share the rest). Search hides a catalog
+    /// album the library already shows by it, and pins treat both copies as one album (#487).
+    static func albumMatchKey(_ album: Album) -> String {
+        "\(album.title)|\(album.artistName)|\(album.contentRating == .explicit)".lowercased()
+    }
+
+    /// What pins say "same album" by: title and artist. Unlike ``albumMatchKey(_:)`` it leaves the
+    /// rating out, since MusicKit gives saved albums none on macOS; the release day and track
+    /// count tell a clean and an explicit release apart instead (``AppleMusicPinAliasRegistry``).
+    static func albumPinKey(_ album: Album) -> String {
+        "\(album.title)|\(album.artistName)".lowercased()
+    }
+
+    /// Lets a pin of this album find its other copy, library or catalog (#487). A saved album
+    /// carries no catalog ID on macOS, so it goes by its match key.
+    static func registerAlbumPin(_ album: Album, in registry: AppleMusicPinAliasRegistry = .shared) {
+        registry.register(
+            albumID: album.id.rawValue, matchKey: albumPinKey(album),
+            query: AppleMusicAlbumQuery(title: album.title, artist: album.artistName),
+            detail: AppleMusicAlbumDetail(album)
+        )
+    }
+
+    /// Lets a pin of this library item find its catalog copy and back (#487).
+    private static func registerPinAlias<Item: MusicItem & Encodable & Sendable>(_ kind: PinnedItemKind, _ item: Item) {
+        AppleMusicPinAliasRegistry.shared.register(kind: kind, itemID: item.id.rawValue) {
+            AppleMusicSongIdentity(encoding: item).catalogID
+        }
+    }
 
     private static func artistNames(_ name: String?) -> [String] {
         guard let name, !name.isEmpty else { return [] }

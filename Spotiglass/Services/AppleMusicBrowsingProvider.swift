@@ -345,6 +345,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         guard let album = try await source.album(id: albumID) else {
             throw AppleMusicBrowsingError.notFound
         }
+        // An album opened from Home is known only by its catalog ID until here: its header's pin
+        // state needs its key to find a pinned saved copy (#487).
+        AppleMusicItemMapping.registerAlbumPin(album)
         let tracks = try await source.tracks(of: album, limit: cap)
         // A library album lists its songs under persistent IDs; edits on those rows need the
         // song's other details (#395).
@@ -559,9 +562,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.name.lowercased()
         }
-        let albumMatch: (Album) -> String = {
-            "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
-        }
+        let albumMatch: (Album) -> String = AppleMusicItemMapping.albumMatchKey
         let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }, match: albumMatch)
         // Saved albums come without their artists, and the IDs a saved album's own artists
         // relationship gives don't open an artist page. So a saved album links the artists of
