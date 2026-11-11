@@ -49,19 +49,23 @@ def developer_id_team():
     return line.rsplit('(', 1)[1].split(')')[0] if line else None
 
 
+def make_app(app):
+    """A built app: one executable that exits at once and the Info.plist, under the real bundle id."""
+    macos = app / 'Contents' / 'MacOS'
+    macos.mkdir(parents=True)
+    subprocess.run(['cc', '-x', 'c', '-', '-o', str(macos / 'Spotiglass')],
+                   input='int main(void) { return 0; }', text=True, check=True)
+    with open(app / 'Contents' / 'Info.plist', 'wb') as f:
+        plistlib.dump({'CFBundleIdentifier': REAL_BUNDLE_ID, 'CFBundleExecutable': 'Spotiglass',
+                       'CFBundlePackageType': 'APPL'}, f)
+
+
 class StageApp(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
-        # A built app: one executable and the Info.plist, under the real bundle id like the build.
         self.built = self.tmp / 'built' / 'Spotiglass.app'
-        macos = self.built / 'Contents' / 'MacOS'
-        macos.mkdir(parents=True)
-        subprocess.run(['cc', '-x', 'c', '-', '-o', str(macos / 'Spotiglass')],
-                       input='int main(void) { return 0; }', text=True, check=True)
-        with open(self.built / 'Contents' / 'Info.plist', 'wb') as f:
-            plistlib.dump({'CFBundleIdentifier': REAL_BUNDLE_ID, 'CFBundleExecutable': 'Spotiglass',
-                           'CFBundlePackageType': 'APPL'}, f)
+        make_app(self.built)
         self.staged = self.tmp / 'screenshot-mode' / 'Spotiglass.app'
         self.staged.parent.mkdir()
 
@@ -126,11 +130,20 @@ class StartWithAppleMusic(unittest.TestCase):
     A refusal after the build used to leave this checkout owning the real app's defaults backup, so
     every other checkout's `start --with-apple-music` and `appearance` were refused until a `stop`
     here, although nothing ran.
+
+    The script runs from a copy of the checkout in a temporary folder, with a small app as make's
+    Debug build and HOME, security, codesign and make replaced, so it never touches this checkout's
+    build folder, and the real app can't be launched.
     """
 
     def start(self, security_output, codesign_script='exec /usr/bin/codesign "$@"', make_status=1):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp)
+        self.checkout = tmp / 'checkout'
+        for script in ('scripts/screenshots.sh', 'scripts/screenshot-mode/stage-app.sh'):
+            (self.checkout / script).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(REPO / script, self.checkout / script)
+        make_app(self.checkout / 'build' / 'DerivedData' / 'Build' / 'Products' / 'Debug' / 'Spotiglass.app')
         bin_dir = tmp / 'bin'
         bin_dir.mkdir()
         self.built = tmp / 'make-ran'
@@ -143,7 +156,7 @@ class StartWithAppleMusic(unittest.TestCase):
         self.home.mkdir()
         env = dict(os.environ, HOME=str(self.home), PATH=f'{bin_dir}:{os.environ["PATH"]}')
         env.pop('LOCAL_SIGN_IDENTITY', None)
-        return subprocess.run([str(REPO / 'scripts' / 'screenshots.sh'), 'start', '--with-apple-music'],
+        return subprocess.run([str(self.checkout / 'scripts' / 'screenshots.sh'), 'start', '--with-apple-music'],
                               capture_output=True, text=True, env=env)
 
     def assert_refused_before_anything_changed(self, result):
@@ -177,7 +190,10 @@ class StartWithAppleMusic(unittest.TestCase):
             make_status=0)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertTrue(self.built.exists())
+        self.assertIn('errSecInternalComponent', result.stderr)
+        self.assertFalse((self.checkout / 'build' / 'screenshot-mode' / 'Spotiglass.app').exists())
         self.assertEqual(list(self.home.rglob('*')), [], 'it claimed the backups before the copy was staged')
+
 
 if __name__ == '__main__':
     unittest.main()

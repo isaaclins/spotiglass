@@ -53,12 +53,11 @@ another track from the library (useful for the lyrics view: View → Show Lyrics
 stand-in. That run uses your own Apple Music library through MusicKit and the system permission
 prompt, so it keeps the real bundle id (MusicKit issues its token for that id only); the real
 app's preferences are saved at `start` and put back at `stop`. It also needs the identity `make
-build` signs with (`LOCAL_SIGN_IDENTITY`, else Developer ID Application, else Apple Development),
-unlocked: macOS keeps one
-Apple Music permission per bundle id, so a copy signed any other way under the real id would take it
-over from the signed app (and from `make test`'s test host, #520). Without it, `start
---with-apple-music` stops before it builds or changes anything. Without the option screenshot mode
-never reaches MusicKit.
+build` signs with (`LOCAL_SIGN_IDENTITY`, else Developer ID Application, else Apple Development,
+else "Spotiglass Local Dev"), unlocked: macOS keeps one Apple Music permission per bundle id, so a
+copy signed any other way under the real id would take it over from the signed app (and from `make
+test`'s test host, #520). Without it, `start --with-apple-music` stops before it builds or changes
+anything. Without the option screenshot mode never reaches MusicKit.
 `--release` builds and runs the Release configuration instead of Debug.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
 
