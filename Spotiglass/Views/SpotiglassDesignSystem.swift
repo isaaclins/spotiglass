@@ -207,9 +207,6 @@ enum SpotiglassDesign {
         /// Square hit area of an icon button (player bar, palette, queue).
         static let iconButtonSize: CGFloat = 28
         static let iconButtonFrame = CGSize(width: iconButtonSize, height: iconButtonSize)
-        /// A button that sits inline with a line of text (the lyrics button beside the title).
-        static let inlineButtonSize: CGFloat = 24
-        static let inlineButtonFrame = CGSize(width: inlineButtonSize, height: inlineButtonSize)
         /// Square frame of a small glyph next to a label (palette rows, toolbar).
         static let iconSize: CGFloat = 16
         /// Smallest width of the elapsed and remaining times beside the scrubber.

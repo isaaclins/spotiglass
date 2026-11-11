@@ -72,7 +72,6 @@ final class LayoutGridTests: XCTestCase {
         ("serviceChoiceLogoSize", SpotiglassDesign.Layout.serviceChoiceLogoSize),
         ("serviceChoiceWidth", SpotiglassDesign.Layout.serviceChoiceWidth),
         ("iconButtonSize", SpotiglassDesign.Layout.iconButtonSize),
-        ("inlineButtonSize", SpotiglassDesign.Layout.inlineButtonSize),
         ("iconSize", SpotiglassDesign.Layout.iconSize),
         ("timeLabelMinWidth", SpotiglassDesign.Layout.timeLabelMinWidth),
         ("wideButtonWidth", SpotiglassDesign.Layout.wideButtonWidth),

@@ -329,8 +329,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// transport; in the app that rebuilt the scrubber on layout passes and the
     /// new scrubber's timeline asked for the next pass, which kept a CPU core
     /// busy (measured in Release builds; a test window does not loop). A press
-    /// survives a player update and the window passing through the stacked
-    /// arrangement and back, and the release seeks once, at the pointer.
+    /// survives a player update and the window passing the volume's switch from
+    /// slider to button and back, and the release seeks once, at the pointer.
     func testPressOnTheBarSurvivesUpdatesAndRearrangement() throws {
         let api = MockPlaybackAPI()
         let sentSeeks = SentSeeks()
@@ -415,108 +415,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
-    /// The arrangement must place every part where main's `ViewThatFits` over
-    /// three stacks placed it, so the bar looks the same at every width the
-    /// window allows. Both are built from the same stand-in parts here (the
-    /// real parts' sizes) and compared frame by frame. The first version gave
-    /// Spotify's slider its ideal width in tight rows, where the old row let it
-    /// shrink to its floor.
-    ///
-    /// One deliberate difference: where main ran the trailing controls into the
-    /// gap before the scrubber (Spotify, rows about 950 to 1080 pt wide, and
-    /// wherever the 170 pt Reconnect or Retry button shows), the arrangement
-    /// keeps the gap and the summary and scrubber give up the room. Every part
-    /// also has to lie inside the size the arrangement reports, or it spills
-    /// into the bar's padding.
-    func testTransportArrangementPlacesEveryPartWhereTheOldStacksDid() throws {
-        let spacing = SpotiglassDesign.spacingM
-        for (withVolume, recovery) in [(true, false), (false, false), (true, true), (false, true)] {
-            var mismatches: [String] = []
-            var overlapping = 0
-            let label = "volume: \(withVolume), recovery button: \(recovery)"
-            // From the narrowest transport the 520 pt window leaves.
-            for width in stride(from: CGFloat(456), through: 1_400, by: 8) {
-                let old = try partFrames(
-                    of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
-                )
-                let new = try partFrames(
-                    of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
-                )
-                XCTAssertEqual(Set(old.keys), Set(new.keys), "parts at \(width)")
-                if let whole = new[PartFrameKey.whole] {
-                    for (part, frame) in new where part != PartFrameKey.whole {
-                        XCTAssertTrue(
-                            frame.minX >= whole.minX - 0.5 && frame.maxX <= whole.maxX + 0.5,
-                            "\(part) \(frame) spills out of the bar \(whole) at \(width), \(label)"
-                        )
-                    }
-                }
-                // One row when the scrubber and the controls share a centre line.
-                func inOneRow(_ a: CGRect, _ b: CGRect) -> Bool { abs(a.midY - b.midY) < 1 }
-                if let scrubber = new["scrubber"], let controls = new["controls"], inOneRow(scrubber, controls) {
-                    XCTAssertGreaterThanOrEqual(
-                        controls.minX - scrubber.maxX, spacing - 0.5, "the controls run into the scrubber at \(width)"
-                    )
-                }
-                if let scrubber = old["scrubber"], let controls = old["controls"], inOneRow(scrubber, controls),
-                   controls.minX - scrubber.maxX < spacing - 0.5 {
-                    overlapping += 1
-                    continue
-                }
-                for (part, oldFrame) in old.sorted(by: { $0.key < $1.key }) {
-                    guard let newFrame = new[part] else { continue }
-                    let deltas = [oldFrame.minX - newFrame.minX, oldFrame.minY - newFrame.minY,
-                                  oldFrame.width - newFrame.width, oldFrame.height - newFrame.height]
-                    if deltas.contains(where: { abs($0) > 0.5 }) {
-                        mismatches.append("\(Int(width)) \(part): main \(oldFrame), now \(newFrame)")
-                    }
-                }
-            }
-            // The narrowest the bar can get, which the window's minimum size
-            // comes from: the same as main, so the parts always fit in it.
-            let oldMinimum = try XCTUnwrap(
-                partFrames(of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0)[PartFrameKey.whole]
-            )
-            let newMinimum = try partFrames(
-                of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0
-            )
-            XCTAssertEqual(newMinimum[PartFrameKey.whole]?.width ?? 0, oldMinimum.width, accuracy: 0.5, "minimum, \(label)")
-            if let whole = newMinimum[PartFrameKey.whole] {
-                for (part, frame) in newMinimum where part != PartFrameKey.whole {
-                    XCTAssertLessThanOrEqual(frame.maxX, whole.maxX + 0.5, "\(part) spills out at the minimum, \(label)")
-                }
-            }
-            XCTAssertEqual(mismatches, [], label)
-            if !recovery {
-                // Without the wide button the overlap is Spotify's slider row
-                // only, and only a narrow band of it.
-                XCTAssertLessThanOrEqual(overlapping, withVolume ? 20 : 0, label)
-            }
-        }
-    }
-
-    /// Each part's frame in the arrangement's own coordinates, laid out at `width`.
-    private func partFrames<V: View>(of view: V, width: CGFloat) throws -> [String: CGRect] {
-        let store = PartFrameStore()
-        let host = NSHostingView(
-            rootView: view
-                .reportsFrame(as: PartFrameKey.whole)
-                .frame(width: width)
-                .coordinateSpace(.named(PartFrameKey.space))
-                .onPreferenceChange(PartFrameKey.self) { store.frames = $0 }
-        )
-        host.frame = NSRect(x: 0, y: 0, width: width, height: 200)
-        host.layoutSubtreeIfNeeded()
-        AppKitTestSupport.pumpRunLoop(for: 0.01)
-        return store.frames
-    }
-
-    /// VoiceOver moves through the bar in the order it is laid out on screen,
-    /// not in the order the parts are declared: in one row the scrubber sits
-    /// between the summary and the transport buttons, in two rows it comes
-    /// last, under them, as it did on main.
+    /// VoiceOver moves through the bar in the order it is laid out on screen:
+    /// the song, then the buttons from Lyrics to Repeat, then the device menu
+    /// and the volume, and the scrubber under them last.
     func testVoiceOverReadsTheScrubberWhereItSits() throws {
-        for (width, scrubberLast) in [(CGFloat(640), true), (CGFloat(1_100), false)] {
+        for width in [CGFloat(640), 1_100] {
             let controller = NSHostingController(
                 rootView: PlaybackControlsView(
                     viewModel: makePlayingPlayback(),
@@ -540,26 +443,20 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
             let order = try voiceOverOrder(in: window)
             let scrubber = try XCTUnwrap(order.firstIndex(of: "Playback progress"), "\(order)")
+            let lyrics = try XCTUnwrap(order.firstIndex(of: SpotiglassL10n.string("playback.controls.lyrics")), "\(order)")
+            let previous = try XCTUnwrap(order.firstIndex(of: SpotiglassL10n.string("playback.controls.previous")), "\(order)")
             let next = try XCTUnwrap(order.firstIndex(of: "Next track"), "\(order)")
-            if scrubberLast {
-                XCTAssertGreaterThan(scrubber, next, "two rows at \(width): the scrubber comes after the buttons")
-            } else {
-                XCTAssertLessThan(scrubber, next, "one row at \(width): the scrubber comes before the buttons")
-            }
+            XCTAssertLessThan(lyrics, previous, "Lyrics comes before Previous at \(width): \(order)")
+            XCTAssertLessThan(previous, next, "at \(width): \(order)")
+            XCTAssertGreaterThan(scrubber, next, "at \(width) the scrubber comes after the buttons: \(order)")
         }
     }
 
-    /// Every control of the bar sits on one centre line (#427). The Lyrics
-    /// button sat in the title's text row, so it followed the title's baseline
-    /// and stood above the times, the scrubber and the transport buttons. The
-    /// bar is laid out for real in each state that changes its parts (playing,
-    /// paused, the Reconnect and Retry buttons, no track) and at a wide row
-    /// with the volume slider, a compact-volume row and the stacked layout.
-    /// Apple Music's bar has no volume control, and the bar showing the other
-    /// service's player has a label instead of the Lyrics button.
-    /// In one row the scrubber shares the line; stacked, it sits on its own
-    /// row under the others.
-    func testEveryPlayerBarControlSharesTheBarsCentreLine() async throws {
+    /// The bar in each state that changes its parts: playing (with a title
+    /// far too long for the bar), paused, Apple Music (no volume control), the
+    /// other service's player (a label instead of Lyrics), no player, and the
+    /// Reconnect and Retry buttons.
+    private func playerBarStates() async throws -> [(String, () -> PlaybackSessionViewModel)] {
         // Apple Music reads its state from the player, so the scripted
         // MusicKit player really plays the song.
         let appleMusicPlayer = ScriptedAppleMusicPlayer()
@@ -573,8 +470,17 @@ final class PlaybackChromeViewsTests: XCTestCase {
         appleMusicPlayer.advance(by: 1)
         appleMusic.setConnectionState(.playing(Self.midnightCity()))
 
-        let states: [(String, () -> PlaybackSessionViewModel)] = [
+        return [
             ("playing", { self.makePlayingPlayback() }),
+            ("long title", {
+                let playback = self.makePlayingPlayback()
+                playback.handle(.stateChanged(
+                    Self.midnightCity(name: "Midnight City (Live at the Hollywood Bowl, Extended Version With the Full Orchestra)"),
+                    isPaused: false,
+                    nextTracks: []
+                ))
+                return playback
+            }),
             ("paused", { self.makePlayingPlayback(paused: true) }),
             ("apple music", { appleMusic }),
             ("other service", { self.makePlayingPlayback() }),
@@ -595,98 +501,271 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 return playback
             }),
         ]
+    }
+
+    /// Lays the real bar out in an offscreen window `width` points wide and
+    /// hands its accessibility tree to `check`, with the window's title.
+    private func withPlayerBar(
+        state: String,
+        playback: PlaybackSessionViewModel,
+        width: CGFloat,
+        appearance: NSAppearance.Name,
+        check: (_ elements: [RealizedAccessibilityElement], _ window: NSWindow) throws -> Void
+    ) throws {
+        let controller = NSHostingController(
+            rootView: PlaybackControlsView(
+                viewModel: playback,
+                isLyricsPresented: .constant(false),
+                openArtist: { _ in },
+                otherService: state == "other service" ? .appleMusic : nil
+            )
+        )
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: 160),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+        window.contentViewController = controller
+        window.isReleasedWhenClosed = false
+        window.setContentSize(NSSize(width: width, height: 160))
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        window.title = "AXTestPlayerBar-\(state)-\(appearance.rawValue)-\(Int(width))"
+        window.orderFrontRegardless()
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        try check(try realizedAccessibilityTree(in: window), window)
+    }
+
+    /// Every control the bar shows, by its accessibility frame: the artwork
+    /// and Lyrics buttons, Reconnect or Retry, the transport buttons, the
+    /// device menu, the volume slider or its button, and the scrubber. The
+    /// artist names are links in the artist line under the title, so they are
+    /// left out. The times either side of the scrubber are hidden from
+    /// VoiceOver; testTimesSitOnTheScrubbersCentreLine checks them.
+    private func playerBarControls(in elements: [RealizedAccessibilityElement]) -> [RealizedAccessibilityElement] {
+        let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
+        return elements.filter { element in
+            guard element.position != nil, element.size.height > 0 else { return false }
+            if element.axDescription == progressLabel { return true }
+            return ["AXButton", "AXMenuButton", "AXPopUpButton", "AXSlider"].contains(element.role)
+                && !element.axDescription.contains("M83") && !element.title.contains("M83")
+        }
+    }
+
+    /// Play/pause sits on the bar's horizontal centre, with Previous and Next
+    /// either side of it and the scrubber centred under them, at every width
+    /// from the window's minimum up (#496). The bar spans the window with equal
+    /// margins outside the split view, so this is the window's centre with the
+    /// sidebar shown or hidden. The controls used to sit at the bar's trailing
+    /// end, next to the device menu: play/pause was 82 pt right of the centre
+    /// in a 640 pt window and 325 pt right of it at 1400 pt. The song keeps the
+    /// left side and truncates, and the device menu and the volume keep the
+    /// right one, so nothing overlaps.
+    func testPlayPauseSitsOnTheWindowsCentreAtEveryWidth() async throws {
+        let previousLabel = SpotiglassL10n.string("playback.controls.previous")
+        let nextLabel = SpotiglassL10n.string("playback.controls.next")
+        let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
+        for (state, makePlayback) in try await playerBarStates() {
+            // The widest line of text before Reconnect or Retry at the last width.
+            var recoveryTextWidth: CGFloat = 0
+            for width in [CGFloat(520), 640, 760, 880, 900, 1_000, 1_100, 1_400] {
+                try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: .aqua) { elements, window in
+                    let controls = playerBarControls(in: elements)
+                    func midX(_ element: RealizedAccessibilityElement) -> CGFloat {
+                        (element.position?.x ?? 0) + element.size.width / 2
+                    }
+                    func minX(_ element: RealizedAccessibilityElement) -> CGFloat { element.position?.x ?? 0 }
+                    func maxX(_ element: RealizedAccessibilityElement) -> CGFloat { minX(element) + element.size.width }
+                    let label = "\(state) at \(Int(width)): \(controls.map { "\($0.axDescription) x \(minX($0))-\(maxX($0))" })"
+                    let centre = window.frame.minX + width / 2
+                    let previous = try XCTUnwrap(controls.first { $0.axDescription == previousLabel }, label)
+                    let next = try XCTUnwrap(controls.first { $0.axDescription == nextLabel }, label)
+                    let playPauseIndex = try XCTUnwrap(controls.firstIndex { $0.axDescription == previousLabel }, label) + 1
+                    let playPause = controls[playPauseIndex]
+                    XCTAssertTrue(
+                        [SpotiglassL10n.string("playback.play"), SpotiglassL10n.string("playback.pause")]
+                            .contains(playPause.axDescription),
+                        "play/pause follows Previous, \(label)"
+                    )
+                    XCTAssertEqual(midX(playPause), centre, accuracy: 0.5, "play/pause is off the window's centre, \(label)")
+                    XCTAssertEqual(centre - midX(previous), midX(next) - centre, accuracy: 0.5, "Previous and Next aren't either side of play/pause, \(label)")
+                    let scrubber = try XCTUnwrap(controls.first { $0.axDescription == progressLabel }, label)
+                    XCTAssertEqual(midX(scrubber), centre, accuracy: 0.5, "the scrubber isn't under the controls, \(label)")
+                    XCTAssertGreaterThanOrEqual(scrubber.size.width, PlaybackTransportLayoutPolicy.scrubberMinimumWidth, label)
+
+                    // The cluster is Lyrics' slot, the three buttons and Repeat,
+                    // evenly spaced and symmetric around play/pause.
+                    let lyricsSlotMidX = 2 * midX(previous) - midX(playPause)
+                    let clusterMinX = lyricsSlotMidX - SpotiglassDesign.Layout.iconButtonSize / 2
+                    let clusterMaxX = 2 * centre - clusterMinX
+                    for control in controls where control.axDescription != progressLabel {
+                        // A button's accessibility frame is its bezel, a point wider than its slot.
+                        let isCluster = minX(control) >= clusterMinX - 1.5 && maxX(control) <= clusterMaxX + 1.5
+                        if !isCluster {
+                            XCTAssertTrue(
+                                maxX(control) <= clusterMinX - SpotiglassDesign.spacingS
+                                    || minX(control) >= clusterMaxX + SpotiglassDesign.spacingS,
+                                "\(control.axDescription) runs into the play controls, \(label)"
+                            )
+                        }
+                    }
+                    // The title truncates before the controls: no text reaches them.
+                    for text in elements where text.role == "AXStaticText" && text.position != nil && text.value != window.title {
+                        if minX(text) < centre {
+                            XCTAssertLessThanOrEqual(maxX(text), clusterMinX - SpotiglassDesign.spacingS, "\(text.value) runs into the controls, \(label)")
+                        }
+                    }
+                    // Reconnect and Retry sit right after the line that says what
+                    // went wrong, not at the far end of the left half.
+                    let recoveryLabels = ["playback.controls.reconnect.label", "playback.controls.retry.label"].map { SpotiglassL10n.string($0) }
+                    if let recovery = controls.first(where: { recoveryLabels.contains($0.axDescription) }) {
+                        // The status lines: the texts of the bar left of the button.
+                        let texts = elements.filter {
+                            $0.role == "AXStaticText" && $0.position != nil && $0.value != window.title && minX($0) < minX(recovery)
+                        }
+                        let textEnd = try XCTUnwrap(
+                            texts.map(maxX).max(),
+                            "no status text before \(recovery.axDescription), \(label)"
+                        )
+                        // A truncated line's frame ends at its last glyph, a few points
+                        // short of its slot; before the fix the gap was 40 pt and more.
+                        XCTAssertLessThanOrEqual(minX(recovery) - textEnd, SpotiglassDesign.spacingM + SpotiglassDesign.spacingXS + 1.5, "\(recovery.axDescription) is far from its text, \(label)")
+                        // A wider window never gives that text less room: the button
+                        // used to take its title at about 876 pt and cut the message
+                        // to a third of what it had at 872 pt.
+                        let textWidth = texts.map(\.size.width).max() ?? 0
+                        XCTAssertGreaterThanOrEqual(textWidth, recoveryTextWidth - 0.5, "the status text lost room as the window widened, \(label)")
+                        recoveryTextWidth = textWidth
+                    }
+                    // Nothing spills out of the window.
+                    for control in controls {
+                        XCTAssertGreaterThanOrEqual(minX(control), window.frame.minX - 0.5, "\(control.axDescription), \(label)")
+                        XCTAssertLessThanOrEqual(maxX(control), window.frame.maxX + 0.5, "\(control.axDescription), \(label)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// In every width from the narrowest window up (#496): the title never
+    /// loses room as the window widens, Paused shows whole right after it once
+    /// the whole title fits beside it (never squeezing the song's name), and
+    /// the other service's bar always says which service plays. With the
+    /// controls on the centre the left half is narrow: the title used to trade
+    /// letters with the badge after it, a later attempt hid "In Apple Music"
+    /// below about 665 pt, and the badge drifted to the far end of the left
+    /// half, up against the play controls.
+    func testTheTitleKeepsItsRoomAndTheBarSaysWhatPlays() async throws {
+        let paused = SpotiglassL10n.string("playback.paused.label")
+        let service = SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName)
+        let widths = Array(stride(from: CGFloat(520), through: 760, by: 6)) + [1_000, 1_400]
+        // "playing" comes before "paused" in `playerBarStates()`.
+        var playingTitleWidths: [CGFloat: CGFloat] = [:]
+        for (state, makePlayback) in try await playerBarStates() where ["playing", "paused", "other service"].contains(state) {
+            var titleWidth: CGFloat = 0
+            var pausedWidth: CGFloat?
+            for width in widths {
+                try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: .aqua) { elements, _ in
+                    let label = "\(state) at \(Int(width))"
+                    let texts = elements.filter { $0.role == "AXStaticText" && $0.position != nil }
+                    let title = try XCTUnwrap(texts.first { $0.value == "Midnight City" }, label)
+                    // Paused waits until the whole title fits beside it, so not
+                    // even its arrival takes room from the title.
+                    XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
+                    titleWidth = title.size.width
+                    let titleEnd = (title.position?.x ?? 0) + title.size.width
+                    if state == "playing" {
+                        playingTitleWidths[width] = title.size.width
+                    }
+                    if state == "paused" {
+                        if let badge = texts.first(where: { $0.value == paused }) {
+                            // Paused shows whole, right after a title that keeps its floor.
+                            XCTAssertEqual(badge.size.width, pausedWidth ?? badge.size.width, accuracy: 0.5, "Paused is cut short, \(label)")
+                            pausedWidth = pausedWidth ?? badge.size.width
+                            let wholeTitle = try XCTUnwrap(playingTitleWidths[1_400], label)
+                            XCTAssertGreaterThanOrEqual(title.size.width, wholeTitle - 0.5, "Paused cut the title short, \(label)")
+                            // A truncated title's frame ends at its last glyph, a few
+                            // points short of its slot.
+                            XCTAssertLessThanOrEqual((badge.position?.x ?? 0) - titleEnd, SpotiglassDesign.spacingXS + SpotiglassDesign.spacingXS + 0.5, "Paused drifted from the title, \(label)")
+                        } else {
+                            // Too narrow for both: the title keeps all the room it
+                            // has while playing, and Paused waits for a wider bar.
+                            XCTAssertNil(pausedWidth, "Paused went away in a wider window, \(label)")
+                            let playing = try XCTUnwrap(playingTitleWidths[width], label)
+                            XCTAssertGreaterThanOrEqual(title.size.width, playing - 0.5, "the paused title has less room than the playing one, \(label)")
+                        }
+                    }
+                    if state == "other service" {
+                        let line = try XCTUnwrap(texts.first { $0.value.hasPrefix(service) }, "the bar doesn't say which service plays, \(label)")
+                        XCTAssertLessThanOrEqual(abs((line.position?.x ?? 0) - (title.position?.x ?? 0)), 0.5, "the service doesn't lead the line under the title, \(label)")
+                        XCTAssertGreaterThan(line.size.width, title.size.width / 2, "the service line is squeezed, \(label)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every control of the bar sits on one centre line (#427). The Lyrics
+    /// button sat in the title's text row, so it followed the title's baseline
+    /// and stood above the transport buttons. The bar is laid out for real in
+    /// each state that changes its parts, at three widths, in light and dark.
+    /// The scrubber sits on its own row under the others.
+    func testEveryPlayerBarControlSharesTheBarsCentreLine() async throws {
         let lyricsLabel = SpotiglassL10n.string("playback.controls.lyrics")
         let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
-        for (state, makePlayback) in states {
+        for (state, makePlayback) in try await playerBarStates() {
             for (appearance, width) in [NSAppearance.Name.darkAqua, .aqua].flatMap({ name in
                 [CGFloat(1_400), 1_100, 640].map { (name, $0) }
             }) {
-                let controller = NSHostingController(
-                    rootView: PlaybackControlsView(
-                        viewModel: makePlayback(),
-                        isLyricsPresented: .constant(false),
-                        openArtist: { _ in },
-                        otherService: state == "other service" ? .appleMusic : nil
+                try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: appearance) { elements, window in
+                    let controls = playerBarControls(in: elements)
+                    func midY(_ element: RealizedAccessibilityElement) -> CGFloat {
+                        (element.position?.y ?? 0) + element.size.height / 2
+                    }
+                    func name(_ element: RealizedAccessibilityElement) -> String {
+                        "\(element.role) \(element.axDescription.isEmpty ? element.title : element.axDescription)"
+                    }
+                    let label = "\(state), \(appearance.rawValue) at \(Int(width)): \(controls.map { "\(name($0)) \(midY($0))" })"
+                    let previous = try XCTUnwrap(
+                        controls.first { $0.axDescription == SpotiglassL10n.string("playback.controls.previous") }, label
                     )
-                )
-                let window = OffscreenTestWindow(
-                    contentRect: NSRect(x: 0, y: 0, width: width, height: 160),
-                    styleMask: [.titled],
-                    backing: .buffered,
-                    defer: false
-                )
-                window.appearance = NSAppearance(named: appearance)
-                window.contentViewController = controller
-                window.isReleasedWhenClosed = false
-                window.setContentSize(NSSize(width: width, height: 160))
-                defer { AppKitTestSupport.closeWindowSafely(window) }
-                window.title = "AXTestCentreLine-\(state)-\(Int(width))"
-                window.orderFrontRegardless()
-                AppKitTestSupport.pumpRunLoop(for: 0.2)
+                    let scrubber = try XCTUnwrap(controls.first { $0.axDescription == progressLabel }, label)
+                    for control in controls where control.axDescription != progressLabel {
+                        XCTAssertEqual(midY(control), midY(previous), accuracy: 0.5, "\(name(control)) is off the centre line, \(label)")
+                    }
+                    XCTAssertGreaterThan(midY(scrubber), midY(previous) + 10, "the scrubber sits under the controls, \(label)")
+                    XCTAssertTrue(
+                        controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || !state.contains("play"),
+                        "the device menu is missing, \(label)"
+                    )
+                    // The title and the line under it (the artists, the state or
+                    // the error), as one block: its top and bottom sit the same
+                    // distance from the centre line. They are the texts left of
+                    // the transport buttons, above the scrubber; the artist
+                    // names are links.
+                    let summaryEnd = previous.position?.x ?? 0
+                    let text = elements.filter { element in
+                        guard let position = element.position, element.size.height > 0 else { return false }
+                        let isText = element.role == "AXStaticText" || element.title.contains("M83") || element.axDescription.contains("M83")
+                        return isText && element.value != window.title
+                            && position.x + element.size.width <= summaryEnd + 0.5
+                            && position.y + element.size.height <= (scrubber.position?.y ?? 0)
+                    }
+                    let top = try XCTUnwrap(text.compactMap { $0.position?.y }.min(), "no title, \(label)")
+                    let bottom = try XCTUnwrap(text.compactMap { element in element.position.map { $0.y + element.size.height } }.max())
+                    XCTAssertGreaterThan(text.count, 1, "the title and the line under it were not both found, \(text), \(label)")
+                    XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title block is off the centre line, \(text), \(label)")
 
-                // Every control the bar shows, by its accessibility frame: the
-                // artwork and Lyrics buttons, Reconnect or Retry, the transport
-                // buttons, the device menu, the volume slider or its button,
-                // and the scrubber. The artist names are links in the artist
-                // line under the title, so they sit on that line instead, and
-                // the title and artist block is centred as a whole below. The
-                // times either side of the scrubber are hidden from VoiceOver;
-                // testTimesSitOnTheScrubbersCentreLine checks them.
-                let elements = try realizedAccessibilityTree(in: window)
-                let controls = elements.filter { element in
-                    guard element.position != nil, element.size.height > 0 else { return false }
-                    if element.axDescription == progressLabel { return true }
-                    return ["AXButton", "AXMenuButton", "AXPopUpButton", "AXSlider"].contains(element.role)
-                        && !element.axDescription.contains("M83") && !element.title.contains("M83")
-                }
-                func midY(_ element: RealizedAccessibilityElement) -> CGFloat {
-                    (element.position?.y ?? 0) + element.size.height / 2
-                }
-                func name(_ element: RealizedAccessibilityElement) -> String {
-                    "\(element.role) \(element.axDescription.isEmpty ? element.title : element.axDescription)"
-                }
-                let label = "\(state), \(appearance.rawValue) at \(Int(width)): \(controls.map { "\(name($0)) \(midY($0))" })"
-                let previous = try XCTUnwrap(
-                    controls.first { $0.axDescription == SpotiglassL10n.string("playback.controls.previous") }, label
-                )
-                let scrubber = try XCTUnwrap(controls.first { $0.axDescription == progressLabel }, label)
-                let stacked = width < 1_100
-                for control in controls where !(stacked && control.axDescription == progressLabel) {
-                    XCTAssertEqual(midY(control), midY(previous), accuracy: 0.5, "\(name(control)) is off the centre line, \(label)")
-                }
-                if stacked {
-                    XCTAssertGreaterThan(midY(scrubber), midY(previous) + 10, "stacked, the scrubber sits under the controls, \(label)")
-                }
-                XCTAssertTrue(
-                    controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || state != "playing",
-                    "the device menu is missing, \(label)"
-                )
-                // The title and the line under it (the artists, the state or
-                // the error), as one block: its top and bottom sit the same
-                // distance from the centre line. They are the texts left of
-                // the scrubber, or stacked, left of the transport buttons
-                // above it; the artist names are links.
-                let summaryEnd = (stacked ? previous.position?.x : scrubber.position?.x) ?? 0
-                let text = elements.filter { element in
-                    guard let position = element.position, element.size.height > 0 else { return false }
-                    let isText = element.role == "AXStaticText" || element.title.contains("M83") || element.axDescription.contains("M83")
-                    return isText && element.value != window.title
-                        && position.x + element.size.width <= summaryEnd + 0.5
-                        && (!stacked || position.y + element.size.height <= (scrubber.position?.y ?? 0))
-                }
-                let top = try XCTUnwrap(text.compactMap { $0.position?.y }.min(), "no title, \(label)")
-                let bottom = try XCTUnwrap(text.compactMap { element in element.position.map { $0.y + element.size.height } }.max())
-                XCTAssertGreaterThan(text.count, 1, "the title and the line under it were not both found, \(text), \(label)")
-                XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title block is off the centre line, \(text), \(label)")
-
-                // The other service's song in the bar opens its own lyrics (#486).
-                let showsLyrics = ["playing", "paused", "apple music", "other service"].contains(state)
-                XCTAssertEqual(
-                    controls.contains { $0.axDescription == lyricsLabel }, showsLyrics,
-                    showsLyrics ? "the Lyrics button is missing, \(label)" : "no track, no Lyrics button, \(label)"
-                )
-                if state == "apple music" {
-                    XCTAssertFalse(controls.contains { $0.axDescription == SpotiglassL10n.string("playback.controls.volume") }, "Apple Music has no volume control, \(label)")
+                    // The other service's song in the bar opens its own lyrics (#486).
+                    let showsLyrics = ["playing", "long title", "paused", "apple music", "other service"].contains(state)
+                    XCTAssertEqual(
+                        controls.contains { $0.axDescription == lyricsLabel }, showsLyrics,
+                        showsLyrics ? "the Lyrics button is missing, \(label)" : "no track, no Lyrics button, \(label)"
+                    )
+                    if state == "apple music" {
+                        XCTAssertFalse(controls.contains { $0.axDescription == SpotiglassL10n.string("playback.controls.volume") }, "Apple Music has no volume control, \(label)")
+                    }
                 }
             }
         }
@@ -719,113 +798,13 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
                 "Scrubber collapsed at \(size)"
             )
+            // The narrowest window has room for the compact volume button
+            // only; at 700 pt the slider fits beside the device menu.
+            let volumeRole = size.width < 600 ? "AXButton" : "AXSlider"
             XCTAssertTrue(
-                elements.contains { $0.role == "AXButton" && $0.axDescription == "Playback volume" },
-                "Expected compact volume control at \(size)"
+                elements.contains { $0.role == volumeRole && $0.axDescription == "Playback volume" },
+                "Expected the volume as \(volumeRole) at \(size): \(elements)"
             )
-        }
-    }
-
-    /// The floors a row reserves: the summary, the scrubber's seeking surface
-    /// and the trailing controls, with the two gaps between them.
-    private func rowMinimumWidth(compactVolume: Bool) -> CGFloat {
-        PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
-            + PlaybackTransportLayoutPolicy.scrubberMinimumWidth
-            + PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume)
-            + 2 * SpotiglassDesign.spacingM
-    }
-
-    func testPlaybackTransportRowFloorsFitEveryWidthThatPicksARow() {
-        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 10) {
-            guard case let .row(compactVolume) = PlaybackTransportArrangementLayout.arrangement(
-                forWidth: width,
-                idealRowWidth: { _ in 0 }
-            ) else { continue }
-            XCTAssertLessThanOrEqual(
-                rowMinimumWidth(compactVolume: compactVolume),
-                width,
-                "Transport row floors no longer fit at width \(width)"
-            )
-        }
-    }
-
-    /// The candidate `PlaybackTransportArrangementLayout` picks for a width
-    /// when every ideal row fits, so only the candidates' minimum widths decide.
-    private func transportLayoutCandidate(
-        for measuredWidth: CGFloat
-    ) -> PlaybackTransportLayoutPolicy.TransportLayoutCandidate {
-        let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
-        guard measuredWidth.isFinite else { return candidates.last! }
-        switch PlaybackTransportArrangementLayout.arrangement(forWidth: measuredWidth, idealRowWidth: { _ in 0 }) {
-        case .row(let compactVolume):
-            return candidates.first { $0.minimumWidth > 0 && $0.useCompactVolume == compactVolume }!
-        case .stacked:
-            return candidates.last!
-        }
-    }
-
-    /// A row is only chosen when its ideal width fits too, as `ViewThatFits`
-    /// chose before: a long ideal row falls back to the compact row, then to
-    /// the stacked arrangement, and an ideal-size query gets the full row.
-    func testTransportArrangementNeedsTheIdealRowToFit() {
-        let idealRow: (Bool) -> CGFloat = { compactVolume in compactVolume ? 808 : 904 }
-        func arrangement(_ width: CGFloat?) -> PlaybackTransportArrangementLayout.Arrangement {
-            PlaybackTransportArrangementLayout.arrangement(forWidth: width, idealRowWidth: idealRow)
-        }
-        XCTAssertEqual(arrangement(1_240), .row(compactVolume: false))
-        XCTAssertEqual(arrangement(904), .row(compactVolume: false))
-        XCTAssertEqual(arrangement(903), .row(compactVolume: true))
-        XCTAssertEqual(arrangement(808), .row(compactVolume: true))
-        XCTAssertEqual(arrangement(807), .stacked)
-        XCTAssertEqual(arrangement(0), .stacked)
-        XCTAssertEqual(arrangement(nil), .row(compactVolume: false))
-    }
-
-    func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
-        let fullCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
-            useCompactVolume: false,
-            minimumWidth: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint
-        )
-        let compactCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
-            useCompactVolume: true,
-            minimumWidth: PlaybackTransportLayoutPolicy.stackedScrubberBreakpoint
-        )
-
-        XCTAssertEqual(
-            transportLayoutCandidate(
-                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1
-            ),
-            compactCandidate
-        )
-        XCTAssertEqual(
-            transportLayoutCandidate(
-                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
-            ),
-            fullCandidate
-        )
-
-        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
-            let firstCandidate = transportLayoutCandidate(for: width)
-            // Model the selected candidate's minimum feeding back through
-            // layout: the selected candidate must remain selected.
-            let measuredAgain = max(width, firstCandidate.minimumWidth)
-            let secondCandidate = transportLayoutCandidate(for: measuredAgain)
-
-            XCTAssertEqual(
-                secondCandidate,
-                firstCandidate,
-                "Transport arrangement oscillated at measured width \(width)"
-            )
-            // The stacked arrangement is the always-fits fallback, and is the
-            // only candidate declaring a zero minimum. Every other candidate is
-            // horizontal and must genuinely fit the width it was selected for.
-            if firstCandidate.minimumWidth > 0 {
-                XCTAssertLessThanOrEqual(
-                    rowMinimumWidth(compactVolume: firstCandidate.useCompactVolume),
-                    width,
-                    "Horizontal candidate does not fit at measured width \(width)"
-                )
-            }
         }
     }
 
@@ -1399,11 +1378,12 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     private static func midnightCity(
+        name: String = "Midnight City",
         artists: [String] = ["M83"],
         positionMilliseconds: Int = 30_000
     ) -> PlaybackNowPlaying {
         PlaybackNowPlaying(
-            name: "Midnight City",
+            name: name,
             artists: artists,
             albumName: nil,
             albumID: nil,
@@ -1432,185 +1412,5 @@ private final class SentSeeks: @unchecked Sendable {
 
     func append(_ milliseconds: Int) {
         lock.withLock { stored.append(milliseconds) }
-    }
-}
-
-// MARK: - Main's transport arrangement, for comparison
-
-private final class PartFrameStore {
-    var frames: [String: CGRect] = [:]
-}
-
-private struct PartFrameKey: PreferenceKey {
-    static let space = "transport"
-    static let whole = "the whole bar"
-    static let defaultValue: [String: CGRect] = [:]
-    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
-        value.merge(nextValue()) { $1 }
-    }
-}
-
-private extension View {
-    func reportsFrame(as part: String) -> some View {
-        background(GeometryReader { geometry in
-            Color.clear.preference(
-                key: PartFrameKey.self,
-                value: [part: geometry.frame(in: .named(PartFrameKey.space))]
-            )
-        })
-    }
-}
-
-/// Stand-ins with the real parts' sizing: a summary that truncates, the
-/// scrubber group's labels and flexible track, the fixed transport buttons, a
-/// device menu that can shrink, and the real volume control's icon and slider.
-private enum TransportStandIns {
-    static var summary: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Color.gray.frame(width: 44, height: 44)
-            Text("Midnight City, a title long enough to truncate").font(.headline).lineLimit(1)
-                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    static var scrubber: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Text("0:00").font(.caption.monospacedDigit()).frame(minWidth: 36, alignment: .trailing)
-            Color.clear.frame(height: 18).frame(minWidth: 180, maxWidth: .infinity)
-            Text("−0:00").font(.caption.monospacedDigit()).frame(minWidth: 40, alignment: .leading)
-        }
-    }
-
-    /// The transport buttons, with the 170 pt Reconnect or Retry button in
-    /// front of them while the player needs it.
-    static func controls(recovery: Bool) -> some View {
-        Color.red.frame(width: recovery ? 142 + 170 + SpotiglassDesign.spacingS : 142, height: 28)
-    }
-    /// The device menu's bezel lets it shrink from 52 to 38 pt, measured in the app.
-    static var device: some View { Color.blue.frame(minWidth: 38, idealWidth: 52, maxWidth: 52).frame(height: 28) }
-
-    static var volume: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Image(systemName: "speaker.wave.2").font(.caption)
-            Slider(value: .constant(0.5), in: 0 ... 1)
-                .controlSize(.small)
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum,
-                    idealWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.ideal,
-                    maxWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.maximum
-                )
-        }
-    }
-
-    static var compactVolume: some View { Color.green.frame(width: 28, height: 28) }
-}
-
-/// The arrangement as it was on main: `ViewThatFits` over two rows and a stack.
-private struct OldTransportArrangement: View {
-    var withVolume: Bool
-    var recovery: Bool
-
-    var body: some View {
-        let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
-        ViewThatFits(in: .horizontal) {
-            row(compactVolume: candidates[0].useCompactVolume).frame(minWidth: candidates[0].minimumWidth)
-            row(compactVolume: candidates[1].useCompactVolume).frame(minWidth: candidates[1].minimumWidth)
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-                actions(compactVolume: true, includeSummary: true)
-                TransportStandIns.scrubber
-                    .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
-                    .reportsFrame(as: "scrubber")
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
-
-    private func row(compactVolume: Bool) -> some View {
-        HStack(spacing: SpotiglassDesign.spacingM) {
-            TransportStandIns.summary
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
-                    idealWidth: 280,
-                    maxWidth: 320,
-                    alignment: .leading
-                )
-                .clipped()
-                .reportsFrame(as: "summary")
-            TransportStandIns.scrubber
-                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
-                .reportsFrame(as: "scrubber")
-            actions(compactVolume: compactVolume, includeSummary: false)
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume),
-                    alignment: .trailing
-                )
-        }
-    }
-
-    private func actions(compactVolume: Bool, includeSummary: Bool) -> some View {
-        HStack(spacing: SpotiglassDesign.spacingM) {
-            if includeSummary {
-                TransportStandIns.summary
-                    .frame(
-                        minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
-                        maxWidth: .infinity,
-                        alignment: .leading
-                    )
-                    .clipped()
-                    .reportsFrame(as: "summary")
-            }
-            TransportStandIns.controls(recovery: recovery).reportsFrame(as: "controls")
-            TransportStandIns.device.reportsFrame(as: "device")
-            if withVolume {
-                if compactVolume {
-                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
-                } else {
-                    TransportStandIns.volume.reportsFrame(as: "volume")
-                }
-            }
-        }
-    }
-}
-
-/// The same parts in `PlaybackTransportArrangementLayout`, as `PlaybackControlsView` builds it.
-private struct NewTransportArrangement: View {
-    var withVolume: Bool
-    var recovery: Bool
-
-    private typealias Part = PlaybackTransportArrangementLayout.PartKey
-
-    var body: some View {
-        PlaybackTransportArrangementLayout(
-            spacing: SpotiglassDesign.spacingM,
-            rowSpacing: SpotiglassDesign.spacingS
-        ) {
-            TransportStandIns.summary
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
-                    maxWidth: .infinity,
-                    alignment: .leading
-                )
-                .clipped()
-                .reportsFrame(as: "summary")
-                .layoutValue(key: Part.self, value: .summary)
-            TransportStandIns.scrubber
-                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
-                .reportsFrame(as: "scrubber")
-                .layoutValue(key: Part.self, value: .scrubber)
-            TransportStandIns.controls(recovery: recovery)
-                .reportsFrame(as: "controls")
-                .layoutValue(key: Part.self, value: .controls)
-            TransportStandIns.device
-                .reportsFrame(as: "device")
-                .layoutValue(key: Part.self, value: .device)
-            if withVolume {
-                PlaybackTransportVolumeSlot {
-                    TransportStandIns.volume.reportsFrame(as: "volume")
-                } compact: {
-                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
-                }
-                .layoutValue(key: Part.self, value: .volume)
-            }
-        }
     }
 }
