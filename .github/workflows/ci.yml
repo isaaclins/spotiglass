@@ -76,7 +76,8 @@ jobs:
         # The audit and the register scripts parse and edit project.pbxproj.
         # These tests replay the ways that file has gone wrong: a test file
         # in a group but not in the target, a file registered twice, and two
-        # branches handing out the same object ID (#384).
+        # branches handing out the same object ID (#384). The screenshot
+        # staging tests need macOS and skip here; the test job runs them.
         run: python3 -m unittest discover -s scripts/tests -v
 
   test:
@@ -108,6 +109,12 @@ jobs:
           sw_vers
           xcodebuild -version
           xcrun --show-sdk-version --sdk macosx
+
+      - name: Screenshot staging tests
+        # Screenshot mode must never sign a copy under the real bundle id any
+        # other way than the build: that copy takes over the app's Apple Music
+        # permission (#520). These need codesign and PlistBuddy, so they run here.
+        run: python3 -m unittest discover -s scripts/tests -p 'test_screenshot_staging.py' -v
 
       - name: Resolve Swift packages
         run: |

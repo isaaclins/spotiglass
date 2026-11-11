@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Copies the built app to where screenshot mode runs it, under the bundle id it runs as, and signs
+# the copy.
+#
+#   scripts/screenshot-mode/stage-app.sh <built.app> <staged.app> <bundle-id> <real-bundle-id>
+#   scripts/screenshot-mode/stage-app.sh --check <bundle-id> <real-bundle-id>   only checks it could
+#
+# macOS keeps one Media & Apple Music permission per bundle id, tied to the signature it was given
+# to. My signed builds carry the Developer ID requirement. An ad-hoc copy under the real bundle id
+# doesn't match it, so macOS asks again, and allowing that moves the permission to the ad-hoc copy:
+# from then on every signed build is refused, test hosts already running included, and MusicKit
+# fails with MusicTokenRequestError.unknown (#520). So a copy under the real bundle id is signed
+# with the identity my builds are signed with, and without one it isn't staged at all. A copy under its own
+# bundle id never reaches MusicKit and stays ad-hoc.
+set -euo pipefail
+
+usage() { sed -n '5,6p' "$0" | sed 's/^# *//' >&2; exit 2; }
+check_only=0
+if [ "${1:-}" = "--check" ]; then
+    [ $# -eq 3 ] || usage
+    check_only=1 bundle_id="$2" real_bundle_id="$3"
+else
+    [ $# -eq 4 ] || usage
+    src="$1" dest="$2" bundle_id="$3" real_bundle_id="$4"
+fi
+
+# The identity `make build` signs with, found the same way as in the Makefile: LOCAL_SIGN_IDENTITY
+# when it's set, else Developer ID Application, else Apple Development, else "Spotiglass Local Dev".
+# Signing with any other one, or ad-hoc, would ask for the permission again.
+identity="-"
+if [ "$bundle_id" = "$real_bundle_id" ]; then
+    identity="${LOCAL_SIGN_IDENTITY:-}"
+    [ -n "$identity" ] || identity="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Developer ID Application/ { print $2; exit }')"
+    [ -n "$identity" ] || identity="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Apple Development/ { print $2; exit }')"
+    [ -n "$identity" ] || identity="$(security find-identity -p codesigning 2>/dev/null \
+        | awk '/"Spotiglass Local Dev"/ { print $2; exit }')"
+    if [ -z "$identity" ] || [ "$identity" = "-" ]; then
+        echo "screenshots: --with-apple-music needs the signing identity make build signs with." >&2
+        echo "  An ad-hoc copy under $real_bundle_id would take over the signed app's Apple Music" >&2
+        echo "  permission, and signed builds would lose Apple Music until it is allowed again." >&2
+        exit 1
+    fi
+fi
+
+# Signs with the identity, or says why it can't. A locked keychain still lists its identities, so
+# only signing shows whether the identity can be used.
+sign() {
+    local out
+    if ! out="$(codesign --force --deep --timestamp=none --sign "$identity" "$1" 2>&1)"; then
+        echo "screenshots: signing with $identity failed:" >&2
+        echo "$out" >&2
+        [ "$identity" = "-" ] || echo "  (a locked keychain fails with errSecInternalComponent: unlock it first)" >&2
+        return 1
+    fi
+}
+
+if [ "$check_only" = 1 ]; then
+    [ "$identity" != "-" ] || exit 0
+    probe="$(mktemp -d)"
+    trap 'rm -rf "$probe"' EXIT
+    cp /usr/bin/true "$probe/probe"
+    sign "$probe/probe"
+    exit 0
+fi
+
+rm -rf "$dest"
+cp -R "$src" "$dest"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$dest/Contents/Info.plist"
+sign "$dest" || { rm -rf "$dest"; exit 1; }
