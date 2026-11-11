@@ -177,6 +177,7 @@ struct PlaylistBrowserView: View {
                 pinDroppedTransfers: pinDroppedTransfers,
                 header: sidebarHeader
             )
+            .modifier(PlayerBarClearance(barHeight: playerBarHeight))
             // The system toggle collapses the split view on its own: in a narrow window it
             // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
             // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
@@ -213,6 +214,7 @@ struct PlaylistBrowserView: View {
                     onRequestCreatePlaylist: requestCreatePlaylist,
                     onRequestLibraryContinuation: requestLibraryContinuation
                 )
+                .modifier(PlayerBarClearance(barHeight: playerBarHeight))
                 // The page is covered while the lyrics are open: VoiceOver, Tab and the
                 // page's own shortcuts must not reach rows you can't see.
                 .disabled(lyricsOverlay.isPresented)
@@ -235,14 +237,16 @@ struct PlaylistBrowserView: View {
                     onRequestCreatePlaylist: requestCreatePlaylist,
                     onRequestLibraryContinuation: requestLibraryContinuation
                 )
+                .modifier(PlayerBarClearance(barHeight: playerBarHeight))
             }
         }
         // The bar floats over the bottom of the columns instead of taking a row of its own
         // under them: that row was an opaque strip where the sidebar's glass and the lyrics
         // backdrop stopped in a hard line (#471, #474). The columns run the full height and
-        // their scrolling content keeps clear of the bar through the safe area. As a safe-area
-        // bar it also gets the system's scroll edge effect, so rows passing under it soften
-        // instead of showing sharp in the gap below it.
+        // their scrolling content keeps clear of the bar through a bottom inset of the bar's
+        // height that each column sets itself (``PlayerBarClearance``). As a safe-area bar it
+        // also gets the system's scroll edge effect, so rows passing under it soften instead
+        // of showing sharp in the gap below it.
         .safeAreaBar(edge: .bottom, spacing: 0) {
             Group {
                 switch playbackMode {
@@ -578,6 +582,25 @@ struct LyricsCoveredPage: Equatable {
     private static func isPinnedRow(_ selection: SidebarSelection?) -> Bool {
         if case .pinnedItem = selection { return true }
         return false
+    }
+}
+
+/// Keeps a column's scrolling content, banners and toasts clear of the player bar floating over
+/// its bottom edge (#471, #474). The split view hosts each column in a view of its own, and the
+/// bar's safe area doesn't reliably reach it: in a short window the last rows of the page and the
+/// sidebar stayed under the bar. The column sets its bottom inset to the bar's height itself and
+/// drops whatever it was handed, so the inset is the bar's height either way, never twice. The
+/// inset doesn't raise the column's minimum height: the bar's height depends on the window's
+/// size, and a column minimum that followed the bar fed back into the window's size limits and
+/// never settled in narrow windows.
+struct PlayerBarClearance: ViewModifier {
+    let barHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.bottom, barHeight)
+            .frame(minHeight: 0, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 

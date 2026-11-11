@@ -401,6 +401,78 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics behind it")
     }
 
+    /// #471, #474: with the bar floating over the columns, a long playlist and the sidebar in a
+    /// short window must still scroll their last row up clear of it. The bar's safe area didn't
+    /// reach the split view's columns, so the last rows stayed under the bar.
+    func testTheLastRowsScrollClearOfThePlayerBar() async throws {
+        let playlists = (1...10).map { PlaylistBrowsingTestFixtures.playlist(id: "p\($0)", name: "Playlist \($0)") }
+        let tracks = (1...80).map { PlaylistBrowsingTestFixtures.track(id: "t\($0)") }
+        let api = MockBrowsingAPI(
+            playlistResults: [.success(playlists)],
+            trackResults: ["p1": [.success(tracks)]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let settings = try ViewTestHost.makeSettingsStore()
+        let tokens = ShellTestTokenProvider()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+        let view = PlaylistBrowserView(
+            viewModel: browserVM,
+            playbackHost: playbackHost,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+        .environmentObject(store)
+        .environmentObject(settings)
+        .environmentObject(LyricsOverlayController())
+        let size = CGSize(width: 1_100, height: SpotiglassApp.windowMinHeight)
+        let controller = ViewTestHost.host(view, size: size)
+        let playback = playbackHost.playbackViewModel
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(Self.lyricsTrack, isPaused: true, nextTracks: []))
+        await browserVM.selectPlaylist(id: "p1")
+        let root = controller.view
+        root.frame = CGRect(origin: .zero, size: size)
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        root.layoutSubtreeIfNeeded()
+
+        let barButton = try XCTUnwrap(
+            Self.allNSButtons(in: root).first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
+            },
+            "the player bar is gone"
+        )
+        let barFrame = barButton.convert(barButton.bounds, to: nil)
+
+        let lists = Self.allViews(in: root).compactMap { $0 as? NSTableView }.filter { $0.numberOfRows > 0 }
+        let trackList = try XCTUnwrap(lists.first { $0.numberOfRows >= tracks.count }, "the playlist shows no tracks")
+        // At the window's minimum height the sidebar's rows don't fit either.
+        let sidebar = try XCTUnwrap(lists.first { $0 !== trackList }, "the sidebar shows no rows")
+        for (name, list) in [("playlist", trackList), ("sidebar", sidebar)] {
+            let scrollView = try XCTUnwrap(list.enclosingScrollView, "the \(name) doesn't scroll")
+            let clip = scrollView.contentView
+            // The list sizes its rows as they come into view, so its end moves while it scrolls
+            // there: scroll again until it stays put.
+            for _ in 0..<10 {
+                let end = clip.constrainBoundsRect(NSRect(origin: NSPoint(x: 0, y: 10_000_000), size: clip.bounds.size))
+                if end.origin == clip.bounds.origin { break }
+                clip.scroll(to: end.origin)
+                scrollView.reflectScrolledClipView(clip)
+                AppKitTestSupport.pumpRunLoop(for: 0.1)
+                root.layoutSubtreeIfNeeded()
+            }
+            let lastRow = list.convert(list.rect(ofRow: list.numberOfRows - 1), to: nil)
+            XCTAssertGreaterThanOrEqual(
+                lastRow.minY, barFrame.maxY,
+                "the \(name)'s last row stays under the player bar: row \(lastRow), bar button \(barFrame), "
+                    + "insets \(scrollView.contentInsets), clip \(clip.bounds), document \(list.frame)"
+            )
+        }
+    }
+
     /// #438: with the sidebar, the queue and the player bar usable next to the lyrics, picking
     /// another page there loaded it out of sight under the lyrics, which stayed open. Going
     /// somewhere else closes them; a change that stays on the same page does not.
