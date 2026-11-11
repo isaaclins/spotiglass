@@ -340,63 +340,43 @@ struct PlaybackControlsView: View {
         }
     }
 
-    private var titleText: some View {
-        Text(title)
-            .font(.headline)
-            .lineLimit(1)
-            .contentTransition(.opacity)
-            .animation(.smooth(duration: 0.28), value: title)
-            // A narrow bar truncates the title; hovering shows it whole.
-            .help(title)
-    }
-
-    /// What follows the title: the service whose player the bar shows (#396), or Paused.
-    private var titleBadge: String? {
-        if let otherService {
-            return SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName)
-        }
-        return shouldShowPausedIndicator ? SpotiglassL10n.string("playback.paused.label") : nil
-    }
-
     private var nowPlayingSummary: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingNowPlayingVisual
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
-                // The badge after the title ("Paused", "In Apple Music") shows whole
-                // or not at all: it shows once the title keeps its floor beside it,
-                // so a wider bar never takes room from the title (#496).
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
-                        titleText
-                            .frame(
-                                minWidth: titleBadge == nil ? 0 : PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
-                                idealWidth: titleBadge == nil ? nil : PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
-                                maxWidth: .infinity,
-                                alignment: .leading
-                            )
-                        if let titleBadge {
-                            Text(titleBadge)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .fixedSize()
-                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                        }
+                // The title takes the room its text needs and Paused follows it
+                // whole, as on main; the free room goes after both, so the badge
+                // never drifts towards the play controls and a wider bar only
+                // ever gives the title more room (#496).
+                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                        .animation(.smooth(duration: 0.28), value: title)
+                        // A narrow bar truncates the title; hovering shows it whole.
+                        .help(title)
+                    if shouldShowPausedIndicator {
+                        Text(SpotiglassL10n.string("playback.paused.label"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
-                    titleText
-                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    Spacer(minLength: 0)
                 }
                 .animation(.smooth(duration: 0.22), value: shouldShowPausedIndicator)
 
                 if artistTapTargets.isEmpty {
-                    Text(subtitle)
+                    Text(summarySubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .contentTransition(.opacity)
-                        .animation(.smooth(duration: 0.28), value: subtitle)
-                        .help(viewModel.refusedPlayPause?.message ?? subtitle)
+                        .animation(.smooth(duration: 0.28), value: summarySubtitle)
+                        .help(viewModel.refusedPlayPause?.message ?? summarySubtitle)
                 } else {
                     artistLine
                 }
@@ -962,6 +942,15 @@ struct PlaybackControlsView: View {
     /// The service whose player the bar shows.
     private var shownService: MusicService {
         otherService ?? MusicServiceSelection.current
+    }
+
+    /// The line under the title. With the other service's player in the bar it
+    /// starts with that service ("In Apple Music · M83"): at the start of its own
+    /// line it shows at every width and takes no room from the title (#396, #496).
+    private var summarySubtitle: String {
+        guard let otherService else { return subtitle }
+        let service = SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName)
+        return subtitle.isEmpty ? service : "\(service) · \(subtitle)"
     }
 
     private var subtitle: String {

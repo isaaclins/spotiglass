@@ -648,45 +648,42 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
-    /// The title never loses room as the bar widens, and the badge after it
-    /// ("Paused", "In Apple Music") shows whole or not at all (#496). With the
-    /// controls on the centre the title shares a narrow row with the badge:
-    /// they used to trade letters, so every point the badge gained as the
-    /// window widened came off the title, and in the narrowest window the
-    /// other service's label left the song's name 6 pt wide.
-    func testTheTitleOnlyGainsRoomAsTheWindowWidens() async throws {
-        let badges = [
-            "paused": SpotiglassL10n.string("playback.paused.label"),
-            "other service": SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName),
-        ]
+    /// In every width from the narrowest window up (#496): the title never
+    /// loses room as the window widens, Paused shows whole right after it, and
+    /// the other service's bar always says which service plays. With the
+    /// controls on the centre the left half is narrow: the title used to trade
+    /// letters with the badge after it, a later attempt hid "In Apple Music"
+    /// below about 665 pt, and the badge drifted to the far end of the left
+    /// half, up against the play controls.
+    func testTheTitleKeepsItsRoomAndTheBarSaysWhatPlays() async throws {
+        let paused = SpotiglassL10n.string("playback.paused.label")
+        let service = SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName)
+        let widths = Array(stride(from: CGFloat(520), through: 760, by: 6)) + [1_000, 1_400]
         for (state, makePlayback) in try await playerBarStates() where ["playing", "paused", "other service"].contains(state) {
             var titleWidth: CGFloat = 0
-            var badgeWidth: CGFloat?
-            for width in stride(from: CGFloat(520), through: 760, by: 6) {
+            var pausedWidth: CGFloat?
+            for width in widths {
                 try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: .aqua) { elements, _ in
                     let label = "\(state) at \(Int(width))"
-                    let title = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == "Midnight City" }, label)
-                    let badge = badges[state].flatMap { text in elements.first { $0.role == "AXStaticText" && $0.value == text } }
-                    if let badge, badgeWidth == nil {
-                        // The width where the badge first fits whole beside the
-                        // title: the title gives up the badge's room once, and
-                        // keeps its floor.
-                        XCTAssertGreaterThanOrEqual(title.size.width, PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth - 0.5, "the badge left the title under its floor, \(label)")
-                        badgeWidth = badge.size.width
-                    } else {
-                        XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
-                    }
-                    if let badge, let badgeWidth {
-                        XCTAssertEqual(badge.size.width, badgeWidth, accuracy: 0.5, "the badge is cut short, \(label)")
-                    }
-                    if badge == nil, badgeWidth != nil {
-                        XCTFail("the badge went away in a wider window, \(label)")
-                    }
+                    let texts = elements.filter { $0.role == "AXStaticText" && $0.position != nil }
+                    let title = try XCTUnwrap(texts.first { $0.value == "Midnight City" }, label)
+                    XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
                     titleWidth = title.size.width
+                    let titleEnd = (title.position?.x ?? 0) + title.size.width
+                    if state == "paused" {
+                        let badge = try XCTUnwrap(texts.first { $0.value == paused }, "Paused is missing, \(label)")
+                        XCTAssertEqual(badge.size.width, pausedWidth ?? badge.size.width, accuracy: 0.5, "Paused is cut short, \(label)")
+                        pausedWidth = pausedWidth ?? badge.size.width
+                        // A truncated title's frame ends at its last glyph, a few
+                        // points short of its slot.
+                        XCTAssertLessThanOrEqual((badge.position?.x ?? 0) - titleEnd, SpotiglassDesign.spacingXS + SpotiglassDesign.spacingXS + 0.5, "Paused drifted from the title, \(label)")
+                    }
+                    if state == "other service" {
+                        let line = try XCTUnwrap(texts.first { $0.value.hasPrefix(service) }, "the bar doesn't say which service plays, \(label)")
+                        XCTAssertLessThanOrEqual(abs((line.position?.x ?? 0) - (title.position?.x ?? 0)), 0.5, "the service doesn't lead the line under the title, \(label)")
+                        XCTAssertGreaterThan(line.size.width, title.size.width / 2, "the service line is squeezed, \(label)")
+                    }
                 }
-            }
-            if badges[state] != nil {
-                XCTAssertNotNil(badgeWidth, "the badge never showed between 520 and 760 pt, \(state)")
             }
         }
     }
