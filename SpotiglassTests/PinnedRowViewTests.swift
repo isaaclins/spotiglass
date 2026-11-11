@@ -176,16 +176,23 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
 
     /// Shows a stand-in cover on screen the way a row shows a library cover: the see-through
     /// placeholder, the cover image with the marker behind it, over the row's `backdrop`.
-    /// `badge` draws a green square over the cover, like a pin badge; `round` clips it like an
-    /// artist's cover; `inSidebar` puts it inside a view that draws nothing when cached.
+    /// `badge` draws a green square over the cover, like a pin badge; `dim` lays a same-sized
+    /// half-black image over it; `imagePlaceholder` draws the placeholder as an image; `round` clips it like an artist's cover; `inSidebar` puts it
+    /// inside a view that draws nothing when cached.
     private func showCoverOnScreen(
         url: String, itemKey: String?, cover: NSImage = magenta, backdrop: Color = .clear,
-        badge: Bool = false, round: Bool = false, inSidebar: Bool = false
+        badge: Bool = false, dim: Bool = false, imagePlaceholder: Bool = false, round: Bool = false,
+        inSidebar: Bool = false
     ) throws {
         let marker = OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey)
         let row = ZStack {
-            Color.gray.opacity(0.16)
+            if imagePlaceholder {
+                Image(nsImage: Self.tile(NSColor(white: 0.5, alpha: 0.3))).resizable()
+            } else {
+                Color.gray.opacity(0.16)
+            }
             Image(nsImage: cover).resizable().frame(width: 40, height: 40).background(marker)
+            if dim { Image(nsImage: Self.tile(NSColor(white: 0, alpha: 0.5))).resizable().frame(width: 40, height: 40) }
         }
         .frame(width: 40, height: 40)
         .clipShape(RoundedRectangle(cornerRadius: round ? 20 : 4))
@@ -294,6 +301,20 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
                 "\(name) background"
             )
         }
+    }
+
+    /// A same-sized image laid over a cover that isn't drawn yet is not the cover.
+    func testImageOverAnUndrawnCoverIsNotTakenForIt() throws {
+        let url = "musicKit://artwork/transient/40x40?id=DIMMED449"
+        try showCoverOnScreen(url: url, itemKey: nil, cover: Self.notDrawnYet, dim: true)
+        XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
+    }
+
+    /// The placeholder behind the cover is never taken for it, even when it is an image too.
+    func testImagePlaceholderBehindAnUndrawnCoverIsNotTakenForIt() throws {
+        let url = "musicKit://artwork/transient/40x40?id=BEHIND449"
+        try showCoverOnScreen(url: url, itemKey: nil, cover: Self.notDrawnYet, imagePlaceholder: true)
+        XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
     }
 
     /// A white cover with a small motif on the light window background is still a cover.

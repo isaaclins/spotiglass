@@ -141,12 +141,15 @@ final class OnScreenArtwork {
 
     /// Marker views by cover URL and by pin ID. Weak: a row that goes away drops out by itself.
     private var viewsByKey: [String: NSHashTable<OnScreenArtworkMarker.MarkerView>] = [:]
+    /// Size at which the table is tidied next. Doubles with what stays after tidying, so a
+    /// screen that keeps many covers alive doesn't tidy on every new cover.
+    private var tidyAt = 1_000
 
     func register(_ view: OnScreenArtworkMarker.MarkerView) {
-        // Scrolling a large library registers thousands of covers; drop keys no live view
-        // carries anymore (gone, or reused for another cover).
-        if viewsByKey.count > 1_000 {
+        // Keys of covers that were freed without leaving their window first.
+        if viewsByKey.count > tidyAt {
             viewsByKey = viewsByKey.filter { key, views in views.allObjects.contains { $0.keys.contains(key) } }
+            tidyAt = max(1_000, viewsByKey.count * 2)
         }
         for key in view.keys {
             let views = viewsByKey[key] ?? .weakObjects()
@@ -155,7 +158,8 @@ final class OnScreenArtwork {
         }
     }
 
-    /// A reused row's marker now shows another cover: it no longer answers for `keys`.
+    /// A marker that left its window, or a reused row's marker that now shows another cover, no
+    /// longer answers for `keys`.
     func unregister(_ view: OnScreenArtworkMarker.MarkerView, keys: [String]) {
         for key in keys {
             guard let views = viewsByKey[key] else { continue }
@@ -206,7 +210,11 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if window != nil { OnScreenArtwork.shared.register(self) }
+            if window != nil {
+                OnScreenArtwork.shared.register(self)
+            } else {
+                OnScreenArtwork.shared.unregister(self, keys: keys)
+            }
         }
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -214,34 +222,41 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
         /// The cover MusicKit drew in front of this view: the image layer that covers exactly
         /// this view's frame, drawn on its own. Drawing that one layer, not a picture of the
         /// window, leaves out whatever is around or over the cover (the row's background, a pin
-        /// badge). Before MusicKit has drawn the cover the layer is empty, and there is no cover
-        /// to take yet.
+        /// badge). Only layers in front of this view count: it is the cover's background, so
+        /// the placeholder behind it is never taken. Before MusicKit has drawn the cover its
+        /// layer is empty, and there is no cover to take yet; the search stops at the first
+        /// layer with this frame, so a same-sized layer over an empty cover isn't taken either.
         func drawnCover() -> NSImage? {
             guard window != nil, !visibleRect.isEmpty, let marker = layer else { return nil }
-            var container = marker.superlayer
+            var branch = marker
             for _ in 0..<4 {
-                guard let current = container else { break }
-                if let image = drawnCover(in: current, over: marker, depth: 3) { return image }
-                container = current.superlayer
+                guard let container = branch.superlayer else { break }
+                let layers = container.sublayers ?? []
+                if let index = layers.firstIndex(where: { $0 === branch }) {
+                    for layer in layers[(index + 1)...] {
+                        if let cover = coverLayer(layer, over: marker, depth: 3) { return drawn(cover) }
+                    }
+                }
+                branch = container
             }
             return nil
         }
 
-        private func drawnCover(in container: CALayer, over marker: CALayer, depth: Int) -> NSImage? {
-            for layer in container.sublayers ?? [] where layer !== marker {
-                if layer.contents != nil {
-                    let frame = layer.convert(layer.bounds, to: marker)
-                    let bounds = marker.bounds
-                    if abs(frame.minX - bounds.minX) <= 1, abs(frame.minY - bounds.minY) <= 1,
-                        abs(frame.width - bounds.width) <= 1, abs(frame.height - bounds.height) <= 1,
-                        let image = drawn(layer)
-                    {
-                        return image
-                    }
+        /// `layer` or the first layer inside it, back to front, with contents and exactly the
+        /// marker's frame.
+        private func coverLayer(_ layer: CALayer, over marker: CALayer, depth: Int) -> CALayer? {
+            if layer.contents != nil {
+                let frame = layer.convert(layer.bounds, to: marker)
+                let bounds = marker.bounds
+                if abs(frame.minX - bounds.minX) <= 1, abs(frame.minY - bounds.minY) <= 1,
+                    abs(frame.width - bounds.width) <= 1, abs(frame.height - bounds.height) <= 1
+                {
+                    return layer
                 }
-                if depth > 0, let image = drawnCover(in: layer, over: marker, depth: depth - 1) {
-                    return image
-                }
+            }
+            guard depth > 0 else { return nil }
+            for sublayer in layer.sublayers ?? [] {
+                if let cover = coverLayer(sublayer, over: marker, depth: depth - 1) { return cover }
             }
             return nil
         }
