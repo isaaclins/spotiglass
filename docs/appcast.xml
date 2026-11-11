@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.35</title>
-            <pubDate>Wed, 11 Nov 2026 03:50:33 +0100</pubDate>
-            <sparkle:version>46</sparkle:version>
-            <sparkle:shortVersionString>0.8.35</sparkle:shortVersionString>
+            <title>0.8.36</title>
+            <pubDate>Wed, 11 Nov 2026 04:27:26 +0100</pubDate>
+            <sparkle:version>47</sparkle:version>
+            <sparkle:shortVersionString>0.8.36</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• VoiceOver now stays inside the search palette while it is open, so it no longer reaches the page behind it.
+            <description sparkle:format="plain-text"><![CDATA[• The command palette no longer shows a saved Apple Music playlist twice, once next to its catalog copy.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.35/Spotiglass-0.8.35.zip" length="13318458" type="application/octet-stream" sparkle:edSignature="qTSWYqirnFa8BQXTsy5fQ9YWieHcY2twojk38U8A5oAmoj4mINXcTohhWn4K4BUznNWfIF2xfdB8rwoo7hkFBA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.36/Spotiglass-0.8.36.zip" length="13328028" type="application/octet-stream" sparkle:edSignature="KPB92p1r/nogjHwsCesl6alCOSsfFrahSg7oYhF/zAw0sio/o8NsejhV90kuQQ6640FN0pXfFjqxYSXmAosQBA=="/>
         </item>
     </channel>
 </rss>

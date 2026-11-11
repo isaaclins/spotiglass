@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.36] - 2026-11-11
+
+### Fixed
+
+- The command palette no longer shows a saved Apple Music playlist twice, once next to its catalog copy.
+
 ## [0.8.35] - 2026-11-11
 
 ### Fixed
