@@ -81,22 +81,6 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
         ViewTestHost.tearDownAll()
     }
 
-    /// The queue and pop-out pin flags left `@AppStorage` (#473); under the test host they must
-    /// stay in memory, or a test that opens the queue opens it in the real app's next launch.
-    @MainActor
-    func testStoredFlagWritesDoNotReachTheRealDomain() {
-        let before = snapshotRealDomain()
-
-        StoredFlag.queuePanelVisible.isOn.toggle()
-        StoredFlag.lyricsPopOutPinned.isOn.toggle()
-        StoredFlag.queuePanelVisible.isOn.toggle()
-        StoredFlag.lyricsPopOutPinned.isOn.toggle()
-        StoredFlag.queuePanelVisible.isOn = true
-
-        XCTAssertEqual(snapshotRealDomain(), before, "StoredFlag must not write the real preferences under the test host.")
-        ViewTestHost.tearDownAll()
-    }
-
     // MARK: - Structural guards
 
     private func testSourceFiles() throws -> [(name: String, contents: String)] {
@@ -122,6 +106,31 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
                 return isComment ? "" : line
             }
             .joined(separator: "\n")
+    }
+
+    /// The app's yes/no flags left `@AppStorage` (#473). Under the test host they stay in memory
+    /// only because each is made with `StoredFlag.app(key:defaultValue:)`; one made with
+    /// `StoredFlag(key:defaultValue:defaults: .standard)` would let a test that opens the queue
+    /// open it in the real app's next launch.
+    func testEveryAppFlagIsMadeTheWayThatSkipsTheRealDomainUnderTests() throws {
+        let appDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Spotiglass")
+        let paths = try FileManager.default.subpathsOfDirectory(atPath: appDirectory.path)
+            .filter { $0.hasSuffix(".swift") && !$0.hasSuffix("StoredFlag.swift") }
+        var offenders: [String] = []
+        for path in paths {
+            let source = strippingWholeLineComments(
+                try String(contentsOf: appDirectory.appendingPathComponent(path), encoding: .utf8)
+            )
+            for (index, line) in source.components(separatedBy: .newlines).enumerated()
+            where line.contains("StoredFlag(") {
+                offenders.append("\(path):\(index + 1)")
+            }
+        }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            "Make app flags with StoredFlag.app(key:defaultValue:): " + offenders.joined(separator: ", ")
+        )
     }
 
     /// No test may reach `UserDefaults.standard`. Use `makeEphemeralDefaults()`.

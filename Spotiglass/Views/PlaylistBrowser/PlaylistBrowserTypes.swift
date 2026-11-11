@@ -22,43 +22,45 @@ final class BrowserWidthSampler {
     let sidebarDragLimit = SidebarDragLimit()
 
     /// Takes `width` as the committed one and moves the sidebar's drag limit along.
-    func commit(width: CGFloat, at time: CFAbsoluteTime, isQueueVisible: Bool) {
+    func commit(width: CGFloat, at time: CFAbsoluteTime) {
         committedWidth = width
         lastCommitTime = time
-        sidebarDragLimit.update(browserWidth: width, isQueueVisible: isQueueVisible)
+        sidebarDragLimit.update(browserWidth: width)
     }
 
     /// Takes the latest measured width as the committed one (when a panel opens or closes).
-    func commitLatestWidth(isQueueVisible: Bool, at time: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()) {
-        commit(width: latestWidth, at: time, isQueueVisible: isQueueVisible)
+    func commitLatestWidth(at time: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()) {
+        commit(width: latestWidth, at: time)
     }
 }
 
-/// The widest the playlist sidebar can be dragged (#459). Its own object, so a new limit redraws
-/// only the sidebar column's width and not the browser (#473).
+/// The committed browser width the sidebar's drag limit (#459) is worked out from. Its own
+/// object, so a new width redraws only the sidebar column's width and not the browser (#473).
 @MainActor
 final class SidebarDragLimit: ObservableObject {
-    @Published private(set) var maxWidth = SpotiglassDesign.playlistSidebarMaxWidth(
-        browserWidth: 2000, isQueueVisible: false
-    )
+    @Published private(set) var browserWidth: CGFloat = 2000
 
-    func update(browserWidth: CGFloat, isQueueVisible: Bool) {
-        let limit = SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: browserWidth, isQueueVisible: isQueueVisible)
-        guard abs(limit - maxWidth) >= 0.5 else { return }
-        maxWidth = limit
+    func update(browserWidth width: CGFloat) {
+        guard abs(width - browserWidth) >= 0.5 else { return }
+        browserWidth = width
     }
 }
 
-/// Gives the playlist sidebar its column width with the drag limit it observes, so only this
-/// modifier runs again when the limit moves.
+/// Gives the playlist sidebar its column width with the drag limit, so only this modifier runs
+/// again when the committed width moves. It reads the queue flag itself, so the limit narrows in
+/// the same update that brings the queue column in, not one update after it.
 struct PlaylistSidebarColumnWidth: ViewModifier {
     @ObservedObject var limit: SidebarDragLimit
+    @ObservedObject var queuePanel: StoredFlag
 
     func body(content: Content) -> some View {
         content.navigationSplitViewColumnWidth(
             min: SpotiglassDesign.playlistSidebarMinWidth,
             ideal: SpotiglassDesign.sidebarWidth,
-            max: limit.maxWidth
+            max: SpotiglassDesign.playlistSidebarMaxWidth(
+                browserWidth: limit.browserWidth,
+                isQueueVisible: queuePanel.isOn
+            )
         )
     }
 }

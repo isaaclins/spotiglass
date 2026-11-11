@@ -68,7 +68,7 @@ extension PlaylistBrowserView {
         }
         browserWidthSampler.trailingCommit?.invalidate()
         browserWidthSampler.trailingCommit = nil
-        browserWidthSampler.commit(width: result.committedWidth, at: result.lastCommitTime, isQueueVisible: isQueueVisible)
+        browserWidthSampler.commit(width: result.committedWidth, at: result.lastCommitTime)
 
         if result.crossedIntoNarrow,
            isQueueVisible, playlistColumnVisibility != .detailOnly {

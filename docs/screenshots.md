@@ -76,7 +76,9 @@ scripts/screenshots.sh stop
 
 Compare it with Finder in the same minute, since other work on the Mac slows both: after a
 `resize`, `build/screenshot-mode/resize_timing $(pgrep -x Finder) 8 12` times a Finder window the
-same way. On a quiet Mac mini M4 both take about 15 ms a step in Spotify mode (#473). The terminal needs the Accessibility permission.
+same way. On a Mac mini M4 (#473) Finder takes 13 to 15 ms a step, the playlist pages and Apple
+Music's Home 2 to 4 ms, and Spotify mode's Home about 22. The terminal needs the Accessibility
+permission.
 
 `appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
 System Settings does, to check how the window takes a live theme change (set Settings → Appearance

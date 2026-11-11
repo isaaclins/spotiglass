@@ -196,7 +196,7 @@ struct PlaylistBrowserView: View {
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
                 recordPlaylistSidebarWidth(width)
             }
-            .modifier(PlaylistSidebarColumnWidth(limit: browserWidthSampler.sidebarDragLimit))
+            .modifier(PlaylistSidebarColumnWidth(limit: browserWidthSampler.sidebarDragLimit, queuePanel: queuePanel))
         } detail: {
             PlaylistBrowserDetailWithQueueSplit(
                 unifiedRefreshFocus: $unifiedRefreshFocus,
@@ -472,7 +472,7 @@ struct PlaylistBrowserView: View {
         browserCommandBindings
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
-            browserWidthSampler.commitLatestWidth(isQueueVisible: visible)
+            browserWidthSampler.commitLatestWidth()
             if !visible {
                 unifiedRefreshFocus = .mainContent
             }
@@ -619,6 +619,9 @@ private struct BrowserTransportBar: View {
     let openArtist: (ArtistTapTarget) -> Void
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("BrowserTransportBar")
+        #endif
         // The bar shows and controls the music you hear (#396): the other service's player
         // while it plays and nothing plays here.
         let transport = playbackViewModel.audiblePlayer

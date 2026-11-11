@@ -47,16 +47,25 @@ final class WindowResizeCostTests: XCTestCase {
 
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
-        let tokens = ResizeTestTokenProvider()
+        // The live player bar, driven by a stand-in Spotify player: no web page and no network,
+        // whose answers would arrive whenever they like in a test that fails on any re-render.
+        let playbackHost = SpotiglassPlaybackHost(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        )
+        let playback = playbackHost.playbackViewModel
+        playback.deviceID = "device-1"
+        playback.hasTransferredPlaybackToCurrentDevice = true
+        playback.setTransportStateKnown(true)
+        playback.setConnectionState(.paused(PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: "Hurry Up, We're Dreaming", albumID: nil,
+            albumArtURL: nil, durationMilliseconds: 243_000, positionMilliseconds: 60_000, uri: "spotify:track:t1"
+        )))
         let view = PlaylistBrowserView(
             viewModel: browserVM,
-            playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+            playbackHost: playbackHost,
             catalogProvider: api,
             commandPaletteManager: CommandPaletteManager(),
-            signOut: {},
-            // No live player: its web page and network answers would arrive whenever they like,
-            // and this test fails on any re-render it didn't cause.
-            playbackMode: .unavailable(SpotiglassL10n.string("error.playback.appleMusic.subscription.message"))
+            signOut: {}
         )
         .environmentObject(store)
         .environmentObject(LyricsOverlayController())
@@ -71,6 +80,7 @@ final class WindowResizeCostTests: XCTestCase {
 
         // What is on screen before the resize, so the test can't pass on an empty window.
         let shown = ViewBodyTally.counts ?? [:]
+        XCTAssertNotNil(shown["PlaybackControlsView"], "the live player bar isn't on screen")
         XCTAssertNotNil(shown["PlaylistListRow:p1"], "the sidebar doesn't list the playlists")
         XCTAssertNotNil(shown["PlaylistListRow:p2"], "the sidebar doesn't list the playlists")
         switch page {
@@ -114,15 +124,27 @@ final class WindowResizeCostTests: XCTestCase {
         let span: CGFloat = 1_400 - (comfortable + 40)
         let widths: [CGFloat] = (1...steps).map { step in 1_400 - span * CGFloat(step) / CGFloat(steps) }
         waitUntilNothingRenders(file: file, line: line)
+        let content = window.contentView!
+        let wideLimit = Self.sidebarMaximumThickness(in: content)
         ViewBodyTally.counts = [:]
         for (step, width) in (widths + widths.reversed()).enumerated() {
             resize(window, toWidth: width, height: 900 - CGFloat(step % steps) * 10)
+            if step == steps - 1 {
+                // At the narrowest step the browser must have taken the new width: its sidebar
+                // limit follows the committed width, so a resize that never reached it can't pass.
+                AppKitTestSupport.pumpRunLoop(for: 0.15)
+                let narrowLimit = Self.sidebarMaximumThickness(in: content)
+                XCTAssertNotNil(wideLimit, "no sidebar split item", file: file, line: line)
+                XCTAssertLessThan(narrowLimit ?? .infinity, (wideLimit ?? 0) - 100, "the resize never reached the browser", file: file, line: line)
+            }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
         let counts = ViewBodyTally.counts ?? [:]
 
         for container in [
             "PlaylistBrowserView",
+            "BrowserTransportBar",
+            "PlaybackControlsView",
             "PlaylistBrowserSidebar",
             "PlaylistsSidebarSectionContent",
             "PlaylistBrowserMainDetailColumn",
@@ -213,12 +235,4 @@ final class WindowResizeCostTests: XCTestCase {
         XCTAssertFalse(StoredFlag.queuePanelVisible.isOn, "the next test would start with the queue open")
         XCTAssertEqual(StoredFlag.lyricsPopOutPinned.isOn, LyricsPopOutWindow.isPinnedByDefault)
     }
-}
-
-@MainActor
-private final class ResizeTestTokenProvider: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
-    func playbackAccessToken() async throws -> String { "resize-token" }
-    func refreshedPlaybackAccessToken() async throws -> String { "resize-token" }
-    func accessToken() async throws -> String { "resize-token" }
-    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "resize-token" }
 }
