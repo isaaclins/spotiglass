@@ -1902,6 +1902,13 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         AppleMusicContentRatings.shared.resetSharedStateForTesting()
     }
 
+    /// A provider that waits for every rating, so a test doesn't race the two-second deadline.
+    private static func provider(_ source: MockAppleMusicSource) -> AppleMusicBrowsingProvider {
+        var provider = AppleMusicBrowsingProvider(source: source)
+        provider.ratingsDeadline = { try? await Task.sleep(for: .seconds(3_600)) }
+        return provider
+    }
+
     private static func explicitFlags(_ items: [MusicPlaylistTrackItem]) -> [Bool?] {
         items.map { item -> Bool? in
             guard case let .track(track) = item.content else { return nil }
@@ -1918,7 +1925,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
             try AppleMusicFixtures.song(id: "i.5180003", title: "Voice Memo Demo"),
         ]
         source.catalogRatings = ["9518001": true, "9518002": false]
-        let result = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        let result = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
 
         let rows = result.tracks.enumerated().map { TrackRowViewModel($1, listPosition: $0 + 1) }
         XCTAssertEqual(rows.map(\.isExplicit), [true, false, false])
@@ -1927,7 +1934,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(source.ratingLookups.map(Set.init), [["9518001", "9518002"]])
 
         // Read again (another list, the player): known ratings aren't asked for again.
-        _ = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        _ = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
         XCTAssertEqual(source.ratingLookups.count, 1)
     }
 
@@ -1955,7 +1962,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
             try AppleMusicFixtures.song(id: "-5180000000000000013", title: "Harbour", persistentID: "-5180000000000000013")
         )]
         source.catalogRatings = ["9518011": true, "9518012": true]
-        let provider = AppleMusicBrowsingProvider(source: source)
+        let provider = Self.provider(source)
 
         let playlist = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
         XCTAssertEqual(Self.explicitFlags(playlist), [true, false, false])
@@ -1988,7 +1995,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         ]
         source.catalogRatings = ["9518091": true, "9518092": true]
 
-        let playlist = try await AppleMusicBrowsingProvider(source: source).playlistTracks(playlistID: "p.5180091", limit: 100, maxPages: 1)
+        let playlist = try await Self.provider(source).playlistTracks(playlistID: "p.5180091", limit: 100, maxPages: 1)
         XCTAssertEqual(Self.explicitFlags(playlist), [true, true])
         XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518091", "9518092"])
     }
@@ -2001,7 +2008,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         source.catalogRatings = ["9518051": true]
         let (answer, release) = AsyncStream<Void>.makeStream()
         source.ratingLookupHold = { for await _ in answer { break } }
-        var provider = AppleMusicBrowsingProvider(source: source)
+        var provider = Self.provider(source)
         provider.ratingsDeadline = {}
 
         let first = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
@@ -2105,6 +2112,20 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(ratings.rating(of: row), true)
     }
 
+    /// A library song read first in a form that names no release doesn't make its playlist rows
+    /// read as clean: only a library read concludes that a song has none.
+    func testASongReadWithoutItsReleaseFirstDoesNotMakeItsRowsClean() async throws {
+        let ratings = AppleMusicContentRatings()
+        let thinner = try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", persistentID: "5180000000000000121")
+        XCTAssertEqual(ratings.rating(of: thinner), false)
+        let library = [try AppleMusicFixtures.song(id: "i.5180121", title: "Harbour", catalogID: "9518121", persistentID: "5180000000000000121")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000121", title: "Harbour", persistentID: "5180000000000000121")
+
+        await ratings.resolve([row], lookup: { _ in ["9518121": true] }, library: { _, offset in offset == 0 ? library : [] })
+        XCTAssertEqual(ratings.rating(of: row), true)
+        XCTAssertEqual(ratings.rating(of: thinner), true, "the library read named its release")
+    }
+
     /// A read that names no release for a persistent ID doesn't undo a release another read
     /// found: the row would otherwise read as clean.
     func testAReadWithoutTheReleaseDoesNotUndoAKnownOne() async throws {
@@ -2116,7 +2137,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
 
         // The same library song read in a shape that carries its persistent ID but no release.
         let thinner = try AppleMusicFixtures.song(id: "i.5180112", title: "Harbour", persistentID: "5180000000000000111")
-        XCTAssertEqual(ratings.rating(of: thinner), false, "itself: nothing to ask")
+        XCTAssertEqual(ratings.rating(of: thinner), true, "itself: the release the library read found")
         XCTAssertEqual(ratings.rating(of: row), true)
     }
 
@@ -2134,7 +2155,7 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
             try AppleMusicFixtures.song(id: "9518022", title: "Glass Harbour", album: "Glass Harbour"),
         ])
         source.catalogRatings = ["9518021": true]
-        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "glass harbour", limit: 10)
+        let results = try await Self.provider(source).search(query: "glass harbour", limit: 10)
 
         XCTAssertEqual(results.tracks.map(\.id), ["i.5180021", "9518022"], "the clean version is another song")
         XCTAssertEqual(results.tracks.map(\.isExplicit), [true, false])
@@ -2145,12 +2166,12 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         let source = MockAppleMusicSource()
         source.savedSongs = [try AppleMusicFixtures.song(id: "i.5180031", title: "Night Ferry", catalogID: "9518031")]
         source.catalogRatingsError = URLError(.notConnectedToInternet)
-        let failed = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        let failed = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
         XCTAssertEqual(Self.explicitFlags(failed.tracks), [false])
 
         source.catalogRatingsError = nil
         source.catalogRatings = ["9518031": true]
-        let retried = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        let retried = try await Self.provider(source).currentUserSavedTracks(limit: 50, maxPages: nil)
         XCTAssertEqual(Self.explicitFlags(retried.tracks), [true])
         XCTAssertEqual(source.ratingLookups.count, 2)
     }
