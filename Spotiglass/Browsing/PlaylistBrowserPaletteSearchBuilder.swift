@@ -11,6 +11,8 @@ struct PlaylistBrowserPaletteSearchEnvironment {
     var openArtist: (_ id: String, _ name: String) -> Void
     var openAlbum: (String, String, String, URL?) -> Void
     var addToQueue: (String) async -> Void
+    /// The other pin IDs known for a pin ID (a saved Apple Music playlist's catalog copy, #523).
+    var otherPinIDs: (String) -> Set<String> = { _ in [] }
 }
 
 /// Extracted from ``PlaylistBrowserView`` so palette search mapping is unit-testable.
@@ -248,7 +250,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 let copy = pinPayload
                 pinPair = ({ environment.pin(copy) }, nil)
             }
-            let item = CommandPaletteItem(
+            var item = CommandPaletteItem(
                 id: "playlist-\(row.id)",
                 title: row.title,
                 subtitle: row.ownerTracksLine(currentUserID: currentUserSpotifyID),
@@ -261,6 +263,9 @@ enum PlaylistBrowserPaletteSearchBuilder {
             )
             let score = item.score(for: trimmedQuery)
             guard score < 100 else { continue }
+            item.sameItemIDs = Set(
+                environment.otherPinIDs(pinPayload.id).compactMap(PinnedItem.itemID(ofPinID:)).map { "playlist-\($0)" }
+            )
             libraryRows.append((item, score))
         }
         libraryRows.sort { lhs, rhs in

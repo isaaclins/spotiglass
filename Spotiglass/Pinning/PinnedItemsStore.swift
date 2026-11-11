@@ -188,6 +188,13 @@ final class PinnedItemsStore: ObservableObject {
         return items.contains { $0.kind == kind && isSameItem($0, queryKeys) }
     }
 
+    /// The other pin IDs the service knows for `id` right now, pinned or not: a saved Apple
+    /// Music playlist's catalog copy. Lets a list that shows both copies show the item once (#523).
+    /// Empty for Spotify.
+    func otherPinIDs(ofPinID id: String) -> Set<String> {
+        aliases?.knownAliases(ofPinID: id, checkingAlbum: false).subtracting([id]) ?? []
+    }
+
     // MARK: - One identity per item (#487)
 
     /// `id` and the other IDs the service knows for it right now. Only asked when a pin of the

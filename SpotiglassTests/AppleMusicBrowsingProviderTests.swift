@@ -340,6 +340,64 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertTrue(source.calls.contains("catalogSearch(late night,10,20)"))
     }
 
+    /// A playlist I saved from Apple Music is in my sidebar under a library ID and names its
+    /// catalog copy (`catalogId`). Typing its curator's name, the palette's own filter finds the
+    /// sidebar row while MusicKit's library search finds nothing (or fails) and the catalog search
+    /// answers with the catalog copy. The All view compared only their own IDs and showed the
+    /// playlist twice (#523). It shows once, as my library copy, in the catalog copy's place.
+    @MainActor
+    func testASavedPlaylistFoundOnlyByThePaletteFilterHidesItsCatalogCopy() async throws {
+        let saved = try AppleMusicFixtures.playlist(
+            id: "p.F523Lk2MnB", name: "Late Night Jazz", curator: "Apple Music Jazz", catalogID: "pl.f523a1b2c3"
+        )
+        // The sidebar lists it the way the library listing maps it.
+        let row = PlaylistRowViewModel(AppleMusicItemMapping.playlistSummary(saved, fallbackOwnerName: "You"))
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache(), aliases: AppleMusicPinAliases(
+            registry: .shared,
+            lookUp: { _, _ in [:] },
+            albums: { _ in [] },
+            searchAlbums: { _ in AppleMusicAlbumSearch(catalog: [], library: []) },
+            songReferences: AppleMusicSongReferenceRegistry()
+        ))
+        store.bind(userID: AppleMusicBrowsingProvider.libraryUserID)
+        let environment = PlaylistBrowserPaletteSearchEnvironment(
+            isPinnedByID: { _ in false },
+            pin: { _ in },
+            unpin: { _ in },
+            playURI: { _ in },
+            openPlaylist: { _ in },
+            openArtist: { _, _ in },
+            openAlbum: { _, _, _, _ in },
+            addToQueue: { _ in },
+            otherPinIDs: { store.otherPinIDs(ofPinID: $0) }
+        )
+
+        struct LibraryOffline: Error {}
+        for libraryFails in [false, true] {
+            let source = MockAppleMusicSource()
+            if libraryFails { source.librarySearchError = LibraryOffline() }
+            source.catalogSearchItems = AppleMusicSearchItems(playlists: [
+                try AppleMusicFixtures.playlist(id: "pl.f523a1b2c3", name: "Late Night Jazz", curator: "Apple Music Jazz"),
+                try AppleMusicFixtures.playlist(id: "pl.f523d4e5f6", name: "Jazz Essentials", curator: "Apple Music Jazz"),
+            ])
+            let results = try await PlaylistBrowserPaletteSearchBuilder.search(
+                query: "apple music jazz",
+                category: .all,
+                catalogProvider: AppleMusicBrowsingProvider(source: source),
+                environment: environment,
+                loadedContextTracks: nil,
+                visiblePlaylists: [row],
+                currentUserSpotifyID: AppleMusicBrowsingProvider.libraryUserID
+            )
+            XCTAssertEqual(results.myPlaylists.map { $0.id }, ["playlist-p.F523Lk2MnB"], "library search fails: \(libraryFails)")
+            XCTAssertEqual(
+                results.mergedPlaylistsForAllCategory().map { $0.id },
+                ["playlist-p.F523Lk2MnB", "playlist-pl.f523d4e5f6"],
+                "library search fails: \(libraryFails)"
+            )
+        }
+    }
+
     /// A shared playlist pinned from Search is pinned under its catalog ID, which the library
     /// listing doesn't use. The listing keeps its cover under that ID too, so such a pin saved
     /// without a cover gets it, and draws it again after a relaunch (#477).

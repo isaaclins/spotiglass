@@ -235,7 +235,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 queueViewModel: dependencies.queueViewModel,
                 isPinnedByID: { pinnedStore.isPinned(id: $0) },
                 pin: { pinnedStore.pin($0) },
-                unpin: { pinnedStore.unpin(id: $0) }
+                unpin: { pinnedStore.unpin(id: $0) },
+                otherPinIDs: { pinnedStore.otherPinIDs(ofPinID: $0) }
             )
         }
         manager.localSpotifySearch = { [weak manager] query in
@@ -245,7 +246,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 queueViewModel: dependencies.queueViewModel,
                 isPinnedByID: { pinnedStore.isPinned(id: $0) },
                 pin: { pinnedStore.pin($0) },
-                unpin: { pinnedStore.unpin(id: $0) }
+                unpin: { pinnedStore.unpin(id: $0) },
+                otherPinIDs: { pinnedStore.otherPinIDs(ofPinID: $0) }
             )
             return PlaylistBrowserPaletteSearchBuilder.localSearch(
                 query: query,
@@ -264,7 +266,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         queueViewModel: QueueViewModel,
         isPinnedByID: @escaping (String) -> Bool,
         pin: @escaping (PinnedItem) -> Void,
-        unpin: @escaping (String) -> Void
+        unpin: @escaping (String) -> Void,
+        otherPinIDs: @escaping (String) -> Set<String>
     ) -> PlaylistBrowserPaletteSearchEnvironment {
         PlaylistBrowserPaletteSearchEnvironment(
             isPinnedByID: isPinnedByID,
@@ -304,7 +307,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             },
             addToQueue: { uri in
                 await queueViewModel.addToQueue(uri: uri)
-            }
+            },
+            otherPinIDs: otherPinIDs
         )
     }
 
@@ -317,14 +321,16 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         queueViewModel: QueueViewModel,
         isPinnedByID: @escaping (String) -> Bool,
         pin: @escaping (PinnedItem) -> Void,
-        unpin: @escaping (String) -> Void
+        unpin: @escaping (String) -> Void,
+        otherPinIDs: @escaping (String) -> Set<String>
     ) async throws -> CommandPaletteSearchResults {
         let environment = makeEnvironment(
             commandPaletteManager: commandPaletteManager,
             queueViewModel: queueViewModel,
             isPinnedByID: isPinnedByID,
             pin: pin,
-            unpin: unpin
+            unpin: unpin,
+            otherPinIDs: otherPinIDs
         )
         return try await PlaylistBrowserPaletteSearchBuilder.search(
             query: query,
