@@ -605,6 +605,30 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(LyricsPopOutTransport.canRun(CommandPaletteCommandID.openSearch, on: playback))
     }
 
+    /// With nothing loaded (the bar says "Ready to play") Next and Previous had nothing to skip
+    /// from and did nothing (#500): the pop-out's buttons and keys, like the bar's, stay off until
+    /// something is playing or paused. Play/Pause keeps following its own rule.
+    func testNextAndPreviousStayOffWhileNothingIsLoaded() {
+        let (playback, _, _, _) = playingWithLyrics()
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        XCTAssertFalse(playback.connectionState.hasTrackToSkipFrom)
+        XCTAssertFalse(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
+        XCTAssertFalse(LyricsPopOutTransport.canRun(CommandPaletteCommandID.previousTrack, on: playback))
+
+        // Spotify reports a podcast or a local file paused on another device without an item,
+        // and skipping works there.
+        playback.setConnectionState(.paused(nil))
+        XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
+
+        let song = PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 0, uri: "spotify:track:1"
+        )
+        playback.setConnectionState(.paused(song))
+        XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
+        XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.previousTrack, on: playback))
+    }
+
     /// Paused, or between progress anchors, the lyrics hold the player's last known position.
     func testTheLyricsPositionHoldsStillWhenThereIsNoProgressToFollow() {
         let song = PlaybackNowPlaying(

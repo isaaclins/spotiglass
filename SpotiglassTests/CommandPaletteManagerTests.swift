@@ -202,7 +202,39 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.connectPlayback = {}
         manager.nextTrack = {}
         manager.previousTrack = {}
+        // Next and Previous also need a song to skip from (#500).
+        manager.setSkipAvailability(true)
         XCTAssertTrue(ids().isSuperset(of: gated))
+    }
+
+    /// #500: in the `>` list too, Next and Previous coming back or going away (a song starts or
+    /// ends) must not move the highlight off the row it is on.
+    func testCommandsListKeepsTheHighlightWhenSkipComesAndGoes() async throws {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.nextTrack = {}
+        manager.previousTrack = {}
+        manager.viewModel.show()
+        manager.viewModel.query = ">"
+        manager.viewModel.refresh()
+        await manager.viewModel.waitForSearchCompletion()
+        let ids = { manager.viewModel.visibleItems.map(\.id) }
+        XCTAssertFalse(ids().contains(CommandPaletteCommandID.nextTrack))
+        // The last row: Next and Previous are listed above it, so it moves down when they come.
+        let highlighted = try XCTUnwrap(ids().last)
+        let before = ids().count - 1
+        manager.viewModel.selectedIndex = before
+
+        manager.setSkipAvailability(true)
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertTrue(ids().contains(CommandPaletteCommandID.nextTrack))
+        XCTAssertNotEqual(ids().firstIndex(of: highlighted), before, "rows came in above it")
+        XCTAssertEqual(ids()[manager.viewModel.selectedIndex], highlighted)
+
+        manager.setSkipAvailability(false)
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertFalse(ids().contains(CommandPaletteCommandID.nextTrack))
+        XCTAssertEqual(ids()[manager.viewModel.selectedIndex], highlighted)
     }
 
     /// #438: Refresh would reload the page under the lyrics, so the palette doesn't offer it

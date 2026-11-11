@@ -612,10 +612,12 @@ struct PlaybackControlsView: View {
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
                 accessibilityHint: Self.serviceString("playback.controls.previous.hint", appleMusic: "playback.controls.previous.appleMusic.hint", service: shownService),
                 size: SpotiglassDesign.Layout.iconButtonFrame,
-                isEnabled: hasReadyDevice && !viewModel.isSkipCommandPending,
+                isEnabled: canSkip && !viewModel.isSkipCommandPending,
                 action: { Task { await viewModel.previous() } }
             ) {
                 Image(systemName: "backward.fill")
+                    // Nothing loaded, nothing to skip from (#500): off, and it looks off like Play.
+                    .opacity(canSkip ? 1 : 0.45)
             }
             .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             .help(SpotiglassL10n.string("tooltip.playback.previous"))
@@ -642,12 +644,13 @@ struct PlaybackControlsView: View {
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.next"),
                 accessibilityHint: Self.serviceString("playback.controls.next.hint", appleMusic: "playback.controls.next.appleMusic.hint", service: shownService),
                 size: SpotiglassDesign.Layout.iconButtonFrame,
-                isEnabled: hasReadyDevice
+                isEnabled: canSkip
                     && !viewModel.isSkipCommandPending
                     && !viewModel.isNextCommandLockedOut,
                 action: { Task { await viewModel.next() } }
             ) {
                 Image(systemName: "forward.fill")
+                    .opacity(canSkip ? 1 : 0.45)
             }
             .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             .help(SpotiglassL10n.string("tooltip.playback.next"))
@@ -1084,6 +1087,10 @@ struct PlaybackControlsView: View {
 
     private var hasReadyDevice: Bool {
         viewModel.connectionState.hasReadyDevice
+    }
+
+    private var canSkip: Bool {
+        viewModel.connectionState.hasTrackToSkipFrom
     }
 
     private var stateIcon: String {

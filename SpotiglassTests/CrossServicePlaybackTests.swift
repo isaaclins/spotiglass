@@ -748,6 +748,106 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertTrue(spotify.playbackViewModel.isPlaybackToggleReady, "Spotify resumes the account's last item")
     }
 
+    /// The report (#500): right after launch, with Apple Music signed in and nothing loaded,
+    /// ⌘K offered Next Track first; running it closed the palette and the bar still said
+    /// "Ready to play". Next and Previous are left out until a song is loaded, then come back
+    /// without moving the highlight, like Play/Pause.
+    func testAppleMusicPaletteLeavesOutNextTrackWhileNothingIsLoaded() async throws {
+        let (spotify, _) = pausedSpotify()
+        spotify.playbackViewModel.setConnectionState(.ready(deviceID: "device-1"))
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        try await assertSkipFollowsWhatIsLoaded(on: appleMusic, expectPlayPauseWhileEmpty: false) {
+            appleMusic.setConnectionState(.playing(Self.song("Piranguera", uri: "applemusic:song:piranguera")))
+        }
+    }
+
+    /// Spotify mode had the same gap: its ready player keeps Play/Pause (it resumes the
+    /// account's last item), but Next Track skipped from nothing.
+    func testSpotifyPaletteLeavesOutNextTrackWhileNothingIsLoaded() async throws {
+        let (spotify, _) = pausedSpotify()
+        let playback = spotify.playbackViewModel
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        try await assertSkipFollowsWhatIsLoaded(on: playback, expectPlayPauseWhileEmpty: true) {
+            playback.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        }
+    }
+
+    /// Skipping goes to the music you hear (#396): with Spotify on screen and nothing loaded
+    /// there, but Apple Music playing, Next and Previous skip Apple Music, so ⌘K, the menu and
+    /// the bar keep them (#500 must not take them away).
+    func testSkipStaysWhileTheOtherServicesMusicIsWhatYouHear() async throws {
+        let (spotify, _) = pausedSpotify()
+        let playback = spotify.playbackViewModel
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify)
+
+        XCTAssertFalse(playback.connectionState.hasTrackToSkipFrom, "nothing loaded on Spotify itself")
+        XCTAssertTrue(playback.isOtherServiceHeard)
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+        XCTAssertTrue(playback.audiblePlayer.connectionState.hasTrackToSkipFrom, "the bar's skip buttons are on")
+
+        let manager = wirePalette(to: playback)
+        manager.isSignedIn = true
+        manager.bindPlaybackReadiness(to: playback)
+        manager.viewModel.show()
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertTrue(manager.canSkipTrack, "the Playback menu's Next and Previous are on")
+        let quickActions = manager.viewModel.sections.first { $0.section == .quickActions }?.items.map(\.id) ?? []
+        XCTAssertTrue(quickActions.contains(CommandPaletteCommandID.nextTrack), "\(quickActions)")
+        XCTAssertTrue(manager.viewModel.staticItemsProvider().map(\.id).contains(CommandPaletteCommandID.previousTrack))
+    }
+
+    private func assertSkipFollowsWhatIsLoaded(
+        on playback: PlaybackSessionViewModel,
+        expectPlayPauseWhileEmpty: Bool,
+        startSong: () -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let manager = wirePalette(to: playback)
+        manager.isSignedIn = true
+        manager.bindPlaybackReadiness(to: playback)
+        manager.viewModel.show()
+        func quickActionIDs() -> [String] {
+            manager.viewModel.sections.first { $0.section == .quickActions }?.items.map(\.id) ?? []
+        }
+        func commandIDs() -> [String] {
+            manager.viewModel.staticItemsProvider().map(\.id)
+        }
+
+        XCTAssertFalse(quickActionIDs().contains(CommandPaletteCommandID.nextTrack), "nothing to skip from", file: file, line: line)
+        XCTAssertFalse(commandIDs().contains(CommandPaletteCommandID.previousTrack), "nothing to go back from", file: file, line: line)
+        XCTAssertFalse(manager.canSkipTrack, "the Playback menu's Next and Previous are off too", file: file, line: line)
+        XCTAssertEqual(
+            quickActionIDs().contains(CommandPaletteCommandID.togglePlayback), expectPlayPauseWhileEmpty,
+            file: file, line: line
+        )
+
+        let highlighted = try XCTUnwrap(
+            manager.viewModel.visibleItems.firstIndex { $0.id == CommandPaletteCommandID.openSettings },
+            file: file, line: line
+        )
+        manager.viewModel.selectedIndex = highlighted
+
+        startSong()
+        await manager.viewModel.waitForSearchCompletion()
+
+        XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.nextTrack), "a song plays: Next is back", file: file, line: line)
+        XCTAssertTrue(commandIDs().contains(CommandPaletteCommandID.previousTrack), file: file, line: line)
+        XCTAssertTrue(manager.canSkipTrack, file: file, line: line)
+        XCTAssertEqual(
+            manager.viewModel.visibleItems[manager.viewModel.selectedIndex].id, CommandPaletteCommandID.openSettings,
+            "the highlight stays on the row it was on", file: file, line: line
+        )
+    }
+
     // MARK: - 4. Header Play and Shuffle mark the sidebar row
 
     /// The report: header Shuffle (or Play) on 18P1 started it but the sidebar row had no

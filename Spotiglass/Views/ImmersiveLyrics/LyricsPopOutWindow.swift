@@ -168,9 +168,9 @@ enum LyricsPopOutTransport {
         case CommandPaletteCommandID.togglePlayback:
             player.isPlaybackToggleReady
         case CommandPaletteCommandID.previousTrack:
-            player.connectionState.hasReadyDevice && !player.isSkipCommandPending
+            player.connectionState.hasTrackToSkipFrom && !player.isSkipCommandPending
         case CommandPaletteCommandID.nextTrack:
-            player.connectionState.hasReadyDevice
+            player.connectionState.hasTrackToSkipFrom
                 && !player.isSkipCommandPending
                 && !player.isNextCommandLockedOut
         default:
