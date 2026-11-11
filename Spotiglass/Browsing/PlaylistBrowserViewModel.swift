@@ -128,6 +128,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var detailLoadGeneration = 0
     var adjacentPlaylistSelectionTask: Task<Void, Never>?
     var pendingAdjacentPlaylistOffset: Int = 0
+    /// The ⌘↑/⌘↓ debounce waits on this clock (a test steps it).
+    let adjacentPlaylistClock: any PlaybackClock
     var lastTracksRevalidationByID: [String: (snapshotID: String, at: Date)] = [:]
     var inFlightPlaylistListRefreshTask: Task<([MusicPlaylistSummary], MusicUserProfile), Error>?
     var playlistListRefreshGeneration = 0
@@ -221,9 +223,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsAutoRefreshMinInterval: TimeInterval = 120,
         manualPlaylistRefreshCooldown: TimeInterval = 2,
         artistDetailCacheTTL: TimeInterval = 90,
-        initialArtistAlbumPageCount: Int = 2
+        initialArtistAlbumPageCount: Int = 2,
+        adjacentPlaylistClock: any PlaybackClock = ContinuousClock()
     ) {
         self.api = api
+        self.adjacentPlaylistClock = adjacentPlaylistClock
         self.cache = cache
         self.scopeProvider = scopeProvider
         self.now = now

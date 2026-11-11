@@ -21,6 +21,18 @@ enum AppKitTestSupport {
         }
     }
 
+    /// Runs the main run loop until `condition` holds: for something an app timer does, so the
+    /// test waits for it however late a busy machine fires it, instead of for a fixed time
+    /// (#510). Returns whether it held before `timeout`.
+    static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() {
+            guard Date() < deadline else { return false }
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        return true
+    }
+
     @discardableResult
     static func makeFirstResponder(_ view: NSView, in window: NSWindow) -> Bool {
         activateAppIfNeeded()

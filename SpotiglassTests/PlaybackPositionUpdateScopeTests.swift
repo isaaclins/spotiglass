@@ -228,13 +228,28 @@ final class ScrubberTickCostTests: XCTestCase {
             .frame(width: 600, height: 30),
             size: CGSize(width: 600, height: 30)
         )
+        // The labels still tick, so the window is live: wait for two of their ticks, however late.
+        // Two, not one: a layout left over from hosting the view can count once.
         hosting.layoutCount = 0
-        AppKitTestSupport.pumpRunLoop(for: 3)
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { hosting.layoutCount >= 2 }),
+            "the labels never ticked"
+        )
 
-        // The two time labels change once a second each, which still lays out the window: about 6
-        // passes in 3 s. The track alone ticked 5 times a second here (600 pt, 4:00), 15 more.
-        XCTAssertLessThanOrEqual(hosting.layoutCount, 9, "the moving track must not lay out the window")
-        XCTAssertGreaterThanOrEqual(hosting.layoutCount, 3, "the labels still tick, so the window is live")
+        // The two time labels change once a second each, which still lays out the window: about 2
+        // passes a second. The track alone ticked 5 times a second here (600 pt, 4:00). The window
+        // runs at least 3 s and until the labels ticked again inside it, so it always measured
+        // ticks; a busy machine only fires both late, so the allowance follows the time that
+        // really passed.
+        hosting.layoutCount = 0
+        let start = Date()
+        AppKitTestSupport.pumpRunLoop(for: 3)
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { hosting.layoutCount >= 1 }),
+            "the labels stopped ticking, so nothing was measured"
+        )
+        let seconds = Date().timeIntervalSince(start).rounded(.up)
+        XCTAssertLessThanOrEqual(hosting.layoutCount, 2 * Int(seconds) + 3, "the moving track must not lay out the window")
     }
 
     func testTheTrackWakesOnlyWhilePlaying() throws {
