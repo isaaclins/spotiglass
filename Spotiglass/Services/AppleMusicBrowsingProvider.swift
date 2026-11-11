@@ -226,13 +226,23 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         // with the edit applied, like the open playlist.
         for id in playlistIDs where !unedited.contains(id) || editor.pending.hasPendingTracks(playlistID: id) {
             guard !Task.isCancelled else { break }
-            let tracks = try? await playlistTracks(playlistID: id, limit: 100, maxPages: 100)
+            // Only counted: their rows' ratings aren't needed (#518).
+            let tracks = try? await playlistItems(playlistID: id, limit: 100, maxPages: 100, lookingUpRatings: false)
             counts[id] = tracks.flatMap { $0.isEmpty ? nil : $0.count }
         }
         return counts
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
+        try await playlistItems(playlistID: playlistID, limit: limit, maxPages: maxPages, lookingUpRatings: true)
+    }
+
+    private func playlistItems(
+        playlistID: String,
+        limit: Int,
+        maxPages: Int,
+        lookingUpRatings: Bool
+    ) async throws -> [MusicPlaylistTrackItem] {
         let total = max(1, limit) * max(1, maxPages)
         guard let tracks = try await readPlaylistTracks(playlistID: playlistID, limit: total) else {
             // A playlist created from Spotiglass moments ago is only in the cloud library yet.
@@ -245,7 +255,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             }
             throw AppleMusicBrowsingError.notFound
         }
-        await lookUpRatings(tracks)
+        if lookingUpRatings { await lookUpRatings(tracks) }
         return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
     }
 
@@ -533,14 +543,16 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         // reads the library (a local query) so catalog copies of library items stay hidden on
         // later pages too.
         async let libraryResult = Self.capture {
-            try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
+            let items = try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
+            // Saved songs show the Explicit label of their catalog release (#518), looked up
+            // while the catalog search runs.
+            await lookUpRatings(items.songs)
+            return items
         }
         let firstCatalog = await Self.capture {
             try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
         }
         let library = await libraryResult
-        // Saved songs show the Explicit label of their catalog release (#518).
-        if case let .success(items) = library { await lookUpRatings(items.songs) }
         var page = try searchPage(
             catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
         )

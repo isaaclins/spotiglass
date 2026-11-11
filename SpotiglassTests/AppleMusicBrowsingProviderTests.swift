@@ -2039,10 +2039,10 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(ratings.lookupsStarted, 1)
     }
 
-    /// A library past the read's bound: rows for older songs can't be found by reading again, so
-    /// after one read stopped at the bound, a row not seen yet only reads the newest page (where
-    /// a song added since would be), not the whole bound again.
-    func testALibraryPastTheReadBoundIsReadInFullOnce() async throws {
+    /// After one read covered the library (here up to its bound), rows that read didn't list
+    /// can't be found by reading it all again: a row not seen yet only reads the newest page,
+    /// where a song added since would be. Rows past the bound stay unknown, not clean.
+    func testTheLibraryIsReadInFullOnce() async throws {
         let ratings = AppleMusicContentRatings(libraryPageSize: 2, maxLibrarySongs: 4)
         // Newest first, like `librarySongs`; the last two are past the bound.
         let library = try (1...6).map {
@@ -2068,6 +2068,56 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
 
         await ratings.resolve([try row(1), try row(2)], lookup: lookup, library: read)
         XCTAssertEqual([try row(1), try row(2)].map { ratings.rating(of: $0) }, [true, true])
+    }
+
+    /// A list whose rows a library read running for another list has mapped meanwhile doesn't
+    /// read the library again.
+    func testAListDoesNotReadTheLibraryAgainForRowsAnotherReadMapped() async throws {
+        let ratings = AppleMusicContentRatings()
+        let library = [try AppleMusicFixtures.song(id: "i.5180101", title: "Harbour", catalogID: "9518101", persistentID: "5180000000000000101")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000101", title: "Harbour", persistentID: "5180000000000000101")
+        let saved = try AppleMusicFixtures.song(id: "i.5180102", title: "Low Tide", catalogID: "9518102")
+        let pages = LockedPages()
+        let read: AppleMusicContentRatings.LibraryPage = { limit, offset in
+            pages.append(limit: limit, offset: offset)
+            return Array(library.dropFirst(offset).prefix(limit))
+        }
+        let asked = Latch()
+        let answer = Latch()
+        let lookup: AppleMusicContentRatings.CatalogLookup = { ids in
+            if ids.contains("9518102") {
+                asked.open()
+                await answer.wait()
+            }
+            return Dictionary(uniqueKeysWithValues: ids.map { ($0, true) })
+        }
+
+        // The first list finds the row unmapped and waits for its catalog lookup first.
+        let first = Task { await ratings.resolve([saved, row], lookup: lookup, library: read) }
+        await asked.wait()
+        // Meanwhile another list reads the library, which maps the row.
+        await ratings.resolve([row], lookup: lookup, library: read)
+        XCTAssertEqual(pages.reads.count, 1)
+
+        answer.open()
+        await first.value
+        XCTAssertEqual(pages.reads.count, 1, "the first list didn't read the library again")
+        XCTAssertEqual(ratings.rating(of: row), true)
+    }
+
+    /// A read that names no release for a persistent ID doesn't undo a release another read
+    /// found: the row would otherwise read as clean.
+    func testAReadWithoutTheReleaseDoesNotUndoAKnownOne() async throws {
+        let ratings = AppleMusicContentRatings()
+        let library = [try AppleMusicFixtures.song(id: "i.5180111", title: "Harbour", catalogID: "9518111", persistentID: "5180000000000000111")]
+        let row = try AppleMusicFixtures.song(id: "5180000000000000111", title: "Harbour", persistentID: "5180000000000000111")
+        await ratings.resolve([row], lookup: { _ in ["9518111": true] }, library: { _, offset in offset == 0 ? library : [] })
+        XCTAssertEqual(ratings.rating(of: row), true)
+
+        // The same library song read in a shape that carries its persistent ID but no release.
+        let thinner = try AppleMusicFixtures.song(id: "i.5180112", title: "Harbour", persistentID: "5180000000000000111")
+        XCTAssertEqual(ratings.rating(of: thinner), false, "itself: nothing to ask")
+        XCTAssertEqual(ratings.rating(of: row), true)
     }
 
     /// The case from the real library: a saved explicit song and its clean catalog version both

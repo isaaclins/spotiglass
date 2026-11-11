@@ -80,9 +80,10 @@ final class AppleMusicContentRatings: @unchecked Sendable {
     /// Catalog lookups started, counted when they start (`SpotiglassTests` only).
     // periphery:ignore
     var lookupsStarted: Int { lock.withLock { startedLookups } }
-    /// A read stopped at ``maxLibrarySongs``: the older songs past it can't be found by reading
-    /// again, so later reads only look at the newest page, for songs added since.
-    private var libraryIsPastTheReadBound = false
+    /// A read covered the library (all of it, or up to ``maxLibrarySongs``): what it didn't
+    /// list can't be found by reading it all again, so later reads only look at the newest
+    /// page, for songs added since.
+    private var libraryWasReadInFull = false
 
     init(
         capacity: Int = 20_000,
@@ -106,7 +107,7 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             ratingsByCatalogID = LRUDictionary(capacity: capacity)
             lookupsInFlight.removeAll()
             libraryRead = nil
-            libraryIsPastTheReadBound = false
+            libraryWasReadInFull = false
             startedLookups = 0
         }
     }
@@ -280,21 +281,29 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             releasesBySongID.setValue(release, forKey: songID)
             // A library song tells what its playlist and album rows name.
             if let persistentID = ids.persistentID, persistentID != songID {
-                librarySongsByPersistentID.setValue(catalogID.map(LibrarySong.release) ?? .noRelease, forKey: persistentID)
+                learn(catalogID.map(LibrarySong.release) ?? .noRelease, persistentID: persistentID)
             }
         }
         return release
     }
 
+    /// Records what the library says about a persistent ID (call with the lock held). A read
+    /// that names no release doesn't undo one another read found: some reads carry fewer IDs,
+    /// and taking the song for an upload would make it read as clean.
+    private func learn(_ song: LibrarySong, persistentID: String) {
+        if case .noRelease = song, case .release? = librarySongsByPersistentID.value(forKey: persistentID) { return }
+        librarySongsByPersistentID.setValue(song, forKey: persistentID)
+    }
+
     // MARK: - Reading the library
 
     /// Reads the library for the catalog ID behind each persistent ID: all of it up to
-    /// ``maxLibrarySongs``, or only the newest page once a read stopped there. `false` when it
+    /// ``maxLibrarySongs`` the first time, then only the newest page. `false` when it
     /// failed, so nothing is concluded from it.
     private func readLibrary(_ page: @escaping LibraryPage) async -> Bool {
         let read: Task<Bool, Never> = lock.withLock {
             if let running = libraryRead { return running }
-            let limit = libraryIsPastTheReadBound ? libraryPageSize : maxLibrarySongs
+            let limit = libraryWasReadInFull ? libraryPageSize : maxLibrarySongs
             let read = Task { await self.readWholeLibrary(page, upTo: limit) }
             libraryRead = read
             return read
@@ -317,13 +326,13 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             }
             lock.withLock {
                 for (persistentID, song) in learned {
-                    librarySongsByPersistentID.setValue(song, forKey: persistentID)
+                    learn(song, persistentID: persistentID)
                 }
             }
             offset += songs.count
             if songs.count < libraryPageSize { break }
         }
-        if offset >= maxLibrarySongs { lock.withLock { libraryIsPastTheReadBound = true } }
+        lock.withLock { libraryWasReadInFull = true }
         return true
     }
 
