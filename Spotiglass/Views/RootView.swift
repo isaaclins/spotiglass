@@ -433,11 +433,9 @@ struct RootView: View {
 
     var body: some View {
         content
-            // The palette is modal: the dimmed page under it is out of VoiceOver's reach until it
-            // closes, like a sheet (#501). The overlay below is outside this, so it stays reachable.
-            .accessibilityHidden(commandPaletteManager.viewModel.isPresented)
-            // The Search page hides its own field while the palette is open (#472).
-            .environment(\.isCommandPalettePresented, commandPaletteManager.viewModel.isPresented)
+            // The dimmed page is out of VoiceOver's reach while the palette is open (#501), and the
+            // Search page hides its own field then (#472). The overlay below is outside this.
+            .commandPaletteModal(isPresented: commandPaletteManager.viewModel.isPresented)
             // The lyrics surface lives in the browser's main column (`PlaylistBrowserView`), so the
             // sidebar, the toolbar and the player bar stay usable while it is open (#438).
             .environmentObject(lyricsOverlayController)

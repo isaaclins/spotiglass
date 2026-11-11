@@ -255,13 +255,13 @@ extension AppKitTestSupport {
     private static func voiceOverReachableElements(in window: NSWindow) throws -> [String] {
         let app = AXUIElementCreateApplication(getpid())
         let windows = try XCTUnwrap(axAttribute(app, kAXWindowsAttribute) as? [AXUIElement])
-        let target = try XCTUnwrap(windows.first { element in
-            guard let value = axAttribute(element, kAXSizeAttribute) else { return false }
-            var size = CGSize.zero
-            // swiftlint:disable:next force_cast
-            AXValueGetValue(value as! AXValue, .cgSize, &size)
-            return size == window.frame.size
-        }, "The hosted window is not in the app's accessibility tree")
+        // Tests host windows of the same size, so the window is told apart by an identifier.
+        let identifier = "test-window-\(ObjectIdentifier(window).hashValue)"
+        window.setAccessibilityIdentifier(identifier)
+        let target = try XCTUnwrap(
+            windows.first { axAttribute($0, kAXIdentifierAttribute) as? String == identifier },
+            "The hosted window is not in the app's accessibility tree"
+        )
 
         var lines: [String] = []
         func walk(_ element: AXUIElement, depth: Int) {
@@ -285,13 +285,14 @@ extension AppKitTestSupport {
         return value
     }
 
-    /// Waits for SwiftUI to publish the tree after a change, then reads it.
+    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop. The
+    /// 10 s deadline only guards against a hang; a passing read returns as soon as it holds.
     static func settledAccessibilityElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
-        var elements: [String] = []
-        for _ in 0 ..< 20 {
-            pumpRunLoop(for: 0.1)
+        let deadline = Date().addingTimeInterval(10)
+        var elements = try voiceOverReachableElements(in: window)
+        while !done(elements), Date() < deadline {
+            pumpRunLoop(for: 0.02)
             elements = try voiceOverReachableElements(in: window)
-            if done(elements) { break }
         }
         return elements
     }

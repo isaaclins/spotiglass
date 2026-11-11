@@ -182,10 +182,11 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
     }
 
     /// #501: the toolbar is outside the window's content, so hiding the page behind the open
-    /// palette left Queue, Refresh and Back reachable for VoiceOver. This reads the real window
-    /// through the Accessibility API: the toolbar's buttons are there with the palette closed,
-    /// gone while it is open, and back after it closes.
-    func testToolbarIsOutOfVoiceOverReachWhileThePaletteIsOpen() async throws {
+    /// palette left Queue, Refresh and Back reachable for VoiceOver. This hosts the browser with
+    /// its real toolbar under the root view's palette modifier and reads the window through the
+    /// Accessibility API: nothing named on the page or in the toolbar is reachable while the
+    /// palette is open, and the toolbar is back after it closes.
+    func testPageAndToolbarAreOutOfVoiceOverReachWhileThePaletteIsOpen() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
             trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
@@ -216,17 +217,20 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         window.setContentSize(CGSize(width: 1_040, height: 680))
         // Only a window on screen is in the app's accessibility tree.
         window.makeKeyAndOrderFront(nil)
-        // Queue and Disconnect sit in two different toolbar items.
+        // Queue and Disconnect sit in two different toolbar items; Refresh and the sidebar
+        // toggle in two more.
         let toolbarButtons = ["browser.queue", "browser.disconnect"].map { "AXButton: \(SpotiglassL10n.string($0))" }
         let reachesToolbar = { (elements: [String]) in toolbarButtons.allSatisfy(elements.contains) }
-        let reachesAnyToolbarButton = { (elements: [String]) in toolbarButtons.contains(where: elements.contains) }
 
         let closed = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
         XCTAssertTrue(reachesToolbar(closed), "Queue and Disconnect should be reachable: \(closed)")
+        // Everything named on the page and in the toolbar, except the window and its title.
+        let page = Set(closed.dropFirst().filter { !$0.hasSuffix(": ") && !$0.hasSuffix(": \(window.title)") })
+        XCTAssertGreaterThan(page.count, 10, "The browser should have rendered: \(closed)")
 
         palette.isPresented = true
-        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) { !reachesAnyToolbarButton($0) }
-        XCTAssertFalse(reachesAnyToolbarButton(open), "VoiceOver still reaches the toolbar behind the palette: \(open)")
+        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) { !$0.contains(where: page.contains) }
+        XCTAssertEqual(open.filter(page.contains), [], "VoiceOver still reaches these behind the palette")
 
         palette.isPresented = false
         let reopened = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
@@ -493,7 +497,7 @@ private final class ShellTestTokenProvider: PlaybackAccessTokenProviding, Spotif
     func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "shell-token" }
 }
 
-/// Stands in for the root view's palette state: the browser reads it from the environment.
+/// Stands in for the root view's palette state, applied the way the root view applies it.
 @MainActor
 private final class PalettePresentation: ObservableObject {
     @Published var isPresented = false
@@ -504,6 +508,6 @@ private struct PalettePresentationHost<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        content().environment(\.isCommandPalettePresented, presentation.isPresented)
+        content().commandPaletteModal(isPresented: presentation.isPresented)
     }
 }

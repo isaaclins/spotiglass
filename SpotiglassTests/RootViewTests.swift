@@ -300,8 +300,10 @@ final class RootViewTests: XCTestCase {
         )
 
         palette.viewModel.hide()
+        // Focus comes back a turn of the run loop later, once the page is in the tree again.
+        let focusIsBack = { pageField.map { self.isEditing($0, in: window) } ?? (window.firstResponder === pageFocus) }
         let after = try AppKitTestSupport.settledAccessibilityElements(in: window) {
-            mentions($0, pageElement) && !mentions($0, fieldPlaceholder)
+            mentions($0, pageElement) && !mentions($0, fieldPlaceholder) && focusIsBack()
         }
         XCTAssertTrue(mentions(after, pageElement), "The page should be back after esc: \(after)", file: file, line: line)
         XCTAssertFalse(mentions(after, fieldPlaceholder), "The palette should be gone: \(after)", file: file, line: line)
@@ -335,6 +337,34 @@ final class RootViewTests: XCTestCase {
     /// A field being edited hands first responder to the window's field editor.
     private func isEditing(_ field: NSTextField, in window: NSWindow) -> Bool {
         window.firstResponder === field || (window.firstResponder as? NSTextView)?.delegate === field
+    }
+
+    /// "Show all results" puts the palette's query into the Search page's field as the palette
+    /// closes. The caret the old text had would land mid-word in the new one, so it goes to the end;
+    /// on unchanged text it goes back where it was.
+    func testFocusReturnKeepsTheCaretOnlyOnTheSameText() throws {
+        let field = NSTextField(string: "nig")
+        let controller = NSViewController()
+        controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 60))
+        controller.view.addSubview(field)
+        let window = OffscreenTestWindow(
+            contentRect: controller.view.frame, styleMask: [.titled], backing: .buffered, defer: false
+        )
+        window.contentViewController = controller
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window))
+        field.currentEditor()?.selectedRange = NSRange(location: 1, length: 0)
+        let focus = try XCTUnwrap(CommandPaletteView.focusReturn(from: window.firstResponder))
+        XCTAssertTrue(focus.responder === field)
+        window.makeFirstResponder(nil)
+
+        CommandPaletteView.restore(field, text: focus.text, selection: focus.selection, in: window)
+        XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 1, length: 0))
+
+        window.makeFirstResponder(nil)
+        field.stringValue = "midnight city"
+        CommandPaletteView.restore(field, text: focus.text, selection: focus.selection, in: window)
+        XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 13, length: 0))
     }
 
     func testPaletteHidesTheSpotifyPageFromVoiceOver() throws {

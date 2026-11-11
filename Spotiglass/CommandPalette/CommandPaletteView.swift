@@ -12,6 +12,15 @@ extension EnvironmentValues {
 }
 
 extension View {
+    /// Makes the palette modal over this content: while it is open the dimmed page is out of
+    /// VoiceOver's reach until it closes, like a sheet (#501), and the page knows the palette is
+    /// open (the Search page hides its own field then, #472). The palette itself has to sit
+    /// outside this content, in an overlay, to stay reachable.
+    func commandPaletteModal(isPresented: Bool) -> some View {
+        accessibilityHidden(isPresented)
+            .environment(\.isCommandPalettePresented, isPresented)
+    }
+
     /// Takes a toolbar item out of VoiceOver's reach while the palette is open. The toolbar lives
     /// outside the window's content, so hiding the dimmed page alone left its buttons reachable
     /// behind the palette (#501).
@@ -51,21 +60,28 @@ struct CommandPaletteView: View {
     /// without focus (#501). The field the editor was serving is what comes back, with the caret
     /// or selection it had: a field that takes focus selects all its text, so the next key would
     /// have replaced the query instead of going on with it.
-    static func focusReturn(from responder: NSResponder?) -> (responder: NSResponder, selection: NSRange?)? {
+    static func focusReturn(from responder: NSResponder?) -> FocusReturn? {
         if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSTextField {
-            return (field, editor.selectedRange())
+            return FocusReturn(responder: field, text: editor.string, selection: editor.selectedRange())
         }
-        return responder.map { ($0, nil) }
+        return responder.map { FocusReturn(responder: $0, text: nil, selection: nil) }
     }
 
-    /// Gives `focus` back in `window`; a selection past the field's end, if its text got shorter
-    /// meanwhile, is cut to the text.
-    static func restore(_ focus: (responder: NSResponder, selection: NSRange?), in window: NSWindow) {
-        guard window.makeFirstResponder(focus.responder), let selection = focus.selection,
-              let editor = (focus.responder as? NSTextField)?.currentEditor() else { return }
+    struct FocusReturn {
+        let responder: NSResponder
+        /// The field's text and caret or selection as the palette opened; nil for anything else.
+        let text: String?
+        let selection: NSRange?
+    }
+
+    /// Gives focus back in `window`. The caret goes back only onto the same text: when the field
+    /// got another query meanwhile ("Show all results" puts the palette's query there), an old
+    /// caret would land mid-word, so it goes to the end instead.
+    static func restore(_ responder: NSResponder, text: String?, selection: NSRange?, in window: NSWindow) {
+        guard window.makeFirstResponder(responder), let selection,
+              let editor = (responder as? NSTextField)?.currentEditor() else { return }
         let length = (editor.string as NSString).length
-        let location = min(selection.location, length)
-        editor.selectedRange = NSRange(location: location, length: min(selection.length, length - location))
+        editor.selectedRange = editor.string == text ? selection : NSRange(location: length, length: 0)
     }
 
     var body: some View {
@@ -200,10 +216,15 @@ private struct CommandPaletteFocusReturn: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard let window, let viewModel else { return }
             let focus = CommandPaletteView.focusReturn(from: window.firstResponder)
+            let text = focus?.text
             let selection = focus?.selection
-            viewModel.restoreFocus = { [weak window, weak responder = focus?.responder] in
-                guard let window, let responder else { return }
-                CommandPaletteView.restore((responder, selection), in: window)
+            viewModel.restoreFocus = { [weak window, weak responder = focus?.responder, weak viewModel] in
+                // On the next turn of the run loop, once the page is back in the accessibility
+                // tree: focus that moves into a hidden page may not take VoiceOver's cursor along.
+                DispatchQueue.main.async {
+                    guard let window, let responder, viewModel?.isPresented == false else { return }
+                    CommandPaletteView.restore(responder, text: text, selection: selection, in: window)
+                }
             }
         }
     }
