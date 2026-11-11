@@ -547,6 +547,35 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         )
     }
 
+    /// Releasing a store closed its watcher's descriptor twice: once in `deinit` and once more in
+    /// the watcher's cancel handler on the main queue. Whatever opened a file in between got the
+    /// freed number and lost its file to the second close; under the test host that was a WebKit
+    /// descriptor guarded against it, and the process died with EXC_GUARD in the next test (#515).
+    func testReleasingAStoreClosesOnlyItsOwnDescriptor() throws {
+        let url = makeTempFileURL()
+        let before = Self.openDescriptors()
+        var store: SpotiglassSettingsStore? = SpotiglassSettingsStore(fileURL: url)
+        let watcher = try XCTUnwrap(Self.openDescriptors().subtracting(before).min(), "the store watches no file")
+        XCTAssertNotNil(store)
+
+        store = nil
+        // Opened before the cancel handler has run, like WebKit's descriptor was.
+        let other = open("/dev/null", O_RDONLY)
+        XCTAssertGreaterThanOrEqual(other, 0)
+        defer { close(other) }
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+
+        XCTAssertNotEqual(fcntl(other, F_GETFD), -1, "the released store closed descriptor \(other), which it no longer owned")
+        if other != watcher {
+            XCTAssertEqual(fcntl(watcher, F_GETFD), -1, "the released store left its watcher's descriptor open")
+        }
+    }
+
+    private static func openDescriptors() -> Set<Int32> {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: "/dev/fd")) ?? []
+        return Set(names.compactMap(Int32.init).filter { fcntl($0, F_GETFD) != -1 })
+    }
+
     private func makeTempFileURL() -> URL {
         makeTempDir().appendingPathComponent("settings.json", isDirectory: false)
     }
