@@ -24,9 +24,11 @@ struct SpotiglassApp: App {
     /// The added services and the one on screen (#373), shared by every window, the menu bar
     /// and Settings.
     @StateObject private var serviceStore: MusicServiceStore
-    /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
-    /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
-    @AppStorage("queue.panel.visible") private var isQueueVisible = false
+    /// The flag ``PlaylistBrowserView`` sets, read here so the View menu can say "Show Queue" or
+    /// "Hide Queue" instead of a stateless "Toggle". Not `@AppStorage`, which re-ran this scene on
+    /// every write to the defaults, the window frame AppKit saves on each resize included (#473).
+    @ObservedObject private var queuePanel = StoredFlag.queuePanelVisible
+    private var isQueueVisible: Bool { queuePanel.isOn }
     /// The narrowest a window gets with the queue closed.
     static let windowMinWidth: CGFloat = 520
     /// The shortest a window gets.

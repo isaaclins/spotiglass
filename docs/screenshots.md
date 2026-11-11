@@ -54,7 +54,31 @@ stand-in. That run uses your own Apple Music library through MusicKit and the sy
 prompt, so it keeps the real bundle id (MusicKit issues its token for that id only); the real
 app's preferences are saved at `start` and put back at `stop`. Without the option screenshot mode
 never reaches MusicKit.
+`--release` builds and runs the Release configuration instead of Debug.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
+
+## Timing a window resize
+
+`resize [rounds] [steps] [max-ms-per-step]` resizes the window from code the way Hammerspoon's
+`setFrame`, Rectangle or Magnet do (size, position, size again through the Accessibility API) and
+prints how long one resize and an animated one of `steps` steps took
+([`resize_timing.swift`](../scripts/screenshot-mode/resize_timing.swift)). With `max-ms-per-step` it
+exits with an error when the median step is slower. It times the app's main window and reads the size back after
+every resize, inside the timing: the read waits for the app the way a window manager's next call
+does, so work the app puts off until after a resize still counts. A resize call that fails, or a
+window that doesn't take a size it was given (full screen, clamped), stops the run with an error.
+Measure a Release build:
+
+```sh
+scripts/screenshots.sh start --release
+scripts/screenshots.sh resize 8 12 40   # fails above 40 ms per step
+build/screenshot-mode/resize_timing $(pgrep -x Finder) 8 12   # Finder, timed the same way
+scripts/screenshots.sh stop             # also removes resize_timing
+```
+
+Time Finder in the same minute, as above, since other work on the Mac slows both. On a Mac mini
+M4 (#473) Finder takes 13 to 15 ms a step, the playlist pages and Apple Music's Home 2 to 4 ms, and
+Spotify mode's Home about 22. The terminal needs the Accessibility permission.
 
 `appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
 System Settings does, to check how the window takes a live theme change (set Settings → Appearance

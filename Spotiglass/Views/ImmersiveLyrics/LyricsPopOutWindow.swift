@@ -261,3 +261,11 @@ struct LyricsPopOutKeyMonitor: NSViewRepresentable {
         }
     }
 }
+
+extension StoredFlag {
+    /// Whether the pop-out lyrics window stays above other apps.
+    static let lyricsPopOutPinned = StoredFlag.app(
+        key: LyricsPopOutWindow.pinnedStorageKey,
+        defaultValue: LyricsPopOutWindow.isPinnedByDefault
+    )
+}

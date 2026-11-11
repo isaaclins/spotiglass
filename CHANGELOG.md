@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.33] - 2026-11-11
+
+### Fixed
+
+- Resizing the Spotiglass window with a window manager is now as fast as resizing a Finder window.
+
 ## [0.8.32] - 2026-11-11
 
 ### Fixed

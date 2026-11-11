@@ -16,6 +16,7 @@ final class PlaylistBrowserTypesTests: XCTestCase {
         XCTAssertEqual(row.sidebarSelectionTag, .pinnedItem(item.id))
     }
 
+    @MainActor
     func testBrowserWidthSamplerDefaults() {
         let sampler = BrowserWidthSampler()
         XCTAssertEqual(sampler.latestWidth, 2000, accuracy: 0.01)

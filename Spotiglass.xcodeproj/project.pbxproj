@@ -335,6 +335,7 @@
 		5C62EF4ED81DF4EAF298F073 /* PlaylistBrowserNarrowWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 945E4FAC7DF15B2B04967917 /* PlaylistBrowserNarrowWindowTests.swift */; };
 		TST0000000000000000000108 /* SpotifyAuthorizationFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010108 /* SpotifyAuthorizationFlowTests.swift */; };
 		TST0000000000000000000109 /* WebPlaybackViewCommanderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010109 /* WebPlaybackViewCommanderTests.swift */; };
+		847F11DF48CEFB524BAE95AC /* WindowResizeCostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36A9CD667378D879CF9B5B7B /* WindowResizeCostTests.swift */; };
 		TST000000000000000000010A /* SpotifyPlaybackWebViewCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010A /* SpotifyPlaybackWebViewCoordinatorTests.swift */; };
 		TST000000000000000000010B /* PlaylistBrowserTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */; };
 		TST000000000000000000010C /* PlaylistBrowserShellViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010C /* PlaylistBrowserShellViewsTests.swift */; };
@@ -395,6 +396,7 @@
 		TST00000000000000000036 /* CommandPaletteViewModelSearchRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000081 /* CommandPaletteViewModelSearchRefreshTests.swift */; };
 		TST00000000000000000037 /* CommandPaletteViewModelPinAndKeyEventsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000082 /* CommandPaletteViewModelPinAndKeyEventsTests.swift */; };
 		TST000000000000000000A1 /* StaticSpotifyAccessTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000A0 /* StaticSpotifyAccessTokenProvider.swift */; };
+		ADAFBBEC5D40C28CB7531EE9 /* StoredFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AF405F379908B08BBB7E98 /* StoredFlag.swift */; };
 		TST000000000000000000A3 /* PlaylistBrowserViewModel+Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */; };
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
@@ -762,6 +764,7 @@
 		TST00000000000000000081 /* CommandPaletteViewModelSearchRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModelSearchRefreshTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000082 /* CommandPaletteViewModelPinAndKeyEventsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModelPinAndKeyEventsTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000A0 /* StaticSpotifyAccessTokenProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaticSpotifyAccessTokenProvider.swift; sourceTree = "<group>"; };
+		E8AF405F379908B08BBB7E98 /* StoredFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredFlag.swift; sourceTree = "<group>"; };
 		TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Tests.swift"; sourceTree = "<group>"; };
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
@@ -851,6 +854,7 @@
 		945E4FAC7DF15B2B04967917 /* PlaylistBrowserNarrowWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNarrowWindowTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010108 /* SpotifyAuthorizationFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthorizationFlowTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010109 /* WebPlaybackViewCommanderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPlaybackViewCommanderTests.swift; sourceTree = "<group>"; };
+		36A9CD667378D879CF9B5B7B /* WindowResizeCostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowResizeCostTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010A /* SpotifyPlaybackWebViewCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackWebViewCoordinatorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTypesTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010C /* PlaylistBrowserShellViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserShellViewsTests.swift; sourceTree = "<group>"; };
@@ -1175,6 +1179,7 @@
 				TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */,
 				TST000000000000000001010A /* SpotifyPlaybackWebViewCoordinatorTests.swift */,
 				TST0000000000000000010109 /* WebPlaybackViewCommanderTests.swift */,
+				36A9CD667378D879CF9B5B7B /* WindowResizeCostTests.swift */,
 				TST0000000000000000010108 /* SpotifyAuthorizationFlowTests.swift */,
 				TST0000000000000000010107 /* PlaylistBrowserMainSurfaceRefreshTests.swift */,
 				945E4FAC7DF15B2B04967917 /* PlaylistBrowserNarrowWindowTests.swift */,
@@ -1284,6 +1289,7 @@
 				KRS0000000000000000000011 /* KeychainRefreshTokenStore.swift */,
 				KSC0000000000000000000011 /* KeychainSecItemClient.swift */,
 				C30000000000000000000015 /* SpotifyLocalCache.swift */,
+				E8AF405F379908B08BBB7E98 /* StoredFlag.swift */,
 				E50000000000000000000023 /* LyricsDiskCache.swift */,
 			);
 			path = Persistence;
@@ -1761,6 +1767,7 @@
 				PRO00000000000000000000E7 /* HTTPClient.swift in Sources */,
 				C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */,
 				BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */,
+				ADAFBBEC5D40C28CB7531EE9 /* StoredFlag.swift in Sources */,
 				BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */,
 				SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */,
 				BB10000000000000000000003 /* MusicBrowsingProvider.swift in Sources */,
@@ -2000,6 +2007,7 @@
 				TST000000000000000000010B /* PlaylistBrowserTypesTests.swift in Sources */,
 				TST000000000000000000010A /* SpotifyPlaybackWebViewCoordinatorTests.swift in Sources */,
 				TST0000000000000000000109 /* WebPlaybackViewCommanderTests.swift in Sources */,
+				847F11DF48CEFB524BAE95AC /* WindowResizeCostTests.swift in Sources */,
 				TST0000000000000000000108 /* SpotifyAuthorizationFlowTests.swift in Sources */,
 				TST0000000000000000000107 /* PlaylistBrowserMainSurfaceRefreshTests.swift in Sources */,
 				5C62EF4ED81DF4EAF298F073 /* PlaylistBrowserNarrowWindowTests.swift in Sources */,
@@ -2113,7 +2121,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2134,7 +2142,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2281,7 +2289,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2300,7 +2308,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.32;
+				MARKETING_VERSION = 0.8.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2317,7 +2325,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2336,7 +2344,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.32;
+				MARKETING_VERSION = 0.8.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2349,7 +2357,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2358,7 +2366,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.32;
+				MARKETING_VERSION = 0.8.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -2371,7 +2379,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2380,7 +2388,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.32;
+				MARKETING_VERSION = 0.8.33;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
