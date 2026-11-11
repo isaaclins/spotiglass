@@ -1884,11 +1884,11 @@ enum AppleMusicFixtures {
         catalogID: String? = nil
     ) throws -> Playlist {
         var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
-        if let globalID {
-            attributes["playParams"] = ["id": id, "kind": "playlist", "isLibrary": true, "globalId": globalID]
-        }
-        if let catalogID {
-            attributes["playParams"] = ["id": id, "kind": "playlist", "isLibrary": true, "catalogId": catalogID]
+        if globalID != nil || catalogID != nil {
+            var playParams: [String: Any] = ["id": id, "kind": "playlist", "isLibrary": true]
+            if let globalID { playParams["globalId"] = globalID }
+            if let catalogID { playParams["catalogId"] = catalogID }
+            attributes["playParams"] = playParams
         }
         if let curator { attributes["curatorName"] = curator }
         if let lastModified { attributes["lastModifiedDate"] = lastModified }
