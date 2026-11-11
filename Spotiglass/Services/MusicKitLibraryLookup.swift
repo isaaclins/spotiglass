@@ -131,6 +131,11 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
         }
     }
 
+    /// A song's other IDs, from the same cache the playlist reads fill ahead of time (#442).
+    func identity(of song: Song) -> AppleMusicSongIdentity {
+        identity(of: song, isInLibrary: addedDate(song) != nil)
+    }
+
     private func identity(of song: Song, isInLibrary: Bool) -> AppleMusicSongIdentity {
         let key = "\(song.id.rawValue)|\(isInLibrary)"
         if let known = lock.withLock({ identities.value(forKey: key) }) { return known }

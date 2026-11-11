@@ -1940,6 +1940,31 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518011", "9518012"])
     }
 
+    /// MusicKit can also name a song's release only in its identifier set (`meta`), as for a song
+    /// it has only on this Mac: a playlist row like that carries its own release, and a library
+    /// song like that tells its playlist rows theirs.
+    func testReleasesNamedOnlyInTheIdentifierSetCount() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [
+            try AppleMusicFixtures.song(
+                id: "i.5180091", title: "Glass Harbour", playable: false,
+                persistentID: "5180000000000000091", identifierSetCatalogID: "9518091"
+            ),
+        ]
+        source.playlistTracksByID["p.5180091"] = try [
+            .song(AppleMusicFixtures.song(id: "5180000000000000091", title: "Glass Harbour", persistentID: "5180000000000000091")),
+            .song(AppleMusicFixtures.song(
+                id: "-5180000000000000092", title: "Night Ferry", playable: false,
+                persistentID: "-5180000000000000092", identifierSetCatalogID: "9518092"
+            )),
+        ]
+        source.catalogRatings = ["9518091": true, "9518092": true]
+
+        let playlist = try await AppleMusicBrowsingProvider(source: source).playlistTracks(playlistID: "p.5180091", limit: 100, maxPages: 1)
+        XCTAssertEqual(Self.explicitFlags(playlist), [true, true])
+        XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518091", "9518092"])
+    }
+
     /// A list read from the library shows without waiting on a slow catalog; the ratings that
     /// arrive later are there on the next read.
     func testASlowRatingLookupDoesNotHoldUpTheList() async throws {
@@ -2127,7 +2152,8 @@ enum AppleMusicFixtures {
         artistRefs: [(String, String)] = [],
         clean: Bool = false,
         catalogID: String? = nil,
-        persistentID: String? = nil
+        persistentID: String? = nil,
+        identifierSetCatalogID: String? = nil
     ) throws -> Song {
         var attributes: [String: Any] = ["name": title, "durationInMillis": durationMs]
         if let artist { attributes["artistName"] = artist }
@@ -2147,6 +2173,15 @@ enum AppleMusicFixtures {
             attributes["playParams"] = ["id": id, "kind": "song"]
         }
         var resource: [String: Any] = ["id": id, "type": "songs", "attributes": attributes]
+        // A song MusicKit has only on this Mac names its release only in its identifier set.
+        if let identifierSetCatalogID {
+            var identifiers: [String: Any] = [
+                "id": id, "type": "Song", "isLibrary": true, "dataSources": ["localLibrary", "legacyModel"],
+                "catalogID": ["kind": "subscriptionAdamID", "value": identifierSetCatalogID],
+            ]
+            if let persistentID { identifiers["deviceLocalID"] = ["databaseID": "785BA2D7E82AE547", "value": persistentID] }
+            resource["meta"] = ["musicKit_identifierSet": identifiers]
+        }
         if !artistRefs.isEmpty {
             resource["relationships"] = ["artists": ["data": artistRefs.map {
                 ["id": $0.0, "type": "artists", "attributes": ["name": $0.1]]

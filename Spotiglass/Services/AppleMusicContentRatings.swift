@@ -89,6 +89,8 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             releasesBySongID = LRUDictionary(capacity: capacity)
             librarySongsByPersistentID = LRUDictionary(capacity: capacity)
             ratingsByCatalogID = LRUDictionary(capacity: capacity)
+            lookupsInFlight.removeAll()
+            libraryRead = nil
         }
     }
 
@@ -238,12 +240,13 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         // Catalog songs carry their own rating (or have none to give).
         guard !MusicKitLibraryLookup.isCatalogID(songID) else { return .none }
         if let known = lock.withLock({ releasesBySongID.value(forKey: songID) }) { return known }
-        let parameters = Self.identifiers(of: song.playParameters)
         let isLibraryRow = MusicKitLibraryLookup.isPersistentID(songID)
-        // Encoding the whole song finds an ID the play parameters don't carry. A library row
-        // carries none anywhere, so it is skipped for those (#442: a long list paid for it).
-        let catalogID = (parameters.catalogID ?? (isLibraryRow ? nil : AppleMusicSongIdentity(encoding: song).catalogID))
-            .flatMap { $0 != songID && MusicKitLibraryLookup.isCatalogID($0) ? $0 : nil }
+        // A library row's IDs come from the cache the playlist reads fill ahead of time, as
+        // encoding each row on the instant playlist view cost time (#442).
+        let ids = Self.identifiers(of: song) {
+            isLibraryRow ? AppleMusicSongReferenceRegistry.shared.identity(of: song) : AppleMusicSongIdentity(encoding: song)
+        }
+        let catalogID = ids.catalogID.flatMap { $0 != songID && MusicKitLibraryLookup.isCatalogID($0) ? $0 : nil }
         let release: Release = if let catalogID {
             .catalog(catalogID)
         } else if isLibraryRow {
@@ -254,7 +257,7 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         lock.withLock {
             releasesBySongID.setValue(release, forKey: songID)
             // A library song tells what its playlist and album rows name.
-            if let persistentID = parameters.persistentID, persistentID != songID {
+            if let persistentID = ids.persistentID, persistentID != songID {
                 librarySongsByPersistentID.setValue(catalogID.map(LibrarySong.release) ?? .noRelease, forKey: persistentID)
             }
         }
@@ -283,7 +286,7 @@ final class AppleMusicContentRatings: @unchecked Sendable {
             guard let songs = try? await page(min(Self.libraryPageSize, Self.maxLibrarySongs - offset), offset) else { return false }
             var learned: [(persistentID: String, song: LibrarySong)] = []
             for song in songs {
-                let ids = Self.identifiers(of: song.playParameters)
+                let ids = Self.identifiers(of: song) { AppleMusicSongIdentity(encoding: song) }
                 guard let persistentID = ids.persistentID else { continue }
                 let catalogID = ids.catalogID.flatMap { MusicKitLibraryLookup.isCatalogID($0) ? $0 : nil }
                 learned.append((persistentID, catalogID.map(LibrarySong.release) ?? .noRelease))
@@ -299,8 +302,20 @@ final class AppleMusicContentRatings: @unchecked Sendable {
         return true
     }
 
-    /// `catalogId` and `musicKit_persistentID` from the play parameters alone: much cheaper than
-    /// encoding the whole song, which is only needed when they don't carry the catalog ID.
+    /// A song's catalog and persistent IDs: from the play parameters when they carry both, which
+    /// is much cheaper; otherwise also from `identity`, which reads MusicKit's identifier set too
+    /// (a song MusicKit has only on this Mac names its release only there).
+    private static func identifiers(
+        of song: Song,
+        identity: () -> AppleMusicSongIdentity
+    ) -> (catalogID: String?, persistentID: String?) {
+        let parameters = identifiers(of: song.playParameters)
+        guard parameters.catalogID == nil || parameters.persistentID == nil else { return parameters }
+        let identity = identity()
+        return (parameters.catalogID ?? identity.catalogID, parameters.persistentID ?? identity.musicKitPersistentID)
+    }
+
+    /// `catalogId` and `musicKit_persistentID` from the play parameters alone.
     private static func identifiers(of parameters: PlayParameters?) -> (catalogID: String?, persistentID: String?) {
         guard let parameters,
               let data = try? JSONEncoder().encode(parameters),
@@ -321,31 +336,44 @@ final class AppleMusicContentRatings: @unchecked Sendable {
     /// Waits for `work` or `deadline`, whichever ends first; `work` carries on either way.
     private static func first(of work: Task<Void, Never>, or deadline: @escaping @Sendable () async -> Void) async {
         let gate = Gate()
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            gate.hold(continuation)
-            let timer = Task {
-                await deadline()
-                gate.open()
+        // A read that is cancelled (another search keystroke, another list) stops waiting too.
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gate.hold(continuation)
+                let timer = Task {
+                    await deadline()
+                    gate.open()
+                }
+                Task {
+                    await work.value
+                    timer.cancel()
+                    gate.open()
+                }
             }
-            Task {
-                await work.value
-                timer.cancel()
-                gate.open()
-            }
+        } onCancel: {
+            gate.open()
         }
     }
 
-    /// Resumes a continuation once, from whichever side gets there first.
+    /// Resumes a continuation once, from whichever side gets there first; opened before it holds
+    /// one (a read cancelled before it started waiting), it lets the continuation go at once.
     private final class Gate: @unchecked Sendable {
         private let lock = NSLock()
         private var continuation: CheckedContinuation<Void, Never>?
+        private var isOpen = false
 
         func hold(_ continuation: CheckedContinuation<Void, Never>) {
-            lock.withLock { self.continuation = continuation }
+            let resumeNow = lock.withLock {
+                if isOpen { return true }
+                self.continuation = continuation
+                return false
+            }
+            if resumeNow { continuation.resume() }
         }
 
         func open() {
             let continuation = lock.withLock {
+                isOpen = true
                 let held = self.continuation
                 self.continuation = nil
                 return held
