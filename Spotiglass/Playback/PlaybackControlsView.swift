@@ -54,7 +54,8 @@ enum PlaybackTransportLayoutPolicy {
 /// Lays the player bar out the way Music and Spotify do (#496): the transport
 /// buttons centred on the bar, so play/pause sits on the window's centre line
 /// at every width, the song on the left, the device menu and the volume on the
-/// right, and the scrubber centred under the buttons.
+/// right, and the scrubber centred under the buttons. The song and the right
+/// side sit on the middle line of those two rows together (#538).
 ///
 /// The bar spans the window with equal margins, so its centre is the
 /// window's whether the sidebar shows or not. The controls view is
@@ -149,7 +150,30 @@ struct PlaybackTransportArrangementLayout: Layout {
             proposedWidth ?? barWidth(side: max(Self.summaryIdealWidth, trailingIdeal)),
             minimumWidth
         )
-        let side = (width - controlsWidth) / 2 - spacing
+        let sideMinimum = max(leadingMinimum, trailingMinimum)
+        let scrubberMinimum = measuredWidth(scrubber, 0)
+
+        // Where the bar has room, the song and the right side sit on the middle
+        // of the bar, the middle line of the buttons and the scrubber together,
+        // not on the buttons' row (#538). The scrubber then keeps to the middle
+        // column between them, as Spotify's does: the right side and the song's
+        // share of an ideal bar either side of it. The column depends on the
+        // width only, so a song starting or a long title never moves it; the
+        // title truncates instead. In a bar too narrow for that column beside
+        // both sides at their narrowest, the bar stacks: the song and the right
+        // side join the buttons' row and the scrubber runs under all of them.
+        let centredScrubberWidth = min(
+            max(width - 2 * (spacing + max(Self.summaryIdealWidth, trailingIdeal)), scrubberMinimum),
+            PlaybackTransportLayoutPolicy.scrubberMaximumWidth
+        )
+        let centredSide = (width - max(controlsWidth, centredScrubberWidth)) / 2 - spacing
+        let isStacked = centredSide < sideMinimum
+        // Stacked, each side keeps the room it has where the bar stops
+        // stacking, so the title and the volume never lose room as the window
+        // widens past that point.
+        let side = isStacked
+            ? min((width - controlsWidth) / 2 - spacing, sideMinimum)
+            : centredSide
 
         var widths = [CGFloat](repeating: 0, count: subviews.count)
         widths[controls] = controlsWidth
@@ -181,33 +205,50 @@ struct PlaybackTransportArrangementLayout: Layout {
             ? measuredWidth(summary, min(summaryIdeal, summaryRoom))
             : measuredWidth(summary, summaryRoom)
 
-        let topRow = [summary, recovery, controls, device, volume].compactMap { $0 }
-        let heights = topRow.map { height($0, widths[$0]) }
-        let topHeight = heights.max() ?? 0
-        var frames = [CGRect](repeating: .zero, count: subviews.count)
-        func place(_ index: Int, x: CGFloat) {
-            let partHeight = height(index, widths[index])
-            frames[index] = CGRect(x: x, y: (topHeight - partHeight) / 2, width: widths[index], height: partHeight)
-        }
-        place(summary, x: 0)
-        if let recovery { place(recovery, x: widths[summary] + gap(recoveryWidth)) }
-        place(controls, x: (width - controlsWidth) / 2)
-        if let volume { place(volume, x: width - volumeWidth) }
-        if let device { place(device, x: width - volumeWidth - gap(volumeWidth) - widths[device]) }
-
-        // Under the controls, centred on the same line as play/pause.
-        let scrubberWidth = max(
-            min(width, PlaybackTransportLayoutPolicy.scrubberMaximumWidth),
-            measuredWidth(scrubber, 0)
-        )
+        let scrubberWidth = isStacked
+            ? max(min(width, PlaybackTransportLayoutPolicy.scrubberMaximumWidth), scrubberMinimum)
+            : centredScrubberWidth
+        let controlsHeight = height(controls, controlsWidth)
         let scrubberHeight = height(scrubber, scrubberWidth)
+        let sides = [summary, recovery, device, volume].compactMap { $0 }
+        // The sides are as tall as the cover at least, so the bar keeps its
+        // height when a song starts and its cover replaces the shorter status
+        // line: nothing moves.
+        let sidesHeight = max(
+            sides.map { height($0, widths[$0]) }.max() ?? 0,
+            PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
+        )
+        // Stacked, the top row is as tall as its tallest part.
+        let topHeight = isStacked ? max(controlsHeight, sidesHeight) : controlsHeight
+        let middleHeight = topHeight + rowSpacing + scrubberHeight
+        let barHeight = max(middleHeight, sidesHeight)
+        let middleTop = (barHeight - middleHeight) / 2
+        // The line the sides are centred on.
+        let sidesMidY = isStacked ? middleTop + topHeight / 2 : barHeight / 2
+
+        var frames = [CGRect](repeating: .zero, count: subviews.count)
+        func placeSide(_ index: Int, x: CGFloat) {
+            let partHeight = height(index, widths[index])
+            frames[index] = CGRect(x: x, y: sidesMidY - partHeight / 2, width: widths[index], height: partHeight)
+        }
+        placeSide(summary, x: 0)
+        if let recovery { placeSide(recovery, x: widths[summary] + gap(recoveryWidth)) }
+        if let volume { placeSide(volume, x: width - volumeWidth) }
+        if let device { placeSide(device, x: width - volumeWidth - gap(volumeWidth) - widths[device]) }
+        frames[controls] = CGRect(
+            x: (width - controlsWidth) / 2,
+            y: middleTop + (topHeight - controlsHeight) / 2,
+            width: controlsWidth,
+            height: controlsHeight
+        )
+        // Under the controls, centred on the same line as play/pause.
         frames[scrubber] = CGRect(
             x: (width - scrubberWidth) / 2,
-            y: topHeight + rowSpacing,
+            y: middleTop + topHeight + rowSpacing,
             width: scrubberWidth,
             height: scrubberHeight
         )
-        return Frames(size: CGSize(width: width, height: topHeight + rowSpacing + scrubberHeight), subviews: frames)
+        return Frames(size: CGSize(width: width, height: barHeight), subviews: frames)
     }
 }
 
@@ -334,11 +375,10 @@ struct PlaybackControlsView: View {
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .volume)
             }
 
+            // No frame of its own: offered no width, the row reports its real
+            // floor, the scrubber's and the times either side of it, which the
+            // layout keeps clear of the song and the right side (#538).
             centerScrubberGroup
-                .frame(
-                    minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
-                    maxWidth: .infinity
-                )
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .scrubber)
         }
     }
