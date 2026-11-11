@@ -75,6 +75,8 @@ protocol AppleMusicContentSource: Sendable {
     func albums(of artist: Artist, limit: Int) async throws -> [Album]
     func artistTopSongs(artistID: String) async throws -> [Song]
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems
+    /// The catalog's rating of each of these catalog songs, `true` for explicit (#518).
+    func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool]
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
     /// Two-letter storefront country code, e.g. `ch`.
     func storefrontCountryCode() async throws -> String
@@ -277,6 +279,18 @@ struct MusicKitContentSource: AppleMusicContentSource {
         ).response().items.first
         guard let artist = try await catalog?.with([.topSongs]) else { return [] }
         return Array(artist.topSongs ?? [])
+    }
+
+    func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        try await Self.catalogSongRatings(catalogIDs: catalogIDs)
+    }
+
+    static func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
+        return Dictionary(
+            try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems {

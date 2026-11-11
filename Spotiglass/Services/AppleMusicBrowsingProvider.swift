@@ -241,6 +241,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             }
             throw AppleMusicBrowsingError.notFound
         }
+        await lookUpRatings(tracks)
         return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
     }
 
@@ -266,7 +267,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
     /// The songs counting or an earlier open last read for a library playlist (#442). The
     /// library gives no modification date to tell whether it changed since, so the browser
-    /// shows these at once and replaces them with `playlistTracks` when that differs.
+    /// shows these at once and replaces them with `playlistTracks` when that differs. Ratings
+    /// are only the ones already looked up, so this stays instant; `playlistTracks` adds the rest.
     func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
         guard let tracks = await trackCountCache.lastReadTracks(playlistID: playlistID), !tracks.isEmpty else { return nil }
         return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
@@ -304,10 +306,12 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             if page.count < requested { break }
             if read == page.count, let firstPage {
                 // More pages follow: hand over what is read so far.
+                await lookUpRatings(songs)
                 let shown = applyingPendingEdits(toLibrarySongs: songs, isComplete: false)
                 await firstPage(MusicSavedTracksResult(tracks: AppleMusicItemMapping.playlistItems(shown), totalAvailable: shown.count))
             }
         }
+        await lookUpRatings(songs)
         let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: read < cap)
         return MusicSavedTracksResult(
             tracks: AppleMusicItemMapping.playlistItems(tracks),
@@ -315,10 +319,25 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         )
     }
 
+    /// Gives the saved songs among `songs` their catalog release's rating before they're
+    /// mapped: MusicKit gives them none on macOS (#518, ``AppleMusicContentRatings``).
+    func lookUpRatings(_ songs: some Sequence<Song>) async {
+        await AppleMusicContentRatings.shared.resolve(songs, lookup: source.catalogSongRatings)
+    }
+
+    func lookUpRatings(_ tracks: some Sequence<Track>) async {
+        await lookUpRatings(tracks.compactMap { track -> Song? in
+            if case let .song(song) = track { return song }
+            return nil
+        })
+    }
+
     // MARK: - Home
 
     func recentlyPlayedTracks(limit: Int, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] {
-        try await source.recentlyPlayedSongs(limit: limit).map(AppleMusicItemMapping.track)
+        let songs = try await source.recentlyPlayedSongs(limit: limit)
+        await lookUpRatings(songs)
+        return songs.map(AppleMusicItemMapping.track)
     }
 
     func topTracks(limit: Int, timeRange: MusicTopItemsTimeRange, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] {
@@ -326,6 +345,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         guard let mix = playlists.first(where: { $0.kind == .personalMix }) ?? playlists.first,
               let tracks = try await source.playlistTracks(playlistID: mix.id.rawValue, limit: limit)
         else { return [] }
+        await lookUpRatings(tracks)
         return tracks.map { AppleMusicItemMapping.track($0) }
     }
 
@@ -352,6 +372,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         // A library album lists its songs under persistent IDs; edits on those rows need the
         // song's other details (#395).
         editor.songReferences.remember(tracks)
+        await lookUpRatings(tracks.prefix(cap))
         return tracks.prefix(cap).map { AppleMusicItemMapping.track($0, album: album) }
     }
 
@@ -391,7 +412,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     }
 
     func artistTopTracks(id: String, market: String?, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] {
-        try await source.artistTopSongs(artistID: id).map(AppleMusicItemMapping.track)
+        let songs = try await source.artistTopSongs(artistID: id)
+        await lookUpRatings(songs)
+        return songs.map(AppleMusicItemMapping.track)
     }
 
     private func loadArtist(id: String) async throws -> Artist {
@@ -505,6 +528,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
         }
         let library = await libraryResult
+        // Saved songs show the Explicit label of their catalog release (#518).
+        if case let .success(items) = library { await lookUpRatings(items.songs) }
         var page = try searchPage(
             catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
         )

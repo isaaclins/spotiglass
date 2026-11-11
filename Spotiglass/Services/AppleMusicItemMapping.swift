@@ -66,7 +66,8 @@ enum AppleMusicItemMapping {
             albumName: song.albumTitle,
             albumID: song.albums?.first?.id.rawValue,
             durationMilliseconds: milliseconds(song.duration),
-            isExplicit: song.contentRating == .explicit,
+            // Saved songs have no rating of their own on macOS; their catalog release's counts (#518).
+            isExplicit: AppleMusicContentRatings.shared.isExplicit(song),
             isPlayable: song.playParameters != nil,
             linkedFromID: nil,
             uri: uri
@@ -265,7 +266,7 @@ enum AppleMusicItemMapping {
     /// A song's content for ``searchMatchKeys(_:isSaved:content:)``: title, artist, album and
     /// rating (the same title and artist on another album is another recording).
     static func songContentKey(_ song: Song) -> String {
-        "\(song.title)|\(song.artistName)|\(song.albumTitle ?? "")|\(song.contentRating == .explicit)".lowercased()
+        "\(song.title)|\(song.artistName)|\(song.albumTitle ?? "")|\(AppleMusicContentRatings.shared.isExplicit(song))".lowercased()
     }
 
     /// What pins say "same album" by: title and artist. It leaves the rating out, since MusicKit

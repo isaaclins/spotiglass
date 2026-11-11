@@ -615,6 +615,27 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: false).count, added.count)
     }
 
+    /// A saved explicit song has no rating of its own on macOS (#518). Once its catalog
+    /// release's rating is known, the clean-only filter leaves it out like a catalog one; before
+    /// the fix it got past and was queued.
+    func testAMacThatOnlyAllowsCleanMusicLeavesOutSavedExplicitSongs() async throws {
+        let saved = try AppleMusicFixtures.song(id: "i.5180041", title: "Paper Lanterns", catalogID: "9518041")
+        let clean = try AppleMusicFixtures.song(id: "i.5180042", title: "Low Tide", catalogID: "9518042")
+        await AppleMusicContentRatings.shared.resolve([saved, clean]) { _ in ["9518041": true, "9518042": false] }
+        let songs = [saved, clean].map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
+
+        XCTAssertEqual(
+            try MusicKitApplicationPlayer.leavingOutBlocked(songs, startURI: nil, explicitBlocked: true).map(\.uri),
+            ["applemusic:song:i.5180042"]
+        )
+        XCTAssertThrowsError(try MusicKitApplicationPlayer.leavingOutBlocked(
+            songs, startURI: "applemusic:song:i.5180041", explicitBlocked: true
+        )) { error in
+            XCTAssertEqual((error as? MusicPlaybackError)?.reason, .explicitContentRestricted)
+        }
+        XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: true).map(\.uri), ["applemusic:song:i.5180042"])
+    }
+
     // MARK: - Starts MusicKit refuses (#476)
 
     /// The first songs of "Your top tracks" as MusicKit listed them when #476 was reported:

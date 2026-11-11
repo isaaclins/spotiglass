@@ -1762,8 +1762,14 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         return playlistTracksByID[playlistID]
     }
 
+    /// The library's songs as given, in place of `librarySongCount` generated ones.
+    var savedSongs: [Song]?
+
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] {
         record("librarySongs(\(limit),\(offset))")
+        if let savedSongs {
+            return Array(savedSongs.dropFirst(offset).prefix(limit))
+        }
         let end = min(librarySongCount, offset + limit)
         guard offset < end else { return [] }
         return try (offset..<end).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)") }
@@ -1830,6 +1836,110 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func storefrontCountryCode() async throws -> String {
         guard let countryCode else { throw URLError(.userAuthenticationRequired) }
         return countryCode
+    }
+
+    /// The catalog's ratings, `true` for explicit, by catalog song ID.
+    var catalogRatings: [String: Bool] = [:]
+    var catalogRatingsError: Error?
+    private var recordedRatingLookups: [[String]] = []
+    var ratingLookups: [[String]] { lock.withLock { recordedRatingLookups } }
+
+    func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        lock.withLock { recordedRatingLookups.append(catalogIDs) }
+        if let catalogRatingsError { throw catalogRatingsError }
+        return catalogRatings.filter { catalogIDs.contains($0.key) }
+    }
+}
+
+// MARK: - Saved songs get their catalog release's rating (#518)
+
+/// MusicKit on macOS gives songs saved to the library no content rating; each names its catalog
+/// release (`playParams.catalogId`) instead. Read as they came, saved explicit songs had no
+/// Explicit label anywhere and got past the clean-only filter. Song and catalog IDs are made up
+/// and differ per test: the ratings are kept app-wide, like the songs behind the rows.
+final class AppleMusicSavedSongRatingTests: XCTestCase {
+    private static func explicitFlags(_ items: [MusicPlaylistTrackItem]) -> [Bool?] {
+        items.map { item -> Bool? in
+            guard case let .track(track) = item.content else { return nil }
+            return track.isExplicit
+        }
+    }
+
+    func testASavedExplicitSongWithoutARatingShowsTheExplicitLabel() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [
+            try AppleMusicFixtures.song(id: "i.5180001", title: "Paper Lanterns", catalogID: "9518001"),
+            try AppleMusicFixtures.song(id: "i.5180002", title: "Low Tide", catalogID: "9518002"),
+            // Uploaded: no catalog release to ask.
+            try AppleMusicFixtures.song(id: "i.5180003", title: "Voice Memo Demo"),
+        ]
+        source.catalogRatings = ["9518001": true, "9518002": false]
+        let result = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+
+        let rows = result.tracks.enumerated().map { TrackRowViewModel($1, listPosition: $0 + 1) }
+        XCTAssertEqual(rows.map(\.isExplicit), [true, false, false])
+        XCTAssertEqual(rows.map(\.badgeText), [SpotiglassL10n.string("browser.trackBadge.explicit"), nil, nil])
+        // One lookup, only for the songs that name a release.
+        XCTAssertEqual(source.ratingLookups.map(Set.init), [["9518001", "9518002"]])
+
+        // Read again (another list, the player): known ratings aren't asked for again.
+        _ = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(source.ratingLookups.count, 1)
+    }
+
+    /// Playlists and saved albums list saved songs the same way.
+    func testPlaylistAndAlbumRowsOfSavedExplicitSongsShowTheLabel() async throws {
+        let source = MockAppleMusicSource()
+        let song = try AppleMusicFixtures.song(id: "-5180000000000000011", title: "Paper Lanterns", catalogID: "9518011")
+        source.playlistTracksByID["p.5180011"] = [.song(song)]
+        source.albumsByID["-5180000000000000012"] = try AppleMusicFixtures.album(
+            id: "-5180000000000000012", title: "Paper Lanterns", tracks: []
+        )
+        source.extraTracksByAlbumID["-5180000000000000012"] = [.song(
+            try AppleMusicFixtures.song(id: "-5180000000000000013", title: "Harbour", catalogID: "9518012")
+        )]
+        source.catalogRatings = ["9518011": true, "9518012": true]
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let playlist = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
+        XCTAssertEqual(Self.explicitFlags(playlist), [true])
+        let album = try await provider.albumTracks(albumID: "-5180000000000000012", market: nil, limit: 50)
+        XCTAssertEqual(album.map(\.isExplicit), [true])
+    }
+
+    /// The case from the real library: a saved explicit song and its clean catalog version both
+    /// matched "the same recording" (title, artist, album, rating), as the saved one read as
+    /// clean. Search hid the clean version and showed the saved song unlabelled next to its own
+    /// explicit copy, so neither could be told apart.
+    func testSearchShowsASavedExplicitSongLabelledNextToItsCleanVersion() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.5180021", title: "Glass Harbour", album: "Glass Harbour", catalogID: "9518021"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "9518021", title: "Glass Harbour", album: "Glass Harbour", explicit: true),
+            try AppleMusicFixtures.song(id: "9518022", title: "Glass Harbour", album: "Glass Harbour"),
+        ])
+        source.catalogRatings = ["9518021": true]
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "glass harbour", limit: 10)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["i.5180021", "9518022"], "the clean version is another song")
+        XCTAssertEqual(results.tracks.map(\.isExplicit), [true, false])
+    }
+
+    /// A failed lookup keeps today's reading (no label) and asks again next time.
+    func testAFailedLookupLeavesTheSongUnlabelledAndAsksAgain() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [try AppleMusicFixtures.song(id: "i.5180031", title: "Night Ferry", catalogID: "9518031")]
+        source.catalogRatingsError = URLError(.notConnectedToInternet)
+        let failed = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(failed.tracks), [false])
+
+        source.catalogRatingsError = nil
+        source.catalogRatings = ["9518031": true]
+        let retried = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(retried.tracks), [true])
+        XCTAssertEqual(source.ratingLookups.count, 2)
     }
 }
 
