@@ -181,6 +181,58 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: 400, sidebarWidth: SpotiglassDesign.sidebarWidth))
     }
 
+    /// #501: the toolbar is outside the window's content, so hiding the page behind the open
+    /// palette left Queue, Refresh and Back reachable for VoiceOver. This reads the real window
+    /// through the Accessibility API: the toolbar's buttons are there with the palette closed,
+    /// gone while it is open, and back after it closes.
+    func testToolbarIsOutOfVoiceOverReachWhileThePaletteIsOpen() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let tokens = ShellTestTokenProvider()
+        let palette = PalettePresentation()
+        let view = PalettePresentationHost(presentation: palette) {
+            PlaylistBrowserView(
+                viewModel: browserVM,
+                playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+                catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+                commandPaletteManager: CommandPaletteManager(),
+                signOut: {}
+            )
+        }
+        .environmentObject(store)
+        .environmentObject(try ViewTestHost.makeSettingsStore())
+        .environmentObject(LyricsOverlayController())
+        let controller = ViewTestHost.host(view, size: CGSize(width: 1_040, height: 680))
+        // The app's window shows the browser's toolbar; a bare hosting controller doesn't.
+        controller.sizingOptions = []
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = try XCTUnwrap(controller.view.window)
+        window.setContentSize(CGSize(width: 1_040, height: 680))
+        // Only a window on screen is in the app's accessibility tree.
+        window.makeKeyAndOrderFront(nil)
+        // Queue and Disconnect sit in two different toolbar items.
+        let toolbarButtons = ["browser.queue", "browser.disconnect"].map { "AXButton: \(SpotiglassL10n.string($0))" }
+        let reachesToolbar = { (elements: [String]) in toolbarButtons.allSatisfy(elements.contains) }
+        let reachesAnyToolbarButton = { (elements: [String]) in toolbarButtons.contains(where: elements.contains) }
+
+        let closed = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
+        XCTAssertTrue(reachesToolbar(closed), "Queue and Disconnect should be reachable: \(closed)")
+
+        palette.isPresented = true
+        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) { !reachesAnyToolbarButton($0) }
+        XCTAssertFalse(reachesAnyToolbarButton(open), "VoiceOver still reaches the toolbar behind the palette: \(open)")
+
+        palette.isPresented = false
+        let reopened = try AppKitTestSupport.settledAccessibilityElements(in: window, until: reachesToolbar)
+        XCTAssertTrue(reachesToolbar(reopened), "The toolbar should be back after the palette closes: \(reopened)")
+    }
+
     func testLibraryHomeRowHosts() throws {
         let row = LibraryHomeSidebarRow()
         ViewTestHost.host(row, size: CGSize(width: 220, height: 36))
@@ -439,4 +491,19 @@ private final class ShellTestTokenProvider: PlaybackAccessTokenProviding, Spotif
     func refreshedPlaybackAccessToken() async throws -> String { "shell-token" }
     func accessToken() async throws -> String { "shell-token" }
     func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "shell-token" }
+}
+
+/// Stands in for the root view's palette state: the browser reads it from the environment.
+@MainActor
+private final class PalettePresentation: ObservableObject {
+    @Published var isPresented = false
+}
+
+private struct PalettePresentationHost<Content: View>: View {
+    @ObservedObject var presentation: PalettePresentation
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content().environment(\.isCommandPalettePresented, presentation.isPresented)
+    }
 }

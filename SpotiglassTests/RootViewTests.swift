@@ -251,53 +251,6 @@ final class RootViewTests: XCTestCase {
 
     // MARK: - The palette is modal for VoiceOver (#501)
 
-    /// What VoiceOver can reach in `window`: every element under it as "role: text" lines, read
-    /// through the same Accessibility API that VoiceOver uses, so SwiftUI builds the tree exactly
-    /// as it does for an assistive app.
-    private func voiceOverReachableElements(in window: NSWindow) throws -> [String] {
-        let app = AXUIElementCreateApplication(getpid())
-        let windows = try XCTUnwrap(axAttribute(app, kAXWindowsAttribute) as? [AXUIElement])
-        let target = try XCTUnwrap(windows.first { element in
-            guard let value = axAttribute(element, kAXSizeAttribute) else { return false }
-            var size = CGSize.zero
-            // swiftlint:disable:next force_cast
-            AXValueGetValue(value as! AXValue, .cgSize, &size)
-            return size == window.frame.size
-        }, "The hosted window is not in the app's accessibility tree")
-
-        var lines: [String] = []
-        func walk(_ element: AXUIElement, depth: Int) {
-            guard depth < 80 else { return }
-            let role = axAttribute(element, kAXRoleAttribute) as? String ?? "?"
-            let texts = [kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute]
-                .compactMap { axAttribute(element, $0) as? String }
-                .filter { !$0.isEmpty }
-            lines.append("\(role): \(texts.joined(separator: " | "))")
-            for child in axAttribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
-                walk(child, depth: depth + 1)
-            }
-        }
-        walk(target, depth: 0)
-        return lines
-    }
-
-    private func axAttribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-        return value
-    }
-
-    /// Waits for SwiftUI to publish the tree after a change, then reads it.
-    private func settledElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
-        var elements: [String] = []
-        for _ in 0 ..< 20 {
-            AppKitTestSupport.pumpRunLoop(for: 0.1)
-            elements = try voiceOverReachableElements(in: window)
-            if done(elements) { break }
-        }
-        return elements
-    }
-
     /// Opens the palette over `root` and checks that VoiceOver reaches only the palette, then
     /// closes it and checks the page comes back. With `typingInPage`, the page's text field is
     /// being edited when the palette opens and must be again after esc.
@@ -319,7 +272,7 @@ final class RootViewTests: XCTestCase {
         )
         let mentions = { (elements: [String], text: String) in elements.contains { $0.contains(text) } }
 
-        let before = try settledElements(in: window) { mentions($0, pageElement) }
+        let before = try AppKitTestSupport.settledAccessibilityElements(in: window) { mentions($0, pageElement) }
         XCTAssertTrue(mentions(before, pageElement), "The page should be reachable: \(before)", file: file, line: line)
         var pageField: NSTextField?
         if typingInPage {
@@ -331,7 +284,9 @@ final class RootViewTests: XCTestCase {
         let pageFocus = window.firstResponder
 
         palette.viewModel.show()
-        let open = try settledElements(in: window) { mentions($0, fieldPlaceholder) && !mentions($0, pageElement) }
+        let open = try AppKitTestSupport.settledAccessibilityElements(in: window) {
+            mentions($0, fieldPlaceholder) && !mentions($0, pageElement)
+        }
         XCTAssertTrue(mentions(open, fieldPlaceholder), "The palette's field should be reachable: \(open)", file: file, line: line)
         XCTAssertFalse(
             mentions(open, pageElement),
@@ -341,7 +296,9 @@ final class RootViewTests: XCTestCase {
         )
 
         palette.viewModel.hide()
-        let after = try settledElements(in: window) { mentions($0, pageElement) && !mentions($0, fieldPlaceholder) }
+        let after = try AppKitTestSupport.settledAccessibilityElements(in: window) {
+            mentions($0, pageElement) && !mentions($0, fieldPlaceholder)
+        }
         XCTAssertTrue(mentions(after, pageElement), "The page should be back after esc: \(after)", file: file, line: line)
         XCTAssertFalse(mentions(after, fieldPlaceholder), "The palette should be gone: \(after)", file: file, line: line)
         if let pageField {
