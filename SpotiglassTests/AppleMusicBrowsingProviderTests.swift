@@ -1844,8 +1844,12 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     private var recordedRatingLookups: [[String]] = []
     var ratingLookups: [[String]] { lock.withLock { recordedRatingLookups } }
 
+    /// Awaited before a rating lookup answers: a catalog that is slow to answer.
+    var ratingLookupHold: (@Sendable () async -> Void)?
+
     func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
         lock.withLock { recordedRatingLookups.append(catalogIDs) }
+        if let ratingLookupHold { await ratingLookupHold() }
         if let catalogRatingsError { throw catalogRatingsError }
         return catalogRatings.filter { catalogIDs.contains($0.key) }
     }
@@ -1887,24 +1891,62 @@ final class AppleMusicSavedSongRatingTests: XCTestCase {
         XCTAssertEqual(source.ratingLookups.count, 1)
     }
 
-    /// Playlists and saved albums list saved songs the same way.
-    func testPlaylistAndAlbumRowsOfSavedExplicitSongsShowTheLabel() async throws {
+    /// Library playlists and saved albums list their songs under the Music app's persistent ID
+    /// alone: no rating and no catalog ID, as MusicKit gave every row of four real playlists. The
+    /// same songs read from the library name both IDs, so one read of it gives each row its release.
+    func testPlaylistAndAlbumRowsListedUnderAPersistentIDShowTheLabel() async throws {
         let source = MockAppleMusicSource()
-        let song = try AppleMusicFixtures.song(id: "-5180000000000000011", title: "Paper Lanterns", catalogID: "9518011")
-        source.playlistTracksByID["p.5180011"] = [.song(song)]
+        source.savedSongs = [
+            try AppleMusicFixtures.song(id: "i.5180011", title: "Paper Lanterns", catalogID: "9518011", persistentID: "5180000000000000011"),
+            try AppleMusicFixtures.song(id: "i.5180013", title: "Harbour", catalogID: "9518012", persistentID: "-5180000000000000013"),
+            // Uploaded: in the library, with no release to ask.
+            try AppleMusicFixtures.song(id: "i.5180014", title: "Voice Memo Demo", persistentID: "5180000000000000014"),
+        ]
+        source.playlistTracksByID["p.5180011"] = try [
+            .song(AppleMusicFixtures.song(id: "5180000000000000011", title: "Paper Lanterns", persistentID: "5180000000000000011")),
+            .song(AppleMusicFixtures.song(id: "5180000000000000014", title: "Voice Memo Demo", persistentID: "5180000000000000014")),
+            // Not in the library read (gone since): stays as it is.
+            .song(AppleMusicFixtures.song(id: "5180000000000000015", title: "Low Tide", persistentID: "5180000000000000015")),
+        ]
         source.albumsByID["-5180000000000000012"] = try AppleMusicFixtures.album(
             id: "-5180000000000000012", title: "Paper Lanterns", tracks: []
         )
         source.extraTracksByAlbumID["-5180000000000000012"] = [.song(
-            try AppleMusicFixtures.song(id: "-5180000000000000013", title: "Harbour", catalogID: "9518012")
+            try AppleMusicFixtures.song(id: "-5180000000000000013", title: "Harbour", persistentID: "-5180000000000000013")
         )]
         source.catalogRatings = ["9518011": true, "9518012": true]
         let provider = AppleMusicBrowsingProvider(source: source)
 
         let playlist = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
-        XCTAssertEqual(Self.explicitFlags(playlist), [true])
+        XCTAssertEqual(Self.explicitFlags(playlist), [true, false, false])
         let album = try await provider.albumTracks(albumID: "-5180000000000000012", market: nil, limit: 50)
         XCTAssertEqual(album.map(\.isExplicit), [true])
+
+        // One library read served both, and a row it didn't find doesn't read it again.
+        _ = try await provider.playlistTracks(playlistID: "p.5180011", limit: 100, maxPages: 1)
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("librarySongs") }.count, 1)
+        XCTAssertEqual(source.ratingLookups.flatMap { $0 }.sorted(), ["9518011", "9518012"])
+    }
+
+    /// A list read from the library shows without waiting on a slow catalog; the ratings that
+    /// arrive later are there on the next read.
+    func testASlowRatingLookupDoesNotHoldUpTheList() async throws {
+        let source = MockAppleMusicSource()
+        source.savedSongs = [try AppleMusicFixtures.song(id: "i.5180051", title: "Night Ferry", catalogID: "9518051")]
+        source.catalogRatings = ["9518051": true]
+        let (answer, release) = AsyncStream<Void>.makeStream()
+        source.ratingLookupHold = { for await _ in answer { break } }
+        var provider = AppleMusicBrowsingProvider(source: source)
+        provider.ratingsDeadline = {}
+
+        let first = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(first.tracks), [false], "shown before the catalog answered")
+
+        source.ratingLookupHold = nil
+        release.finish()
+        provider.ratingsDeadline = { try? await Task.sleep(for: .seconds(3_600)) }
+        let next = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
+        XCTAssertEqual(Self.explicitFlags(next.tracks), [true])
     }
 
     /// The case from the real library: a saved explicit song and its clean catalog version both
@@ -2049,7 +2091,8 @@ enum AppleMusicFixtures {
         playable: Bool = true,
         artistRefs: [(String, String)] = [],
         clean: Bool = false,
-        catalogID: String? = nil
+        catalogID: String? = nil,
+        persistentID: String? = nil
     ) throws -> Song {
         var attributes: [String: Any] = ["name": title, "durationInMillis": durationMs]
         if let artist { attributes["artistName"] = artist }
@@ -2057,9 +2100,14 @@ enum AppleMusicFixtures {
         if explicit { attributes["contentRating"] = "explicit" }
         if clean { attributes["contentRating"] = "clean" }
         if withArtwork { attributes["artwork"] = artwork(id) }
-        // A saved song names its catalog release in its play parameters, and has no rating.
-        if let catalogID {
-            attributes["playParams"] = ["id": id, "kind": "song", "catalogId": catalogID, "isLibrary": true]
+        // A saved song names its catalog release in its play parameters, and has no rating. Read
+        // from the library it also names the Music app's persistent ID; a library playlist or
+        // album lists it under that persistent ID alone, with no catalog ID (#518).
+        if catalogID != nil || persistentID != nil {
+            var parameters: [String: Any] = ["id": id, "kind": "song", "isLibrary": true]
+            parameters["catalogId"] = catalogID
+            parameters["musicKit_persistentID"] = persistentID
+            attributes["playParams"] = parameters
         } else if playable {
             attributes["playParams"] = ["id": id, "kind": "song"]
         }

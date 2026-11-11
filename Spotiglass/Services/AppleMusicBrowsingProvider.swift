@@ -127,6 +127,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// sidebar refresh shows them straight away.
     let trackCountCache: AppleMusicPlaylistTrackCountCache
     let editor: AppleMusicLibraryEditor
+    /// How long a list waits for its songs' ratings before it shows without them (#518). The
+    /// lookups carry on, so the next read of the list has them. Tests replace it.
+    var ratingsDeadline: @Sendable () async -> Void = { try? await Task.sleep(for: AppleMusicBrowsingProvider.ratingsWait) }
+    static let ratingsWait: Duration = .seconds(2)
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
@@ -320,9 +324,16 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     }
 
     /// Gives the saved songs among `songs` their catalog release's rating before they're
-    /// mapped: MusicKit gives them none on macOS (#518, ``AppleMusicContentRatings``).
+    /// mapped: MusicKit gives them none on macOS (#518, ``AppleMusicContentRatings``). Waits at
+    /// most `ratingsDeadline`, so a slow catalog doesn't hold up a list read from the library.
     func lookUpRatings(_ songs: some Sequence<Song>) async {
-        await AppleMusicContentRatings.shared.resolve(songs, lookup: source.catalogSongRatings)
+        let source = source
+        await AppleMusicContentRatings.shared.resolve(
+            songs,
+            lookup: source.catalogSongRatings,
+            library: { try await source.librarySongs(limit: $0, offset: $1) },
+            deadline: ratingsDeadline
+        )
     }
 
     func lookUpRatings(_ tracks: some Sequence<Track>) async {

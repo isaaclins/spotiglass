@@ -544,10 +544,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     /// Saved songs have no rating of their own on macOS; their catalog release's counts, looked
-    /// up by ``lookUpRatings(_:)`` (#518).
+    /// up by ``lookUpRatings(_:)`` (#518). One whose release's rating couldn't be read counts as
+    /// explicit: a failed lookup mustn't open up the restriction.
     private static func isExplicit(_ entry: MusicPlayer.Queue.Entry) -> Bool {
         switch entry.item {
-        case let .song(song): AppleMusicContentRatings.shared.isExplicit(song)
+        case let .song(song): AppleMusicContentRatings.shared.rating(of: song) ?? true
         case let .musicVideo(video): video.contentRating == .explicit
         case nil: false
         @unknown default: false
@@ -560,7 +561,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             if case let .song(song) = entry.item { return song }
             return nil
         }
-        await AppleMusicContentRatings.shared.resolve(songs) { try await MusicKitContentSource.catalogSongRatings(catalogIDs: $0) }
+        await AppleMusicContentRatings.shared.resolve(
+            songs,
+            lookup: { try await MusicKitContentSource.catalogSongRatings(catalogIDs: $0) },
+            library: { try await MusicKitContentSource().librarySongs(limit: $0, offset: $1) }
+        )
     }
 
     private static func explicitRestricted(_ uri: String) -> MusicPlaybackError {

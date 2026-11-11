@@ -621,7 +621,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     func testAMacThatOnlyAllowsCleanMusicLeavesOutSavedExplicitSongs() async throws {
         let saved = try AppleMusicFixtures.song(id: "i.5180041", title: "Paper Lanterns", catalogID: "9518041")
         let clean = try AppleMusicFixtures.song(id: "i.5180042", title: "Low Tide", catalogID: "9518042")
-        await AppleMusicContentRatings.shared.resolve([saved, clean]) { _ in ["9518041": true, "9518042": false] }
+        await AppleMusicContentRatings.shared.resolve([saved, clean], lookup: { _ in ["9518041": true, "9518042": false] }, library: nil)
         let songs = [saved, clean].map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
 
         XCTAssertEqual(
@@ -634,6 +634,28 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             XCTAssertEqual((error as? MusicPlaybackError)?.reason, .explicitContentRestricted)
         }
         XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: true).map(\.uri), ["applemusic:song:i.5180042"])
+    }
+
+    /// With clean-only on, a saved song whose release's rating couldn't be read (offline, a
+    /// catalog error) is left out like an explicit one: a failed lookup mustn't open up the
+    /// restriction. An upload names no release, so it plays as before.
+    func testAMacThatOnlyAllowsCleanMusicLeavesOutSavedSongsWhoseRatingIsUnknown() async throws {
+        let saved = try AppleMusicFixtures.song(id: "i.5180061", title: "Paper Lanterns", catalogID: "9518061")
+        let upload = try AppleMusicFixtures.song(id: "i.5180062", title: "Voice Memo Demo")
+        await AppleMusicContentRatings.shared.resolve(
+            [saved, upload],
+            lookup: { _ in throw URLError(.notConnectedToInternet) },
+            library: nil
+        )
+        let songs = [saved, upload].map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
+
+        XCTAssertEqual(
+            MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: true).map(\.uri),
+            ["applemusic:song:i.5180062"]
+        )
+        XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(songs, explicitBlocked: false).count, 2)
+        // The label reads as before: unknown isn't shown as explicit.
+        XCTAssertFalse(AppleMusicItemMapping.track(saved).isExplicit)
     }
 
     // MARK: - Starts MusicKit refuses (#476)
