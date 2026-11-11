@@ -48,12 +48,24 @@ struct CommandPaletteView: View {
     /// What gets focus back when the palette closes. While a text field is being edited the
     /// window's first responder is its shared field editor, and the palette's own field takes that
     /// editor over, so handing it back focused nothing: esc on the Search page left its field
-    /// without focus (#501). The field the editor was serving is what comes back.
-    static func restorableResponder(_ responder: NSResponder?) -> NSResponder? {
+    /// without focus (#501). The field the editor was serving is what comes back, with the caret
+    /// or selection it had: a field that takes focus selects all its text, so the next key would
+    /// have replaced the query instead of going on with it.
+    static func focusReturn(from responder: NSResponder?) -> (responder: NSResponder, selection: NSRange?)? {
         if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSTextField {
-            return field
+            return (field, editor.selectedRange())
         }
-        return responder
+        return responder.map { ($0, nil) }
+    }
+
+    /// Gives `focus` back in `window`; a selection past the field's end, if its text got shorter
+    /// meanwhile, is cut to the text.
+    static func restore(_ focus: (responder: NSResponder, selection: NSRange?), in window: NSWindow) {
+        guard window.makeFirstResponder(focus.responder), let selection = focus.selection,
+              let editor = (focus.responder as? NSTextField)?.currentEditor() else { return }
+        let length = (editor.string as NSString).length
+        let location = min(selection.location, length)
+        editor.selectedRange = NSRange(location: location, length: min(selection.length, length - location))
     }
 
     var body: some View {
@@ -187,10 +199,11 @@ private struct CommandPaletteFocusReturn: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window, let viewModel else { return }
-            let responder = CommandPaletteView.restorableResponder(window.firstResponder)
-            viewModel.restoreFocus = { [weak window, weak responder] in
+            let focus = CommandPaletteView.focusReturn(from: window.firstResponder)
+            let selection = focus?.selection
+            viewModel.restoreFocus = { [weak window, weak responder = focus?.responder] in
                 guard let window, let responder else { return }
-                window.makeFirstResponder(responder)
+                CommandPaletteView.restore((responder, selection), in: window)
             }
         }
     }

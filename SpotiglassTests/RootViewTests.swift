@@ -253,7 +253,8 @@ final class RootViewTests: XCTestCase {
 
     /// Opens the palette over `root` and checks that VoiceOver reaches only the palette, then
     /// closes it and checks the page comes back. With `typingInPage`, the page's text field is
-    /// being edited when the palette opens and must be again after esc.
+    /// being edited when the palette opens and must be again after esc, with the caret where it was
+    /// (a field that takes focus selects all its text, so the next key would replace it).
     private func assertPaletteIsModal(
         over root: some View,
         palette paletteOfWindow: () -> CommandPaletteManager?,
@@ -275,10 +276,13 @@ final class RootViewTests: XCTestCase {
         let before = try AppKitTestSupport.settledAccessibilityElements(in: window) { mentions($0, pageElement) }
         XCTAssertTrue(mentions(before, pageElement), "The page should be reachable: \(before)", file: file, line: line)
         var pageField: NSTextField?
+        let caret = NSRange(location: 4, length: 0)
         if typingInPage {
             let field = try XCTUnwrap(firstTextField(in: controller.view), "The page has no text field", file: file, line: line)
             XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window), file: file, line: line)
             XCTAssertTrue(isEditing(field, in: window), "The page's field should be focused", file: file, line: line)
+            // The caret in the middle of the text: neither where focusing puts it nor select-all.
+            field.currentEditor()?.selectedRange = caret
             pageField = field
         }
         let pageFocus = window.firstResponder
@@ -305,6 +309,13 @@ final class RootViewTests: XCTestCase {
             XCTAssertTrue(
                 isEditing(pageField, in: window),
                 "The page's field should have focus again, not \(String(describing: window.firstResponder))",
+                file: file,
+                line: line
+            )
+            XCTAssertEqual(
+                pageField.currentEditor()?.selectedRange,
+                caret,
+                "The caret should be back where it was, not the whole text selected",
                 file: file,
                 line: line
             )
