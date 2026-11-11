@@ -288,9 +288,13 @@ final class RootViewTests: XCTestCase {
         let pageFocus = window.firstResponder
 
         palette.viewModel.show()
+        // With the page's field being edited, the palette's field takes the window's field editor
+        // over: that is what made handing the editor back focus nothing.
+        let paletteHasFocus = { pageField.map { !self.isEditing($0, in: window) } ?? true }
         let open = try AppKitTestSupport.settledAccessibilityElements(in: window) {
-            mentions($0, fieldPlaceholder) && !mentions($0, pageElement)
+            mentions($0, fieldPlaceholder) && !mentions($0, pageElement) && paletteHasFocus()
         }
+        XCTAssertTrue(paletteHasFocus(), "The palette's field should have focus while it is open", file: file, line: line)
         XCTAssertTrue(mentions(open, fieldPlaceholder), "The palette's field should be reachable: \(open)", file: file, line: line)
         XCTAssertFalse(
             mentions(open, pageElement),
@@ -300,10 +304,8 @@ final class RootViewTests: XCTestCase {
         )
 
         palette.viewModel.hide()
-        // Focus comes back a turn of the run loop later, once the page is in the tree again.
-        let focusIsBack = { pageField.map { self.isEditing($0, in: window) } ?? (window.firstResponder === pageFocus) }
         let after = try AppKitTestSupport.settledAccessibilityElements(in: window) {
-            mentions($0, pageElement) && !mentions($0, fieldPlaceholder) && focusIsBack()
+            mentions($0, pageElement) && !mentions($0, fieldPlaceholder)
         }
         XCTAssertTrue(mentions(after, pageElement), "The page should be back after esc: \(after)", file: file, line: line)
         XCTAssertFalse(mentions(after, fieldPlaceholder), "The palette should be gone: \(after)", file: file, line: line)
@@ -354,16 +356,17 @@ final class RootViewTests: XCTestCase {
         defer { AppKitTestSupport.closeWindowSafely(window) }
         XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window))
         field.currentEditor()?.selectedRange = NSRange(location: 1, length: 0)
-        let focus = try XCTUnwrap(CommandPaletteView.focusReturn(from: window.firstResponder))
-        XCTAssertTrue(focus.responder === field)
+        let focus = try XCTUnwrap(CommandPaletteFocusReturn(window: window))
         window.makeFirstResponder(nil)
 
-        CommandPaletteView.restore(field, text: focus.text, selection: focus.selection, in: window)
+        focus.restore()
+        XCTAssertTrue(isEditing(field, in: window))
         XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 1, length: 0))
 
         window.makeFirstResponder(nil)
         field.stringValue = "midnight city"
-        CommandPaletteView.restore(field, text: focus.text, selection: focus.selection, in: window)
+        focus.restore()
+        XCTAssertTrue(isEditing(field, in: window))
         XCTAssertEqual(field.currentEditor()?.selectedRange, NSRange(location: 13, length: 0))
     }
 

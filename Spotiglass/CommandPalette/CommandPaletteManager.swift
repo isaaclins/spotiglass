@@ -31,6 +31,8 @@ final class CommandPaletteManager: ObservableObject {
     var isCurrentScene: () -> Bool = { true }
     /// The main window this scene runs in. `nil` in tests and previews.
     var sceneWindow: () -> NSWindow? = { nil }
+    /// The window the palette opens in, also in tests and previews; set by its key monitor.
+    var paletteWindow: () -> NSWindow? = { nil }
     /// The window in front; a seam so tests can put another window there.
     var frontWindow: () -> NSWindow? = { NSApp.keyWindow }
     /// The system's Show/Hide Sidebar action for the window in front; a seam for tests.
@@ -136,6 +138,10 @@ final class CommandPaletteManager: ObservableObject {
     ) {
         self.keymapStore = keymapStore ?? CommandPaletteKeymapStore()
         viewModel.recentSearches = recentSearches
+        // The palette's own window: the window that is key can be another one (Settings).
+        viewModel.rememberFocus = { [weak self] in
+            CommandPaletteFocusReturn(window: self?.paletteWindow())?.restore
+        }
         viewModel.staticItemsProvider = { [weak self] in
             self?.baseItems() ?? []
         }

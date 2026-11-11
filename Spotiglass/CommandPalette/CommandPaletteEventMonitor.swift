@@ -11,11 +11,13 @@ struct CommandPaletteEventMonitor: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
         context.coordinator.start()
+        manager.paletteWindow = { [weak view] in view?.window }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         context.coordinator.manager = manager
+        manager.paletteWindow = { [weak nsView] in nsView?.window }
     }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {

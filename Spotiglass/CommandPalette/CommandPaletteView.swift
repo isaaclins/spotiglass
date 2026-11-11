@@ -54,36 +54,6 @@ struct CommandPaletteView: View {
         min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingS, ((height - 300) / 4).rounded()))
     }
 
-    /// What gets focus back when the palette closes. While a text field is being edited the
-    /// window's first responder is its shared field editor, and the palette's own field takes that
-    /// editor over, so handing it back focused nothing: esc on the Search page left its field
-    /// without focus (#501). The field the editor was serving is what comes back, with the caret
-    /// or selection it had: a field that takes focus selects all its text, so the next key would
-    /// have replaced the query instead of going on with it.
-    static func focusReturn(from responder: NSResponder?) -> FocusReturn? {
-        if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSTextField {
-            return FocusReturn(responder: field, text: editor.string, selection: editor.selectedRange())
-        }
-        return responder.map { FocusReturn(responder: $0, text: nil, selection: nil) }
-    }
-
-    struct FocusReturn {
-        let responder: NSResponder
-        /// The field's text and caret or selection as the palette opened; nil for anything else.
-        let text: String?
-        let selection: NSRange?
-    }
-
-    /// Gives focus back in `window`. The caret goes back only onto the same text: when the field
-    /// got another query meanwhile ("Show all results" puts the palette's query there), an old
-    /// caret would land mid-word, so it goes to the end instead.
-    static func restore(_ responder: NSResponder, text: String?, selection: NSRange?, in window: NSWindow) {
-        guard window.makeFirstResponder(responder), let selection,
-              let editor = (responder as? NSTextField)?.currentEditor() else { return }
-        let length = (editor.string as NSString).length
-        editor.selectedRange = editor.string == text ? selection : NSRange(location: length, length: 0)
-    }
-
     var body: some View {
         ZStack(alignment: .top) {
             CommandPaletteBackdropView(
@@ -111,8 +81,6 @@ struct CommandPaletteView: View {
             .padding(.horizontal, SpotiglassDesign.spacingXL)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { availableHeight = $0 }
         }
-        // Reads focus from the palette's own window: the window that is key can be another one.
-        .background(CommandPaletteFocusReturn(viewModel: viewModel))
         .onAppear {
             scheduleSearchFieldFocus()
         }
@@ -124,10 +92,15 @@ struct CommandPaletteView: View {
     }
 
     /// SwiftUI on macOS often ignores immediate `@FocusState` updates in `onAppear`; deferring fixes typing-at-open.
+    /// A palette closed in between (⌘K then esc at once) doesn't take focus back from the page
+    /// it just handed it to (#501).
     private func scheduleSearchFieldFocus() {
+        let viewModel = viewModel
         DispatchQueue.main.async {
+            guard viewModel.isPresented else { return }
             focusedField = .query
             DispatchQueue.main.async {
+                guard viewModel.isPresented else { return }
                 focusedField = .query
             }
         }
@@ -188,44 +161,42 @@ struct CommandPalettePanelView: View {
     }
 }
 
-/// Remembers what had focus in the palette's window as the palette appears, before its own field
-/// takes it, and hands it back when the palette closes (#501).
-private struct CommandPaletteFocusReturn: NSViewRepresentable {
-    let viewModel: CommandPaletteViewModel
+/// What had focus in the window the palette opens over, handed back when it closes (#501). It is
+/// read as the palette opens, before its own field takes focus.
+///
+/// While a text field is being edited the window's first responder is its shared field editor,
+/// and the palette's own field takes that editor over, so handing the editor back focused
+/// nothing: esc on the Search page left its field without focus. The field the editor was
+/// serving is what comes back, with the caret or selection it had: a field that takes focus
+/// selects all its text, so the next key would have replaced the query instead of going on.
+struct CommandPaletteFocusReturn {
+    private weak var window: NSWindow?
+    private weak var responder: NSResponder?
+    /// The field's text and caret or selection as the palette opened; nil for anything else.
+    private let text: String?
+    private let selection: NSRange?
 
-    func makeNSView(context: Context) -> FocusReturnView {
-        FocusReturnView(viewModel: viewModel)
+    init?(window: NSWindow?) {
+        guard let window, let current = window.firstResponder else { return nil }
+        self.window = window
+        if let editor = current as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSTextField {
+            responder = field
+            text = editor.string
+            selection = editor.selectedRange()
+        } else {
+            responder = current
+            text = nil
+            selection = nil
+        }
     }
 
-    func updateNSView(_ nsView: FocusReturnView, context: Context) {}
-
-    final class FocusReturnView: NSView {
-        private weak var viewModel: CommandPaletteViewModel?
-
-        init(viewModel: CommandPaletteViewModel) {
-            self.viewModel = viewModel
-            super.init(frame: .zero)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            nil
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard let window, let viewModel else { return }
-            let focus = CommandPaletteView.focusReturn(from: window.firstResponder)
-            let text = focus?.text
-            let selection = focus?.selection
-            viewModel.restoreFocus = { [weak window, weak responder = focus?.responder, weak viewModel] in
-                // On the next turn of the run loop, once the page is back in the accessibility
-                // tree: focus that moves into a hidden page may not take VoiceOver's cursor along.
-                DispatchQueue.main.async {
-                    guard let window, let responder, viewModel?.isPresented == false else { return }
-                    CommandPaletteView.restore(responder, text: text, selection: selection, in: window)
-                }
-            }
-        }
+    /// Gives focus back. The caret goes back only onto the same text: when the field got another
+    /// query meanwhile ("Show all results" puts the palette's query there), an old caret would
+    /// land mid-word, so it goes to the end instead.
+    func restore() {
+        guard let window, let responder, window.makeFirstResponder(responder), let selection,
+              let editor = (responder as? NSTextField)?.currentEditor() else { return }
+        let length = (editor.string as NSString).length
+        editor.selectedRange = editor.string == text ? selection : NSRange(location: length, length: 0)
     }
 }
