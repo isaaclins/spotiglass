@@ -399,6 +399,22 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
         }
     }
 
+    /// How much the key caps shrink to fit `width`: 1 when they fit as drawn.
+    /// A long chord in a long language (⌃⌥⇧⌘ plus "Leertaste") is wider than
+    /// the field; scaling it down keeps every cap on the field and clear of the
+    /// clear control instead of spilling over it (checked per language in tests).
+    static func keysScale(for chips: [String], in width: CGFloat) -> CGFloat {
+        let natural = contentWidth(for: .keys(chips))
+        guard natural > width, natural > 0 else { return 1 }
+        return width / natural
+    }
+
+    /// Room the content gets inside a field of `fieldWidth`, after the insets
+    /// and, beside saved keys, the clear control.
+    static func contentRoom(inFieldWidth fieldWidth: CGFloat, showsClearControl: Bool) -> CGFloat {
+        fieldWidth - inset * 2 - (showsClearControl ? clearSize : 0)
+    }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         needsDisplay = true
@@ -417,9 +433,7 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
         path.stroke()
 
         var area = bounds.insetBy(dx: Self.inset, dy: 0)
-        if showsClearControl {
-            area.size.width -= Self.clearSize
-        }
+        area.size.width = Self.contentRoom(inFieldWidth: bounds.width, showsClearControl: showsClearControl)
         switch content {
         case let .prompt(text):
             let attributes: [NSAttributedString.Key: Any] = [
@@ -435,10 +449,18 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
                 .foregroundColor: problem ? NSColor.systemOrange : NSColor.labelColor,
             ]
             let widths = Self.capWidths(chips)
-            var x = area.midX - Self.contentWidth(for: content) / 2
-            let y = area.midY - Self.capHeight / 2
+            let natural = Self.contentWidth(for: content)
+            let scale = Self.keysScale(for: chips, in: area.width)
+            NSGraphicsContext.saveGraphicsState()
+            // Draw at natural size around the content's centre, scaled to fit.
+            let transform = NSAffineTransform()
+            transform.translateX(by: area.midX, yBy: area.midY)
+            transform.scale(by: scale)
+            transform.translateX(by: -natural / 2, yBy: -Self.capHeight / 2)
+            transform.concat()
+            var x: CGFloat = 0
             for (chip, width) in zip(chips, widths) {
-                let cap = NSRect(x: x, y: y, width: width, height: Self.capHeight)
+                let cap = NSRect(x: x, y: 0, width: width, height: Self.capHeight)
                 (problem ? NSColor.systemOrange.withAlphaComponent(0.14) : NSColor.labelColor.withAlphaComponent(isRecording ? 0.14 : 0.09)).setFill()
                 NSBezierPath(roundedRect: cap, xRadius: 4, yRadius: 4).fill()
                 let size = (chip as NSString).size(withAttributes: attributes)
@@ -448,6 +470,7 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
                 )
                 x += width + Self.capSpacing
             }
+            NSGraphicsContext.restoreGraphicsState()
         }
     }
 

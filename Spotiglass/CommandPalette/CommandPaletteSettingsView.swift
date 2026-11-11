@@ -349,6 +349,10 @@ private struct CommandSearchField: NSViewRepresentable {
     func makeNSView(context: Context) -> NSSearchField {
         let field = NSSearchField()
         field.delegate = context.coordinator
+        // The field's own ⓧ empties it without a text-change notification;
+        // it sends the action, so read the text there too.
+        field.target = context.coordinator
+        field.action = #selector(Coordinator.searchFieldDidSend(_:))
         field.sendsSearchStringImmediately = true
         field.placeholderString = prompt
         field.setAccessibilityLabel(prompt)
@@ -375,6 +379,12 @@ private struct CommandSearchField: NSViewRepresentable {
         func controlTextDidChange(_ notification: Notification) {
             guard let field = notification.object as? NSSearchField else { return }
             text.wrappedValue = field.stringValue
+        }
+
+        @objc func searchFieldDidSend(_ field: NSSearchField) {
+            if text.wrappedValue != field.stringValue {
+                text.wrappedValue = field.stringValue
+            }
         }
     }
 }

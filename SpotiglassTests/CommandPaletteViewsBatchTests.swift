@@ -162,6 +162,17 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
 
         type("")
         XCTAssertEqual(recorderFields(in: controller.view).count, CommandPaletteCommandCatalog.bindable.count)
+
+        // The field's own ⓧ empties it without a text-change notification.
+        // The list has to come back with it, not stay filtered under an empty field.
+        type("zzzz no such command")
+        let cancel = try XCTUnwrap((search.cell as? NSSearchFieldCell)?.cancelButtonCell)
+        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(cancel.action), to: cancel.target, from: cancel))
+        XCTAssertEqual(search.stringValue, "")
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return recorderFields(in: controller.view).count == CommandPaletteCommandCatalog.bindable.count
+        }), "every command is listed again after the search field's clear button")
     }
 
     func testCommandSearchMatchesTitleAndSubtitleInTheAppLanguage() {
@@ -243,21 +254,32 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
     }
 
     func testShortcutFieldFitsEveryStateInEveryLanguage() {
+        let field = SpotiglassDesign.Layout.shortcutFieldWidth
         for language in ["en", "de", "es"] {
             let locale = Locale(identifier: language)
-            let states: [RecorderFieldContent] = [
-                .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord", locale: locale)),
-                .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.recording", locale: locale)),
-                .keys(["⌃", "⌥", "⇧", "⌘", "F12"]),
-            ]
-            for state in states {
+            // The prompts are drawn as they are, so they have to fit the field.
+            for prompt in ["palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.recording"] {
+                let text = SpotiglassL10n.string(prompt, locale: locale)
                 XCTAssertLessThanOrEqual(
-                    RecorderKeyContainerView.contentWidth(for: state) + RecorderKeyContainerView.inset * 2
-                        + RecorderKeyContainerView.clearSize,
-                    SpotiglassDesign.Layout.shortcutFieldWidth,
-                    "\(language): \(state) doesn't fit the shortcut field"
+                    RecorderKeyContainerView.contentWidth(for: .prompt(text)),
+                    RecorderKeyContainerView.contentRoom(inFieldWidth: field, showsClearControl: false),
+                    "\(language): \"\(text)\" doesn't fit the shortcut field"
                 )
             }
+            // The widest chord there is: all four modifiers and Space, spelled out in
+            // the language ("Leertaste" needs about 162 pt where a saved chord gets
+            // 146). Key caps shrink to the room beside the clear control, and stay
+            // readable doing it.
+            let widest = ["⌃", "⌥", "⇧", "⌘", SpotiglassL10n.string("palette.key.space", locale: locale)]
+            let room = RecorderKeyContainerView.contentRoom(inFieldWidth: field, showsClearControl: true)
+            let scale = RecorderKeyContainerView.keysScale(for: widest, in: room)
+            XCTAssertLessThanOrEqual(
+                RecorderKeyContainerView.contentWidth(for: .keys(widest)) * scale, room + 0.001,
+                "\(language): \(widest) runs into the clear control"
+            )
+            XCTAssertGreaterThanOrEqual(scale, 0.85, "\(language): \(widest) shrinks too far to read")
+            // A usual chord is drawn at full size.
+            XCTAssertEqual(RecorderKeyContainerView.keysScale(for: ["⇧", "⌘", "K"], in: room), 1)
         }
     }
 
