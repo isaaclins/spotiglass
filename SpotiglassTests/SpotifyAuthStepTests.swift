@@ -460,7 +460,7 @@ final class SpotifyAuthStepTests: XCTestCase {
 
     @MainActor
     func testSignInSingleFlightSuppressesConcurrentAttempts() async {
-        let flow = CountingHangAuthorizationFlow()
+        let flow = CountingHangAuthorizationFlow(hangingLaunches: 1)
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             authorizationFlow: flow,
@@ -492,7 +492,7 @@ final class SpotifyAuthStepTests: XCTestCase {
     /// again, and that launch has to end by itself (the real flow times out, a cancel stops it).
     @MainActor
     func testSignInAfterCancelledAttemptFinishedStartsAFreshLaunch() async {
-        let flow = CountingHangAuthorizationFlow()
+        let flow = CountingHangAuthorizationFlow(hangingLaunches: 2)
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             authorizationFlow: flow,
@@ -606,8 +606,16 @@ private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unch
 
 private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, @unchecked Sendable {
     private let lock = NSLock()
+    private let hangingLaunches: Int
     private var requestCount = 0
     private var requestSignals: [AsyncSignal] = []
+
+    /// The first `hangingLaunches` launches wait until cancelled, like a browser sign-in nobody finishes.
+    /// Any launch after that ends at once, so if single-flight breaks, the extra `signIn()` returns
+    /// and the count assertion fails, instead of the test waiting on a launch nothing cancels.
+    init(hangingLaunches: Int) {
+        self.hangingLaunches = hangingLaunches
+    }
 
     func recordedRequestCount() -> Int {
         lock.lock()
@@ -633,6 +641,7 @@ private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, 
         let count = requestCount
         lock.unlock()
         requestSignal(count).signal()
+        guard count <= hangingLaunches else { throw CancellationError() }
         let cancellationSignal = AsyncSignal()
         try await withTaskCancellationHandler(operation: {
             await cancellationSignal.wait()
