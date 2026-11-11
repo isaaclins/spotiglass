@@ -126,6 +126,9 @@ struct MusicKitArtwork: View {
             let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url, itemKey: itemKey)
         {
             ArtworkImage(artwork, width: width, height: height)
+                // A reused row that shows another cover gets a fresh, empty cover layer, so a
+                // drag can't copy the previous cover before MusicKit draws the new one.
+                .id(url)
                 .background(OnScreenArtworkMarker(url: url, itemKey: itemKey))
         }
     }
@@ -229,16 +232,19 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
         /// the placeholder behind it is never taken. Before MusicKit has drawn the cover its
         /// layer is empty, and there is no cover to take yet; the search stops at the first
         /// layer with this frame, so a same-sized layer over an empty cover isn't taken either.
+        /// It looks only at the first level where anything is in front of this view (where the
+        /// cover is), not further out among the row's own layers such as its border.
         func drawnCover() -> NSImage? {
             guard window != nil, !visibleRect.isEmpty, let marker = layer else { return nil }
             var branch = marker
             for _ in 0..<4 {
                 guard let container = branch.superlayer else { break }
                 let layers = container.sublayers ?? []
-                if let index = layers.firstIndex(where: { $0 === branch }) {
+                if let index = layers.firstIndex(where: { $0 === branch }), index + 1 < layers.count {
                     for layer in layers[(index + 1)...] {
                         if let cover = coverLayer(layer, over: marker, depth: 3) { return drawn(cover) }
                     }
+                    return nil
                 }
                 branch = container
             }
@@ -267,7 +273,8 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
         /// How many pixels wide this cover is drawn on its screen.
         var drawnPixelWidth: CGFloat { bounds.width * (window?.backingScaleFactor ?? 1) }
 
-        /// `layer` drawn on its own at this screen's scale, or nil when it draws nothing.
+        /// `layer` drawn on its own at this screen's scale, or nil when it isn't an opaque cover
+        /// (nothing drawn yet, or only a thin outline).
         private func drawn(_ layer: CALayer) -> NSImage? {
             let scale = window?.backingScaleFactor ?? 2
             let width = max(1, Int((layer.bounds.width * scale).rounded()))
@@ -285,13 +292,14 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
             }
             context.translateBy(x: -layer.bounds.minX, y: -layer.bounds.minY)
             layer.render(in: context)
+            // Covers are opaque: at least half of an 8 x 8 grid must be.
             let samples = 8
-            let hasPixels = (0..<samples * samples).contains { i in
+            let opaque = (0..<samples * samples).filter { i in
                 let x = (i % samples * 2 + 1) * width / (samples * 2)
                 let y = (i / samples * 2 + 1) * height / (samples * 2)
-                return (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0
-            }
-            guard hasPixels else { return nil }
+                return (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.5
+            }.count
+            guard opaque * 2 >= samples * samples else { return nil }
             let image = NSImage(size: layer.bounds.size)
             image.addRepresentation(rep)
             return image

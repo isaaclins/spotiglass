@@ -178,12 +178,14 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
     /// placeholder, the cover image with the marker behind it, over the row's `backdrop`.
     /// `badge` draws a green square over the cover, like a pin badge; `dim` lays a same-sized
     /// half-black image over it; `imagePlaceholder` draws the placeholder as an image;
-    /// `emptyCoverLayer` stands in for MusicKit's cover layer before it has any contents; `round` clips it like an artist's cover; `inSidebar` puts it
+    /// `emptyCoverLayer` stands in for MusicKit's cover layer before it has any contents;
+    /// `border` strokes an outline over it, like the row's; a `cover` that isn't square is fitted
+    /// inside its frame, not stretched; `round` clips it like an artist's cover; `inSidebar` puts it
     /// inside a view that draws nothing when cached.
     private func showCoverOnScreen(
         url: String, itemKey: String?, cover: NSImage = magenta, backdrop: Color = .clear,
         badge: Bool = false, dim: Bool = false, imagePlaceholder: Bool = false, round: Bool = false,
-        emptyCoverLayer: Bool = false, side: CGFloat = 40, inSidebar: Bool = false
+        emptyCoverLayer: Bool = false, side: CGFloat = 40, border: Bool = false, inSidebar: Bool = false
     ) throws {
         let marker = OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey)
         let row = ZStack {
@@ -195,12 +197,17 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
             if emptyCoverLayer {
                 EmptyLayer().frame(width: side, height: side).background(marker)
             } else {
-                Image(nsImage: cover).resizable().frame(width: side, height: side).background(marker)
+                Image(nsImage: cover).resizable().scaledToFit().frame(width: side, height: side).background(marker)
             }
             if dim { Image(nsImage: Self.tile(NSColor(white: 0, alpha: 0.5))).resizable().frame(width: side, height: side) }
         }
         .frame(width: side, height: side)
         .clipShape(RoundedRectangle(cornerRadius: round ? 20 : 4))
+        .overlay {
+            // 3 pt rather than the rows' 1 pt, so the outline reaches the points the preview
+            // samples at any scale.
+            if border { RoundedRectangle(cornerRadius: 4).strokeBorder(Color.black, lineWidth: 3) }
+        }
         .overlay(alignment: .topTrailing) {
             if badge { Color(red: 0, green: 1, blue: 0).frame(width: 14, height: 14) }
         }
@@ -323,6 +330,40 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
         XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
     }
 
+    /// A cover that doesn't fill its frame (a non-square one, fitted) has no layer with the
+    /// frame; the row's outline over it does, but an outline is not a cover.
+    func testOutlineOverACoverThatDoesNotFillItsFrameIsNotTaken() throws {
+        let url = "musicKit://artwork/transient/40x40?id=WIDE449"
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 40, pixelsHigh: 22, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        NSColor(srgbRed: 1, green: 0, blue: 1, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: 40, height: 22).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        let wide = NSImage(size: NSSize(width: 40, height: 22))
+        wide.addRepresentation(rep)
+
+        try showCoverOnScreen(url: url, itemKey: nil, cover: wide, border: true)
+        XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: URL(string: url), requestURL: nil, artworkKey: nil))
+    }
+
+    /// A row that switches to another cover answers for the new one, and no longer for the old.
+    func testRowThatSwitchesCoverAnswersForTheNewOne() throws {
+        let old = try XCTUnwrap(URL(string: "musicKit://artwork/transient/40x40?id=SWITCH449a"))
+        let new = try XCTUnwrap(URL(string: "musicKit://artwork/transient/40x40?id=SWITCH449b"))
+        let shown = ShownCover(url: old)
+        show(SwitchingCover(shown: shown, image: Self.magenta))
+        XCTAssertNotNil(DragPreviewArtwork.initialImage(artworkURL: old, requestURL: nil, artworkKey: nil))
+
+        shown.url = new
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertNotNil(DragPreviewArtwork.initialImage(artworkURL: new, requestURL: nil, artworkKey: nil))
+        XCTAssertNil(DragPreviewArtwork.initialImage(artworkURL: old, requestURL: nil, artworkKey: nil))
+    }
+
     /// With the same cover on screen twice, the preview takes the larger copy.
     func testPreviewTakesTheLargestCopyOnScreen() throws {
         let url = "musicKit://artwork/transient/40x40?id=TWICE449"
@@ -427,4 +468,20 @@ private struct EmptyLayer: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {}
+}
+
+private final class ShownCover: ObservableObject {
+    @Published var url: URL
+    init(url: URL) { self.url = url }
+}
+
+/// One row whose cover changes, the way a reused list row shows another item.
+private struct SwitchingCover: View {
+    @ObservedObject var shown: ShownCover
+    let image: NSImage
+
+    var body: some View {
+        Image(nsImage: image).resizable().frame(width: 40, height: 40)
+            .background(OnScreenArtworkMarker(url: shown.url, itemKey: nil))
+    }
 }
