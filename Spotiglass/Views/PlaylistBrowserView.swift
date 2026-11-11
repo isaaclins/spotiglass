@@ -60,6 +60,9 @@ struct PlaylistBrowserView: View {
     /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
     /// fit, or at the next widening after the queue closed (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
     @State var isSidebarHeldForQueue = false
+    /// Height of the player bar floating over the columns' bottom edge, for the lyrics to keep
+    /// their lines clear of it (#474).
+    @State private var playerBarHeight: CGFloat = 0
     /// Only written to, so not observed (#422).
     let commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
@@ -153,100 +156,115 @@ struct PlaylistBrowserView: View {
     // time"). Each stage is type-checked independently, so keep new modifiers
     // grouped into the stage they belong to instead of extending one chain.
     private var browserSplitLayout: some View {
-        VStack(spacing: 0) {
-            NavigationSplitView(columnVisibility: $playlistColumnVisibility) {
-                PlaylistBrowserSidebar(
+        NavigationSplitView(columnVisibility: $playlistColumnVisibility) {
+            PlaylistBrowserSidebar(
+                viewModel: viewModel,
+                playbackViewModel: playbackViewModel,
+                libraryRows: libraryRows,
+                pinnedBindingFailed: pinnedStore.didFailToBind,
+                retryPinnedBinding: {
+                    Task { await bindPinnedStoreToCurrentUser() }
+                },
+                likedSongsStubRow: likedSongsStubRow,
+                playlistSummaryFromRow: playlistSummaryFromRow,
+                onLibraryAppear: { syncLibraryRowOrder() },
+                onSidebarListSelectionChange: { oldValue, newValue in
+                    handleSidebarSelectionChange(oldValue: oldValue, newValue: newValue)
+                },
+                moveLibraryRows: { source, destination in
+                    moveLibraryRows(fromOffsets: source, toOffset: destination)
+                },
+                pinDroppedTransfers: pinDroppedTransfers,
+                header: sidebarHeader
+            )
+            .modifier(PlayerBarClearance(barHeight: playerBarHeight))
+            // The system toggle collapses the split view on its own: in a narrow window it
+            // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
+            // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
+            .toolbar(removing: .sidebarToggle)
+            .toolbar {
+                // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
+                // it in the toolbar while the sidebar is collapsed, like the system toggle.
+                ToolbarSpacer(.flexible)
+                ToolbarItem(placement: .automatic) { sidebarToggleButton }
+            }
+            .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
+                recordPlaylistSidebarWidth(width)
+            }
+            .navigationSplitViewColumnWidth(
+                min: SpotiglassDesign.playlistSidebarMinWidth,
+                ideal: SpotiglassDesign.sidebarWidth,
+                max: SpotiglassDesign.playlistSidebarMaxWidth(
+                    browserWidth: browserContentWidth,
+                    isQueueVisible: isQueueVisible
+                )
+            )
+        } detail: {
+            PlaylistBrowserDetailWithQueueSplit(
+                unifiedRefreshFocus: $unifiedRefreshFocus,
+                isQueueVisible: isQueueVisible
+            ) {
+                PlaylistBrowserMainDetailColumn(
                     viewModel: viewModel,
                     playbackViewModel: playbackViewModel,
-                    libraryRows: libraryRows,
-                    pinnedBindingFailed: pinnedStore.didFailToBind,
-                    retryPinnedBinding: {
-                        Task { await bindPinnedStoreToCurrentUser() }
-                    },
-                    likedSongsStubRow: likedSongsStubRow,
-                    playlistSummaryFromRow: playlistSummaryFromRow,
-                    onLibraryAppear: { syncLibraryRowOrder() },
-                    onSidebarListSelectionChange: { oldValue, newValue in
-                        handleSidebarSelectionChange(oldValue: oldValue, newValue: newValue)
-                    },
-                    moveLibraryRows: { source, destination in
-                        moveLibraryRows(fromOffsets: source, toOffset: destination)
-                    },
-                    pinDroppedTransfers: pinDroppedTransfers,
-                    header: sidebarHeader
+                    queueViewModel: queueViewModel,
+                    pendingPlaylistListScrollRestoreID: $pendingPlaylistListScrollRestoreID,
+                    detailLastVisibleTrackID: $detailLastVisibleTrackID,
+                    hasPlaybackDevice: hasPlaybackDevice,
+                    onRequestCreatePlaylist: requestCreatePlaylist,
+                    onRequestLibraryContinuation: requestLibraryContinuation
                 )
-                // The system toggle collapses the split view on its own: in a narrow window it
-                // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
-                // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
-                .toolbar(removing: .sidebarToggle)
-                .toolbar {
-                    // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
-                    // it in the toolbar while the sidebar is collapsed, like the system toggle.
-                    ToolbarSpacer(.flexible)
-                    ToolbarItem(placement: .automatic) { sidebarToggleButton }
-                }
-                .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
-                    recordPlaylistSidebarWidth(width)
-                }
-                .navigationSplitViewColumnWidth(
-                    min: SpotiglassDesign.playlistSidebarMinWidth,
-                    ideal: SpotiglassDesign.sidebarWidth,
-                    max: SpotiglassDesign.playlistSidebarMaxWidth(
-                        browserWidth: browserContentWidth,
-                        isQueueVisible: isQueueVisible
-                    )
-                )
-            } detail: {
-                PlaylistBrowserDetailWithQueueSplit(
-                    unifiedRefreshFocus: $unifiedRefreshFocus,
-                    isQueueVisible: isQueueVisible
-                ) {
-                    PlaylistBrowserMainDetailColumn(
-                        viewModel: viewModel,
-                        playbackViewModel: playbackViewModel,
-                        queueViewModel: queueViewModel,
-                        pendingPlaylistListScrollRestoreID: $pendingPlaylistListScrollRestoreID,
-                        detailLastVisibleTrackID: $detailLastVisibleTrackID,
-                        hasPlaybackDevice: hasPlaybackDevice,
-                        onRequestCreatePlaylist: requestCreatePlaylist,
-                        onRequestLibraryContinuation: requestLibraryContinuation
-                    )
-                    // The page is covered while the lyrics are open: VoiceOver, Tab and the
-                    // page's own shortcuts must not reach rows you can't see.
-                    .disabled(lyricsOverlay.isPresented)
-                    .accessibilityHidden(lyricsOverlay.isPresented)
-                    // Lyrics take the place of the page in this column only, so the sidebar,
-                    // the queue and the player bar below stay as on every other screen (#438).
-                    .overlay {
-                        LyricsOverlayLayer(
-                            lyricsOverlay: lyricsOverlay,
-                            keymapStore: commandPaletteManager.keymapStore
-                        )
-                    }
-                } queueColumn: {
-                    QueuePanelColumn(
-                        browserViewModel: viewModel,
-                        queueViewModel: queueViewModel,
-                        playbackViewModel: playbackViewModel,
-                        openArtist: { openArtistFromTapTarget($0) },
-                        onRequestCreatePlaylist: requestCreatePlaylist,
-                        onRequestLibraryContinuation: requestLibraryContinuation
+                .modifier(PlayerBarClearance(barHeight: playerBarHeight))
+                // The page is covered while the lyrics are open: VoiceOver, Tab and the
+                // page's own shortcuts must not reach rows you can't see.
+                .disabled(lyricsOverlay.isPresented)
+                .accessibilityHidden(lyricsOverlay.isPresented)
+                // Lyrics take the place of the page in this column only, so the sidebar,
+                // the queue and the player bar below stay as on every other screen (#438).
+                .overlay {
+                    LyricsOverlayLayer(
+                        lyricsOverlay: lyricsOverlay,
+                        keymapStore: commandPaletteManager.keymapStore,
+                        playerBarInset: playerBarHeight
                     )
                 }
-            }
-            switch playbackMode {
-            case .live:
-                BrowserTransportBar(
+            } queueColumn: {
+                QueuePanelColumn(
+                    browserViewModel: viewModel,
+                    queueViewModel: queueViewModel,
                     playbackViewModel: playbackViewModel,
-                    isLyricsPresented: isLyricsPresentedBinding,
-                    openArtist: { target in
-                        openArtistFromTapTarget(target)
-                    }
+                    openArtist: { openArtistFromTapTarget($0) },
+                    onRequestCreatePlaylist: requestCreatePlaylist,
+                    onRequestLibraryContinuation: requestLibraryContinuation
                 )
-            case let .unavailable(message):
-                PlaybackUnavailableBar(message: message)
+                .modifier(PlayerBarClearance(barHeight: playerBarHeight))
             }
         }
+        // The bar floats over the bottom of the columns instead of taking a row of its own
+        // under them: that row was an opaque strip where the sidebar's glass and the lyrics
+        // backdrop stopped in a hard line (#471, #474). The columns run the full height and
+        // their scrolling content keeps clear of the bar through a bottom inset of the bar's
+        // height that each column sets itself (``PlayerBarClearance``). As a safe-area bar it
+        // also gets the system's scroll edge effect, so rows passing under it soften instead
+        // of showing sharp in the gap below it.
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            Group {
+                switch playbackMode {
+                case .live:
+                    BrowserTransportBar(
+                        playbackViewModel: playbackViewModel,
+                        isLyricsPresented: isLyricsPresentedBinding,
+                        openArtist: { target in
+                            openArtistFromTapTarget(target)
+                        }
+                    )
+                case let .unavailable(message):
+                    PlaybackUnavailableBar(message: message)
+                }
+            }
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { playerBarHeight = $0 }
+        }
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
 
     private var browserChrome: some View {
@@ -574,6 +592,25 @@ struct LyricsCoveredPage: Equatable {
     private static func isPinnedRow(_ selection: SidebarSelection?) -> Bool {
         if case .pinnedItem = selection { return true }
         return false
+    }
+}
+
+/// Keeps a column's scrolling content, banners and toasts clear of the player bar floating over
+/// its bottom edge (#471, #474). The split view hosts each column in a view of its own, and the
+/// bar's safe area doesn't reliably reach it: in a short window the last rows of the page and the
+/// sidebar stayed under the bar. The column sets its bottom inset to the bar's height itself and
+/// drops whatever it was handed, so the inset is the bar's height either way, never twice. The
+/// inset doesn't raise the column's minimum height: the bar's height depends on the window's
+/// size, and a column minimum that followed the bar fed back into the window's size limits and
+/// never settled in narrow windows.
+struct PlayerBarClearance: ViewModifier {
+    let barHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.bottom, barHeight)
+            .frame(minHeight: 0, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 

@@ -334,16 +334,144 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         )
         let barFrame = barLyricsButton.convert(barLyricsButton.bounds, to: nil)
         XCTAssertGreaterThan(barFrame.width, 0)
-        XCTAssertFalse(
-            barFrame.intersects(lyricsFrame),
-            "the lyrics cover the player bar: bar \(barFrame), lyrics \(lyricsFrame)"
-        )
 
         // `hitTest` takes a point in the receiver's superview's coordinates.
         let container = try XCTUnwrap(root.superview)
         let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
         let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
         XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics")
+    }
+
+    /// #471, #474: the player bar had a row of its own under the columns, on an opaque strip.
+    /// The sidebar's glass and the lyrics backdrop stopped in a hard line where that row began.
+    /// The columns now run the full height of the window and the bar floats over their bottom
+    /// edge: the split view and the lyrics reach the window's bottom, behind the bar, while a
+    /// click on the bar still reaches the bar.
+    func testTheColumnsAndTheLyricsRunBehindThePlayerBar() async throws {
+        let hosted = try await hostBrowserWithLyricsOpen()
+        let root = hosted.root
+        let windowBottom = root.convert(root.bounds, to: nil).minY
+        let lyricsSurface = try XCTUnwrap(
+            Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
+            "the browser shows no lyrics while they are open"
+        )
+        let barLyricsButton = try XCTUnwrap(
+            Self.allNSButtons(in: root).first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
+                    && !$0.isDescendant(of: lyricsSurface)
+            },
+            "the player bar is gone"
+        )
+        let barFrame = barLyricsButton.convert(barLyricsButton.bounds, to: nil)
+
+        let splitView = try XCTUnwrap(
+            Self.firstView(in: root) { $0 is NSSplitView },
+            "the browser has no split view"
+        )
+        let splitFrame = splitView.convert(splitView.bounds, to: nil)
+        XCTAssertEqual(
+            splitFrame.minY, windowBottom, accuracy: 1,
+            "the sidebar and the page stop above the player bar: split view \(splitFrame), bar \(barFrame)"
+        )
+        XCTAssertLessThan(splitFrame.minY, barFrame.minY, "the player bar has a strip of its own under the columns")
+
+        let lyricsFrame = lyricsSurface.convert(lyricsSurface.bounds, to: nil)
+        XCTAssertEqual(
+            lyricsFrame.minY, windowBottom, accuracy: 1,
+            "the lyrics backdrop stops above the player bar: lyrics \(lyricsFrame), bar \(barFrame)"
+        )
+
+        // The backdrop runs behind the bar, the cover, Next in Queue and the lines don't: they
+        // keep clear of it, so the last line can come to rest above the bar. The lyrics are a
+        // hosting view of their own; everything it draws sits in the views inside it.
+        let lyricsHost = try XCTUnwrap(lyricsSurface.subviews.first, "the lyrics draw nothing")
+        let drawn = Self.allViews(in: lyricsHost).dropFirst().filter { !$0.isHidden && $0.bounds.height > 0 }
+        XCTAssertFalse(drawn.isEmpty, "the lyrics draw nothing")
+        for view in drawn {
+            let frame = view.convert(view.bounds, to: nil)
+            XCTAssertGreaterThanOrEqual(
+                frame.minY, barFrame.maxY,
+                "the lyrics run behind the player bar: \(type(of: view)) \(frame), bar \(barFrame)"
+            )
+        }
+
+        let container = try XCTUnwrap(root.superview)
+        let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
+        let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
+        XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics behind it")
+    }
+
+    /// #471, #474: with the bar floating over the columns, a long playlist and the sidebar in a
+    /// short window must still scroll their last row up clear of it. The bar's safe area didn't
+    /// reach the split view's columns, so the last rows stayed under the bar.
+    func testTheLastRowsScrollClearOfThePlayerBar() async throws {
+        let playlists = (1...10).map { PlaylistBrowsingTestFixtures.playlist(id: "p\($0)", name: "Playlist \($0)") }
+        let tracks = (1...80).map { PlaylistBrowsingTestFixtures.track(id: "t\($0)") }
+        let api = MockBrowsingAPI(
+            playlistResults: [.success(playlists)],
+            trackResults: ["p1": [.success(tracks)]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let settings = try ViewTestHost.makeSettingsStore()
+        let tokens = ShellTestTokenProvider()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+        let view = PlaylistBrowserView(
+            viewModel: browserVM,
+            playbackHost: playbackHost,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+        .environmentObject(store)
+        .environmentObject(settings)
+        .environmentObject(LyricsOverlayController())
+        let size = CGSize(width: 1_100, height: SpotiglassApp.windowMinHeight)
+        let controller = ViewTestHost.host(view, size: size)
+        let playback = playbackHost.playbackViewModel
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(Self.lyricsTrack, isPaused: true, nextTracks: []))
+        await browserVM.selectPlaylist(id: "p1")
+        let root = controller.view
+        root.frame = CGRect(origin: .zero, size: size)
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        root.layoutSubtreeIfNeeded()
+
+        // The bar's controls: every button outside the columns' lists. Its top edge is above
+        // the highest of them.
+        let barButtons = Self.allNSButtons(in: root).filter { $0.enclosingScrollView == nil }
+        XCTAssertTrue(
+            barButtons.contains { $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics") },
+            "the player bar is gone"
+        )
+        let barFrame = barButtons.map { $0.convert($0.bounds, to: nil) }.reduce(CGRect.null) { $0.union($1) }
+
+        let lists = Self.allViews(in: root).compactMap { $0 as? NSTableView }.filter { $0.numberOfRows > 0 }
+        let trackList = try XCTUnwrap(lists.first { $0.numberOfRows >= tracks.count }, "the playlist shows no tracks")
+        // At the window's minimum height the sidebar's rows don't fit either.
+        let sidebar = try XCTUnwrap(lists.first { $0 !== trackList }, "the sidebar shows no rows")
+        for (name, list) in [("playlist", trackList), ("sidebar", sidebar)] {
+            let scrollView = try XCTUnwrap(list.enclosingScrollView, "the \(name) doesn't scroll")
+            let clip = scrollView.contentView
+            // The list sizes its rows as they come into view, so its end moves while it scrolls
+            // there: scroll again until it stays put.
+            for _ in 0..<10 {
+                let end = clip.constrainBoundsRect(NSRect(origin: NSPoint(x: 0, y: 10_000_000), size: clip.bounds.size))
+                if end.origin == clip.bounds.origin { break }
+                clip.scroll(to: end.origin)
+                scrollView.reflectScrolledClipView(clip)
+                AppKitTestSupport.pumpRunLoop(for: 0.1)
+                root.layoutSubtreeIfNeeded()
+            }
+            let lastRow = list.convert(list.rect(ofRow: list.numberOfRows - 1), to: nil)
+            XCTAssertGreaterThanOrEqual(
+                lastRow.minY, barFrame.maxY,
+                "the \(name)'s last row stays under the player bar: row \(lastRow), bar controls \(barFrame), "
+                    + "insets \(scrollView.contentInsets), clip \(clip.bounds), document \(list.frame)"
+            )
+        }
     }
 
     /// #438: with the sidebar, the queue and the player bar usable next to the lyrics, picking
@@ -425,6 +553,10 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             if let found = firstView(in: subview, where: matches) { return found }
         }
         return nil
+    }
+
+    private static func allViews(in view: NSView) -> [NSView] {
+        [view] + view.subviews.flatMap { allViews(in: $0) }
     }
 
     private static func allNSButtons(in view: NSView) -> [NSButton] {
