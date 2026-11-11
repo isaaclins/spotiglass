@@ -616,16 +616,6 @@ final class PlaybackChromeViewsTests: XCTestCase {
                             XCTAssertLessThanOrEqual(maxX(text), clusterMinX - SpotiglassDesign.spacingS, "\(text.value) runs into the controls, \(label)")
                         }
                     }
-                    // Beside the other service's label the song's name keeps its
-                    // share of the row (the two split it, less the gap between
-                    // them): the label used to take the row first and left the
-                    // title 6 pt wide in the narrowest window.
-                    if state == "other service" {
-                        let serviceLabel = SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName)
-                        let songTitle = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == "Midnight City" }, label)
-                        let serviceText = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == serviceLabel }, label)
-                        XCTAssertGreaterThanOrEqual(songTitle.size.width + SpotiglassDesign.spacingXS + 1, serviceText.size.width, "the service label squeezes the title, \(label)")
-                    }
                     // Reconnect and Retry sit right after the line that says what
                     // went wrong, not at the far end of the left half.
                     let recoveryLabels = ["playback.controls.reconnect.label", "playback.controls.retry.label"].map { SpotiglassL10n.string($0) }
@@ -654,6 +644,49 @@ final class PlaybackChromeViewsTests: XCTestCase {
                         XCTAssertLessThanOrEqual(maxX(control), window.frame.maxX + 0.5, "\(control.axDescription), \(label)")
                     }
                 }
+            }
+        }
+    }
+
+    /// The title never loses room as the bar widens, and the badge after it
+    /// ("Paused", "In Apple Music") shows whole or not at all (#496). With the
+    /// controls on the centre the title shares a narrow row with the badge:
+    /// they used to trade letters, so every point the badge gained as the
+    /// window widened came off the title, and in the narrowest window the
+    /// other service's label left the song's name 6 pt wide.
+    func testTheTitleOnlyGainsRoomAsTheWindowWidens() async throws {
+        let badges = [
+            "paused": SpotiglassL10n.string("playback.paused.label"),
+            "other service": SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName),
+        ]
+        for (state, makePlayback) in try await playerBarStates() where ["playing", "paused", "other service"].contains(state) {
+            var titleWidth: CGFloat = 0
+            var badgeWidth: CGFloat?
+            for width in stride(from: CGFloat(520), through: 760, by: 6) {
+                try withPlayerBar(state: state, playback: makePlayback(), width: width, appearance: .aqua) { elements, _ in
+                    let label = "\(state) at \(Int(width))"
+                    let title = try XCTUnwrap(elements.first { $0.role == "AXStaticText" && $0.value == "Midnight City" }, label)
+                    let badge = badges[state].flatMap { text in elements.first { $0.role == "AXStaticText" && $0.value == text } }
+                    if let badge, badgeWidth == nil {
+                        // The width where the badge first fits whole beside the
+                        // title: the title gives up the badge's room once, and
+                        // keeps its floor.
+                        XCTAssertGreaterThanOrEqual(title.size.width, PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth - 0.5, "the badge left the title under its floor, \(label)")
+                        badgeWidth = badge.size.width
+                    } else {
+                        XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
+                    }
+                    if let badge, let badgeWidth {
+                        XCTAssertEqual(badge.size.width, badgeWidth, accuracy: 0.5, "the badge is cut short, \(label)")
+                    }
+                    if badge == nil, badgeWidth != nil {
+                        XCTFail("the badge went away in a wider window, \(label)")
+                    }
+                    titleWidth = title.size.width
+                }
+            }
+            if badges[state] != nil {
+                XCTAssertNotNil(badgeWidth, "the badge never showed between 520 and 760 pt, \(state)")
             }
         }
     }
