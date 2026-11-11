@@ -775,6 +775,35 @@ final class CrossServicePlaybackTests: XCTestCase {
         }
     }
 
+    /// Skipping goes to the music you hear (#396): with Spotify on screen and nothing loaded
+    /// there, but Apple Music playing, Next and Previous skip Apple Music, so ⌘K, the menu and
+    /// the bar keep them (#500 must not take them away).
+    func testSkipStaysWhileTheOtherServicesMusicIsWhatYouHear() async throws {
+        let (spotify, _) = pausedSpotify()
+        let playback = spotify.playbackViewModel
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify)
+
+        XCTAssertFalse(playback.connectionState.hasTrackToSkipFrom, "nothing loaded on Spotify itself")
+        XCTAssertTrue(playback.isOtherServiceHeard)
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+        XCTAssertTrue(playback.audiblePlayer.connectionState.hasTrackToSkipFrom, "the bar's skip buttons are on")
+
+        let manager = wirePalette(to: playback)
+        manager.isSignedIn = true
+        manager.bindPlaybackReadiness(to: playback)
+        manager.viewModel.show()
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertTrue(manager.canSkipTrack, "the Playback menu's Next and Previous are on")
+        let quickActions = manager.viewModel.sections.first { $0.section == .quickActions }?.items.map(\.id) ?? []
+        XCTAssertTrue(quickActions.contains(CommandPaletteCommandID.nextTrack), "\(quickActions)")
+        XCTAssertTrue(manager.viewModel.staticItemsProvider().map(\.id).contains(CommandPaletteCommandID.previousTrack))
+    }
+
     private func assertSkipFollowsWhatIsLoaded(
         on playback: PlaybackSessionViewModel,
         expectPlayPauseWhileEmpty: Bool,
