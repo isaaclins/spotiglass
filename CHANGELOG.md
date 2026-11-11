@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.37] - 2026-11-11
+
+### Fixed
+
+- Pinned Apple Music playlists show their cover again, even while they stay saved.
+
 ## [0.8.36] - 2026-11-11
 
 ### Fixed

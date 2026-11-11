@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.36</title>
-            <pubDate>Wed, 11 Nov 2026 04:27:26 +0100</pubDate>
-            <sparkle:version>47</sparkle:version>
-            <sparkle:shortVersionString>0.8.36</sparkle:shortVersionString>
+            <title>0.8.37</title>
+            <pubDate>Wed, 11 Nov 2026 04:47:07 +0100</pubDate>
+            <sparkle:version>48</sparkle:version>
+            <sparkle:shortVersionString>0.8.37</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The command palette no longer shows a saved Apple Music playlist twice, once next to its catalog copy.
+            <description sparkle:format="plain-text"><![CDATA[• Pinned Apple Music playlists show their cover again, even while they stay saved.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.36/Spotiglass-0.8.36.zip" length="13328028" type="application/octet-stream" sparkle:edSignature="KPB92p1r/nogjHwsCesl6alCOSsfFrahSg7oYhF/zAw0sio/o8NsejhV90kuQQ6640FN0pXfFjqxYSXmAosQBA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.37/Spotiglass-0.8.37.zip" length="13333938" type="application/octet-stream" sparkle:edSignature="OpYLrHQWmo5PvKb6wTadt69jcsDKOpvUD+JtXn1Li6OxIjYYQ9DC+ZTwjTIpF06aKblmN9irHEGWqUjkNRfvCg=="/>
         </item>
     </channel>
 </rss>
