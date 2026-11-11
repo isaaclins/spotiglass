@@ -123,13 +123,16 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
                 try String(contentsOf: appDirectory.appendingPathComponent(path), encoding: .utf8)
             )
             for (index, line) in source.components(separatedBy: .newlines).enumerated()
-            where line.contains("StoredFlag(") {
+            where line.contains("StoredFlag(") || line.contains("@AppStorage") {
                 offenders.append("\(path):\(index + 1)")
             }
         }
+        // No `@AppStorage` either: it re-runs its view on every write to the defaults, and AppKit
+        // writes the window frame there on each resize step, which made window managers wait (#473).
         XCTAssertTrue(
             offenders.isEmpty,
-            "Make app flags with StoredFlag.app(key:defaultValue:): " + offenders.joined(separator: ", ")
+            "Make app flags with StoredFlag.app(key:defaultValue:), not StoredFlag(...) or @AppStorage: "
+                + offenders.joined(separator: ", ")
         )
     }
 

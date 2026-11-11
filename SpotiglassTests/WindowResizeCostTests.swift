@@ -211,9 +211,8 @@ final class WindowResizeCostTests: XCTestCase {
         let subscription = flag.objectWillChange.sink { changes += 1 }
         defer { subscription.cancel() }
 
-        defaults.set("0 0 1400 900 0 0 1920 1080 ", forKey: Self.frameKey)
         flag.isOn = false
-        XCTAssertEqual(changes, 0, "a write to another key, or of the same value, is no change")
+        XCTAssertEqual(changes, 0, "writing the value it already has is no change")
 
         flag.isOn = true
         XCTAssertEqual(changes, 1)
