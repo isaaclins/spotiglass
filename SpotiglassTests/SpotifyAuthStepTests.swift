@@ -404,11 +404,12 @@ final class SpotifyAuthStepTests: XCTestCase {
             artworkCacheClearer: {}
         )
 
-        let signIn = await startSignIn(viewModel, untilLaunched: flow.started)
+        let signIn = await startSignIn(viewModel, untilLaunched: flow.launch.started)
         guard signIn.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
         XCTAssertEqual(viewModel.state, .signingIn)
 
         viewModel.cancelSignIn()
+        guard flow.launch.wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
         await signIn.finished.value
 
         XCTAssertEqual(viewModel.state, .signedOut)
@@ -444,9 +445,10 @@ final class SpotifyAuthStepTests: XCTestCase {
             artworkCacheClearer: {}
         )
 
-        let firstAttempt = await startSignIn(viewModel, untilLaunched: flow.firstStepStarted)
+        let firstAttempt = await startSignIn(viewModel, untilLaunched: flow.firstStep.started)
         guard firstAttempt.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
         viewModel.cancelSignIn()
+        guard flow.firstStep.wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
         await firstAttempt.finished.value
         XCTAssertEqual(viewModel.state, .signedOut)
 
@@ -470,7 +472,7 @@ final class SpotifyAuthStepTests: XCTestCase {
             artworkCacheClearer: {}
         )
 
-        let first = await startSignIn(viewModel, untilLaunched: flow.launched(1))
+        let first = await startSignIn(viewModel, untilLaunched: flow.launch(1).started)
         guard first.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
 
         // Both attempts run on the main actor while the first launch is still waiting for the
@@ -481,6 +483,11 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .signingIn)
 
         viewModel.cancelSignIn()
+        guard flow.launch(1).wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
+        // A click right after Cancel, while the cancelled launch is still unwinding, is ignored too:
+        // the first sign-in can't resume and clear its task until this test suspends.
+        await viewModel.signIn()
+        XCTAssertEqual(flow.recordedRequestCount(), 1, "A click right after Cancel shouldn't start a second launch while the first unwinds.")
         await first.finished.value
 
         XCTAssertEqual(flow.recordedRequestCount(), 1)
@@ -502,13 +509,14 @@ final class SpotifyAuthStepTests: XCTestCase {
             artworkCacheClearer: {}
         )
 
-        let first = await startSignIn(viewModel, untilLaunched: flow.launched(1))
+        let first = await startSignIn(viewModel, untilLaunched: flow.launch(1).started)
         guard first.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
         viewModel.cancelSignIn()
+        guard flow.launch(1).wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
         await first.finished.value
         XCTAssertEqual(viewModel.state, .signedOut)
 
-        let late = await startSignIn(viewModel, untilLaunched: flow.launched(2))
+        let late = await startSignIn(viewModel, untilLaunched: flow.launch(2).started)
         guard late.launched else {
             return XCTFail("A sign-in after the cancelled one finished should launch the browser again")
         }
@@ -518,6 +526,7 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(flow.recordedRequestCount(), 2)
 
         viewModel.cancelSignIn()
+        guard flow.launch(2).wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
         await late.finished.value
         XCTAssertEqual(viewModel.state, .signedOut)
         XCTAssertEqual(flow.recordedRequestCount(), 2)
@@ -578,26 +587,49 @@ final class SpotifyAuthStepTests: XCTestCase {
     }
 }
 
-private struct HangUntilCancelledAuthorizationFlow: SpotifyAuthorizationFlowing {
+/// A browser sign-in nobody finishes: it waits until its task is cancelled. `started` fires once the
+/// cancel handler is in place, and `wasCancelled` turns true inside that handler, which
+/// `Task.cancel()` runs during the call. So right after `cancelSignIn()` a test can check that the
+/// cancel arrived, instead of finding out by waiting for a launch that never ends.
+private final class HangingLaunch: @unchecked Sendable {
     let started = AsyncSignal()
+    private let lock = NSLock()
+    private var cancelled = false
 
-    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
-        started.signal()
+    var wasCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func run() async throws -> Never {
         let cancellationSignal = AsyncSignal()
         try await withTaskCancellationHandler(operation: {
+            started.signal()
             await cancellationSignal.wait()
             try Task.checkCancellation()
         }, onCancel: {
+            lock.lock()
+            cancelled = true
+            lock.unlock()
             cancellationSignal.signal()
         })
-        fatalError("unreachable")
+        fatalError("A hanging launch ends only by cancellation")
+    }
+}
+
+private struct HangUntilCancelledAuthorizationFlow: SpotifyAuthorizationFlowing {
+    let launch = HangingLaunch()
+
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        try await launch.run()
     }
 }
 
 private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unchecked Sendable {
     private let lock = NSLock()
     private var useSecondStep = false
-    let firstStepStarted = AsyncSignal()
+    let firstStep = HangingLaunch()
     private let successCode: () throws -> SpotifyAuthorizationCode
 
     init(successCode: @escaping () throws -> SpotifyAuthorizationCode) {
@@ -617,15 +649,7 @@ private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unch
         if secondStep {
             return try successCode()
         }
-        firstStepStarted.signal()
-        let cancellationSignal = AsyncSignal()
-        try await withTaskCancellationHandler(operation: {
-            await cancellationSignal.wait()
-            try Task.checkCancellation()
-        }, onCancel: {
-            cancellationSignal.signal()
-        })
-        fatalError("First authorization step should end by cancellation or timeout")
+        try await firstStep.run()
     }
 }
 
@@ -633,7 +657,7 @@ private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, 
     private let lock = NSLock()
     private let hangingLaunches: Int
     private var requestCount = 0
-    private var requestSignals: [AsyncSignal] = []
+    private var launches: [HangingLaunch] = []
 
     /// The first `hangingLaunches` launches wait until cancelled, like a browser sign-in nobody finishes.
     /// Any launch after that ends at once, so if single-flight breaks, the extra `signIn()` returns
@@ -648,12 +672,12 @@ private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, 
         return requestCount
     }
 
-    /// Fires once the `count`-th launch has reached the flow, however late its task starts.
-    func launched(_ count: Int) -> AsyncSignal {
+    /// The `count`-th launch. Its `started` fires once it reached the flow, however late its task starts.
+    func launch(_ count: Int) -> HangingLaunch {
         lock.lock()
         defer { lock.unlock() }
-        while requestSignals.count < count { requestSignals.append(AsyncSignal()) }
-        return requestSignals[count - 1]
+        while launches.count < count { launches.append(HangingLaunch()) }
+        return launches[count - 1]
     }
 
     func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
@@ -661,16 +685,12 @@ private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, 
         requestCount += 1
         let count = requestCount
         lock.unlock()
-        launched(count).signal()
-        guard count <= hangingLaunches else { throw CancellationError() }
-        let cancellationSignal = AsyncSignal()
-        try await withTaskCancellationHandler(operation: {
-            await cancellationSignal.wait()
-            try Task.checkCancellation()
-        }, onCancel: {
-            cancellationSignal.signal()
-        })
-        fatalError("unreachable")
+        let current = launch(count)
+        guard count <= hangingLaunches else {
+            current.started.signal()
+            throw CancellationError()
+        }
+        try await current.run()
     }
 }
 
