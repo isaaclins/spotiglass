@@ -475,10 +475,12 @@ final class SpotifyAuthStepTests: XCTestCase {
         let first = await startSignIn(viewModel, untilLaunched: flow.launch(1).started)
         guard first.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
 
-        // Both attempts run on the main actor while the first launch is still waiting for the
-        // browser, so they are concurrent with it by construction, not by how fast tasks start.
-        await viewModel.signIn()
-        await viewModel.signIn()
+        // Both attempts have run their single-flight check while the first launch is still waiting
+        // for the browser, so they are concurrent with it by construction, not by how fast tasks
+        // start. They may return at once or wait for the running sign-in; either way Cancel ends them.
+        let second = await startExtraSignIn(viewModel)
+        let third = await startExtraSignIn(viewModel)
+        XCTAssertFalse(flow.launch(1).wasCancelled, "A concurrent sign-in attempt shouldn't cancel the running launch.")
         XCTAssertEqual(flow.recordedRequestCount(), 1, "Concurrent sign-in attempts should reuse the active auth launch instead of restarting it.")
         XCTAssertEqual(viewModel.state, .signingIn)
 
@@ -489,6 +491,8 @@ final class SpotifyAuthStepTests: XCTestCase {
         await viewModel.signIn()
         XCTAssertEqual(flow.recordedRequestCount(), 1, "A click right after Cancel shouldn't start a second launch while the first unwinds.")
         await first.finished.value
+        await second.value
+        await third.value
 
         XCTAssertEqual(flow.recordedRequestCount(), 1)
         XCTAssertEqual(viewModel.state, .signedOut)
@@ -522,12 +526,14 @@ final class SpotifyAuthStepTests: XCTestCase {
         }
         XCTAssertEqual(viewModel.state, .signingIn)
         // A third attempt while the fresh launch waits reuses it.
-        await viewModel.signIn()
+        let third = await startExtraSignIn(viewModel)
+        XCTAssertFalse(flow.launch(2).wasCancelled, "A third attempt shouldn't cancel the fresh launch.")
         XCTAssertEqual(flow.recordedRequestCount(), 2)
 
         viewModel.cancelSignIn()
         guard flow.launch(2).wasCancelled else { return XCTFail("cancelSignIn() didn't cancel the browser launch") }
         await late.finished.value
+        await third.value
         XCTAssertEqual(viewModel.state, .signedOut)
         XCTAssertEqual(flow.recordedRequestCount(), 2)
     }
@@ -578,6 +584,20 @@ final class SpotifyAuthStepTests: XCTestCase {
             return first
         }
         return (finished, didLaunch)
+    }
+
+    /// Starts another `signIn()` while one is running and returns once its single-flight check has
+    /// run (the check runs in the same main-actor step as `entered`), without waiting for it to end.
+    /// Whether it returns at once or waits for the running sign-in, the test can go on to Cancel.
+    @MainActor
+    private func startExtraSignIn(_ viewModel: AuthViewModel) async -> Task<Void, Never> {
+        let entered = AsyncSignal()
+        let task = Task { @MainActor in
+            entered.signal()
+            await viewModel.signIn()
+        }
+        await entered.wait()
+        return task
     }
 
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {
