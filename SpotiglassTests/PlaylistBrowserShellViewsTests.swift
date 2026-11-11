@@ -337,8 +337,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         .environmentObject(store)
         .environmentObject(settings)
         .environmentObject(lyricsOverlay)
-        let controller = ViewTestHost.host(view, size: CGSize(width: 1_100, height: 720))
-        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        let controller = ViewTestHost.host(view, size: CGSize(width: 1_100, height: 720), measuresLayout: true)
+        let root = controller.view
 
         // A paused track: the lyrics need one, and paused keeps the browser from prefetching
         // real lyrics over the network. The overlay gets a lyrics model that never fetches.
@@ -358,12 +358,42 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             navigateToAlbum: { _, _, _ in }
         )
         lyricsOverlay.isPresented = true
-        let root = controller.view
-        root.frame = CGRect(x: 0, y: 0, width: 1_100, height: 720)
-        root.layoutSubtreeIfNeeded()
-        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        // Waits for what the tests read, not for a time: the lyrics are on screen with something
+        // in them. The host lays out without animation (#532), so once they are there the frames
+        // are the final ones, however late a busy machine got here.
+        let shown = AppKitTestSupport.pumpRunLoop(until: {
+            guard let surface = Self.firstView(in: root, where: Self.isLyricsSurface),
+                  let content = surface.subviews.first
+            else { return false }
+            return Self.allViews(in: content).dropFirst().contains { !$0.isHidden && $0.bounds.height > 0 }
+        })
+        XCTAssertTrue(shown, "the lyrics never opened")
         root.layoutSubtreeIfNeeded()
         return (root, browserVM, lyricsOverlay)
+    }
+
+    private static func isLyricsSurface(_ view: NSView) -> Bool {
+        String(describing: type(of: view)).hasPrefix("LyricsOverlayFocusContainerView")
+    }
+
+    /// #532: the lyrics opened with the browser's 0.22 s animation in the same pass that gave the
+    /// test window its size, so SwiftUI animated the whole resize and a busy machine read the split
+    /// view 168 pt up, part-way there. A host that measures layout lands every change at once: here
+    /// a change animated over a minute is final as soon as the frame has moved at all.
+    func testALayoutMeasuringHostShowsTheFinalFrameOfAnAnimatedChange() {
+        let model = AnimatedHeightModel()
+        let controller = ViewTestHost.host(
+            AnimatedHeightView(model: model), size: CGSize(width: 200, height: 400), measuresLayout: true
+        )
+        let root = controller.view
+        XCTAssertEqual(root.frame.size, CGSize(width: 200, height: 400), "the window didn't keep its size")
+        let marker = { Self.firstView(in: root) { $0 is AnimatedHeightMarkerView } }
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { marker()?.frame.height == 100 }))
+
+        model.isTall = true
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { marker()?.frame.height != 100 }), "the frame never moved")
+        root.layoutSubtreeIfNeeded()
+        XCTAssertEqual(marker()?.frame.height, 300, "the host showed a frame part-way through the animation")
     }
 
     /// #438: the lyrics used to cover the whole window, player bar included, so while they were
@@ -377,7 +407,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let lyricsOverlay = hosted.lyricsOverlay
         XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed by themselves")
         let lyricsSurface = try XCTUnwrap(
-            Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
+            Self.firstView(in: root, where: Self.isLyricsSurface),
             "the browser shows no lyrics while they are open"
         )
         let lyricsFrame = lyricsSurface.convert(lyricsSurface.bounds, to: nil)
@@ -413,7 +443,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let root = hosted.root
         let windowBottom = root.convert(root.bounds, to: nil).minY
         let lyricsSurface = try XCTUnwrap(
-            Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
+            Self.firstView(in: root, where: Self.isLyricsSurface),
             "the browser shows no lyrics while they are open"
         )
         let barLyricsButton = try XCTUnwrap(
@@ -490,14 +520,19 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         .environmentObject(settings)
         .environmentObject(LyricsOverlayController())
         let size = CGSize(width: 1_100, height: SpotiglassApp.windowMinHeight)
-        let controller = ViewTestHost.host(view, size: size)
+        let controller = ViewTestHost.host(view, size: size, measuresLayout: true)
         let playback = playbackHost.playbackViewModel
         playback.handle(.ready(deviceID: "device-1"))
         playback.handle(.stateChanged(Self.lyricsTrack, isPaused: true, nextTracks: []))
         await browserVM.selectPlaylist(id: "p1")
         let root = controller.view
-        root.frame = CGRect(origin: .zero, size: size)
-        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        // Waits until the page lists the playlist's tracks and the sidebar its playlists, not for a
+        // time; the host lays out without animation, so these are the final frames (#532).
+        let listed = AppKitTestSupport.pumpRunLoop(until: {
+            let rows = Self.allViews(in: root).compactMap { ($0 as? NSTableView)?.numberOfRows }
+            return rows.contains { $0 >= tracks.count } && rows.contains { $0 > 0 && $0 < tracks.count }
+        })
+        XCTAssertTrue(listed, "the playlist and the sidebar never listed their rows")
         root.layoutSubtreeIfNeeded()
 
         // The bar's controls: every button outside the columns' lists. Its top edge is above
@@ -646,5 +681,30 @@ private struct PalettePresentationHost<Content: View>: View {
 
     var body: some View {
         content().commandPaletteModal(isPresented: presentation.isPresented)
+    }
+}
+
+@MainActor
+private final class AnimatedHeightModel: ObservableObject {
+    @Published var isTall = false
+}
+
+private final class AnimatedHeightMarkerView: NSView {}
+
+private struct AnimatedHeightMarker: NSViewRepresentable {
+    func makeNSView(context: Context) -> AnimatedHeightMarkerView { AnimatedHeightMarkerView() }
+    func updateNSView(_ nsView: AnimatedHeightMarkerView, context: Context) {}
+}
+
+/// A platform view whose height changes with a minute-long animation, the way the browser's
+/// split view moved with the lyrics' animation.
+private struct AnimatedHeightView: View {
+    @ObservedObject var model: AnimatedHeightModel
+
+    var body: some View {
+        AnimatedHeightMarker()
+            .frame(width: 100, height: model.isTall ? 300 : 100)
+            .animation(.linear(duration: 60), value: model.isTall)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

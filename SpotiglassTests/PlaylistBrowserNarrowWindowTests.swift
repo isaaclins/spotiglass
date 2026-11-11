@@ -66,7 +66,9 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         .environmentObject(settings)
         .environmentObject(LyricsOverlayController())
 
-        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 600))
+        // The window takes each width the test gives it, and the sidebar collapses and comes
+        // back without animation, so each width is read at its final layout (#532).
+        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 600), measuresLayout: true)
         let window = try XCTUnwrap(controller.view.window)
         AppKitTestSupport.pumpRunLoop(for: 0.5)
 
