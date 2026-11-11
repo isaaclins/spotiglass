@@ -340,34 +340,53 @@ struct PlaybackControlsView: View {
         }
     }
 
+    private var titleText: some View {
+        Text(title)
+            .font(.headline)
+            .lineLimit(1)
+            .contentTransition(.opacity)
+            .animation(.smooth(duration: 0.28), value: title)
+            // A narrow bar truncates the title; hovering shows it whole.
+            .help(title)
+    }
+
     private var nowPlayingSummary: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingNowPlayingVisual
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
-                // The title takes the room its text needs and Paused follows it
-                // whole, as on main; the free room goes after both, so the badge
-                // never drifts towards the play controls and a wider bar only
-                // ever gives the title more room (#496).
-                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .contentTransition(.opacity)
-                        .animation(.smooth(duration: 0.28), value: title)
-                        // A narrow bar truncates the title; hovering shows it whole.
-                        .help(title)
-                    if shouldShowPausedIndicator {
-                        Text(SpotiglassL10n.string("playback.paused.label"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                // The title takes the room its text needs and Paused follows it,
+                // whole; the free room goes after both, so the badge never drifts
+                // towards the play controls. Paused shows once the title keeps its
+                // floor beside it (the play button shows the state either way), so
+                // a narrow bar never trades the song's name for the badge (#496).
+                if shouldShowPausedIndicator {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
+                            titleText
+                                .frame(
+                                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
+                                    idealWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
+                                    alignment: .leading
+                                )
+                            Text(SpotiglassL10n.string("playback.paused.label"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .fixedSize()
+                            Spacer(minLength: 0)
+                        }
+                        HStack(spacing: 0) {
+                            titleText
+                            Spacer(minLength: 0)
+                        }
                     }
-                    Spacer(minLength: 0)
+                } else {
+                    HStack(spacing: 0) {
+                        titleText
+                        Spacer(minLength: 0)
+                    }
                 }
-                .animation(.smooth(duration: 0.22), value: shouldShowPausedIndicator)
 
                 if artistTapTargets.isEmpty {
                     Text(summarySubtitle)

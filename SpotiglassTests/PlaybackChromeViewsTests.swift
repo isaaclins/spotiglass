@@ -649,7 +649,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     /// In every width from the narrowest window up (#496): the title never
-    /// loses room as the window widens, Paused shows whole right after it, and
+    /// loses room as the window widens, Paused shows whole right after it once
+    /// the title keeps its floor (never squeezing the song's name), and
     /// the other service's bar always says which service plays. With the
     /// controls on the centre the left half is narrow: the title used to trade
     /// letters with the badge after it, a later attempt hid "In Apple Music"
@@ -659,6 +660,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let paused = SpotiglassL10n.string("playback.paused.label")
         let service = SpotiglassL10n.format("playback.controls.otherService.label", MusicService.appleMusic.displayName)
         let widths = Array(stride(from: CGFloat(520), through: 760, by: 6)) + [1_000, 1_400]
+        // "playing" comes before "paused" in `playerBarStates()`.
+        var playingTitleWidths: [CGFloat: CGFloat] = [:]
         for (state, makePlayback) in try await playerBarStates() where ["playing", "paused", "other service"].contains(state) {
             var titleWidth: CGFloat = 0
             var pausedWidth: CGFloat?
@@ -667,16 +670,33 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     let label = "\(state) at \(Int(width))"
                     let texts = elements.filter { $0.role == "AXStaticText" && $0.position != nil }
                     let title = try XCTUnwrap(texts.first { $0.value == "Midnight City" }, label)
-                    XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
+                    // The one step allowed: where Paused first fits whole, the title
+                    // gives up its room and keeps its floor (checked below).
+                    let pausedAppears = state == "paused" && pausedWidth == nil && texts.contains { $0.value == paused }
+                    if !pausedAppears {
+                        XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
+                    }
                     titleWidth = title.size.width
                     let titleEnd = (title.position?.x ?? 0) + title.size.width
+                    if state == "playing" {
+                        playingTitleWidths[width] = title.size.width
+                    }
                     if state == "paused" {
-                        let badge = try XCTUnwrap(texts.first { $0.value == paused }, "Paused is missing, \(label)")
-                        XCTAssertEqual(badge.size.width, pausedWidth ?? badge.size.width, accuracy: 0.5, "Paused is cut short, \(label)")
-                        pausedWidth = pausedWidth ?? badge.size.width
-                        // A truncated title's frame ends at its last glyph, a few
-                        // points short of its slot.
-                        XCTAssertLessThanOrEqual((badge.position?.x ?? 0) - titleEnd, SpotiglassDesign.spacingXS + SpotiglassDesign.spacingXS + 0.5, "Paused drifted from the title, \(label)")
+                        if let badge = texts.first(where: { $0.value == paused }) {
+                            // Paused shows whole, right after a title that keeps its floor.
+                            XCTAssertEqual(badge.size.width, pausedWidth ?? badge.size.width, accuracy: 0.5, "Paused is cut short, \(label)")
+                            pausedWidth = pausedWidth ?? badge.size.width
+                            XCTAssertGreaterThanOrEqual(title.size.width, PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth - 0.5, "Paused left the title under its floor, \(label)")
+                            // A truncated title's frame ends at its last glyph, a few
+                            // points short of its slot.
+                            XCTAssertLessThanOrEqual((badge.position?.x ?? 0) - titleEnd, SpotiglassDesign.spacingXS + SpotiglassDesign.spacingXS + 0.5, "Paused drifted from the title, \(label)")
+                        } else {
+                            // Too narrow for both: the title keeps all the room it
+                            // has while playing, and Paused waits for a wider bar.
+                            XCTAssertNil(pausedWidth, "Paused went away in a wider window, \(label)")
+                            let playing = try XCTUnwrap(playingTitleWidths[width], label)
+                            XCTAssertGreaterThanOrEqual(title.size.width, playing - 0.5, "the paused title has less room than the playing one, \(label)")
+                        }
                     }
                     if state == "other service" {
                         let line = try XCTUnwrap(texts.first { $0.value.hasPrefix(service) }, "the bar doesn't say which service plays, \(label)")
