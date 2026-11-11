@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.29] - 2026-11-11
+
+### Fixed
+
+- The search palette no longer offers Next Track or Previous Track when nothing is loaded.
+
 ## [0.8.28] - 2026-11-11
 
 ### Fixed
