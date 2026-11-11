@@ -24,7 +24,8 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
         "spotify.clientID",
         "spotify.grantedScope",
         "spotiglass.playbackVolume",
-        "queue.panel.visible"
+        "queue.panel.visible",
+        "lyrics.popOut.pinned"
     ]
 
     private func snapshotRealDomain() -> [String: String] {
@@ -77,6 +78,22 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
         ViewTestHost.host(Text("probe"))
 
         XCTAssertEqual(snapshotRealDomain(), before, "Hosted @AppStorage must bind to the test suite, not the real domain.")
+        ViewTestHost.tearDownAll()
+    }
+
+    /// The queue and pop-out pin flags left `@AppStorage` (#473); under the test host they must
+    /// stay in memory, or a test that opens the queue opens it in the real app's next launch.
+    @MainActor
+    func testStoredFlagWritesDoNotReachTheRealDomain() {
+        let before = snapshotRealDomain()
+
+        StoredFlag.queuePanelVisible.isOn.toggle()
+        StoredFlag.lyricsPopOutPinned.isOn.toggle()
+        StoredFlag.queuePanelVisible.isOn.toggle()
+        StoredFlag.lyricsPopOutPinned.isOn.toggle()
+        StoredFlag.queuePanelVisible.isOn = true
+
+        XCTAssertEqual(snapshotRealDomain(), before, "StoredFlag must not write the real preferences under the test host.")
         ViewTestHost.tearDownAll()
     }
 

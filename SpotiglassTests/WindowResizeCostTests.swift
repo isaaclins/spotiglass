@@ -53,7 +53,10 @@ final class WindowResizeCostTests: XCTestCase {
             playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
             catalogProvider: api,
             commandPaletteManager: CommandPaletteManager(),
-            signOut: {}
+            signOut: {},
+            // No live player: its web page and network answers would arrive whenever they like,
+            // and this test fails on any re-render it didn't cause.
+            playbackMode: .unavailable(SpotiglassL10n.string("error.playback.appleMusic.subscription.message"))
         )
         .environmentObject(store)
         .environmentObject(LyricsOverlayController())
