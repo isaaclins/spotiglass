@@ -41,6 +41,9 @@ enum PlaybackTransportLayoutPolicy {
     /// floor the title truncates (#496).
     static let nowPlayingArtworkSize: CGFloat = SpotiglassDesign.Layout.nowPlayingArtworkSize
     static let nowPlayingSummaryTitleMinimumWidth: CGFloat = 56
+    /// A title too long to show whole keeps this much beside Paused; in a
+    /// narrower bar Paused waits and the title keeps the room (#496).
+    static let titleBesidePausedMinimumWidth: CGFloat = 120
     static let nowPlayingSummaryMinimumWidth: CGFloat =
         nowPlayingArtworkSize + SpotiglassDesign.spacingS + nowPlayingSummaryTitleMinimumWidth
 
@@ -340,6 +343,14 @@ struct PlaybackControlsView: View {
         }
     }
 
+    private var pausedBadge: some View {
+        Text(SpotiglassL10n.string("playback.paused.label"))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
     private var titleText: some View {
         Text(title)
             .font(.headline)
@@ -357,23 +368,28 @@ struct PlaybackControlsView: View {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 // The title takes the room its text needs and Paused follows it,
                 // whole; the free room goes after both, so the badge never drifts
-                // towards the play controls. Paused shows once the title keeps its
-                // floor beside it (the play button shows the state either way), so
-                // a narrow bar never trades the song's name for the badge (#496).
+                // towards the play controls. Paused shows once the title fits whole
+                // beside it, or a long title keeps its floor (the play button shows
+                // the state either way), so a narrow bar never trades the song's
+                // name for the badge (#496).
                 if shouldShowPausedIndicator {
+                    // The whole title with Paused, then a long title cut to the floor
+                    // it had beside Paused before #496, then the title alone.
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
                             titleText
+                                .fixedSize()
+                            pausedBadge
+                            Spacer(minLength: 0)
+                        }
+                        HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
+                            titleText
                                 .frame(
-                                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
-                                    idealWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth,
+                                    minWidth: PlaybackTransportLayoutPolicy.titleBesidePausedMinimumWidth,
+                                    idealWidth: PlaybackTransportLayoutPolicy.titleBesidePausedMinimumWidth,
                                     alignment: .leading
                                 )
-                            Text(SpotiglassL10n.string("playback.paused.label"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .fixedSize()
+                            pausedBadge
                             Spacer(minLength: 0)
                         }
                         HStack(spacing: 0) {

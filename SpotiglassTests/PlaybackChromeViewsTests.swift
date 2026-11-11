@@ -650,7 +650,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     /// In every width from the narrowest window up (#496): the title never
     /// loses room as the window widens, Paused shows whole right after it once
-    /// the title keeps its floor (never squeezing the song's name), and
+    /// the whole title fits beside it (never squeezing the song's name), and
     /// the other service's bar always says which service plays. With the
     /// controls on the centre the left half is narrow: the title used to trade
     /// letters with the badge after it, a later attempt hid "In Apple Music"
@@ -670,12 +670,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     let label = "\(state) at \(Int(width))"
                     let texts = elements.filter { $0.role == "AXStaticText" && $0.position != nil }
                     let title = try XCTUnwrap(texts.first { $0.value == "Midnight City" }, label)
-                    // The one step allowed: where Paused first fits whole, the title
-                    // gives up its room and keeps its floor (checked below).
-                    let pausedAppears = state == "paused" && pausedWidth == nil && texts.contains { $0.value == paused }
-                    if !pausedAppears {
-                        XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
-                    }
+                    // Paused waits until the whole title fits beside it, so not
+                    // even its arrival takes room from the title.
+                    XCTAssertGreaterThanOrEqual(title.size.width, titleWidth - 0.5, "the title lost room as the window widened, \(label)")
                     titleWidth = title.size.width
                     let titleEnd = (title.position?.x ?? 0) + title.size.width
                     if state == "playing" {
@@ -686,7 +683,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
                             // Paused shows whole, right after a title that keeps its floor.
                             XCTAssertEqual(badge.size.width, pausedWidth ?? badge.size.width, accuracy: 0.5, "Paused is cut short, \(label)")
                             pausedWidth = pausedWidth ?? badge.size.width
-                            XCTAssertGreaterThanOrEqual(title.size.width, PlaybackTransportLayoutPolicy.nowPlayingSummaryTitleMinimumWidth - 0.5, "Paused left the title under its floor, \(label)")
+                            let wholeTitle = try XCTUnwrap(playingTitleWidths[1_400], label)
+                            XCTAssertGreaterThanOrEqual(title.size.width, wholeTitle - 0.5, "Paused cut the title short, \(label)")
                             // A truncated title's frame ends at its last glyph, a few
                             // points short of its slot.
                             XCTAssertLessThanOrEqual((badge.position?.x ?? 0) - titleEnd, SpotiglassDesign.spacingXS + SpotiglassDesign.spacingXS + 0.5, "Paused drifted from the title, \(label)")
