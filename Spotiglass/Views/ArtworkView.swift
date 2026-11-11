@@ -201,17 +201,56 @@ struct OnScreenArtworkMarker: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-        /// What the window draws over this view's frame: the cover in front of it.
+        /// What is drawn over this view's frame: the cover in front of it.
+        ///
+        /// Asks the nearest enclosing view that draws anything there, not the window's root: the
+        /// sidebar sits in a glass view with its own layers, and the root draws nothing over it,
+        /// so sidebar covers came back as an empty tile. When that view draws something that
+        /// isn't an opaque cover (MusicKit hasn't drawn it yet, so the see-through placeholder
+        /// shows), there is no cover to take; looking further out would only find the row's or
+        /// window's background.
         func snapshot() -> NSImage? {
-            guard let root = window?.contentView, !visibleRect.isEmpty else { return nil }
-            let rect = convert(bounds, to: root).integral
-            guard rect.width >= 1, rect.height >= 1, root.bounds.contains(rect),
-                let rep = root.bitmapImageRepForCachingDisplay(in: rect)
-            else { return nil }
-            root.cacheDisplay(in: rect, to: rep)
-            let image = NSImage(size: rect.size)
-            image.addRepresentation(rep)
-            return image
+            guard window != nil, !visibleRect.isEmpty else { return nil }
+            var ancestor = superview
+            while let view = ancestor {
+                let rect = convert(bounds, to: view).integral
+                guard rect.width >= 1, rect.height >= 1, view.bounds.contains(rect),
+                    let rep = view.bitmapImageRepForCachingDisplay(in: rect)
+                else { return nil }
+                view.cacheDisplay(in: rect, to: rep)
+                switch Self.coverage(of: rep) {
+                case .nothing:
+                    ancestor = view.superview
+                case .cover:
+                    let image = NSImage(size: rect.size)
+                    image.addRepresentation(rep)
+                    return image
+                case .notACover:
+                    return nil
+                }
+            }
+            return nil
+        }
+
+        private enum Coverage { case nothing, cover, notACover }
+
+        /// Samples an 8 x 8 grid. A drawn cover is opaque over at least half of it (a round
+        /// artist cover fills about 80% of its square); a blank view is clear everywhere.
+        private static func coverage(of rep: NSBitmapImageRep) -> Coverage {
+            let samples = 8
+            var drawn = 0
+            var opaque = 0
+            for row in 0..<samples {
+                for column in 0..<samples {
+                    let x = (column * 2 + 1) * rep.pixelsWide / (samples * 2)
+                    let y = (row * 2 + 1) * rep.pixelsHigh / (samples * 2)
+                    let alpha = rep.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                    if alpha > 0.02 { drawn += 1 }
+                    if alpha > 0.9 { opaque += 1 }
+                }
+            }
+            if drawn == 0 { return .nothing }
+            return opaque * 2 >= samples * samples ? .cover : .notACover
         }
     }
 }

@@ -242,15 +242,15 @@ struct DragPreviewArtwork: View {
     /// away, so a cover that loads later never shows. Downloaded covers come from the disk cache.
     /// Library covers (`musicKit://`) are never there and only MusicKit draws them, so they are
     /// taken from a view that shows that cover on screen, such as the row being dragged (#449).
+    @MainActor
     static func initialImage(
         artworkURL: URL?,
         requestURL: URL?,
-        artworkKey: String?,
-        onScreen: OnScreenArtwork = .shared
+        artworkKey: String?
     ) -> NSImage? {
         guard let artworkURL else { return nil }
         if AppleMusicArtworkRegistry.needsMusicKit(artworkURL) {
-            return onScreen.snapshot(url: artworkURL, itemKey: artworkKey)
+            return OnScreenArtwork.shared.snapshot(url: artworkURL, itemKey: artworkKey)
         }
         return requestURL.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }
     }

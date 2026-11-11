@@ -145,15 +145,26 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
     }
 
     /// Shows a stand-in cover on screen the way a sidebar or pin row shows a library cover.
-    private func showCoverOnScreen(url: String, itemKey: String?) throws {
-        let cover = Color(red: 1, green: 0, blue: 1)
+    /// `inSidebar` puts it inside a view that draws nothing when cached, like the sidebar.
+    private func showCoverOnScreen(
+        url: String, itemKey: String?, fill: Color = Color(red: 1, green: 0, blue: 1), inSidebar: Bool = false
+    ) throws {
+        let cover = fill
             .frame(width: 40, height: 40)
             .background(OnScreenArtworkMarker(url: try XCTUnwrap(URL(string: url)), itemKey: itemKey))
         let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 80),
             styleMask: [.borderless], backing: .buffered, defer: false
         )
-        window.contentView = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+        if inSidebar {
+            let sidebar = DrawsNothingWhenCachedView(frame: NSRect(x: 0, y: 0, width: 80, height: 80))
+            let host = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+            host.frame = sidebar.bounds
+            sidebar.addSubview(host)
+            window.contentView = sidebar
+        } else {
+            window.contentView = NSHostingView(rootView: cover.frame(width: 80, height: 80))
+        }
         window.orderFrontRegardless()
         windows.append(window)
         AppKitTestSupport.pumpRunLoop()
@@ -198,6 +209,30 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
         XCTAssertGreaterThan(try coverPixelCount(in: pin), 0)
     }
 
+    /// In the app's sidebar, the views from its scroll view out to the window's root draw
+    /// nothing when cached (its glass has its own layers), and only the row and cell views draw
+    /// the cover. Taking the cover from the root gave an empty tile in the preview.
+    func testLibraryCoverInTheSidebarShowsInThePreview() throws {
+        let url = "musicKit://artwork/transient/40x40?id=SIDEBAR449"
+        let pin = libraryPlaylistPin(artwork: url)
+        try showCoverOnScreen(url: url, itemKey: nil, inSidebar: true)
+
+        let size = SpotiglassDesign.Layout.thumbnailSize
+        XCTAssertGreaterThan(try coverPixelCount(in: pin), Int(size * size * 0.6))
+    }
+
+    /// A row whose cover MusicKit hasn't drawn yet shows the see-through placeholder; the
+    /// preview keeps its note instead of copying an empty tile.
+    func testCoverNotDrawnYetKeepsThePlaceholder() throws {
+        let url = "musicKit://artwork/transient/40x40?id=NOTDRAWN449"
+        let pin = libraryPlaylistPin(artwork: url)
+        try showCoverOnScreen(url: url, itemKey: nil, fill: Color.gray.opacity(0.16))
+
+        XCTAssertNil(DragPreviewArtwork.initialImage(
+            artworkURL: pin.artworkURL, requestURL: pin.artworkURL, artworkKey: pin.id
+        ))
+    }
+
     func testLibraryCoverNotOnScreenKeepsThePlaceholder() throws {
         let pin = libraryPlaylistPin(artwork: "musicKit://artwork/transient/40x40?id=NOWHERE449")
         XCTAssertNil(DragPreviewArtwork.initialImage(
@@ -213,4 +248,9 @@ final class PinnedItemDragPillLibraryCoverTests: XCTestCase {
             artworkURL: URL(string: url), requestURL: URL(string: url), artworkKey: nil
         ))
     }
+}
+
+/// Stands in for the sidebar's glass and scroll views, which draw nothing into a cached image.
+private final class DrawsNothingWhenCachedView: NSView {
+    override func cacheDisplay(in rect: NSRect, to bitmapImageRep: NSBitmapImageRep) {}
 }
