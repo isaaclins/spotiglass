@@ -348,9 +348,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
             )
         )
         controller.sizingOptions = [.minSize]
-        // A one-row width and a two-row width that fit small CI screens too.
+        // A width where the bar sits beside the scrubber and one where it
+        // stacks (below about 600 pt, #538), both small enough for CI screens.
         let rowSize = NSSize(width: 880, height: 120)
-        let stackedSize = NSSize(width: 640, height: 120)
+        let stackedSize = NSSize(width: 560, height: 120)
         let window = KeyTestPanel(
             contentRect: NSRect(origin: .zero, size: rowSize),
             styleMask: [.titled, .resizable, .nonactivatingPanel],
@@ -419,7 +420,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// the song, then the buttons from Lyrics to Repeat, then the device menu
     /// and the volume, and the scrubber under them last.
     func testVoiceOverReadsTheScrubberWhereItSits() throws {
-        for width in [CGFloat(640), 1_100] {
+        for width in [CGFloat(560), 640, 1_100] {
             let controller = NSHostingController(
                 rootView: PlaybackControlsView(
                     viewModel: makePlayingPlayback(),
