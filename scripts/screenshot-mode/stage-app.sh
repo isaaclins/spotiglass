@@ -24,10 +24,12 @@ else
     src="$1" dest="$2" bundle_id="$3" real_bundle_id="$4"
 fi
 
+# The identity `make build` signs with: LOCAL_SIGN_IDENTITY when it's set, else the first Developer ID
+# Application (Makefile). Signing with any other one would ask for the permission again.
 identity="-"
 if [ "$bundle_id" = "$real_bundle_id" ]; then
-    identity="$(security find-identity -v -p codesigning 2>/dev/null \
-        | awk '/Developer ID Application/ { print $2; exit }')"
+    identity="${LOCAL_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/Developer ID Application/ { print $2; exit }')}"
     if [ -z "$identity" ]; then
         echo "screenshots: --with-apple-music needs a Developer ID Application signing identity." >&2
         echo "  An ad-hoc copy under $real_bundle_id would take over the signed app's Apple Music" >&2
@@ -35,15 +37,29 @@ if [ "$bundle_id" = "$real_bundle_id" ]; then
         exit 1
     fi
 fi
-[ "$check_only" = 0 ] || exit 0
+
+# Signs with the identity, or says why it can't. A locked keychain still lists its identities, so
+# only signing shows whether the identity can be used.
+sign() {
+    local out
+    if ! out="$(codesign --force --deep --timestamp=none --sign "$identity" "$1" 2>&1)"; then
+        echo "screenshots: signing with $identity failed:" >&2
+        echo "$out" >&2
+        [ "$identity" = "-" ] || echo "  (a locked keychain fails with errSecInternalComponent: unlock it first)" >&2
+        return 1
+    fi
+}
+
+if [ "$check_only" = 1 ]; then
+    [ "$identity" != "-" ] || exit 0
+    probe="$(mktemp -d)"
+    trap 'rm -rf "$probe"' EXIT
+    cp /usr/bin/true "$probe/probe"
+    sign "$probe/probe"
+    exit 0
+fi
 
 rm -rf "$dest"
 cp -R "$src" "$dest"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$dest/Contents/Info.plist"
-if ! out="$(codesign --force --deep --sign "$identity" "$dest" 2>&1)"; then
-    rm -rf "$dest"
-    echo "screenshots: signing $dest failed:" >&2
-    echo "$out" >&2
-    [ "$identity" = "-" ] || echo "  (a locked keychain fails with errSecInternalComponent: unlock it first)" >&2
-    exit 1
-fi
+sign "$dest" || { rm -rf "$dest"; exit 1; }
