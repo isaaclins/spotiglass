@@ -353,8 +353,20 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
         clearButton.setAccessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
         toolTip = SpotiglassL10n.string("palette.hotkeyRecorder.hint")
         needsDisplay = true
-        NSAccessibility.post(element: self, notification: .valueChanged)
+        // SwiftUI refreshes every row on each change in the pane (a search
+        // keystroke, a conflict on another row), so only tell VoiceOver when
+        // what this field reads out actually changed.
+        let announced = accessibilityLabel()
+        if announced != lastAnnouncedLabel {
+            lastAnnouncedLabel = announced
+            accessibilityChangeCount += 1
+            NSAccessibility.post(element: self, notification: .valueChanged)
+        }
     }
+
+    private var lastAnnouncedLabel: String?
+    /// How often the field told VoiceOver its label changed (tests).
+    private(set) var accessibilityChangeCount = 0
 
     func syncFromStore() {
         refresh()
@@ -467,8 +479,12 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
         return true
     }
 
+    /// The clear control's own accessibility element. AppKit hides the
+    /// NSButton view itself from VoiceOver, so handing over the view read as
+    /// an unnamed group with the button inside it.
     override func accessibilityChildren() -> [Any]? {
-        showsClearControl ? [clearButton] : []
+        guard showsClearControl, let element = NSAccessibility.unignoredDescendant(of: clearButton) else { return [] }
+        return [element]
     }
 
     // MARK: Interaction

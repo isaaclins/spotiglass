@@ -238,13 +238,37 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         let clear = try XCTUnwrap(view.subviews.compactMap { $0 as? NSButton }.first)
         XCTAssertFalse(clear.isHidden)
         XCTAssertEqual(clear.accessibilityLabel(), SpotiglassL10n.string("a11y.palette.clearShortcut"))
-        XCTAssertTrue((view.accessibilityChildren() ?? []).contains { ($0 as AnyObject) === clear })
+        // VoiceOver gets the button itself, named, not a nameless group around it.
+        let children = view.accessibilityChildren() ?? []
+        XCTAssertEqual(children.count, 1)
+        let element = try XCTUnwrap(children.first as? NSAccessibilityProtocol)
+        XCTAssertEqual(element.accessibilityRole(), .button)
+        XCTAssertEqual(element.accessibilityLabel(), SpotiglassL10n.string("a11y.palette.clearShortcut"))
         clear.performClick(nil)
 
         XCTAssertNil(keymap.primaryShortcut(for: field.commandID))
         XCTAssertEqual(applied, 1)
         XCTAssertTrue(clear.isHidden, "nothing left to clear")
+        XCTAssertEqual(view.accessibilityChildren()?.count, 0)
         XCTAssertEqual(view.content, .prompt(SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord")))
+    }
+
+    /// SwiftUI updates every field on each change in the pane, a search
+    /// keystroke included. VoiceOver hears about a field only when what it
+    /// reads out changes, not once per row per keystroke.
+    func testFieldTellsVoiceOverOnlyWhenWhatItReadsChanges() throws {
+        let (field, keymap, view, _, _) = try makeHarness()
+        view.syncFromStore()
+        let settled = view.accessibilityChangeCount
+        for _ in 0..<5 {
+            view.syncFromStore()
+        }
+        XCTAssertEqual(view.accessibilityChangeCount, settled, "unchanged field, no notice")
+
+        try keymap.setBinding(commandID: field.commandID, shortcut: try CommandShortcut(keystroke: "ctrl-k"), replaceConflicting: true)
+        view.syncFromStore()
+        view.syncFromStore()
+        XCTAssertEqual(view.accessibilityChangeCount, settled + 1, "one notice for the new shortcut")
     }
 
     /// A taken chord shows on the field that was recording, in its problem

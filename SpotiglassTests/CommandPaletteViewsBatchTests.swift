@@ -142,8 +142,12 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         func type(_ text: String) {
             search.stringValue = text
             search.delegate?.controlTextDidChange?(Notification(name: NSControl.textDidChangeNotification, object: search))
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-            controller.view.layoutSubtreeIfNeeded()
+            // The list redraws on SwiftUI's next update: wait for the row count, not for a time.
+            let expected = CommandPaletteSettingsView.commands(matching: text).count
+            XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+                controller.view.layoutSubtreeIfNeeded()
+                return recorderFields(in: controller.view).count == expected
+            }), "\"\(text)\": \(expected) rows")
         }
 
         let lyricsTitle = SpotiglassL10n.string(forKey: "palette.command.\(CommandPaletteCommandID.toggleLyrics).title")
@@ -177,6 +181,67 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
 
     /// The field has one width for every row, so it has to fit the longest
     /// state in every language the app ships, or German would clip.
+    /// A taken chord stays on the row's own field, in its problem state, while
+    /// the saved one is untouched; recording again and Esc bring it back (#541).
+    /// Driven through the real pane, so the row's wiring to its field counts.
+    func testConflictInThePaneShowsOnTheRowsField() throws {
+        let (_, keymap, _) = try makeHarness()
+        let taken = try XCTUnwrap(keymap.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+        let controller = ViewTestHost.host(
+            CommandPaletteSettingsView(keymapStore: keymap, presentation: .settingsTabs),
+            size: CGSize(width: 760, height: 1_600)
+        )
+        func field(_ commandID: String) throws -> RecorderKeyContainerView {
+            try XCTUnwrap(recorderFields(in: controller.view).first { $0.coordinator?.parent.commandID == commandID })
+        }
+        let settings = try field(CommandPaletteCommandID.openSettings)
+        let saved = try XCTUnwrap(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings))
+
+        settings.testing_beginKeyCapture()
+        XCTAssertEqual(taken, try CommandShortcut(keystroke: "cmd-k"), "the default palette chord")
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: taken.modifiers, timestamp: 0,
+            windowNumber: 0, context: nil, characters: taken.key, charactersIgnoringModifiers: taken.key,
+            isARepeat: false, keyCode: 40
+        ))
+        settings.keyDown(with: event)
+        // The row's state reaches its field on SwiftUI's next update: wait for it, not for a time.
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.showsProblem == true
+        }), "the row hands the conflict to its field")
+
+        let shown = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertFalse(shown.isRecording)
+        XCTAssertEqual(shown.content, .keys(taken.displayChips), "the taken chord stays on the field")
+        XCTAssertTrue(shown.showsProblem)
+        XCTAssertFalse(shown.showsClearControl)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings), saved, "nothing saved yet")
+
+
+        // Recording again drops the conflict, and Esc puts the saved chord back.
+        shown.testing_beginKeyCapture()
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.showsProblem == false
+        }))
+        let again = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertTrue(again.isRecording)
+        XCTAssertFalse(again.showsProblem, "a new attempt starts clean")
+        again.keyDown(with: try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53
+        )))
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            return (try? field(CommandPaletteCommandID.openSettings))?.content == .keys(saved.displayChips)
+        }))
+        let restored = try field(CommandPaletteCommandID.openSettings)
+        XCTAssertEqual(restored.content, .keys(saved.displayChips))
+        XCTAssertFalse(restored.showsProblem)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openPalette), taken, "the other command keeps it")
+    }
+
     func testShortcutFieldFitsEveryStateInEveryLanguage() {
         for language in ["en", "de", "es"] {
             let locale = Locale(identifier: language)
