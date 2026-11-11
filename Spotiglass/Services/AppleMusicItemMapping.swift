@@ -169,6 +169,13 @@ enum AppleMusicItemMapping {
         return (object["catalogId"] ?? object["globalId"]) as? String
     }
 
+    /// What says "same playlist" across the library and the catalog: the catalog ID a saved
+    /// playlist carries (the one pins pair it by), else the playlist's own ID (a playlist the
+    /// user made, a catalog one).
+    static func playlistMatchID(_ playlist: Playlist) -> String {
+        catalogID(of: playlist) ?? playlist.id.rawValue
+    }
+
     static func album(_ album: Album) -> MusicAlbum {
         registerAlbumPin(album)
         return MusicAlbum(
