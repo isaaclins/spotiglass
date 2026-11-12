@@ -550,7 +550,7 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
-        let didFetchQueue = await api.fetchQueueSignal.wait(timeout: .seconds(2))
+        let didFetchQueue = await api.fetchQueueSignal.wait(timeout: .seconds(30))
         XCTAssertTrue(didFetchQueue, "Adding to the queue must trigger a queue refresh.")
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
@@ -596,7 +596,8 @@ final class QueuePanelTests: XCTestCase {
         let queue = QueueViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
-            enqueueUnknownOutcomeCooldown: .milliseconds(300)
+            enqueueUnknownOutcomeCooldown: .milliseconds(300),
+            clock: ManualPlaybackClock()
         )
         queue.setPanelVisible(true)
 
@@ -717,9 +718,10 @@ final class QueuePanelTests: XCTestCase {
     func testQueueShuffleAppliesOptimisticOrderBeforeReconciliation() async {
         let api = QueueTestPlaybackAPI()
         api.fetchQueueDelayNanoseconds = 200_000_000
-        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), postShuffleSyncDelay: .seconds(10))
+        let clock = ManualPlaybackClock()
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
-        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, clock: clock)
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
         let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
@@ -735,7 +737,7 @@ final class QueuePanelTests: XCTestCase {
         }
 
         let toggleTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleFetch = await slowFetchStarted.wait(timeout: .seconds(2))
+        let didStartShuffleFetch = await slowFetchStarted.wait(timeout: .seconds(30))
         XCTAssertTrue(
             didStartShuffleFetch,
             "shuffle should start queue reconciliation after applying its optimistic order"
@@ -751,9 +753,10 @@ final class QueuePanelTests: XCTestCase {
     func testQueueShuffleOffRestoresPreShuffleSnapshotImmediately() async {
         let api = QueueTestPlaybackAPI()
         api.fetchQueueDelayNanoseconds = 180_000_000
-        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), postShuffleSyncDelay: .seconds(10))
+        let clock = ManualPlaybackClock()
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
-        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, clock: clock)
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
         let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
@@ -771,7 +774,7 @@ final class QueuePanelTests: XCTestCase {
             slowFetchStarted.signal()
         }
         let offTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleOffFetch = await slowFetchStarted.wait(timeout: .seconds(2))
+        let didStartShuffleOffFetch = await slowFetchStarted.wait(timeout: .seconds(30))
         XCTAssertTrue(
             didStartShuffleOffFetch,
             "turning shuffle off should start queue reconciliation after restoring its snapshot"
@@ -804,9 +807,10 @@ final class QueuePanelTests: XCTestCase {
     func testQueueShuffleFailureRestoresPreviousOrdering() async {
         let api = QueueTestPlaybackAPI()
         api.setShuffleError = SpotifyAPIError.notFound(message: nil)
-        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), postShuffleSyncDelay: .seconds(10))
+        let clock = ManualPlaybackClock()
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
-        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, clock: clock)
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
         let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
@@ -824,13 +828,15 @@ final class QueuePanelTests: XCTestCase {
     func testQueueShuffleDoesNotSnapBackOnFirstStaleReconciliationFetch() async {
         let api = QueueTestPlaybackAPI()
         api.fetchQueueDelayNanoseconds = 50_000_000
-        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), postShuffleSyncDelay: .seconds(10))
+        let clock = ManualPlaybackClock()
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
         let queue = QueueViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000,
-            optimisticReconcileTimeout: .seconds(5)
+            optimisticReconcileTimeout: .seconds(5),
+            clock: clock
         )
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
@@ -928,7 +934,9 @@ final class QueuePanelTests: XCTestCase {
             isPaused: false,
             nextTracks: []
         ))
-        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollJitterFraction: 0, defaultRateLimitCooldownSeconds: 0.3)
+        // The cooldown runs on a clock the test steps, so a slow machine can't end it early.
+        let clock = ManualPlaybackClock()
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollJitterFraction: 0, defaultRateLimitCooldownSeconds: 0.3, clock: clock)
         queue.setPanelVisible(true)
 
         api.errorToThrow = SpotifyAPIError.rateLimited(retryAfter: 0.3)
@@ -941,6 +949,15 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(fetchesAfterFirstFailure, 1)
         XCTAssertEqual(fetchesAfterSecondAttempt, 1, "Manual refresh should yield to cooldown instead of calling Spotify again immediately.")
         XCTAssertEqual(queue.lastError?.title, "Rate limited")
+
+        // The wait is at least a second, whatever Spotify asked for.
+        clock.advance(by: .milliseconds(999))
+        await queue.refreshQueue()
+        XCTAssertEqual(api.actions.filter { $0 == "fetchQueue" }.count, 1, "The cooldown should hold until its last moment.")
+
+        clock.advance(by: .milliseconds(1))
+        await queue.refreshQueue()
+        XCTAssertEqual(api.actions.filter { $0 == "fetchQueue" }.count, 2, "Once the cooldown ends, a refresh should ask Spotify again.")
     }
 
     func testQueuePollingStopsWhenAppBecomesInactive() async {
@@ -966,7 +983,7 @@ final class QueuePanelTests: XCTestCase {
             pollFetchStarted.signal()
         }
         queue.restartPollingIfNeeded()
-        let didStartPollFetch = await pollFetchStarted.wait(timeout: .seconds(2))
+        let didStartPollFetch = await pollFetchStarted.wait(timeout: .seconds(30))
         XCTAssertTrue(
             didStartPollFetch,
             "active queue polling should issue a fetch"
@@ -1044,14 +1061,22 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertTrue(api.actions.contains("fetchQueue"))
     }
 
+    /// #549: the optimistic shuffle windows ran on the wall clock (the queue's 40 ms here, the
+    /// player's 2 s pending shuffle), so on a busy machine one ran out before `toggleShuffle()`
+    /// returned and the old order came back. Both now run on a clock the test steps: a slow
+    /// Spotify read (the stub's delay stands in for a loaded machine) doesn't move them, only
+    /// stepping the clock past the timeout does.
     func testQueueOptimisticReconcileClearsAfterTimeout() async {
         let api = QueueTestPlaybackAPI()
-        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), postShuffleSyncDelay: .seconds(10))
+        let clock = ManualPlaybackClock()
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
+        let timeout = Duration.milliseconds(40)
         let queue = QueueViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
-            optimisticReconcileTimeout: .milliseconds(40)
+            optimisticReconcileTimeout: timeout,
+            clock: clock
         )
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
@@ -1061,11 +1086,17 @@ final class QueuePanelTests: XCTestCase {
         await queue.refreshQueue()
         let original = queue.upcomingItems.map(\.id)
 
+        // Each Spotify read now takes longer than the whole optimistic window.
+        api.fetchQueueDelayNanoseconds = 100_000_000
         await queue.toggleShuffle()
         let optimistic = queue.upcomingItems.map(\.id)
-        XCTAssertNotEqual(optimistic, original)
+        XCTAssertNotEqual(optimistic, original, "A slow read must not end the optimistic shuffle early.")
 
-        queue.optimisticReconcileDeadline = queue.clock.now
+        clock.advance(by: timeout - .milliseconds(1))
+        await queue.refreshQueue()
+        XCTAssertEqual(queue.upcomingItems.map(\.id), optimistic, "The optimistic order should hold until the timeout.")
+
+        clock.advance(by: .milliseconds(1))
         await queue.refreshQueue()
         XCTAssertEqual(queue.upcomingItems.map(\.id), original, "Optimistic projection should clear after reconcile timeout.")
     }

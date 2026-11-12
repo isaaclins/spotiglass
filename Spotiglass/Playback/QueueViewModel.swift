@@ -26,7 +26,8 @@ final class QueueViewModel: ObservableObject {
     var optimisticReconcileTargetIDs: [String]?
     var optimisticReconcileDeadline: ContinuousClock.Instant?
     let optimisticReconcileTimeout: Duration
-    let clock = ContinuousClock()
+    /// Times the optimistic shuffle window and the enqueue cooldowns (a test steps it).
+    let clock: any PlaybackClock
     var pollTask: Task<Void, Never>?
     var isPanelVisible = false
     var isAppActive = true
@@ -59,7 +60,8 @@ final class QueueViewModel: ObservableObject {
     /// once the follow-up round that covers their request has finished.
     var pendingRefreshWaiters: [CheckedContinuation<Void, Never>] = []
     var unchangedPollTickCount = 0
-    var queueCooldownUntil: Date?
+    /// Spotify's rate-limit pause for queue reads, on ``clock`` (a test steps it).
+    var queueCooldownUntil: ContinuousClock.Instant?
     var lastQueuePollingKey: String?
     var queueSessionGeneration: UInt64 = 0
     var queueSessionBoundaryActive = false
@@ -117,7 +119,8 @@ final class QueueViewModel: ObservableObject {
         optimisticReconcileTimeout: Duration = .seconds(3),
         enqueueSuccessCooldown: Duration = .seconds(2),
         enqueueUnknownOutcomeCooldown: Duration = .seconds(5),
-        enqueueMinimumRetryDelay: Duration = .seconds(1)
+        enqueueMinimumRetryDelay: Duration = .seconds(1),
+        clock: any PlaybackClock = ContinuousClock()
     ) {
         self.provider = provider
         self.playbackSession = playbackSession
@@ -134,6 +137,7 @@ final class QueueViewModel: ObservableObject {
         self.enqueueSuccessCooldown = enqueueSuccessCooldown
         self.enqueueUnknownOutcomeCooldown = enqueueUnknownOutcomeCooldown
         self.enqueueMinimumRetryDelay = enqueueMinimumRetryDelay
+        self.clock = clock
     }
 
     var isPlaybackPlaying: Bool {

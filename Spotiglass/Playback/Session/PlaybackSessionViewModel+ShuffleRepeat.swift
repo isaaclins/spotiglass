@@ -231,14 +231,15 @@ extension PlaybackSessionViewModel {
     private func scheduleTransportSyncAfterRepeatToggle() {
         repeatSyncTask?.cancel()
         let generation = playbackHostGeneration
+        let clock = clock
+        let deadline = clock.now.advanced(by: postRepeatSyncDelay)
         repeatSyncTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                try await Task.sleep(for: self.postRepeatSyncDelay)
+                try await clock.sleep(until: deadline, tolerance: nil)
             } catch {
                 return
             }
-            guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+            guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             await self.syncTransportFromSpotify(generation: generation)
         }
     }
@@ -246,14 +247,16 @@ extension PlaybackSessionViewModel {
     private func scheduleTransportSyncAfterShuffleToggle(minimumMutationVersion: UInt64) {
         shuffleSyncTask?.cancel()
         let generation = playbackHostGeneration
+        // Waits on the session's clock, like the pending window it follows (a test steps it).
+        let clock = clock
+        let deadline = clock.now.advanced(by: postShuffleSyncDelay)
         shuffleSyncTask = Task { [weak self] in
-            guard let self else { return }
             do {
-                try await Task.sleep(for: self.postShuffleSyncDelay)
+                try await clock.sleep(until: deadline, tolerance: nil)
             } catch {
                 return
             }
-            guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+            guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             await self.syncTransportFromSpotify(
                 minimumShuffleMutationVersion: minimumMutationVersion,
                 generation: generation
