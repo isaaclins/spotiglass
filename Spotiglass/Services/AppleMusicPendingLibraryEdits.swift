@@ -40,8 +40,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     ///
     /// Each read lists the playlist after some of the API edits and some of the Music app's, the
     /// first ones of each in the order they were made (its step). A read is matched to the step it
-    /// fits best and shown as the playlist after every edit, in the order the edits were made.
-    /// Rows no step explains (added or moved elsewhere) stay after the row they follow in the read.
+    /// fits best and shown as the playlist after every edit: its rows in its order, without the
+    /// ones the edits took out, then the copies it doesn't have yet.
     private struct PlaylistEdits {
         /// A row of the playlist after some of the edits.
         enum Entry: Hashable {
@@ -356,9 +356,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 // A view the record didn't make can't say which rows these are; the library
                 // shows the removal when it catches up.
                 guard let rows else { return }
-                // The Music app deletes them one by one, from the last to the first.
-                let picked = Set(positions).filter(rows.indices.contains).sorted(by: >).map { rows[$0] }
-                playlist.edits += picked.map { .remove([$0]) }
+                let picked = Set(positions).filter(rows.indices.contains).sorted().map { rows[$0] }
+                if !picked.isEmpty { playlist.edits.append(.remove(picked)) }
             }
         }
     }
@@ -381,6 +380,12 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 return fromTheAPI.contains(index)
             }
         }
+    }
+
+    /// Drops the playlist's record, once nothing is pending in it and its rows changed in a way
+    /// the record doesn't follow (a new order).
+    func endPlaylistEdits(_ playlistID: String) {
+        locked { playlistEdits[playlistID] = nil }
     }
 
     /// Where the rows at `positions` of `shown` sit in the Music app's own playlist: the rows the
@@ -630,48 +635,29 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 }
                 playlist.settledAt = nil
             }
-            // The rows the edits leave in the order they were made, rows no step explains after
-            // the row they follow in the read, then the copies the read doesn't have yet. The row
-            // of a copy the edits took out stands in for one of the same song, so a read that
-            // already has it looks the same as one that doesn't.
+            // The read's rows in its order, without the ones the edits took out, then the copies
+            // it doesn't have yet. The row of a copy the edits took out stands in for one of the
+            // same song, so a read that already has it looks the same as one that doesn't.
             let kept = Set(final)
-            var rowOf: [PlaylistEdits.Entry: Int] = [:]
-            var leading: [Int] = []
-            var following: [PlaylistEdits.Entry: [Int]] = [:]
+            var rows: [PlaylistEdits.ViewRow] = []
+            var shown: [MusicTrack] = []
             var standIns: [Int] = []
-            var anchor: PlaylistEdits.Entry?
             for index in result.indices {
-                if let entry = paired[index] {
-                    if kept.contains(entry) {
-                        rowOf[entry] = index
-                        anchor = entry
-                    } else {
-                        standIns.append(index)
-                    }
-                } else if let anchor {
-                    following[anchor, default: []].append(index)
+                if let entry = paired[index], !kept.contains(entry) {
+                    standIns.append(index)
                 } else {
-                    leading.append(index)
+                    rows.append(.read(index))
+                    shown.append(result[index].track)
                 }
             }
-            var rows = leading.map(PlaylistEdits.ViewRow.read)
-            var shown = leading.map { result[$0].track }
-            for entry in final {
-                if let index = rowOf[entry] {
-                    rows.append(.read(index))
-                    shown.append(result[index].track)
-                } else if case let .added(index) = entry {
-                    let group = fit.group(of: entry)
-                    rows.append(.pending(index))
-                    if let standIn = standIns.firstIndex(where: { fit.group(ofRow: $0) == group }) {
-                        shown.append(result[standIns.remove(at: standIn)].track)
-                    } else {
-                        shown.append(playlist.additions[index].track)
-                    }
-                }
-                for index in following[entry] ?? [] {
-                    rows.append(.read(index))
-                    shown.append(result[index].track)
+            for entry in final where !read.contains(entry) {
+                guard case let .added(index) = entry else { continue }
+                let group = fit.group(of: entry)
+                rows.append(.pending(index))
+                if let standIn = standIns.firstIndex(where: { fit.group(ofRow: $0) == group }) {
+                    shown.append(result[standIns.remove(at: standIn)].track)
+                } else {
+                    shown.append(playlist.additions[index].track)
                 }
             }
             playlist.views = Array((playlist.views + [.init(ids: shown.map(\.id), rows: rows, read: rawView.read)]).suffix(Self.keptViews))

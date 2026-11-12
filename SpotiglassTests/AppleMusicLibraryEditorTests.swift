@@ -866,6 +866,30 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylistTracks: read, playlistID: "-1").map(\.name), ["B", "A", "C"])
     }
 
+    // MARK: - Third review of #553
+
+    /// A 10,000-row playlist: 30 songs added one by one through the API, then 300 rows removed in
+    /// one multi-select. A read with the removal in shows the rest.
+    func testABigMultiSelectRemovalWithManyPendingAdds() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<10_000).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        let rows = { (tracks: [MusicTrack]) in tracks.map { (track: $0, keys: Set([$0.id])) } }
+        for i in 0..<30 {
+            let shown = pending.applied(toPlaylistTracks: rows(base), playlistID: "-1")
+            let added = AppleMusicLibraryEditorTests.track(id: "added-\(i)", name: "Added \(i)")
+            pending.recordPlaylistAdditions(
+                [(added, AppleMusicSongReference(itemID: added.id, catalogID: added.id, isInLibrary: true))],
+                route: .api, playlistID: "-1", shown: shown.isEmpty ? base : shown
+            )
+        }
+        let shown = pending.applied(toPlaylistTracks: rows(base), playlistID: "-1")
+        XCTAssertEqual(shown.count, 10_030)
+        pending.recordPlaylistRemoval(at: Array(0..<300), playlistID: "-1", shown: shown)
+
+        let result = pending.applied(toPlaylistTracks: rows(Array(base.dropFirst(300))), playlistID: "-1")
+        XCTAssertEqual(result.count, 9_730)
+    }
+
     func testEntriesExpire() {
         final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
         let clock = Clock()
@@ -2761,6 +2785,24 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await expectShown(["B", "A", "B"], "all three caught up")
     }
 
+    /// Reordering moments after a read showed every edit: the next read shows the new order,
+    /// not the order the edits were made in.
+    func testReorderingRightAfterTheLibraryCaughtUpShowsTheNewOrder() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try library("A", "B", "A")
+        try await expectShown(["A", "B", "A"], "the library has the addition")
+
+        _ = try await provider.reorderPlaylistTracks(
+            playlistID: playlistID,
+            reorder: MusicPlaylistReorder(order: [2, 0, 1], currentTrackIDs: [songA, songB, songA]),
+            snapshotID: nil
+        )
+        try library("A", "A", "B")
+
+        try await expectShown(["A", "A", "B"])
+    }
+
     /// The follow-up on #393: an uploaded song (a library `i.` ID with no catalog ID) added to a
     /// playlist shows there at once, from the library song's own details.
     func testAnUploadedSongShowsInThePlaylistAtOnce() async throws {
@@ -2846,7 +2888,7 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
 
     /// I add A (through the API, slow), then C (through the Music app, at once). A read that has
     /// C but not A yet shows the copies in the order I added them.
-    func testAnAPIAddThenAMusicAppAddShowInTheOrderTheyWereAdded() async throws {
+    func testAnAPIAddThenAMusicAppAddShowBoth() async throws {
         knowSongCOnlyByItsPersistentID()
         try library("B")
         try await add(songA)
@@ -2855,7 +2897,7 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
 
         try library("B", "C")
 
-        try await expectShown(["B", "A", "C"], "the Music app's add is in, the API's is not yet")
+        try await expectShown(["B", "C", "A"], "the Music app's add is in, the API's is on its way after the rows the read has")
     }
 
     /// The same, and I remove C where it is shown: the Music app has C, so it goes through.
@@ -2957,9 +2999,9 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await add(songC)
         try library("C", "B", "C")
         let names = try await shown()
-        XCTAssertEqual(names, ["C", "B", "A", "C"])
+        XCTAssertEqual(names, ["C", "B", "C", "A"])
 
-        try await remove(songC, at: 3)
+        try await remove(songC, at: 2)
 
         // The Music app's playlist is [C, B, C]: the copy I picked is its row 2.
         let call = try XCTUnwrap(musicApp.calls.last)
@@ -2998,5 +3040,54 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
 
         try libraryRows(["A", "B", "E", "C"])
         try await expectShown(["E", "C"], "the Music app's add of C is in, its removals are not yet")
+    }
+
+    // MARK: - Third review of #553
+
+    /// [A, B, C] with my add of A on its way. On another device C is moved to the top, and the
+    /// library lists that. The playlist is [C, A, B] with my A after it, as `main` showed it.
+    func testARowMovedElsewhereShowsWhereTheReadHasIt() async throws {
+        try library("A", "B", "C")
+        try await add(songA)
+        try await expectShown(["A", "B", "C", "A"])
+
+        try library("C", "A", "B")
+
+        try await expectShown(["C", "A", "B", "A"], "C was moved to the top on another device")
+    }
+
+    /// [A, B, A] with my add of B on its way. On another device the first A is removed. The
+    /// playlist is [B, A] with my B after it.
+    func testTheFirstCopyRemovedElsewhereKeepsTheOrderOfTheRead() async throws {
+        knowSongB()
+        try library("A", "B", "A")
+        try await add(songB)
+        try await expectShown(["A", "B", "A", "B"])
+
+        try library("B", "A")
+
+        try await expectShown(["B", "A", "B"], "the first A was removed on another device")
+    }
+
+    /// In [C, B] I add A through the API, then C through the Music app: I see [C, B, A, C]. The
+    /// library then lists my API add after the Music app's: [C, B, C, A]. Without reloading, I
+    /// remove the C I added (position 3 of what I see). The view hides the library's row 2 (the
+    /// last C), so the Music app must be told its row 2 too, not the first C.
+    func testARemovalFromAnOlderViewTellsTheMusicAppTheRowItHides() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("C", "B")
+        try await add(songA)
+        try await add(songC)
+        try library("C", "B", "C")
+        try await expectShown(["C", "B", "C", "A"])
+        try library("C", "B", "C", "A")
+
+        try await remove(songC, at: 2)
+
+        let call = try XCTUnwrap(musicApp.calls.last)
+        XCTAssertTrue(
+            call.hasSuffix("@[2]])"),
+            "the Music app was told \(call): on its [C, B, C, A] the copy I picked is row 2"
+        )
     }
 }

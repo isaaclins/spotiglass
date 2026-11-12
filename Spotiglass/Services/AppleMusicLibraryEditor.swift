@@ -482,14 +482,15 @@ struct AppleMusicLibraryEditor: Sendable {
             guard let match = reference.musicAppMatch else {
                 throw AppleMusicLibraryEditError.notInMusicYet
             }
-            // The browser's positions count copies on their way from the cloud, which the Music
-            // app's playlist doesn't have yet.
-            let positions = pending.musicAppPositions(removal.positions, playlistID: playlistID, shown: shownTracks)
-            scripted.append(MusicAppPlaylistRemoval(track: match, positions: positions ?? removal.positions))
             // A copy added from Spotiglass shows under another of the song's IDs than the
             // library's rows do: every one of them counts as the song.
             let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
-            picked.formUnion(Self.rows(removal.positions, of: shownTracks, where: isSong, besides: picked))
+            let rows = Self.rows(removal.positions, of: shownTracks, where: isSong, besides: picked)
+            picked.formUnion(rows)
+            // The rows picked, where they sit in the Music app's own playlist: the browser's
+            // positions count copies on their way from the cloud, which it doesn't have yet.
+            let positions = rows.isEmpty ? nil : pending.musicAppPositions(rows.sorted(), playlistID: playlistID, shown: shownTracks)
+            scripted.append(MusicAppPlaylistRemoval(track: match, positions: positions ?? removal.positions))
         }
         guard !scripted.isEmpty else { return }
         // The Music app would take another copy of the song than the one picked.
@@ -537,6 +538,8 @@ struct AppleMusicLibraryEditor: Sendable {
             throw AppleMusicLibraryEditError.notInMusicYet
         }
         try await musicApp.reorderPlaylist(playlist, expectedPersistentIDs: expected, moveToEnd: moves)
+        // A record a read showed in full moments ago would lay the old order over the next reads.
+        pending.endPlaylistEdits(playlistID)
     }
 
     func renamePlaylist(playlistID: String, name: String) async throws {
