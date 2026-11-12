@@ -110,7 +110,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         Task { @MainActor in
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 2)
+        wait(for: [expectation], timeout: mustHappenTimeout)
 
         XCTAssertEqual(shuffled, 1)
         XCTAssertEqual(repeated, 1)
@@ -151,7 +151,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
             }
 
             manager.execute(commandID: CommandPaletteCommandID.cycleRepeat)
-            await fulfillment(of: [advanced], timeout: 2)
+            await fulfillment(of: [advanced], timeout: mustHappenTimeout)
             XCTAssertEqual(mode, expectedMode)
         }
     }
@@ -196,7 +196,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         }
 
         manager.requestRepeatMode(.track)
-        await fulfillment(of: [selected], timeout: 2)
+        await fulfillment(of: [selected], timeout: mustHappenTimeout)
 
         XCTAssertEqual(selectedMode, .track)
     }

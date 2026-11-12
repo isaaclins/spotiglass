@@ -78,7 +78,7 @@ final class CommandPaletteManagerTests: XCTestCase {
             expectation.fulfill()
         }
         manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("abc123")])
-        await fulfillment(of: [expectation], timeout: 2)
+        await fulfillment(of: [expectation], timeout: mustHappenTimeout)
         XCTAssertEqual(receivedID, "abc123")
     }
 
@@ -96,7 +96,7 @@ final class CommandPaletteManagerTests: XCTestCase {
             commandID: CommandPaletteCommandID.openArtist,
             args: ["artistID": .string("abc123"), "artistName": .string("Bonobo")]
         )
-        await fulfillment(of: [expectation], timeout: 2)
+        await fulfillment(of: [expectation], timeout: mustHappenTimeout)
         XCTAssertEqual(receivedName, "Bonobo")
     }
 
@@ -117,7 +117,7 @@ final class CommandPaletteManagerTests: XCTestCase {
                 "artworkURL": .string("https://example.com/album.png"),
             ]
         )
-        await fulfillment(of: [opened], timeout: 2)
+        await fulfillment(of: [opened], timeout: mustHappenTimeout)
         XCTAssertEqual(received?.id, "album-1")
         XCTAssertEqual(received?.title, "Night Drive")
         XCTAssertEqual(received?.subtitle, "M83")
@@ -140,12 +140,12 @@ final class CommandPaletteManagerTests: XCTestCase {
         let signOut = expectation(description: "signOut")
         manager.signOut = { signOut.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.signOut)
-        await fulfillment(of: [signOut], timeout: 2)
+        await fulfillment(of: [signOut], timeout: mustHappenTimeout)
 
         let settings = expectation(description: "settings")
         manager.openSettings = { settings.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.openSettings)
-        await fulfillment(of: [settings], timeout: 2)
+        await fulfillment(of: [settings], timeout: mustHappenTimeout)
 
         manager.connectPlayback = { }
         manager.execute(commandID: CommandPaletteCommandID.connectPlayback)
@@ -153,7 +153,7 @@ final class CommandPaletteManagerTests: XCTestCase {
         let next = expectation(description: "next")
         manager.selectNextPlaylist = { next.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.selectNextPlaylist)
-        await fulfillment(of: [next], timeout: 2)
+        await fulfillment(of: [next], timeout: mustHappenTimeout)
 
         let playURI = expectation(description: "playURI")
         manager.playURI = { uri in
@@ -161,7 +161,7 @@ final class CommandPaletteManagerTests: XCTestCase {
             playURI.fulfill()
         }
         manager.execute(commandID: "playback.playURI", args: ["uri": .string("spotify:track:1")])
-        await fulfillment(of: [playURI], timeout: 2)
+        await fulfillment(of: [playURI], timeout: mustHappenTimeout)
 
         var filtered: String?
         manager.filterByArtist = { filtered = $0 }
@@ -391,7 +391,7 @@ final class CommandPaletteManagerTests: XCTestCase {
             manager.execute(commandID: CommandPaletteCommandID.togglePlayback)
         }
 
-        await fulfillment(of: [dispatched], timeout: 2)
+        await fulfillment(of: [dispatched], timeout: mustHappenTimeout)
     }
 
 }

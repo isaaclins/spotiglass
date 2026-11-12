@@ -114,7 +114,20 @@ struct SpotifyAuthSettings {
 
     var clientID: String {
         get { defaults.string(forKey: clientIDKey) ?? "" }
-        set { defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: clientIDKey) }
+        set {
+            let clientID = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            // A launch argument (`-spotify.clientID <id>`, which screenshot mode uses) is read back
+            // here like a saved value, so the client ID field hands it straight back to this setter.
+            // Saving it would keep that one launch's ID in the real settings for every later launch.
+            guard clientID != launchArgumentClientID else { return }
+            defaults.set(clientID, forKey: clientIDKey)
+        }
+    }
+
+    /// The client ID passed on the command line for this launch, if any. Never saved.
+    private var launchArgumentClientID: String? {
+        (defaults.volatileDomain(forName: UserDefaults.argumentDomain)[clientIDKey] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     var grantedScope: String? {

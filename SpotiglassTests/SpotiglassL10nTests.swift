@@ -104,7 +104,7 @@ final class SpotiglassL10nTests: XCTestCase {
             result.withLock { $0 = (value, Thread.isMainThread) }
             done.fulfill()
         }
-        wait(for: [done], timeout: 5)
+        wait(for: [done], timeout: mustHappenTimeout)
         let outcome = result.withLock { $0 }!
         XCTAssertFalse(outcome.onMain)
         return outcome.value

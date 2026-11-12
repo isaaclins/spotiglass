@@ -23,11 +23,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let track = sampleTrack()
         let loadTask = Task { await lyrics.load(track: track) }
 
-        let fetchDidStart = await fetchStarted.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            fetchDidStart,
-            "lyrics fetch should start before the loading assertion"
-        )
+        // lyrics fetch should start before the loading assertion
+        await fetchStarted.wait()
         XCTAssertTrue(lyrics.phase == .loading, "lyrics should enter loading before the fetch completes")
         guard case .loading = lyrics.phase else {
             return XCTFail("expected .loading, got \(lyrics.phase)")
@@ -594,11 +591,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertTrue(stillWaiting, "the idle wait ended before its time")
         XCTAssertFalse(controller.isAutoCentering, "auto-centering came back before the idle period ended")
         clock.advance(by: .milliseconds(1))
-        let didResume = await resumeSignal.wait(timeout: .seconds(30))
-        XCTAssertTrue(
-            didResume,
-            "auto-centering should resume after the idle period"
-        )
+        // auto-centering should resume after the idle period
+        await resumeSignal.wait()
         XCTAssertTrue(controller.isAutoCentering)
     }
 

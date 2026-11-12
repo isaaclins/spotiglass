@@ -219,8 +219,7 @@ final class QueuePanelTests: XCTestCase {
 
         api.fetchQueueDelayNanoseconds = 150_000_000
         let refreshTask = Task { await queue.refreshQueue() }
-        let fetchStarted = await api.fetchQueueSignal.wait(timeout: .seconds(1))
-        XCTAssertTrue(fetchStarted)
+        await api.fetchQueueSignal.wait()
         queue.isPanelVisible = false
 
         await playback.disconnect()
@@ -273,8 +272,7 @@ final class QueuePanelTests: XCTestCase {
         api.errorToThrow = SpotifyAPIError.unauthorized
 
         let refreshTask = Task { await queue.refreshQueue() }
-        let fetchStarted = await api.fetchQueueSignal.wait(timeout: .seconds(1))
-        XCTAssertTrue(fetchStarted)
+        await api.fetchQueueSignal.wait()
         queue.isPanelVisible = false
 
         await playback.disconnect()
@@ -550,8 +548,8 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
-        let didFetchQueue = await api.fetchQueueSignal.wait(timeout: .seconds(30))
-        XCTAssertTrue(didFetchQueue, "Adding to the queue must trigger a queue refresh.")
+        // Adding to the queue must trigger a queue refresh.
+        await api.fetchQueueSignal.wait()
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
@@ -737,11 +735,8 @@ final class QueuePanelTests: XCTestCase {
         }
 
         let toggleTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleFetch = await slowFetchStarted.wait(timeout: .seconds(30))
-        XCTAssertTrue(
-            didStartShuffleFetch,
-            "shuffle should start queue reconciliation after applying its optimistic order"
-        )
+        // shuffle should start queue reconciliation after applying its optimistic order
+        await slowFetchStarted.wait()
         XCTAssertNotEqual(
             queue.upcomingItems.map(\.id),
             original,
@@ -774,11 +769,8 @@ final class QueuePanelTests: XCTestCase {
             slowFetchStarted.signal()
         }
         let offTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleOffFetch = await slowFetchStarted.wait(timeout: .seconds(30))
-        XCTAssertTrue(
-            didStartShuffleOffFetch,
-            "turning shuffle off should start queue reconciliation after restoring its snapshot"
-        )
+        // turning shuffle off should start queue reconciliation after restoring its snapshot
+        await slowFetchStarted.wait()
         XCTAssertEqual(
             queue.upcomingItems.map(\.id),
             original,
@@ -983,11 +975,8 @@ final class QueuePanelTests: XCTestCase {
             pollFetchStarted.signal()
         }
         queue.restartPollingIfNeeded()
-        let didStartPollFetch = await pollFetchStarted.wait(timeout: .seconds(30))
-        XCTAssertTrue(
-            didStartPollFetch,
-            "active queue polling should issue a fetch"
-        )
+        // active queue polling should issue a fetch
+        await pollFetchStarted.wait()
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         let pollTask = queue.pollTask

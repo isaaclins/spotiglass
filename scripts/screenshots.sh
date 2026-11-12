@@ -279,6 +279,13 @@ stop() {
             -e 'tell application "System Events" to keystroke "q" using command down' >/dev/null 2>&1 || true
         sleep 2
         kill "$pid" 2>/dev/null || true
+        # The app saves settings while it quits (a text field ends editing as its window closes).
+        # Put the real app's defaults back only once it is gone, or such a write lands after them.
+        for _ in $(seq 1 40); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.25
+        done
+        if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; fi
     fi
     [ -f "$WORK/mock.pid" ] && { kill "$(cat "$WORK/mock.pid")" 2>/dev/null || true; rm -f "$WORK/mock.pid"; }
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true

@@ -154,8 +154,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 92_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
         await viewModel.seek(to: 93_000)
         releaseFirstSeek.signal()
         await viewModel.seekDispatchTask?.value
@@ -284,8 +283,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 10_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
 
         await viewModel.seek(to: 20_000)
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
@@ -342,8 +340,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 10_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
 
         let oldHostGeneration = viewModel.playbackHostGeneration
         let newHostGeneration = viewModel.beginPlaybackHostLifecycle()
@@ -790,11 +787,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             if enabled { firstShuffleStarted.signal() }
         }
         let firstToggle = Task { await viewModel.toggleShuffle() }
-        let didStartFirstShuffle = await firstShuffleStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartFirstShuffle,
-            "the first shuffle write should be in flight before the second toggle"
-        )
+        // the first shuffle write should be in flight before the second toggle
+        await firstShuffleStarted.wait()
         let secondToggle = Task { await viewModel.toggleShuffle() }
         await firstToggle.value
         await secondToggle.value

@@ -24,7 +24,7 @@ final class MusicServiceStoreTests: XCTestCase {
     private func drainMainQueue() {
         let drained = expectation(description: "main queue drained")
         DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: 1)
+        wait(for: [drained], timeout: mustHappenTimeout)
     }
 
     private func makeDefaults() -> UserDefaults {
@@ -401,7 +401,7 @@ final class MusicServiceStoreTests: XCTestCase {
         _ = (item.target as? NSObject)?.perform(item.action, with: item)
         let ran = expectation(description: "menu action runs after the menu closes")
         DispatchQueue.main.async { ran.fulfill() }
-        wait(for: [ran], timeout: 1)
+        wait(for: [ran], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.appleMusic])
     }
 
@@ -425,7 +425,7 @@ final class MusicServiceStoreTests: XCTestCase {
         _ = (addItem.target as? NSObject)?.perform(addItem.action, with: addItem)
         let ran = expectation(description: "add runs")
         DispatchQueue.main.async { ran.fulfill() }
-        wait(for: [ran], timeout: 1)
+        wait(for: [ran], timeout: mustHappenTimeout)
         XCTAssertEqual(added, [.appleMusic])
         XCTAssertNil(MusicServiceMenuItem.separator.title)
         withExtendedLifetime(anchor) {}
@@ -636,7 +636,7 @@ final class PlaybackHandoverTests: XCTestCase {
 
         appleMusic.playbackViewModel.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
         await appleMusic.playbackViewModel.play(uri: "applemusic:song:1")
-        for _ in 0..<20 where pauses(commander) == 0 {
+        while pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
 
@@ -659,7 +659,7 @@ final class PlaybackHandoverTests: XCTestCase {
         )))
 
         await appleMusic.togglePlayPause()
-        for _ in 0..<20 where pauses(commander) == 0 {
+        while pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
 

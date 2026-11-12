@@ -172,7 +172,7 @@ final class CollectionContextMenuTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistPendingDeletion, ownPlaylist, "asks first, like the sidebar")
 
         try tile.inspect().find(button: editTitle).tap()
-        for _ in 0..<50 where viewModel.playlistNameEditRequestID == nil {
+        while viewModel.playlistNameEditRequestID == nil {
             await Task.yield()
         }
         XCTAssertEqual(viewModel.playlistNameEditRequestID, ownPlaylist.id)
@@ -350,7 +350,7 @@ final class CollectionContextMenuTests: XCTestCase {
 
         // The row's name turns into the rename field, filled with the current name.
         var field: NSTextField?
-        for _ in 0..<25 where field == nil {
+        while field == nil {
             AppKitTestSupport.pumpRunLoop(for: 0.04)
             field = textFields(in: host.view).first { $0.isEditable }
         }

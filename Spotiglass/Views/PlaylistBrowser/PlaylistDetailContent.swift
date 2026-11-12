@@ -20,7 +20,7 @@ enum PlaylistDetailHeaderPinning {
         return .playlist(
             MusicPlaylistSummary(
                 id: playlist.id,
-                name: playlist.title,
+                name: playlist.playlistName,
                 ownerID: playlist.ownerID,
                 ownerName: playlist.owner,
                 imageURL: playlist.artworkURL,

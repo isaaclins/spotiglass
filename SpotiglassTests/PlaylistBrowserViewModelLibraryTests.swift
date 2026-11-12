@@ -97,9 +97,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let events = LockedEvents()
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:], profileHandler: {
             events.append("profile asked")
-            // Held until the detail load reaches the API (or two seconds pass, which is what
-            // a profile awaited in front of the detail load runs into).
-            for _ in 0..<200 where !events.contains("detail asked") {
+            // Held until the detail load reaches the API. A load that awaited the profile in
+            // front of the detail never gets there and runs into the per-test time limit.
+            while !events.contains("detail asked") {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
             events.append("profile answered")
@@ -697,8 +697,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectSidebar(.likedSongs)
-        let didStartSavedTracks = await savedTracksStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartSavedTracks)
+        await savedTracksStarted.wait()
         async let second: Void = viewModel.selectSidebar(.likedSongs)
         releaseSavedTracks.signal()
         _ = await (first, second)
@@ -725,8 +724,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             await releasePlaylists.wait()
         }
         async let first: Void = viewModel.unifiedRefreshMainSurface()
-        let didStartPlaylists = await playlistsStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartPlaylists)
+        await playlistsStarted.wait()
         async let second: Void = viewModel.unifiedRefreshMainSurface()
         releasePlaylists.signal()
         _ = await (first, second)
@@ -910,6 +908,52 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             XCTFail("Expected reverted playlist detail")
         }
         XCTAssertEqual(viewModel.trackMutationToast, "Offline")
+    }
+
+    /// A failed rename of a playlist without a name puts the blank name back, not the stand-in it
+    /// showed, so it keeps following the language (#547).
+    func testAFailedRenameOfAPlaylistWithoutANameKeepsItUnnamed() async {
+        let playlist = MusicPlaylistSummary(
+            id: "nameless", name: "", ownerID: "u", ownerName: "Me",
+            imageURL: nil, trackCount: 0, snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            updatePlaylistHandler: { _, _ in
+                throw SpotifyAPIError.network("Offline")
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+
+        await viewModel.renamePlaylist(id: playlist.id, name: "Road Trip")
+
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.nameAsSent, "")
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.isUnnamed, true)
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.isUnnamed, true)
+        XCTAssertEqual(viewModel.trackMutationToast, "Offline")
+    }
+
+    /// The rename field starts with the stand-in a nameless playlist shows; confirming it unchanged
+    /// must not save the stand-in as its name (#547).
+    func testConfirmingANamelessPlaylistsStandInUnchangedRenamesNothing() async {
+        let playlist = MusicPlaylistSummary(
+            id: "nameless", name: "", ownerID: "u", ownerName: "Me",
+            imageURL: nil, trackCount: 0, snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+
+        await viewModel.renamePlaylist(id: playlist.id, name: playlist.name)
+
+        XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.nameAsSent, "")
     }
 
     func testRenamePlaylistRejectsBlankNamesAndNonOwnedPlaylists() async {
