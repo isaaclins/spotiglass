@@ -139,7 +139,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
 
         let artist = MusicArtistDetail(
             id: "force-1",
-            name: "Force",
+            name: "Name From The Cache",
             imageURL: nil,
             followersTotal: 0,
             genres: [],
@@ -162,6 +162,8 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
             return XCTFail("expected loaded artist after force refresh")
         }
         XCTAssertEqual(detail.artist.id, "force-1")
+        XCTAssertEqual(detail.artist.name, "Artist force-1", "a forced refresh showed the cached artist")
+        XCTAssertEqual(api.artistAlbumsPageCallCount, 1, "a forced refresh must ask the network")
     }
 
     /// A snapshot older than the cache's lifetime isn't shown: opening the artist asks the
