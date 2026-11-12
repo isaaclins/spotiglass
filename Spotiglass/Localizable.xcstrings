@@ -3727,6 +3727,75 @@
         }
       }
     },
+    "browser.unavailableReason.episode": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episode ist nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episode is unavailable."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El episodio no está disponible."
+          }
+        }
+      }
+    },
+    "browser.unavailableReason.noPlayableContent": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist-Eintrag hat keinen abspielbaren Inhalt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist item has no playable content."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El elemento de la lista no tiene contenido reproducible."
+          }
+        }
+      }
+    },
+    "browser.unavailableReason.track": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel ist nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track is unavailable."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La canción no está disponible."
+          }
+        }
+      }
+    },
     "browser.unpin": {
       "extractionState": "stale",
       "localizations": {
@@ -4505,6 +4574,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inicia sesión de nuevo"
+          }
+        }
+      }
+    },
+    "error.browsing.unsupported": {
+      "comment": "Shown when a browsing or library request the current music service doesn't offer gets through anyway. Names no service.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist mit diesem Musikdienst nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This isn't available with this music service."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto no está disponible con este servicio de música."
           }
         }
       }

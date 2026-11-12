@@ -37,7 +37,7 @@ enum PlaylistDetailHeaderPinning {
 
 struct PlaylistDetailContent: View {
     let detail: PlaylistDetailViewModel
-    var currentUserSpotifyID: String?
+    var currentUserID: String?
     @Binding var pendingScrollRestoreTrackID: String?
     let onTrackEnteredViewportApproximation: (String) -> Void
     let playURI: (String) -> Void
@@ -74,7 +74,7 @@ struct PlaylistDetailContent: View {
 
     init(
         detail: PlaylistDetailViewModel,
-        currentUserSpotifyID: String? = nil,
+        currentUserID: String? = nil,
         pendingScrollRestoreTrackID: Binding<String?>,
         onTrackEnteredViewportApproximation: @escaping (String) -> Void,
         playURI: @escaping (String) -> Void,
@@ -90,7 +90,7 @@ struct PlaylistDetailContent: View {
         browserViewModel: PlaylistBrowserViewModel
     ) {
         self.detail = detail
-        self.currentUserSpotifyID = currentUserSpotifyID
+        self.currentUserID = currentUserID
         _pendingScrollRestoreTrackID = pendingScrollRestoreTrackID
         self.onTrackEnteredViewportApproximation = onTrackEnteredViewportApproximation
         self.playURI = playURI
@@ -122,7 +122,7 @@ struct PlaylistDetailContent: View {
 
     private var canRenamePlaylist: Bool {
         guard detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              let currentUserID = currentUserSpotifyID,
+              let currentUserID = currentUserID,
               !currentUserID.isEmpty
         else { return false }
         return detail.playlist.ownerID == currentUserID
@@ -263,7 +263,7 @@ struct PlaylistDetailContent: View {
                 playlistTitle
 
                 Text(detail.playlist.ownerTracksLine(
-                    currentUserID: currentUserSpotifyID,
+                    currentUserID: currentUserID,
                     locale: spotiglassLocale
                 ).nonEmptyLine)
                     .foregroundStyle(.secondary)

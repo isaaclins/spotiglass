@@ -111,7 +111,7 @@ extension PlaybackSessionViewModel {
                     // denied request and put the existing Account ▸ Reconnect
                     // path in front of the user instead of leaving an empty
                     // transport behind.
-                    setConnectionState(.error(Self.displayError(for: error)))
+                    setConnectionState(.error(Self.displayError(for: error, service: service)))
                     transportTransientErrorCount = 0
                     transportRateLimitedUntil = nil
                     break

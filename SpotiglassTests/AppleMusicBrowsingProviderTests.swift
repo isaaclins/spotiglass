@@ -387,7 +387,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
                 environment: environment,
                 loadedContextTracks: nil,
                 visiblePlaylists: [row],
-                currentUserSpotifyID: AppleMusicBrowsingProvider.libraryUserID
+                currentUserID: AppleMusicBrowsingProvider.libraryUserID
             )
             XCTAssertEqual(results.myPlaylists.map { $0.id }, ["playlist-p.F523Lk2MnB"], "library search fails: \(libraryFails)")
             XCTAssertEqual(

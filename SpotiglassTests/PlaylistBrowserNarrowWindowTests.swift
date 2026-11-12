@@ -24,7 +24,11 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         try await assertNoColumnIsCutOff(service: .appleMusic)
     }
 
-    private func assertNoColumnIsCutOff(service: MusicService) async throws {
+    /// The browser in a window the test resizes, set up as each service shows it.
+    private func hostBrowser(
+        service: MusicService,
+        likeTheAppsWindow: Bool = false
+    ) async throws -> (NSHostingController<AnyView>, NSWindow, BrowserWidthSampler) {
         let api = MockBrowsingAPI(
             playlistResults: [.success([
                 PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
@@ -66,11 +70,24 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         .environmentObject(settings)
         .environmentObject(LyricsOverlayController())
 
-        // The window takes each width the test gives it, and the sidebar collapses and comes
-        // back without animation, so each width is read at its final layout (#532).
-        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 600), measuresLayout: true)
+        // By default the window takes each width the test gives it, and the sidebar collapses
+        // and comes back without animation, so each width is read at its final layout (#532).
+        let controller = ViewTestHost.host(
+            view, size: CGSize(width: 900, height: 600), measuresLayout: !likeTheAppsWindow
+        )
         let window = try XCTUnwrap(controller.view.window)
+        if likeTheAppsWindow {
+            // As the app's window: resizable, and its minimum size follows the content's
+            // (`.windowResizability(.contentMinSize)`), so AppKit can grow it for a column.
+            window.styleMask.insert(.resizable)
+            controller.sizingOptions = [.minSize]
+        }
         AppKitTestSupport.pumpRunLoop(for: 0.5)
+        return (controller, window, sampler)
+    }
+
+    private func assertNoColumnIsCutOff(service: MusicService) async throws {
+        let (controller, window, sampler) = try await hostBrowser(service: service)
 
         var collapsedAt: [CGFloat] = []
         for width in Self.widths {
@@ -89,7 +106,7 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             let detailFrame = detail.convert(detail.bounds, to: controller.view)
             XCTAssertGreaterThanOrEqual(detailFrame.minX, bounds.minX - 0.5, "split view cut off at \(width) pt")
             XCTAssertLessThanOrEqual(detailFrame.maxX, bounds.maxX + 0.5, "detail column cut off at \(width) pt")
-            if split.isSubviewCollapsed(sidebar) || sidebar.isHidden || sidebar.frame.width < 1 {
+            if Self.isCollapsed(sidebar, in: split) {
                 collapsedAt.append(width)
                 XCTAssertGreaterThanOrEqual(
                     detailFrame.width, SpotiglassDesign.detailColumnMinWidth - 0.5, "detail column at \(width) pt"
@@ -138,6 +155,57 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         )
     }
 
+    /// A window shrunk to 600 pt and widened again in 5 pt steps, the way a window manager sets
+    /// sizes from code. The sidebar came back where 280 pt of it would fit next to the detail
+    /// column, but it comes back at its 320 pt, so macOS grew the window by the sidebar's width
+    /// to make room: 640 pt became 961 (#490). It has to come back inside the width the window
+    /// has, and the window keeps every width it's given.
+    func testWideningBringsTheSidebarBackWithoutGrowingTheWindowWithSpotify() async throws {
+        try await assertWideningKeepsTheWindowWidth(service: .spotify)
+    }
+
+    func testWideningBringsTheSidebarBackWithoutGrowingTheWindowWithAppleMusic() async throws {
+        try await assertWideningKeepsTheWindowWidth(service: .appleMusic)
+    }
+
+    private func assertWideningKeepsTheWindowWidth(service: MusicService) async throws {
+        let (controller, window, sampler) = try await hostBrowser(service: service, likeTheAppsWindow: true)
+        let widths: [CGFloat] = [600] + stride(from: 605, through: 760, by: 5).map { CGFloat($0) }
+        var cameBackAt: CGFloat?
+        for width in widths {
+            window.setContentSize(CGSize(width: width, height: 600))
+            controller.view.layoutSubtreeIfNeeded()
+            Self.waitForCommittedWidth(width, sampler)
+            // The browser decides at the commit; the split view shows it a layout pass later.
+            Self.waitForSidebarToShowDecision(at: width, in: controller, sampler)
+
+            XCTAssertEqual(
+                window.contentLayoutRect.width, width, accuracy: 0.5,
+                "the window grew by itself after the test set it to \(width) pt"
+            )
+            let split = try XCTUnwrap(Self.splitView(in: controller.view), "no split view at \(width) pt")
+            guard let sidebar = split.arrangedSubviews.first else { continue }
+            let collapsed = Self.isCollapsed(sidebar, in: split)
+            if width == 600 {
+                XCTAssertTrue(collapsed, "the sidebar didn't collapse at 600 pt")
+            }
+            guard !collapsed else { continue }
+            if cameBackAt == nil { cameBackAt = width }
+            // Back inside the window it has, next to the detail column at its minimum. Where it
+            // doesn't fit, a real window grows by itself to make room.
+            let sidebarFrame = sidebar.convert(sidebar.bounds, to: controller.view)
+            let bounds = controller.view.bounds
+            XCTAssertGreaterThanOrEqual(
+                sidebarFrame.minX, bounds.minX - 0.5, "the sidebar runs past the window at \(width) pt (\(sidebarFrame))"
+            )
+            XCTAssertLessThanOrEqual(
+                sidebarFrame.maxX + SpotiglassDesign.detailColumnMinWidth, bounds.maxX + 0.5,
+                "no room for the detail column next to the sidebar at \(width) pt (sidebar \(sidebarFrame))"
+            )
+        }
+        XCTAssertNotNil(cameBackAt, "the sidebar never came back up to 760 pt")
+    }
+
     /// Waits until the browser has committed the width the window ends on, directly or by the
     /// trailing commit's run loop timer, however late a busy machine fires it (#510).
     private static func waitForCommittedWidth(
@@ -150,6 +218,38 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             abs(sampler.latestWidth - width) < 0.5 && sampler.trailingCommit == nil
         })
         XCTAssertTrue(committed, "the browser never committed \(width) pt (latest \(sampler.latestWidth))", file: file, line: line)
+    }
+
+    /// Waits until the split view shows what the browser decided for the committed width:
+    /// the sidebar collapsed below the width where it fits next to the detail column, and shown
+    /// at or above it. Waiting for that instead of for a fixed time reads every width at the
+    /// layout it ends on, however late a busy machine gets to the next pass.
+    private static func waitForSidebarToShowDecision(
+        at width: CGFloat,
+        in controller: NSHostingController<AnyView>,
+        _ sampler: BrowserWidthSampler,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let shouldShow = !BrowserWidthCommitPolicy.mutualExclusionWidth(
+            for: sampler.committedWidth,
+            comfortableMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth(
+                sidebarWidth: sampler.playlistSidebarWidth
+            )
+        )
+        let shown = AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            guard let split = splitView(in: controller.view), let sidebar = split.arrangedSubviews.first
+            else { return false }
+            return isCollapsed(sidebar, in: split) != shouldShow
+        })
+        XCTAssertTrue(
+            shown, "the sidebar never \(shouldShow ? "came back" : "collapsed") at \(width) pt", file: file, line: line
+        )
+    }
+
+    private static func isCollapsed(_ sidebar: NSView, in split: NSSplitView) -> Bool {
+        split.isSubviewCollapsed(sidebar) || sidebar.isHidden || sidebar.frame.width < 1
     }
 
     private static func splitView(in view: NSView) -> NSSplitView? {

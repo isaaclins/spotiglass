@@ -31,8 +31,8 @@ extension QueueViewModel {
         }
         while true {
             guard shouldAllowQueueRequest(trigger: nextTrigger, allowsHiddenPanel: nextAllowsHiddenPanel) else { break }
-            if let cooldownUntil = queueCooldownUntil, cooldownUntil > Date() {
-                lastError = Self.rateLimitDisplayError(retryAfter: cooldownUntil.timeIntervalSinceNow)
+            if let cooldownUntil = queueCooldownUntil, cooldownUntil > clock.now {
+                lastError = Self.rateLimitDisplayError(retryAfter: clock.now.duration(to: cooldownUntil).timeInterval)
                 pendingRefreshRequested = false
                 pendingRefreshAllowsHiddenPanel = false
                 pendingRefreshTrigger = .poll
@@ -67,14 +67,14 @@ extension QueueViewModel {
                     if case let .rateLimited(retryAfter) = MusicPlaybackError.from(error)?.reason {
                         let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
                         let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
-                        queueCooldownUntil = Date().addingTimeInterval(effectiveRetry)
+                        queueCooldownUntil = clock.now.advanced(by: .seconds(effectiveRetry))
                     }
                     // A queue refresh that is superseded by a newer one (e.g. the
                     // poll task is restarted because the user paused/unpaused) shows
                     // up here as a CancellationError or URLError.cancelled. Those
                     // are not real failures from the user's perspective, so don't
                     // surface them as a "Queue update failed" banner.
-                    if let mapped = Self.displayError(for: error) {
+                    if let mapped = Self.displayError(for: error, service: provider.service) {
                         lastError = mapped
                     }
                     responseApplied = true
@@ -197,8 +197,8 @@ extension QueueViewModel {
             let multiplier = pow(1.5, Double(backoffStep))
             base = UInt64(min(Double(maxPollIntervalNanoseconds), Double(base) * multiplier))
         }
-        if let cooldownUntil = queueCooldownUntil, cooldownUntil > Date() {
-            let cooldownNanoseconds = UInt64(max(0, cooldownUntil.timeIntervalSinceNow) * 1_000_000_000)
+        if let cooldownUntil = queueCooldownUntil, cooldownUntil > clock.now {
+            let cooldownNanoseconds = UInt64(max(0, clock.now.duration(to: cooldownUntil).timeInterval) * 1_000_000_000)
             base = max(base, cooldownNanoseconds)
         }
         guard pollJitterFraction > 0 else { return base }
@@ -370,7 +370,9 @@ extension QueueViewModel {
 
     /// Maps an underlying error to a user-visible banner, or returns nil for
     /// silent classes of error (cancellation from a superseded refresh).
-    static func displayError(for error: Error) -> BrowsingDisplayError? {
+    /// `service` is the player whose queue failed; it names the service when the error itself
+    /// doesn't (a dropped connection).
+    static func displayError(for error: Error, service: MusicService = MusicServiceSelection.current) -> BrowsingDisplayError? {
         if error is CancellationError {
             return nil
         }
@@ -380,7 +382,10 @@ extension QueueViewModel {
         guard let playbackError = MusicPlaybackError.from(error) else {
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), SpotifyAPIError.userMessage(for: error)),
+                message: String(
+                    format: SpotiglassL10n.string("error.queue.updateFailed.message"),
+                    MusicServiceErrorText.userMessage(for: error, service: service)
+                ),
                 canRetry: true,
                 diagnosticDetails: String(describing: error)
             )

@@ -107,7 +107,7 @@ struct PlaylistsSidebarSectionContent: View {
         playbackViewModel.playlistRow(SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID) { mark in
             PlaylistListRow(
                 playlist: likedSongsStubRow,
-                currentUserSpotifyID: viewModel.currentUserSpotifyID,
+                currentUserID: viewModel.currentUserID,
                 isActive: mark.isActive,
                 isPlaying: mark.isPlaying,
                 isListSelected: viewModel.sidebarSelection == .likedSongs,
@@ -125,7 +125,7 @@ struct PlaylistsSidebarSectionContent: View {
         playbackViewModel.playlistRow(playlist.id) { mark in
             PlaylistListRow(
                 playlist: playlist,
-                currentUserSpotifyID: viewModel.currentUserSpotifyID,
+                currentUserID: viewModel.currentUserID,
                 isActive: mark.isActive,
                 isPlaying: mark.isPlaying,
                 isListSelected: viewModel.sidebarSelection == .playlist(playlist.id),

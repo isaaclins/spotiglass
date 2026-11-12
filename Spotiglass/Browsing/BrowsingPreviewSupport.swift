@@ -11,7 +11,7 @@ struct PreviewBrowsingAPI: MusicBrowsingProvider {
     }
 
     func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
-        throw SpotifyAPIError.invalidRequest("Preview does not load artists.")
+        throw MusicBrowsingError(unsupportedOperation: "Preview artist")
     }
 
     func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
@@ -94,7 +94,7 @@ struct PreviewBrowsingAPI: MusicBrowsingProvider {
     }
 }
 
-struct PreviewBrowsingCache: SpotifyBrowsingCache {
+struct PreviewBrowsingCache: MusicBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [MusicPlaylistTrackItem]? { nil }

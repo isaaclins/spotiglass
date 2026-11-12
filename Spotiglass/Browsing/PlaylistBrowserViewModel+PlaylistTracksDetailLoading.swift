@@ -188,7 +188,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func playlistIsOwnedByCurrentUser(_ playlist: MusicPlaylistSummary) -> Bool {
-        guard let currentUserSpotifyID, !currentUserSpotifyID.isEmpty else { return false }
-        return currentUserSpotifyID == playlist.ownerID
+        guard let currentUserID, !currentUserID.isEmpty else { return false }
+        return currentUserID == playlist.ownerID
     }
 }

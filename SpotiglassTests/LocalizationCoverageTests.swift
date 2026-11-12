@@ -349,6 +349,44 @@ final class LocalizationCoverageTests: XCTestCase {
         }
     }
 
+    /// A playlist entry Spotify can't play said why in English under the translated badge (#492).
+    /// Decodes the real playlist-items shape (a removed track, a removed episode and an empty
+    /// entry), plus rows cached by earlier builds that stored the English sentence.
+    func testUnavailablePlaylistRowReasonsFollowSelectedLocale() throws {
+        let response = #"""
+        [{"is_local":false,"item":{"type":"track","id":null,"name":"","uri":null}},
+         {"is_local":false,"item":{"type":"episode","id":null,"name":"","uri":null}},
+         {"is_local":false,"item":null,"track":null}]
+        """#
+        let fetched = try JSONDecoder().decode([SpotifyPlaylistTrackItemDTO].self, from: Data(response.utf8))
+            .enumerated()
+            .map { $0.element.domainModel(position: $0.offset) }
+        let cachedBefore492 = #"""
+        [{"id":"a","content":{"unavailable":{"reason":"Track is unavailable."}}},
+         {"id":"b","content":{"unavailable":{"reason":"Episode is unavailable."}}},
+         {"id":"c","content":{"unavailable":{"reason":"Playlist item has no playable content."}}}]
+        """#
+        let cached = try JSONDecoder().decode([MusicPlaylistTrackItem].self, from: Data(cachedBefore492.utf8))
+
+        let expected: [AppLanguage: [String]] = [
+            .english: ["Track is unavailable.", "Episode is unavailable.", "Playlist item has no playable content."],
+            .german: ["Titel ist nicht verfügbar.", "Episode ist nicht verfügbar.", "Playlist-Eintrag hat keinen abspielbaren Inhalt."],
+            .spanish: [
+                "La canción no está disponible.",
+                "El episodio no está disponible.",
+                "El elemento de la lista no tiene contenido reproducible."
+            ]
+        ]
+        for language in [AppLanguage.english, .german, .spanish] {
+            try store.mutate { $0.appearance.language = language }
+            for (source, items) in [("fetched", fetched), ("cached", cached)] {
+                let rows = TrackRowViewModel.numberedPlaylistRows(items)
+                XCTAssertEqual(rows.map(\.subtitle), expected[language], "\(source) rows in \(language.rawValue)")
+                XCTAssertTrue(rows.allSatisfy(\.isUnavailable), "\(source) rows in \(language.rawValue)")
+            }
+        }
+    }
+
     /// One word per concept per language (#158).
     ///
     /// German said Song in one key and Titel in another, Spanish said canción

@@ -25,7 +25,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
         environment: PlaylistBrowserPaletteSearchEnvironment,
         loadedContextTracks: [TrackRowViewModel]?,
         visiblePlaylists: [PlaylistRowViewModel],
-        currentUserSpotifyID: String?
+        currentUserID: String?
     ) async throws -> CommandPaletteSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -55,7 +55,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             visiblePlaylists: visiblePlaylists,
             trimmedQuery: trimmed,
             environment: environment,
-            currentUserSpotifyID: currentUserSpotifyID
+            currentUserID: currentUserID
         )
         if category == .myPlaylists {
             return mapped
@@ -76,7 +76,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 subtitle: PlaylistOwnerDisplay.palettePlaylistSubtitle(
                     ownerName: playlist.ownerName,
                     ownerID: playlist.ownerID,
-                    currentUserID: currentUserSpotifyID
+                    currentUserID: currentUserID
                 ),
                 iconSystemName: "music.note.list",
                 section: .playlists,
@@ -145,7 +145,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
         environment: PlaylistBrowserPaletteSearchEnvironment,
         loadedContextTracks: [TrackRowViewModel]?,
         visiblePlaylists: [PlaylistRowViewModel],
-        currentUserSpotifyID: String?
+        currentUserID: String?
     ) -> CommandPaletteSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         var mapped = CommandPaletteSearchResults()
@@ -160,7 +160,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             visiblePlaylists: visiblePlaylists,
             trimmedQuery: trimmed,
             environment: environment,
-            currentUserSpotifyID: currentUserSpotifyID
+            currentUserID: currentUserID
         )
         return mapped
     }
@@ -229,7 +229,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
         visiblePlaylists: [PlaylistRowViewModel],
         trimmedQuery: String,
         environment: PlaylistBrowserPaletteSearchEnvironment,
-        currentUserSpotifyID: String?
+        currentUserID: String?
     ) -> [CommandPaletteItem] {
         var libraryRows: [(item: CommandPaletteItem, score: Int)] = []
         for row in visiblePlaylists {
@@ -253,7 +253,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             var item = CommandPaletteItem(
                 id: "playlist-\(row.id)",
                 title: row.title,
-                subtitle: row.ownerTracksLine(currentUserID: currentUserSpotifyID),
+                subtitle: row.ownerTracksLine(currentUserID: currentUserID),
                 iconSystemName: "music.note.list",
                 section: .myPlaylists,
                 keywords: [row.localizedOwner(), row.title, row.id],

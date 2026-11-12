@@ -974,7 +974,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         )
     }
 
-    static func playbackHostConnectionFailedError(for error: Error) -> PlaybackDisplayError {
+    static func playbackHostConnectionFailedError(
+        for error: Error,
+        service: MusicService = MusicServiceSelection.current
+    ) -> PlaybackDisplayError {
         // Apple Music's player is this Mac: its errors say what to do (turn access back on)
         // in the app's language. Spotify keeps this text.
         if let playbackError = error as? MusicPlaybackError, playbackError.service == .appleMusic {
@@ -982,16 +985,24 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
         return PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
-            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), SpotifyAPIError.userMessage(for: error)),
+            message: String(
+                format: SpotiglassL10n.string("error.playback.commandFailed.message"),
+                MusicServiceErrorText.userMessage(for: error, service: service)
+            ),
             recoveryAction: .reconnect
         )
     }
 
-    static func displayError(for error: Error) -> PlaybackDisplayError {
+    /// `service` is the player that failed; it names the service when the error itself doesn't
+    /// (a dropped connection).
+    static func displayError(for error: Error, service: MusicService = MusicServiceSelection.current) -> PlaybackDisplayError {
         guard let playbackError = MusicPlaybackError.from(error) else {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), SpotifyAPIError.userMessage(for: error)),
+                message: String(
+                    format: SpotiglassL10n.string("error.playback.commandFailed.message"),
+                    MusicServiceErrorText.userMessage(for: error, service: service)
+                ),
                 recoveryAction: .retryTransfer
             )
         }

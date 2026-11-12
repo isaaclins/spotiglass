@@ -220,7 +220,7 @@ struct PlaylistBrowserMainDetailColumn: View {
         let headerPlaybackTarget = DetailHeaderPlayback.target(for: detail)
         return PlaylistDetailContent(
             detail: detail,
-            currentUserSpotifyID: viewModel.currentUserSpotifyID,
+            currentUserID: viewModel.currentUserID,
             pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
             onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
             playURI: { uri in

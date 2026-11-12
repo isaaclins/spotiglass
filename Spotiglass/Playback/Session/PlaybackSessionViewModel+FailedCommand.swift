@@ -19,7 +19,7 @@ extension PlaybackSessionViewModel {
     ) {
         if lastFailedControlCommandWasReplaced, failedCommand != nil { return }
         let restoreState = stateToRestoreOnRetry()
-        setConnectionState(.error(Self.displayError(for: error)))
+        setConnectionState(.error(Self.displayError(for: error, service: service)))
         guard case let .error(shown) = connectionState, shown.recoveryAction == .retryTransfer,
               !lastFailedControlCommandWasReplaced, Self.sendingAgainCanHelp(error) else { return }
         failedCommand = FailedPlaybackCommand(restoreState: restoreState, resend: resend)

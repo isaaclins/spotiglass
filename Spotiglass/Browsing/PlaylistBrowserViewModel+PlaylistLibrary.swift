@@ -113,9 +113,9 @@ extension PlaylistBrowserViewModel {
     /// rename). That happened on every browser rebuilt within the refresh window, e.g. after
     /// a language switch (#400). Failing here only leaves the ID unknown, as before.
     private func loadCurrentUserIfUnknown() async {
-        guard currentUserSpotifyID?.isEmpty ?? true else { return }
+        guard currentUserID?.isEmpty ?? true else { return }
         guard let profile = try? await api.currentUserProfile(), !profile.id.isEmpty else { return }
-        currentUserSpotifyID = profile.id
+        currentUserID = profile.id
     }
 
     /// The Home feed is independent of the playlist library. On the initial
@@ -131,7 +131,7 @@ extension PlaylistBrowserViewModel {
     private func fetchPlaylistsForRefresh(trigger: PlaylistRefreshTrigger) async throws -> [MusicPlaylistSummary] {
         if let inFlightPlaylistListRefreshTask {
             let (playlists, profile) = try await inFlightPlaylistListRefreshTask.value
-            currentUserSpotifyID = profile.id
+            currentUserID = profile.id
             return playlists
         }
 
@@ -157,7 +157,7 @@ extension PlaylistBrowserViewModel {
         inFlightPlaylistListRefreshTask = task
         do {
             let (playlists, profile) = try await task.value
-            currentUserSpotifyID = profile.id
+            currentUserID = profile.id
             if generation == playlistListRefreshGeneration {
                 inFlightPlaylistListRefreshTask = nil
             }
