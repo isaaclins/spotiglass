@@ -450,11 +450,16 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
-        playbackAPI.playDelayNanoseconds = 150_000_000
+        // The play that goes out stays in flight until the other one has been deduped against it,
+        // however late a busy machine runs either of them.
+        let releasePlay = AsyncSignal()
+        playbackAPI.onPlay = { _ in await releasePlay.wait() }
 
         async let firstPlay: Void = viewModel.play(uri: "spotify:track:1")
-        await viewModel.play(uri: "spotify:track:1")
-        await firstPlay
+        async let secondPlay: Void = viewModel.play(uri: "spotify:track:1")
+        while viewModel.playCommandDedupedCount < 1 { await Task.yield() }
+        releasePlay.signal()
+        _ = await (firstPlay, secondPlay)
 
         XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
@@ -499,15 +504,17 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testTransportSyncDefersWhilePlayCommandIsInFlight() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.playDelayNanoseconds = 180_000_000
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
         let initialFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         let playStarted = AsyncSignal()
+        let releasePlay = AsyncSignal()
         let deferredSyncStarted = AsyncSignal()
+        // The play stays in flight until the transport sync has been checked.
         playbackAPI.onPlay = { _ in
             playStarted.signal()
+            await releasePlay.wait()
         }
         playbackAPI.onFetchPlayerSnapshot = {
             if playbackAPI.actions.filter({ $0 == "fetchPlayerSnapshot" }).count > initialFetchCount {
@@ -524,6 +531,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             initialFetchCount,
             "Transport reads should defer while the play command is in flight."
         )
+        releasePlay.signal()
         await playTask.value
         // a deferred transport sync should run after the play command completes
         await deferredSyncStarted.wait()

@@ -942,11 +942,12 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testConcurrentPlayRequestsCollapseToASingleTransferPUT() async {
         let playbackAPI = MockPlaybackAPI()
         let transferStarted = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
+        // The first transfer stays in flight until the second play has joined it.
         playbackAPI.onTransferPlayback = { _, _ in
             transferStarted.signal()
+            await releaseTransfer.wait()
         }
-        // Stretch the transfer enough that two `play()` calls overlap the in-flight PUT.
-        playbackAPI.transferPlaybackDelayNanoseconds = 150_000_000
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
@@ -954,6 +955,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         // the first play should enter transfer before the second starts
         await transferStarted.wait()
         async let second: Void = viewModel.play(uri: "spotify:track:2")
+        // The second play counts itself in and reaches the in-flight transfer without suspending
+        // in between, so once two commands are in flight it is waiting on the first transfer.
+        while viewModel.controlCommandsInFlight < 2 { await Task.yield() }
+        releaseTransfer.signal()
         _ = await (first, second)
 
         let transferActions = playbackAPI.actions.filter { $0.hasPrefix("transfer") }
