@@ -327,6 +327,14 @@ final class PlaybackSessionViewModel: ObservableObject {
     var failedCommand: FailedPlaybackCommand?
     /// Retry is sending a failed command again: another Retry does nothing until it finishes.
     var isResendingFailedCommand = false
+    /// The last play whose song the player reported: its request failing after that lost only
+    /// the answer, so Retry doesn't send it again.
+    var confirmedPlayCommandID: UInt64?
+    /// Counts the commands sent, so a failure can tell whether a newer one went out meanwhile.
+    var controlCommandSerial: UInt64 = 0
+    /// Whether the command that failed last was replaced by a newer one while it was out: Retry
+    /// must not send it over what came after.
+    var lastFailedControlCommandWasReplaced = false
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int

@@ -167,7 +167,11 @@ extension PlaybackSessionViewModel {
             guard intent.owner == seekOwnershipKey else { return false }
             clearPendingSeek()
             failedSeekOwnershipKey = intent.owner
-            showFailedCommand(error) { await $0.seek(to: intent.milliseconds) }
+            // Retry waits for the seek to go out, so a second Retry can't run beside it.
+            showFailedCommand(error) { viewModel in
+                await viewModel.seek(to: intent.milliseconds)
+                await viewModel.seekDispatchTask?.value
+            }
             return false
         }
     }

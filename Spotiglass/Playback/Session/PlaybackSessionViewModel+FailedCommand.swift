@@ -10,14 +10,16 @@ struct FailedPlaybackCommand {
 
 @MainActor
 extension PlaybackSessionViewModel {
-    /// Shows a failed command's error and, when it offers Retry, keeps the command for it.
+    /// Shows a failed command's error and, when it offers Retry, keeps the command for it. A
+    /// command a newer one replaced while it was out isn't kept: Retry would undo the newer one.
     func showFailedCommand(
         _ error: Error,
         resend: @escaping @MainActor (PlaybackSessionViewModel) async -> Void
     ) {
         let restoreState = stateToRestoreOnRetry()
         setConnectionState(.error(Self.displayError(for: error)))
-        guard case let .error(shown) = connectionState, shown.recoveryAction == .retryTransfer else { return }
+        guard case let .error(shown) = connectionState, shown.recoveryAction == .retryTransfer,
+              !lastFailedControlCommandWasReplaced else { return }
         failedCommand = FailedPlaybackCommand(restoreState: restoreState, resend: resend)
     }
 

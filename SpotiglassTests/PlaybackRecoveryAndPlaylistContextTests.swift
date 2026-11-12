@@ -573,6 +573,88 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertFalse(api.actions.contains("next:device-1"))
     }
 
+    /// Spotify started the song and its player reported it, but the answer to the request was
+    /// lost: nothing failed, and Retry must not start the song over.
+    func testAPlayThePlayerAlreadyStartedIsNotSentAgain() async {
+        let api = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(Self.playingTrack("spotify:track:old"), isPaused: false, nextTracks: []))
+        viewModel.hasTransferredPlaybackToCurrentDevice = true
+        api.onPlay = { uri in
+            viewModel.handle(.stateChanged(Self.playingTrack(uri), isPaused: false, nextTracks: []))
+        }
+        api.playErrors = [URLError(.networkConnectionLost)]
+
+        await viewModel.play(uri: "spotify:track:asked")
+
+        XCTAssertNil(viewModel.connectionStateError)
+        XCTAssertFalse(viewModel.retriesFailedCommand)
+        api.onPlay = nil
+        await viewModel.retryAfterError()
+        XCTAssertFalse(api.actions.contains("play:device-1:spotify:track:asked"))
+    }
+
+    /// A Next still out when I pick another song, failing after that play went out: Retry
+    /// must not skip past the song I just picked.
+    func testANextThatFailsAfterANewerPlayIsNotKeptForRetry() async {
+        let api = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(Self.playingTrack("spotify:track:a"), isPaused: false, nextTracks: []))
+        viewModel.hasTransferredPlaybackToCurrentDevice = true
+        let nextReached = AsyncSignal()
+        let releaseNext = AsyncSignal()
+        api.onNext = {
+            nextReached.signal()
+            await releaseNext.wait()
+        }
+        api.nextError = URLError(.timedOut)
+        let next = Task { await viewModel.next() }
+        await nextReached.wait()
+
+        await viewModel.play(uri: "spotify:track:b")
+        releaseNext.signal()
+        await next.value
+
+        XCTAssertFalse(viewModel.retriesFailedCommand)
+        api.onNext = nil
+        api.nextError = nil
+        await viewModel.retryAfterError()
+        XCTAssertFalse(api.actions.contains("next:device-1"))
+    }
+
+    /// Retry of a seek holds a second Retry off until the seek is out, not just queued.
+    func testASecondRetryWhileASeekIsSendingDoesNothing() async {
+        let api = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
+            seekRateLimitInterval: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(Self.playingTrack("spotify:track:a"), isPaused: false, nextTracks: []))
+        api.seekError = URLError(.notConnectedToInternet)
+        await viewModel.seek(to: 92_000)
+        await viewModel.seekDispatchTask?.value
+        XCTAssertTrue(viewModel.retriesFailedCommand)
+        api.seekError = nil
+        let seekReached = AsyncSignal()
+        let releaseSeek = AsyncSignal()
+        api.onSeekAttempt = { _ in
+            seekReached.signal()
+            await releaseSeek.wait()
+        }
+
+        let first = Task { await viewModel.retryAfterError() }
+        await seekReached.wait()
+        await viewModel.retryAfterError()
+        releaseSeek.signal()
+        await first.value
+
+        XCTAssertFalse(api.actions.contains { $0.hasPrefix("transfer:") })
+        XCTAssertEqual(api.actions.filter { $0 == "seek:device-1:92000" }.count, 1)
+    }
+
     /// A failure of moving playback here keeps its Retry: it moves playback here again.
     func testRetryAfterAPlayerErrorStillMovesPlaybackHere() async {
         let api = MockPlaybackAPI()

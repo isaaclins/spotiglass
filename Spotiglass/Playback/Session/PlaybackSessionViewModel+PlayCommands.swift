@@ -50,6 +50,12 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.error(.playback, "play(uri:) failed uri=\(uri) error=\(error)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
+            if playerReportsPlay(of: dispatch) {
+                // Only the answer was lost: the player plays what was asked, so nothing failed.
+                SpotiglassLog.info(.playback, "play request failed after the player started it: \(error.localizedDescription)")
+                finalizePlayCommandDispatchIfCurrent(dispatch)
+                return
+            }
             clearPendingPlay(ifOwnedBy: dispatch.id)
             showFailedPlay(error, key: commandKey) { await $0.play(uri: uri) }
             finalizePlayCommandDispatchIfCurrent(dispatch)
@@ -92,6 +98,12 @@ extension PlaybackSessionViewModel {
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
+            if playerReportsPlay(of: dispatch) {
+                // Only the answer was lost: the player plays what was asked, so nothing failed.
+                SpotiglassLog.info(.playback, "play request failed after the player started it: \(error.localizedDescription)")
+                finalizePlayCommandDispatchIfCurrent(dispatch)
+                return
+            }
             clearPendingPlay(ifOwnedBy: dispatch.id)
             showFailedPlay(error, key: commandKey) { await $0.play(contextURI: contextURI, playlistID: playlistID) }
             finalizePlayCommandDispatchIfCurrent(dispatch)
@@ -166,12 +178,28 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.error(.playback, "playFromPlaylist failed clickedURI=\(clickedURI) error=\(error)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
+            if playerReportsPlay(of: dispatch) {
+                // Only the answer was lost: the player plays what was asked, so nothing failed.
+                SpotiglassLog.info(.playback, "play request failed after the player started it: \(error.localizedDescription)")
+                finalizePlayCommandDispatchIfCurrent(dispatch)
+                return
+            }
             clearPendingPlay(ifOwnedBy: dispatch.id)
             showFailedPlay(error, key: commandKey) {
                 await $0.playFromPlaylist(clickedURI: clickedURI, playableURIs: playableURIs, playlistID: playlistID)
             }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
+    }
+
+    /// Whether the player already reported what this play asked for: the song it named, or a
+    /// first song of the list it named. Then a failure is a lost answer, and sending the play
+    /// again would start the song over.
+    private func playerReportsPlay(of dispatch: PlayCommandDispatch) -> Bool {
+        if confirmedPlayCommandID == dispatch.id { return true }
+        guard let transition = pendingPlayTransition, transition.ownerID == dispatch.id,
+              case .context = transition.kind else { return false }
+        return transition.firstContextURI != nil
     }
 
     /// A play that failed: Retry sends the same play again. The failed play no longer counts
@@ -328,6 +356,7 @@ extension PlaybackSessionViewModel {
         switch transition.kind {
         case let .uri(expectedURI):
             if eventURI == expectedURI {
+                confirmedPlayCommandID = transition.ownerID
                 clearPendingPlay()
                 return false
             }

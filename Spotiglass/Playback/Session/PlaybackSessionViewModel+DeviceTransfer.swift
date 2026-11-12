@@ -30,9 +30,12 @@ extension PlaybackSessionViewModel {
 
     /// Runs a Spotify Web API control call while deferring `syncTransportFromSpotify()` reads so
     /// `GET /v1/me/player` does not race overlapping `PUT`/`POST` playback commands.
-    /// A command sent now replaces an earlier failed one: Retry no longer sends that (#451).
+    /// A command sent now replaces an earlier failed one, and one still out: Retry sends neither
+    /// (#451).
     func performPrioritizedControlCommand(_ operation: () async throws -> Void) async rethrows {
         failedCommand = nil
+        controlCommandSerial &+= 1
+        let serial = controlCommandSerial
         controlCommandsInFlight += 1
         defer {
             controlCommandsInFlight -= 1
@@ -46,7 +49,13 @@ extension PlaybackSessionViewModel {
                 scheduleTransportSync(generation: deferredGeneration)
             }
         }
-        try await operation()
+        do {
+            try await operation()
+            lastFailedControlCommandWasReplaced = false
+        } catch {
+            lastFailedControlCommandWasReplaced = serial != controlCommandSerial
+            throw error
+        }
     }
 
     /// Single-flight, idempotent, budget-aware funnel for `PUT /v1/me/player`. Returns `true`
