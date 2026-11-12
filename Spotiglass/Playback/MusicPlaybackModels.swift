@@ -12,8 +12,10 @@ enum PlaybackConnectionState: Equatable {
 }
 
 struct PlaybackNowPlaying: Equatable {
-    let name: String
-    let artists: [String]
+    /// Name and artist names as the service sent them, maybe blank; ``name`` and ``artists``
+    /// are what to show (#547).
+    private let storedName: String
+    private let storedArtists: [String]
     /// Album title from Web Playback SDK when available (used for third-party lyrics matching).
     let albumName: String?
     /// The service's album ID when it is known.
@@ -23,9 +25,37 @@ struct PlaybackNowPlaying: Equatable {
     let positionMilliseconds: Int
     let uri: String?
 
+    init(
+        name: String,
+        artists: [String],
+        albumName: String?,
+        albumID: String?,
+        albumArtURL: URL?,
+        durationMilliseconds: Int,
+        positionMilliseconds: Int,
+        uri: String?
+    ) {
+        self.storedName = name
+        self.storedArtists = artists
+        self.albumName = albumName
+        self.albumID = albumID
+        self.albumArtURL = albumArtURL
+        self.durationMilliseconds = durationMilliseconds
+        self.positionMilliseconds = positionMilliseconds
+        self.uri = uri
+    }
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .track)
+    }
+
+    var artists: [String] {
+        UnnamedMusicItem.displayNames(storedArtists, kind: .artist)
+    }
+
     var artistText: String {
         artists.isEmpty
-            ? SpotiglassL10n.string("playback.nowPlaying.unknownArtist")
+            ? UnnamedMusicItem.artist.placeholder
             : artists.joined(separator: ", ")
     }
 
@@ -45,8 +75,8 @@ struct PlaybackNowPlaying: Equatable {
 
     func with(positionMilliseconds: Int) -> PlaybackNowPlaying {
         PlaybackNowPlaying(
-            name: name,
-            artists: artists,
+            name: storedName,
+            artists: storedArtists,
             albumName: albumName,
             albumID: albumID,
             albumArtURL: albumArtURL,
@@ -195,7 +225,9 @@ enum MusicPlayableURI {
 
 struct QueueItem: Identifiable, Equatable {
     let id: String
-    let name: String
+    /// The name it was queued with; ``name`` is what to show. A stand-in copied from the
+    /// track follows the language like the track's own (#547).
+    private let storedName: String
     let subtitle: String
     let albumArtURL: URL?
     /// Album title when known (tracks from Web API or merged SDK projection).
@@ -217,7 +249,7 @@ struct QueueItem: Identifiable, Equatable {
         artistTapTargets: [ArtistTapTarget] = []
     ) {
         self.id = id ?? UUID().uuidString
-        self.name = name
+        self.storedName = name
         self.subtitle = subtitle
         self.albumArtURL = albumArtURL
         self.albumName = albumName
@@ -229,6 +261,10 @@ struct QueueItem: Identifiable, Equatable {
 }
 
 extension QueueItem {
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .track)
+    }
+
     /// Returns the canonical URI used by playback gestures, or nil for a
     /// missing, empty, or whitespace-only URI.
     var playableURI: String? {
@@ -299,7 +335,8 @@ extension QueueItem {
         guard let uri else { return nil }
         let trimmed = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let artistParts = trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        let artists = artistParts.isEmpty ? (trimmed.isEmpty ? ["Unknown artist"] : [trimmed]) : artistParts
+        // No artist stays none, as on the now-playing item this prefetches for.
+        let artists = artistParts.isEmpty ? (trimmed.isEmpty ? [] : [trimmed]) : artistParts
         let nowPlaying = PlaybackNowPlaying(
             name: name,
             artists: artists,

@@ -7245,6 +7245,121 @@
         }
       }
     },
+    "music.unnamed.album": {
+      "comment": "Shown in place of the name of an album the service sent without one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown album"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Álbum desconocido"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekanntes Album"
+          }
+        }
+      }
+    },
+    "music.unnamed.artist": {
+      "comment": "Shown in place of the name of an artist the service sent without one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown artist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artista desconocido"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Künstler"
+          }
+        }
+      }
+    },
+    "music.unnamed.episode": {
+      "comment": "Shown in place of the name of a podcast episode the service sent without one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown episode"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episodio desconocido"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannte Episode"
+          }
+        }
+      }
+    },
+    "music.unnamed.playlist": {
+      "comment": "Shown in place of the name of a playlist that has none.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista sin título"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbenannte Playlist"
+          }
+        }
+      }
+    },
+    "music.unnamed.track": {
+      "comment": "Shown in place of the name of a track the service sent without one.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canción desconocida"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbekannter Titel"
+          }
+        }
+      }
+    },
     "palette.cancelPrefetch": {
       "extractionState": "stale",
       "localizations": {
@@ -10581,29 +10696,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reproduciendo ahora"
-          }
-        }
-      }
-    },
-    "playback.nowPlaying.unknownArtist": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unbekannter Künstler"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unknown artist"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Artista desconocido"
           }
         }
       }
@@ -15463,29 +15555,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mit deiner eigenen Spotify-Entwickler-App anmelden"
-          }
-        }
-      }
-    },
-    "appleMusic.playlist.untitled": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Untitled Playlist"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lista sin título"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unbenannte Playlist"
           }
         }
       }

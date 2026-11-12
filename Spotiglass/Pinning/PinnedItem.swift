@@ -99,7 +99,8 @@ extension PinnedItem {
         PinnedItem(
             id: id(forKind: .playlist, spotifyID: playlist.id),
             kind: .playlist,
-            title: playlist.name,
+            // Blank when it has none, so the pin shows the stand-in in the app's language (#547).
+            title: playlist.isUnnamed ? "" : playlist.name,
             subtitle: playlist.ownerName,
             artworkURL: playlist.imageURL,
             spotifyURI: "spotify:playlist:\(playlist.id)",
@@ -185,10 +186,16 @@ extension PinnedItem {
     }
 
     /// Virtual Liked Songs metadata is persisted with pins, but its localized
-    /// title and fallback owner must be resolved when the row renders.
+    /// title and fallback owner must be resolved when the row renders. So must the
+    /// stand-in name of an item pinned without one (#547).
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
-        guard kind == .likedSongs else { return title }
-        return SpotiglassL10n.string("pin.likedSongs", locale: locale)
+        switch kind {
+        case .likedSongs: SpotiglassL10n.string("pin.likedSongs", locale: locale)
+        case .playlist: UnnamedMusicItem.displayName(title, kind: .playlist, locale: locale)
+        case .artist: UnnamedMusicItem.displayName(title, kind: .artist, locale: locale)
+        case .album: UnnamedMusicItem.displayName(title, kind: .album, locale: locale)
+        case .track: UnnamedMusicItem.displayName(title, kind: .track, locale: locale)
+        }
     }
 
     func localizedSubtitle(locale: Locale = SpotiglassL10n.locale) -> String {

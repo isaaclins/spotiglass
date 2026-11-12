@@ -10,6 +10,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let trackCountText: String
     let artworkURL: URL?
     let snapshotID: String
+    /// The playlist has no name and ``title`` is the stand-in from when the row was built.
+    let isUnnamed: Bool
 
     var isAlbumDetail: Bool {
         snapshotID.hasPrefix("album-")
@@ -30,11 +32,17 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         }
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
+        self.isUnnamed = playlist.isUnnamed
     }
 
+    /// Rows outlive a language switch, so a stand-in name is resolved when the row renders,
+    /// like the Liked Songs title (#547).
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
         guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID else {
-            return title
+            if isUnnamed {
+                return UnnamedMusicItem.playlist.placeholder(locale: locale)
+            }
+            return isAlbumDetail ? UnnamedMusicItem.displayName(title, kind: .album, locale: locale) : title
         }
         return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
     }
@@ -92,6 +100,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         }
         self.artworkURL = artworkURL
         self.snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
+        self.isUnnamed = false
     }
 
     /// Virtual Liked Songs row that retains the raw profile name. `nil` uses
@@ -117,6 +126,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(totalTrackCount))
         self.artworkURL = artworkURL
         self.snapshotID = "album-\(albumID)"
+        self.isUnnamed = false
     }
 }
 

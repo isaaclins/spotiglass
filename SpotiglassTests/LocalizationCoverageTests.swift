@@ -54,7 +54,7 @@ final class LocalizationCoverageTests: XCTestCase {
 
         // Playback
         ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
-        ("playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
+        ("music.unnamed.artist", "music.unnamed.artist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
 
         // Appearance
         ("settings.appearance.lyricsSize.large", "settings.appearance.lyricsSize.large", "Large", "Grande", "Gross"),
@@ -454,6 +454,97 @@ final class LocalizationCoverageTests: XCTestCase {
         }
     }
 
+    /// Spotify sends removed tracks, deleted artists and untitled playlists without a name, and
+    /// Spotiglass put an English stand-in there that stayed English in German and Spanish, also
+    /// in caches and pins saved before a language switch (#547). Decodes the real shapes, plus
+    /// caches earlier builds wrote with the English stand-in saved as the name, and reads every
+    /// surface in each language. Real names that look like a stand-in are left alone.
+    func testNamelessItemsShowTheirStandInInTheSelectedLocale() throws {
+        let playlistItems = #"""
+        [{"is_local":false,"item":{"type":"track","id":"t1","uri":"spotify:track:t1","artists":[{"id":"a1"}]}},
+         {"is_local":false,"item":{"type":"track","id":"t2","name":"","uri":"spotify:track:t2","artists":[{"id":"a2","name":""}]}},
+         {"is_local":false,"item":{"type":"episode","id":"e1","uri":"spotify:episode:e1","show":{}}}]
+        """#
+        let fetched = try JSONDecoder().decode([SpotifyPlaylistTrackItemDTO].self, from: Data(playlistItems.utf8))
+            .enumerated()
+            .map { $0.element.domainModel(position: $0.offset) }
+        let cachedItems = #"""
+        [{"id":"c1","content":{"track":{"_0":{"id":"t3","name":"Unknown track","artists":["Unknown artist"],
+          "artistRefs":[{"id":"a3","name":"Unknown artist"}],"durationMilliseconds":1000,"isExplicit":false,
+          "uri":"spotify:track:t3"}}}},
+         {"id":"c2","content":{"episode":{"_0":{"id":"e2","name":"Unknown episode","durationMilliseconds":1000,
+          "uri":"spotify:episode:e2"}}}}]
+        """#
+        let cached = try JSONDecoder().decode([MusicPlaylistTrackItem].self, from: Data(cachedItems.utf8))
+        let fetchedPlaylist = try JSONDecoder().decode(
+            SpotifyPlaylistDTO.self, from: Data(#"{"id":"p1","owner":{"id":"me"},"images":[]}"#.utf8)
+        ).domainModel()
+        let cachedPlaylists = try JSONDecoder().decode([MusicPlaylistSummary].self, from: Data(#"""
+        [{"id":"p2","name":"Untitled playlist","ownerID":"me","ownerName":"me","snapshotID":"s"}]
+        """#.utf8))
+        let playlists = [fetchedPlaylist] + cachedPlaylists
+        // Music names new playlists "Untitled Playlist", and local files carry "Unknown Artist".
+        let realNames = [
+            MusicPlaylistSummary(
+                id: "p.3", name: "Untitled Playlist", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+                ownerName: "You", imageURL: nil, trackCount: 1, snapshotID: "applemusic"
+            )
+        ]
+        let realArtist = MusicArtistRef(id: "a4", name: "Unknown Artist")
+        guard case let .stateChanged(playerBarTrack?, _, _) = try SpotifyPlaybackBridgeParser.parse([
+            "name": "state_changed",
+            "payload": ["paused": false, "track": ["artists": [String](), "uri": "spotify:track:t1"]]
+        ]) else { return XCTFail("expected a playing track") }
+
+        // The names stay as Spotify sent them, so a saved row has no language in it.
+        let saved = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(fetched[0])) as? [String: Any]
+        )
+        XCTAssertFalse("\(saved)".contains("Unknown"), "\(saved)")
+
+        // Rows, pins and the queue made in English must follow a switch to another language.
+        try store.mutate { $0.appearance.language = .english }
+        let englishPlaylistRows = playlists.map(PlaylistRowViewModel.init)
+        let englishPins = TrackRowViewModel.numberedPlaylistRows(fetched).compactMap { $0.pinnedTrackItem() }
+            + playlists.map(PinnedItem.playlist)
+        let englishQueueRow = QueueItem.from(playback: playerBarTrack)
+
+        let expected: [AppLanguage: (track: String, episode: String, artist: String, playlist: String)] = [
+            .english: ("Unknown track", "Unknown episode", "Unknown artist", "Untitled Playlist"),
+            .german: ("Unbekannter Titel", "Unbekannte Episode", "Unbekannter Künstler", "Unbenannte Playlist"),
+            .spanish: ("Canción desconocida", "Episodio desconocido", "Artista desconocido", "Lista sin título")
+        ]
+        for language in [AppLanguage.english, .german, .spanish] {
+            try store.mutate { $0.appearance.language = language }
+            let names = try XCTUnwrap(expected[language])
+            let locale = store.appLocale
+            for (source, items) in [("fetched", fetched), ("cached", cached)] {
+                let rows = TrackRowViewModel.numberedPlaylistRows(items)
+                XCTAssertEqual(rows.first?.title, names.track, "\(source) in \(language.rawValue)")
+                XCTAssertEqual(rows.first?.subtitle, names.artist, "\(source) in \(language.rawValue)")
+                XCTAssertEqual(rows.last?.title, names.episode, "\(source) in \(language.rawValue)")
+            }
+            XCTAssertEqual(fetched[1].trackName, names.track, language.rawValue)
+            XCTAssertEqual(fetched[1].artistRefNames, [names.artist], language.rawValue)
+            XCTAssertEqual(playlists.map(\.name), [names.playlist, names.playlist], language.rawValue)
+            XCTAssertEqual(
+                englishPlaylistRows.map { $0.localizedTitle(locale: locale) },
+                [names.playlist, names.playlist], language.rawValue
+            )
+            XCTAssertEqual(
+                englishPins.map { $0.localizedTitle(locale: locale) },
+                [names.track, names.track, names.playlist, names.playlist], language.rawValue
+            )
+            XCTAssertEqual(realNames.map(PlaylistRowViewModel.init).map { $0.localizedTitle(locale: locale) }, ["Untitled Playlist"])
+            XCTAssertEqual(realNames.map(\.name), ["Untitled Playlist"])
+            XCTAssertEqual(realArtist.name, "Unknown Artist")
+            XCTAssertEqual(playerBarTrack.name, names.track, language.rawValue)
+            XCTAssertEqual(playerBarTrack.artistText, names.artist, language.rawValue)
+            XCTAssertEqual(englishQueueRow.name, names.track, language.rawValue)
+        }
+    }
+
+
     /// The equalizer exposes one gain fader per fixed centre frequency and no
     /// control over Q or centre frequency, which is a graphic equalizer. The
     /// AVAudioUnitEQ bands underneath are parametric filters, but that is an
@@ -491,4 +582,16 @@ final class LocalizationCoverageTests: XCTestCase {
         )
     }
 
+}
+
+private extension MusicPlaylistTrackItem {
+    var trackName: String? {
+        guard case let .track(track) = content else { return nil }
+        return track.name
+    }
+
+    var artistRefNames: [String] {
+        guard case let .track(track) = content else { return [] }
+        return track.artistRefs.map(\.name)
+    }
 }

@@ -117,7 +117,7 @@ struct SpotifyArtistDetailDTO: Decodable {
         let resolvedID = id ?? "unknown-artist"
         return MusicArtistDetail(
             id: resolvedID,
-            name: name ?? "Artist",
+            name: name ?? "",
             imageURL: images?.largestImageURL,
             followersTotal: followers?.total,
             genres: genres ?? [],
@@ -147,7 +147,7 @@ struct SpotifyArtistAlbumDTO: Decodable {
 
     func domainModel() -> MusicArtistAlbum? {
         guard let id else { return nil }
-        let resolvedName = name ?? "Album"
+        let resolvedName = name ?? ""
         let groupRaw = albumGroup ?? "album"
         let group = MusicArtistAlbumGroup(rawValue: groupRaw) ?? .album
         let year: String?
