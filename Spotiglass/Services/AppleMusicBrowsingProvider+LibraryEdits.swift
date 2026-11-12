@@ -136,10 +136,11 @@ extension AppleMusicBrowsingProvider {
         return editor.pending.applied(toLibrarySongs: identified, isComplete: isComplete)
     }
 
-    func applyingPendingEdits(toPlaylistTracks tracks: [Track], playlistID: String) -> [MusicTrack] {
+    /// `isComplete` is false when the read stopped at its limit.
+    func applyingPendingEdits(toPlaylistTracks tracks: [Track], playlistID: String, isComplete: Bool = true) -> [MusicTrack] {
         editor.songReferences.remember(tracks, playlistID: playlistID)
         // Removing a song from the library also takes it out of every playlist.
-        guard editor.pending.hasPendingTracks(playlistID: playlistID) || editor.pending.hasPendingSongs else {
+        guard editor.pending.laysEditsOver(playlistID: playlistID) || editor.pending.hasPendingSongs else {
             return tracks.map { AppleMusicItemMapping.track($0) }
         }
         let identified = tracks.map { track -> (track: MusicTrack, keys: Set<String>) in
@@ -147,7 +148,7 @@ extension AppleMusicBrowsingProvider {
             let mapped = AppleMusicItemMapping.track(track)
             return (mapped, [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(mapped)])
         }
-        return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
+        return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID, isComplete: isComplete)
     }
 
     /// Each playlist's count, leaving out the songs removed from the library from Spotiglass

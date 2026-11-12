@@ -172,7 +172,10 @@ back from the cloud, removals (and adds of songs only the Music app knows) chang
 library through the Music app at once. Each playlist keeps one record: its rows as shown before
 the first edit and every add and remove in order. A read is matched row by row to the playlist
 after some of each way's edits and shown as it will be after all of them, so crossing edits on
-the same song show the right copies in the right order on every read (#393). Removing a copy
+the same song show the right copies in the right order on every read (#393). Rows no step has
+were added elsewhere and stay where the read lists them; a read cut at its limit proves nothing
+about the rows past it. Once a read shows every edit, the record stays one more minute for reads
+that started before it. Removing a copy
 added through the API before the library lists it says "Music on this Mac doesn't have this change
 yet", since the Music app would take another copy of the song out instead. One case can't be told
 apart: when removing a playlist's last song and adding it back leaves the same rows, the record

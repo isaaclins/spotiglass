@@ -714,6 +714,62 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylistTracks: [rowB], playlistID: "-1").map(\.name), ["B", "C"], "the next fresh read")
     }
 
+    /// Two songs added at once to a playlist of 9,999 rows: a read cut at its 10,000-row limit
+    /// lists only the first of them, which proves nothing about the second.
+    func testAReadCutAtItsLimitKeepsTheRestOfABatchAdd() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<9_999).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        let a = AppleMusicLibraryEditorTests.track(id: "101", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "102", name: "B")
+        pending.recordPlaylistAdditions([
+            (a, AppleMusicSongReference(itemID: "101", catalogID: "101", isInLibrary: true)),
+            (b, AppleMusicSongReference(itemID: "102", catalogID: "102", isInLibrary: true)),
+        ], route: .api, playlistID: "-1", shown: base)
+        // Both additions have arrived, but the caller caps its read at 10,000 rows.
+        let capped = (base + [a]).map { (track: $0, keys: Set([$0.id])) }
+        let result = pending.applied(toPlaylistTracks: capped, playlistID: "-1", isComplete: false)
+        XCTAssertEqual(result.count, 10_001)
+        XCTAssertEqual(result.suffix(2).map(\.name), ["A", "B"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"), "a capped read does not prove B is gone")
+    }
+
+    /// A read that started before the library caught up and finishes after a read that showed
+    /// every edit still shows them.
+    func testALateReadAfterTheLibraryCaughtUpKeepsTheEdits() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "101", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "102", name: "B")
+        pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: [a, b])
+        pending.recordPlaylistAdditions(
+            [(a, AppleMusicSongReference(itemID: "101", catalogID: "101", isInLibrary: true))],
+            route: .api, playlistID: "-1", shown: [b]
+        )
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(b, ["102"]), (a, ["101"])], playlistID: "-1").map(\.name), ["B", "A"])
+        // Another read captured before the two edits completes after the caught-up read.
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(a, ["101"]), (b, ["102"])], playlistID: "-1").map(\.name), ["B", "A"])
+    }
+
+    /// 20 adds and 20 removes in a 10,000-row playlist: the caught-up read is shown as it is.
+    func testABigPlaylistWithManyEditsShowsACaughtUpReadAsItIs() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<10_000).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        var shown = base
+        for i in 0..<20 {
+            let added = AppleMusicLibraryEditorTests.track(id: "added-\(i)", name: "Added \(i)")
+            pending.recordPlaylistAdditions(
+                [(added, AppleMusicSongReference(itemID: added.id, isInLibrary: true))],
+                route: .api, playlistID: "-1", shown: shown
+            )
+            shown.append(added)
+            pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: shown)
+            shown.removeFirst()
+        }
+        let rows = shown.map { (track: $0, keys: Set([$0.id])) }
+        let result = pending.applied(toPlaylistTracks: rows, playlistID: "-1")
+        XCTAssertEqual(result.map(\.id), shown.map(\.id))
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+    }
+
     func testEntriesExpire() {
         final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
         let clock = Clock()
@@ -2398,6 +2454,8 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
     private var lookup: MockLibraryLookup!
     private var source: EditTestContentSource!
     private var provider: AppleMusicBrowsingProvider!
+    private final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+    private let clock = Clock()
 
     private let playlistID = "-107247429512612591"
     private let songA = "-3017376107758730008"
@@ -2409,7 +2467,7 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         let cloud = MockCloudLibrary()
         cloud.playlists = [AppleMusicCloudPlaylist(id: "p.test", name: "Spotiglass test")]
         let editor = AppleMusicLibraryEditor(
-            lookup: lookup, cloud: cloud, musicApp: MockMusicApp(), pending: AppleMusicPendingLibraryEdits(),
+            lookup: lookup, cloud: cloud, musicApp: MockMusicApp(), pending: AppleMusicPendingLibraryEdits(now: { [clock] in clock.now }),
             songReferences: AppleMusicSongReferenceRegistry()
         )
         lookup.playlistsByID[playlistID] = AppleMusicPlaylistReference(name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511")
@@ -2459,6 +2517,17 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         )
     }
 
+    /// A song added on another device before the library lists my add keeps my add shown.
+    func testASongAddedElsewhereKeepsAPendingAdd() async throws {
+        try library("B")
+        try await add(songA)
+        try await expectShown(["B", "A"])
+        // C arrives from another device before this Mac lists our API addition of A.
+        try library("B", "C")
+        try await expectShown(["B", "C", "A"], "C must not discard our successful add of A")
+        try await expectShown(["B", "C", "A"], "the next read must still include A")
+    }
+
     /// Sequence 1 of #393: in [A, B] I add another A, then remove the first A before MusicKit
     /// lists the addition. The playlist is [B, A], whichever of the edits the read has.
     func testAddingASecondCopyThenRemovingTheFirstShowsBThenA() async throws {
@@ -2506,6 +2575,8 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await expectShown(["B", "A"], "a read with the removal only")
         try library("B", "A")
         try await expectShown(["B", "A"], "the library has caught up")
+        // Past the moment reads that started before the catch-up can still finish.
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace + 1
         try library("B")
         try await expectShown(["B"], "the record ended once the library had both edits")
     }
@@ -2535,6 +2606,8 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await expectShown(["A", "B", "A"], "a read with the removal only")
         try library("A", "B", "A")
         try await expectShown(["A", "B", "A"], "the library has caught up")
+        // Past the moment reads that started before the catch-up can still finish.
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace + 1
         try library("A", "B")
         try await expectShown(["A", "B"], "the record ended once the library had both edits")
     }
