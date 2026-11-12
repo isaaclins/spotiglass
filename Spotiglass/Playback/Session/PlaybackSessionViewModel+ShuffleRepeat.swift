@@ -12,6 +12,8 @@ extension PlaybackSessionViewModel {
             return
         }
         let target = !shuffleEnabled
+        // A press while a write is out replaces that write for Retry, even when it only queues.
+        noteNewCommand()
         shuffleEnabled = target
         let mutationVersion = nextShuffleMutationVersion()
         setPendingShuffle(enabled: target)
@@ -89,6 +91,8 @@ extension PlaybackSessionViewModel {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
+        // A pick while a write is out replaces that write for Retry, even when it only queues.
+        noteNewCommand()
         repeatMode = mode
         desiredRepeatMode = mode
         setPendingRepeat(mode: mode)

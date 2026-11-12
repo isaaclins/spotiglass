@@ -25,6 +25,13 @@ extension PlaybackSessionViewModel {
         failedCommand = FailedPlaybackCommand(restoreState: restoreState, resend: resend)
     }
 
+    /// A command I give now (sent, or queued behind one still out) replaces a failed one, and
+    /// one still out: Retry sends neither.
+    func noteNewCommand() {
+        failedCommand = nil
+        controlCommandSerial &+= 1
+    }
+
     /// Whether Retry sends a failed command again rather than moving playback here.
     var retriesFailedCommand: Bool {
         failedCommand != nil

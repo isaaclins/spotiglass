@@ -330,6 +330,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The last play whose song the player reported: its request failing after that lost only
     /// the answer, so Retry doesn't send it again.
     var confirmedPlayCommandID: UInt64?
+    /// A play of the song that was already playing: reports of that song can't confirm it.
+    var playCommandIDStartedOnItsSong: UInt64?
     /// Counts the commands sent, so a failure can tell whether a newer one went out meanwhile.
     var controlCommandSerial: UInt64 = 0
     /// Whether the command that failed last was replaced by a newer one while it was out: Retry

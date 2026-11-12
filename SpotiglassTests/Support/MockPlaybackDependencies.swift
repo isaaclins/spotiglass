@@ -217,6 +217,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var seekDelayNanoseconds: UInt64 = 0
         var seekError: Error?
         var nextError: Error?
+        var previousError: Error?
+        var onPrevious: (() async -> Void)?
+        var onSetRepeat: ((MusicRepeatMode) async -> Void)?
         var pauseError: Error?
         var setRepeatDelayNanoseconds: UInt64 = 0
         var setShuffleDelayNanoseconds: UInt64 = 0
@@ -320,6 +323,18 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var seekError: Error? {
         get { locked { $0.seekError } }
         set { locked { $0.seekError = newValue } }
+    }
+    var previousError: Error? {
+        get { locked { $0.previousError } }
+        set { locked { $0.previousError = newValue } }
+    }
+    var onPrevious: (() async -> Void)? {
+        get { locked { $0.onPrevious } }
+        set { locked { $0.onPrevious = newValue } }
+    }
+    var onSetRepeat: ((MusicRepeatMode) async -> Void)? {
+        get { locked { $0.onSetRepeat } }
+        set { locked { $0.onSetRepeat = newValue } }
     }
     var nextError: Error? {
         get { locked { $0.nextError } }
@@ -463,6 +478,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func previous(deviceID: String) async throws {
+        await onPrevious?()
+        if let previousError {
+            throw previousError
+        }
         actionRecorder.append("previous:\(deviceID)")
     }
 
@@ -543,6 +562,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
+        await onSetRepeat?(mode)
         if setRepeatDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: setRepeatDelayNanoseconds)
         }

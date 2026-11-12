@@ -67,6 +67,8 @@ extension PlaybackSessionViewModel {
     }
 
     private func enqueueSeek(milliseconds: Int) {
+        // A seek waiting behind one still out replaces it for Retry too.
+        noteNewCommand()
         let normalized = normalizedSeekMilliseconds(milliseconds)
         let intent = PlaybackSeekIntent(milliseconds: normalized, owner: seekOwnershipKey)
         if queuedSeek == nil {

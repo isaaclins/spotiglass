@@ -699,9 +699,12 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
-            // The player already moved on (its answer to the request was lost): the skip
-            // happened, so there is nothing to show and nothing for Retry to skip again.
-            if let liveDispatch = pendingSkipDispatch, hasObservedSkipAdvance(liveDispatch) {
+            // The player already moved on from the song the Next left (its answer to the
+            // request was lost): the skip happened, so there is nothing to show and nothing for
+            // Retry to skip again. A Previous can't be told from the song ending by itself, and a
+            // skip sent with no song known can't be told from any report, so those still fail.
+            if dispatch.kind == .next, dispatch.expectedPreviousURI != nil,
+               let liveDispatch = pendingSkipDispatch, hasObservedSkipAdvance(liveDispatch) {
                 SpotiglassLog.info(.playback, "skip request failed after the player moved on: \(error.localizedDescription)")
                 noteLocalPlaybackMutation()
                 return true

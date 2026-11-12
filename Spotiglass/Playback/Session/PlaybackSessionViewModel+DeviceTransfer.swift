@@ -33,8 +33,7 @@ extension PlaybackSessionViewModel {
     /// A command sent now replaces an earlier failed one, and one still out: Retry sends neither
     /// (#451).
     func performPrioritizedControlCommand(_ operation: () async throws -> Void) async rethrows {
-        failedCommand = nil
-        controlCommandSerial &+= 1
+        noteNewCommand()
         let serial = controlCommandSerial
         controlCommandsInFlight += 1
         defer {

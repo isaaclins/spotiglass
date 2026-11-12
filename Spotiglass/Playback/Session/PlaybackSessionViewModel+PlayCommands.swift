@@ -214,6 +214,8 @@ extension PlaybackSessionViewModel {
     }
 
     private func beginPendingPlay(uri: String, dispatch: PlayCommandDispatch) {
+        // The song already playing: a report of it says nothing about this play.
+        playCommandIDStartedOnItsSong = currentNowPlayingURI == uri ? dispatch.id : nil
         beginPendingPlayTransition(
             ownerID: dispatch.id,
             kind: .uri(expectedURI: uri)
@@ -355,7 +357,7 @@ extension PlaybackSessionViewModel {
         switch transition.kind {
         case let .uri(expectedURI):
             if eventURI == expectedURI {
-                if isPlaying {
+                if isPlaying, transition.ownerID != playCommandIDStartedOnItsSong {
                     confirmedPlayCommandID = transition.ownerID
                 }
                 clearPendingPlay()
