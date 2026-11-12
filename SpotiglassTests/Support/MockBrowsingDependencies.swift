@@ -93,8 +93,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var artistAlbumsPageCallCount = 0
         var playlistTracksInvocationCountByID: [String: Int] = [:]
         var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
-        var lastReadHolds: [String: AsyncSignal] = [:]
-        var onLastRead: ((String) -> Void)?
+        var lastReadHolds: [String: LastReadHold] = [:]
         var playlistTracksHold: AsyncSignal?
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
@@ -283,24 +282,23 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         set { locked { $0.playlistTracksHold = newValue } }
     }
 
-    /// Holds `lastReadPlaylistTracks` for a playlist until its signal fires.
-    var lastReadHolds: [String: AsyncSignal] {
+    /// Holds `lastReadPlaylistTracks` for a playlist ID: it signals `entered`, then answers only
+    /// once `release` is signalled, so a test can act while the read is in flight.
+    struct LastReadHold {
+        let entered = AsyncSignal()
+        let release = AsyncSignal()
+    }
+
+    var lastReadHolds: [String: LastReadHold] {
         get { locked { $0.lastReadHolds } }
         set { locked { $0.lastReadHolds = newValue } }
     }
 
-    /// Runs when `lastReadPlaylistTracks` is asked, with the playlist ID.
-    var onLastRead: ((String) -> Void)? {
-        get { locked { $0.onLastRead } }
-        set { locked { $0.onLastRead = newValue } }
-    }
-
     func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
-        let (onLastRead, hold) = locked { ($0.onLastRead, $0.lastReadHolds[playlistID]) }
-        onLastRead?(playlistID)
-        if let hold {
+        if let hold = locked({ $0.lastReadHolds[playlistID] }) {
+            hold.entered.signal()
             // Like MusicKit's reads, the wait doesn't end when the caller's task is cancelled.
-            await Task.detached { await hold.wait() }.value
+            await Task.detached { await hold.release.wait() }.value
         }
         return locked { $0.lastReadTracksByID[playlistID] }
     }

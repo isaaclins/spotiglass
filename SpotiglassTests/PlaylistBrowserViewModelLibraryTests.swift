@@ -97,9 +97,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let events = LockedEvents()
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:], profileHandler: {
             events.append("profile asked")
-            // Held until the detail load reaches the API (or two seconds pass, which is what
-            // a profile awaited in front of the detail load runs into).
-            for _ in 0..<200 where !events.contains("detail asked") {
+            // Held until the detail load reaches the API. A load that awaited the profile in
+            // front of the detail never gets there and runs into the per-test time limit.
+            while !events.contains("detail asked") {
                 try await Task.sleep(nanoseconds: 10_000_000)
             }
             events.append("profile answered")
@@ -697,8 +697,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectSidebar(.likedSongs)
-        let didStartSavedTracks = await savedTracksStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartSavedTracks)
+        await savedTracksStarted.wait()
         async let second: Void = viewModel.selectSidebar(.likedSongs)
         releaseSavedTracks.signal()
         _ = await (first, second)
@@ -725,8 +724,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             await releasePlaylists.wait()
         }
         async let first: Void = viewModel.unifiedRefreshMainSurface()
-        let didStartPlaylists = await playlistsStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartPlaylists)
+        await playlistsStarted.wait()
         async let second: Void = viewModel.unifiedRefreshMainSurface()
         releasePlaylists.signal()
         _ = await (first, second)

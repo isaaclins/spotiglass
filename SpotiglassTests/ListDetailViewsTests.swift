@@ -561,11 +561,8 @@ final class ListDetailViewsTests: XCTestCase {
         .frame(width: 800, height: 600)
         .environmentObject(store)
         let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
-        let didClearRestore = await recorder.restoreCleared.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didClearRestore,
-            "the pending restore binding should be cleared after the list handles the request"
-        )
+        // the pending restore binding should be cleared after the list handles the request
+        await recorder.restoreCleared.wait()
 
         let scrollView = try XCTUnwrap(
             Self.firstScrollView(in: controller.view),

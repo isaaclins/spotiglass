@@ -34,8 +34,8 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectArtist(id: "artist-xyz")
-        let didStartFirstPage = await firstPageStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartFirstPage, "the first artist load should be in flight before the duplicate")
+        // the first artist load should be in flight before the duplicate
+        await firstPageStarted.wait()
         async let second: Void = viewModel.selectArtist(id: "artist-xyz")
         releaseFirstPage.signal()
         _ = await (first, second)

@@ -527,8 +527,9 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         )
     }
 
+    /// Waits until `condition` holds, however long a busy machine takes (#503).
     private func waitUntil(_ condition: () -> Bool) async {
-        for _ in 0..<200 where !condition() {
+        while !condition() {
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
@@ -668,7 +669,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             songReferences: AppleMusicSongReferenceRegistry()
         ))
         store.bind(userID: account)
-        let didStartLookup = await launchLookup.entered.wait(timeout: .seconds(10))
+        let didStartLookup = await launchLookup.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didStartLookup, "binding should look up the pinned albums")
         // A pin while the launch lookup still runs.
         XCTAssertTrue(store.pin(.likedSongs(ownerDisplay: "You", artworkURL: nil), at: 0))

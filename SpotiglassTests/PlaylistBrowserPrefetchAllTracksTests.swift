@@ -84,8 +84,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
         seed(vm, with: playlists)
         let run = Task { await vm.runBulkPlaylistTrackPrefetch() }
-        let didStartPlaylistTracks = await playlistTracksStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartPlaylistTracks)
+        await playlistTracksStarted.wait()
         releasePlaylistTracks.signal()
         await run.value
 
@@ -203,8 +202,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         seed(vm, with: playlists)
 
         let run = Task { await vm.toggleBulkPlaylistTrackPrefetch() }
-        let didStartTrack = await firstTrackStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartTrack)
+        await firstTrackStarted.wait()
         await vm.toggleBulkPlaylistTrackPrefetch()
         await run.value
 

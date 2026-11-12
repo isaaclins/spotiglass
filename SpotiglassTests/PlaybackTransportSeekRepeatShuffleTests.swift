@@ -157,8 +157,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 92_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
         await viewModel.seek(to: 93_000)
         releaseFirstSeek.signal()
         await viewModel.seekDispatchTask?.value
@@ -287,8 +286,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 10_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
 
         await viewModel.seek(to: 20_000)
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
@@ -345,8 +343,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 10_000)
-        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
-        XCTAssertTrue(didEnterFirstSeek)
+        await firstSeekEntered.wait()
 
         let oldHostGeneration = viewModel.playbackHostGeneration
         let newHostGeneration = viewModel.beginPlaybackHostLifecycle()
@@ -595,7 +592,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.syncTransportFromSpotify()
 
         let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
-        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the next taps")
         await viewModel.cycleRepeat() // context -> track
         await viewModel.cycleRepeat() // track -> off
@@ -627,7 +624,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.syncTransportFromSpotify()
 
         let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
-        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the second tap")
         await viewModel.cycleRepeat() // context -> track
         firstWrite.release()
@@ -798,7 +795,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertFalse(viewModel.shuffleEnabled)
 
         let firstToggle = Task { await viewModel.toggleShuffle() }
-        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(
             didSendFirstWrite,
             "the first shuffle write should be in flight before the second toggle"

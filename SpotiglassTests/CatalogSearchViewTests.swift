@@ -304,7 +304,7 @@ final class CatalogSearchViewTests: XCTestCase {
         }
 
         await oldRequestGate.release()
-        await fulfillment(of: [oldRequestFinished], timeout: 2)
+        await fulfillment(of: [oldRequestFinished], timeout: mustHappenTimeout)
 
         guard case let .loaded(results) = viewModel.state else {
             return XCTFail("A late error from the old query must not replace the newer results")
@@ -367,7 +367,7 @@ final class CatalogSearchViewTests: XCTestCase {
             .first { $0 == .search }
             .sink { _ in searchOpened.fulfill() }
         await showAllRow.action()
-        await fulfillment(of: [searchOpened], timeout: 30)
+        await fulfillment(of: [searchOpened], timeout: mustHappenTimeout)
         opening.cancel()
 
         XCTAssertEqual(searchViewModel.query, "daft punk")

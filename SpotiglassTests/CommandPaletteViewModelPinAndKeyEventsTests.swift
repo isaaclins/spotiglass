@@ -86,8 +86,8 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
         }
 
         XCTAssertTrue(manager.handleKeyEvent(firstPress), "First press must be consumed by the keymap.")
-        let didInvokeFirstPress = await invocationSignal.wait(timeout: .seconds(1))
-        XCTAssertTrue(didInvokeFirstPress, "The initial key press should invoke previousTrack.")
+        // The initial key press should invoke previousTrack.
+        await invocationSignal.wait()
         for _ in 0..<8 {
             XCTAssertFalse(
                 manager.handleKeyEvent(repeatedPress),

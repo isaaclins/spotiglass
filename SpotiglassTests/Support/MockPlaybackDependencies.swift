@@ -140,6 +140,11 @@ final class AsyncSignal: @unchecked Sendable {
         })
     }
 
+    /// Only for checking that something does NOT happen. To wait for something that
+    /// must happen, use `wait()`: a busy machine can take longer than any window, and
+    /// the per-test time limit already catches a signal that never comes (#503). A test that
+    /// must release a hold or name what never came before failing passes `mustHappenTimeout`,
+    /// which is no window either.
     func wait(timeout: Duration) async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
             group.addTask {
@@ -196,6 +201,12 @@ final class MockCallHold: @unchecked Sendable {
     }
 }
 
+/// Timeout for an `XCTestExpectation` that must be fulfilled. A busy machine can take far longer
+/// than a second or two, so this is no time window: it only sits under the 120 s per-test limit
+/// (`make test`, CI) so that a fulfilment that never comes fails with the expectation's own
+/// description instead of a bare timeout (#503).
+let mustHappenTimeout: TimeInterval = 100
+
 private final class MockPlaybackActionRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedActions: [String] = []
@@ -241,7 +252,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var onSetShuffle: ((Bool) async -> Void)?
         var setRepeatError: Error?
         var fetchPlayerSnapshotError: Error?
-        var playHold: MockCallHold?
         var seekError: Error?
         var nextError: Error?
         var pauseError: Error?
@@ -249,7 +259,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var setShuffleHold: MockCallHold?
         var onTransferPlayback: ((String, Bool) async -> Void)?
         var onTransferPlaybackCompleted: ((String, Bool) async -> Void)?
-        var transferPlaybackHold: MockCallHold?
         var queueResponse = MusicPlaybackQueue(queue: [])
         var onFetchQueue: (() async -> Void)?
     }
@@ -260,7 +269,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var actions: [String] { actionRecorder.snapshot() }
     var lastPlayedURIQueue: [String]? { locked { $0.lastPlayedURIQueue } }
     var lastPlayedOffsetURI: String? { locked { $0.lastPlayedOffsetURI } }
-    /// Runs at the top of every `play*` call (before `playHold`), with the
+    /// Runs at the top of every `play*` call, with the
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
     var onPlay: ((String) async -> Void)? {
@@ -334,11 +343,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.fetchPlayerSnapshotError } }
         set { locked { $0.fetchPlayerSnapshotError = newValue } }
     }
-    /// Holds every `play*` call after `onPlay` ran, before it is recorded.
-    var playHold: MockCallHold? {
-        get { locked { $0.playHold } }
-        set { locked { $0.playHold = newValue } }
-    }
     var playErrors: [Error] {
         get { locked { $0.playErrors } }
         set { locked { $0.playErrors = newValue } }
@@ -365,7 +369,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.setShuffleHold } }
         set { locked { $0.setShuffleHold = newValue } }
     }
-    /// Runs at the top of `transferPlayback`, before `transferPlaybackHold`. Tests can use it
+    /// Runs at the top of `transferPlayback`. Tests can use it
     /// to hold a PUT in flight without relying on wall-clock timing.
     var onTransferPlayback: ((String, Bool) async -> Void)? {
         get { locked { $0.onTransferPlayback } }
@@ -376,12 +380,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var onTransferPlaybackCompleted: ((String, Bool) async -> Void)? {
         get { locked { $0.onTransferPlaybackCompleted } }
         set { locked { $0.onTransferPlaybackCompleted = newValue } }
-    }
-    /// Holds `transferPlayback` before it is recorded, so a sibling caller can overlap the
-    /// in-flight PUT and the single-flight guard runs.
-    var transferPlaybackHold: MockCallHold? {
-        get { locked { $0.transferPlaybackHold } }
-        set { locked { $0.transferPlaybackHold = newValue } }
     }
     /// FIFO of errors thrown by `transferPlayback`. Empty queue means transfers succeed.
     var transferPlaybackErrors: [Error] {
@@ -401,7 +399,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         await onTransferPlayback?(deviceID, play)
-        await transferPlaybackHold?.pass()
         if let next = locked({ $0.transferPlaybackErrors.isEmpty ? nil : $0.transferPlaybackErrors.removeFirst() }) {
             actionRecorder.append("transfer-error:\(deviceID):\(play)")
             throw next
@@ -412,7 +409,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         await onPlay?(uri)
-        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }
@@ -421,7 +417,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(contextURI: String, deviceID: String) async throws {
         await onPlay?(contextURI)
-        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }
@@ -453,7 +448,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             $0.lastPlayedOffsetURI = offsetURI
         }
         await onPlay?(offsetURI ?? uris.first ?? "")
-        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }

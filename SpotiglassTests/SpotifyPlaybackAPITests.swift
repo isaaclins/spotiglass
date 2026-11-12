@@ -639,11 +639,11 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         let api = SpotifyPlaybackAPI(tokenProvider: StaticPlaybackTokenProvider(token: "t"), httpClient: http)
 
         let first = Task { try await api.fetchPlayerSnapshot() }
-        let didStartFetch = await held.entered.wait(timeout: .seconds(10))
+        let didStartFetch = await held.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didStartFetch, "the first caller should start the GET")
         let second = Task { try await api.fetchPlayerSnapshot() }
         // Until the second caller joined the GET under way, or sent its own (which releases the hold).
-        let deadline = ContinuousClock.now + .seconds(10)
+        let deadline = ContinuousClock.now + .seconds(mustHappenTimeout)
         while await api.joinedPlayerSnapshotCallers() == 0, http.requestsStarted < 2, ContinuousClock.now < deadline {
             await Task.yield()
         }

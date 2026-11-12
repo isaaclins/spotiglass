@@ -220,7 +220,7 @@ final class QueuePanelTests: XCTestCase {
         let staleFetch = MockCallHold()
         api.fetchQueueHold = staleFetch
         let refreshTask = Task { await queue.refreshQueue() }
-        let fetchStarted = await staleFetch.entered.wait(timeout: .seconds(5))
+        let fetchStarted = await staleFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(fetchStarted)
         queue.isPanelVisible = false
 
@@ -276,7 +276,7 @@ final class QueuePanelTests: XCTestCase {
         api.errorToThrow = SpotifyAPIError.unauthorized
 
         let refreshTask = Task { await queue.refreshQueue() }
-        let fetchStarted = await staleFetch.entered.wait(timeout: .seconds(5))
+        let fetchStarted = await staleFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(fetchStarted)
         queue.isPanelVisible = false
 
@@ -554,8 +554,8 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
-        let didFetchQueue = await api.fetchQueueSignal.wait(timeout: .seconds(30))
-        XCTAssertTrue(didFetchQueue, "Adding to the queue must trigger a queue refresh.")
+        // Adding to the queue must trigger a queue refresh.
+        await api.fetchQueueSignal.wait()
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
@@ -570,7 +570,7 @@ final class QueuePanelTests: XCTestCase {
         queue.setPanelVisible(true)
 
         let first = Task { await queue.addToQueue(uri: "spotify:track:dup") }
-        let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(5))
+        let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstAdd, "the first add should be in flight before the duplicate")
         await queue.addToQueue(uri: "spotify:track:dup")
         firstAdd.release()
@@ -590,7 +590,7 @@ final class QueuePanelTests: XCTestCase {
         queue.setPanelVisible(true)
 
         let first = Task { await queue.addToQueue(uri: "spotify:track:a") }
-        let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(5))
+        let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstAdd, "the add for a should be in flight before the add for b")
         // The add for b reaching the API releases the held add for a.
         let secondDone = AsyncSignal()
@@ -598,7 +598,7 @@ final class QueuePanelTests: XCTestCase {
             await queue.addToQueue(uri: "spotify:track:b")
             secondDone.signal()
         }
-        let didFinishSecondAdd = await secondDone.wait(timeout: .seconds(5))
+        let didFinishSecondAdd = await secondDone.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didFinishSecondAdd, "the add for b should not wait for the add for a")
         firstAdd.release()
         await first.value
@@ -757,7 +757,7 @@ final class QueuePanelTests: XCTestCase {
         api.fetchQueueHold = reconciliationFetch
 
         let toggleTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleFetch = await reconciliationFetch.entered.wait(timeout: .seconds(5))
+        let didStartShuffleFetch = await reconciliationFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(
             didStartShuffleFetch,
             "shuffle should start queue reconciliation after applying its optimistic order"
@@ -795,7 +795,7 @@ final class QueuePanelTests: XCTestCase {
         let reconciliationFetch = MockCallHold()
         api.fetchQueueHold = reconciliationFetch
         let offTask = Task { await queue.toggleShuffle() }
-        let didStartShuffleOffFetch = await reconciliationFetch.entered.wait(timeout: .seconds(5))
+        let didStartShuffleOffFetch = await reconciliationFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(
             didStartShuffleOffFetch,
             "turning shuffle off should start queue reconciliation after restoring its snapshot"
@@ -913,7 +913,7 @@ final class QueuePanelTests: XCTestCase {
         // Each refresh runs at once up to its fetch or its wait, so the second one arrives
         // while the first one's fetch is in flight.
         let first = Task.immediate { await queue.refreshQueue() }
-        let didStartFirstFetch = await firstFetch.entered.wait(timeout: .seconds(5))
+        let didStartFirstFetch = await firstFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didStartFirstFetch, "the first refresh should be fetching before the second")
         let second = Task.immediate { await queue.refreshQueue() }
         firstFetch.release()
@@ -1013,11 +1013,8 @@ final class QueuePanelTests: XCTestCase {
             pollFetchStarted.signal()
         }
         queue.restartPollingIfNeeded()
-        let didStartPollFetch = await pollFetchStarted.wait(timeout: .seconds(30))
-        XCTAssertTrue(
-            didStartPollFetch,
-            "active queue polling should issue a fetch"
-        )
+        // active queue polling should issue a fetch
+        await pollFetchStarted.wait()
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         let pollTask = queue.pollTask

@@ -500,11 +500,11 @@ final class RootViewPinsAfterAddingTests: XCTestCase {
         return pinned
     }
 
-    private func settle(until done: () -> Bool = { false }, rounds: Int = 40) async throws {
-        for _ in 0..<rounds {
+    /// Lets the window and its tasks run until `done` holds, however long a busy machine takes.
+    private func settle(until done: () -> Bool) async throws {
+        while !done() {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
             try await Task.sleep(for: .milliseconds(50))
-            if done() { break }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
     }
@@ -537,7 +537,7 @@ final class RootViewPinsAfterAddingTests: XCTestCase {
         try await settle(until: { pinned.boundUserID == nil && pinned.items.isEmpty })
         XCTAssertNil(pinned.boundUserID, "switching to Spotify should clear Apple Music's pins")
         services.activate(.appleMusic)
-        try await settle(until: { pinned.items.count == 2 }, rounds: 20)
+        try await settle(until: { pinned.items.count == 2 })
 
         XCTAssertEqual(pinned.items.map(\.id), ["album:l.saved", "album:l.new"])
     }

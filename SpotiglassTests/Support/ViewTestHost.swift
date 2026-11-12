@@ -246,54 +246,26 @@ enum ViewTestHost {
     }
 
     /// Finds copy from ``Localizable.xcstrings`` (unit tests host in the test bundle, not `.main`).
-    static func assertFindLocalizedText<V: View>(
-        _ key: String,
-        in view: V,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let resolved = localizedString(key)
-        var lastError: Error?
-        for candidate in [resolved, key] {
-            for _ in 0 ..< 10 {
-                AppKitTestSupport.pumpRunLoop(for: 0.05)
-                do {
-                    _ = try view.inspect().find(text: candidate)
-                    return
-                } catch {
-                    lastError = error
-                }
+    /// Waits for it however long a busy machine takes to lay the view out; text that never shows
+    /// runs into the per-test time limit.
+    static func assertFindLocalizedText<V: View>(_ key: String, in view: V) {
+        let candidates = [localizedString(key), key]
+        while true {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+            for candidate in candidates where (try? view.inspect().find(text: candidate)) != nil {
+                return
             }
         }
-        XCTFail(
-            "Expected localized text for \"\(key)\" in view hierarchy: \(String(describing: lastError))",
-            file: file,
-            line: line
-        )
     }
 
-    /// ViewInspector can miss text until SwiftUI finishes laying out the hosted window.
-    static func assertFindText<V: View>(
-        _ text: String,
-        in view: V,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        var lastError: Error?
-        for _ in 0 ..< 10 {
+    /// ViewInspector can miss text until SwiftUI finishes laying out the hosted window, so this
+    /// waits for it however long a busy machine takes; text that never shows runs into the
+    /// per-test time limit.
+    static func assertFindText<V: View>(_ text: String, in view: V) {
+        while true {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
-            do {
-                _ = try view.inspect().find(text: text)
-                return
-            } catch {
-                lastError = error
-            }
+            if (try? view.inspect().find(text: text)) != nil { return }
         }
-        XCTFail(
-            "Expected text \"\(text)\" in view hierarchy: \(String(describing: lastError))",
-            file: file,
-            line: line
-        )
     }
 
     static func makeSettingsStore() throws -> SpotiglassSettingsStore {

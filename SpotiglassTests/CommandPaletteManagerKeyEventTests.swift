@@ -134,7 +134,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.togglePlayback = { toggled.fulfill() }
 
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 49, characters: " ")))
-        await fulfillment(of: [toggled], timeout: 2)
+        await fulfillment(of: [toggled], timeout: mustHappenTimeout)
     }
 
     func testFocusedKeyOwnerOnlyDefersEventsItOwns() {
@@ -271,7 +271,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
 
         let drained = expectation(description: "switches ran")
         DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: 1)
+        wait(for: [drained], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.spotify, .appleMusic])
     }
 
@@ -453,7 +453,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.togglePlayback = { toggle.fulfill() }
         manager.isSignedIn = true
         manager.execute(commandID: CommandPaletteCommandID.togglePlayback)
-        await fulfillment(of: [toggle], timeout: 2)
+        await fulfillment(of: [toggle], timeout: mustHappenTimeout)
 
         let openPlaylist = expectation(description: "playlist")
         manager.openPlaylist = { id in
@@ -461,7 +461,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             openPlaylist.fulfill()
         }
         manager.execute(commandID: "navigation.playlist.open", args: ["playlistID": .string("plist-1")])
-        await fulfillment(of: [openPlaylist], timeout: 2)
+        await fulfillment(of: [openPlaylist], timeout: mustHappenTimeout)
     }
 
     func testPaletteOpenReturnExecutesSelection() async {
@@ -504,7 +504,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let refresh = expectation(description: "refresh")
         manager.unifiedRefresh = { refresh.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.refreshPlaylists)
-        await fulfillment(of: [refresh], timeout: 2)
+        await fulfillment(of: [refresh], timeout: mustHappenTimeout)
 
         var prefetched = false
         manager.prefetchAllPlaylists = { prefetched = true }
@@ -527,12 +527,12 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let next = expectation(description: "next")
         manager.nextTrack = { next.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.nextTrack)
-        await fulfillment(of: [next], timeout: 2)
+        await fulfillment(of: [next], timeout: mustHappenTimeout)
 
         let previous = expectation(description: "previous")
         manager.previousTrack = { previous.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.previousTrack)
-        await fulfillment(of: [previous], timeout: 2)
+        await fulfillment(of: [previous], timeout: mustHappenTimeout)
     }
 
     func testExecutePlayURIFilterArtistAndQueueLyrics() async {
@@ -543,7 +543,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             playURI.fulfill()
         }
         manager.execute(commandID: "playback.playURI", args: ["uri": .string("spotify:track:1")])
-        await fulfillment(of: [playURI], timeout: 2)
+        await fulfillment(of: [playURI], timeout: mustHappenTimeout)
 
         var filtered: String?
         manager.filterByArtist = { filtered = $0 }
@@ -572,12 +572,12 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let disconnect = expectation(description: "disconnect")
         manager.disconnectPlayback = { disconnect.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.disconnectPlayback)
-        await fulfillment(of: [disconnect], timeout: 2)
+        await fulfillment(of: [disconnect], timeout: mustHappenTimeout)
 
         let next = expectation(description: "nextPlaylist")
         manager.selectNextPlaylist = { next.fulfill() }
         manager.execute(commandID: CommandPaletteCommandID.selectNextPlaylist)
-        await fulfillment(of: [next], timeout: 2)
+        await fulfillment(of: [next], timeout: mustHappenTimeout)
 
         let openArtist = expectation(description: "openArtist")
         manager.openArtist = { id, _ in
@@ -585,7 +585,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             openArtist.fulfill()
         }
         manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("artist-9")])
-        await fulfillment(of: [openArtist], timeout: 2)
+        await fulfillment(of: [openArtist], timeout: mustHappenTimeout)
     }
 
     func testExecutePinEnqueueAndOpenPalette() {
@@ -617,7 +617,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             ]),
         ])
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
-        await fulfillment(of: [executed], timeout: 2)
+        await fulfillment(of: [executed], timeout: mustHappenTimeout)
     }
 }
 

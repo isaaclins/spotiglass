@@ -128,7 +128,7 @@ final class WindowResizeCostTests: XCTestCase {
         let steps = 12
         let span: CGFloat = 1_400 - (comfortable + 40)
         let widths: [CGFloat] = (1...steps).map { step in 1_400 - span * CGFloat(step) / CGFloat(steps) }
-        waitUntilNothingRenders(file: file, line: line)
+        waitUntilNothingRenders()
         let content = window.contentView!
         let wideLimit = Self.sidebarMaximumThickness(in: content)
         ViewBodyTally.counts = [:]
@@ -165,14 +165,14 @@ final class WindowResizeCostTests: XCTestCase {
     }
 
     /// Waits until a whole 0.1 s passes with no counted body running, so a load or player update
-    /// that lands late on a busy Mac can't be taken for a re-render the resize caused.
-    private func waitUntilNothingRenders(file: StaticString, line: UInt) {
-        for _ in 0..<50 {
+    /// that lands late on a busy Mac can't be taken for a re-render the resize caused. A browser
+    /// that never stops re-rendering runs into the per-test time limit.
+    private func waitUntilNothingRenders() {
+        while true {
             ViewBodyTally.counts = [:]
             AppKitTestSupport.pumpRunLoop(for: 0.1)
             if ViewBodyTally.counts?.isEmpty ?? true { return }
         }
-        XCTFail("the browser kept re-rendering for 5 s before the resize: \(ViewBodyTally.counts ?? [:])", file: file, line: line)
     }
 
     /// Opening the queue narrows how far the sidebar can be dragged, so a drag can't push the

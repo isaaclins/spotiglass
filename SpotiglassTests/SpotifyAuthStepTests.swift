@@ -335,7 +335,7 @@ final class SpotifyAuthStepTests: XCTestCase {
         )
 
         let first = Task { try await viewModel.refreshedPlaybackAccessToken() }
-        let didStartRefresh = await refreshHeld.entered.wait(timeout: .seconds(10))
+        let didStartRefresh = await refreshHeld.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didStartRefresh, "the first caller should start the token call")
         // Runs on the main actor up to where it waits for the call already under way.
         let second = Task.immediate { try await viewModel.refreshedPlaybackAccessToken() }

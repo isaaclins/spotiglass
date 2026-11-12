@@ -100,11 +100,8 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
         let fullTask = Task {
             try await client.albumTracks(albumID: "al1", market: "US", limit: 1, maxPages: 2)
         }
-        let didStartFirstRequest = await firstRequestStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartFirstRequest,
-            "the multi-page request should start before the first-page request"
-        )
+        // the multi-page request should start before the first-page request
+        await firstRequestStarted.wait()
 
         let firstPage = try await client.albumTracksFirstPage(albumID: "al1", market: "US", limit: 1)
         releaseFirstRequest.signal()
@@ -152,16 +149,13 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
         )
 
         async let first = client.albumTracks(albumID: "al1", market: "US", limit: 50)
-        let didStartRequest = await requestStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartRequest,
-            "the coalesced album request should start before releasing the response"
-        )
+        // the coalesced album request should start before releasing the response
+        await requestStarted.wait()
         async let second = client.albumTracks(albumID: "al1", market: "US", limit: 50)
         // Releasing before the second call joined let it start its own request
         // once the first had finished, which failed CI as 2 requests.
-        let didJoin = await secondJoined.wait(timeout: .seconds(1))
-        XCTAssertTrue(didJoin, "the second album request should join the one in flight")
+        // the second album request should join the one in flight
+        await secondJoined.wait()
         releaseRequest.signal()
         let (a, b) = try await (first, second)
 
