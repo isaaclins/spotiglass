@@ -71,7 +71,7 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             uri: "spotify:track:t"
         )
         let trackRow = TrackRowViewModel(MusicPlaylistTrackItem(id: "t", content: .track(explicitTrack)), listPosition: 1)
-        let unavailableRow = TrackRowViewModel(MusicPlaylistTrackItem(id: "u", content: .unavailable(reason: "gone")), listPosition: 2)
+        let unavailableRow = TrackRowViewModel(MusicPlaylistTrackItem(id: "u", content: .unavailable(reason: .track)), listPosition: 2)
         let albumRow = ArtistAlbumRowViewModel(MusicArtistAlbum(
             id: "alb", name: "Awake", imageURL: nil, releaseYear: "2014",
             totalTracks: 10, group: .album, uri: "spotify:album:alb"
@@ -90,6 +90,7 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(trackRow.title, "Song", "A song's own name is never translated")
         XCTAssertEqual(unavailableRow.title, SpotiglassL10n.string("browser.trackBadge.unavailableItem", locale: german))
         XCTAssertEqual(unavailableRow.badgeText, SpotiglassL10n.string("browser.trackBadge.unavailable", locale: german))
+        XCTAssertEqual(unavailableRow.subtitle, SpotiglassL10n.string("browser.unavailableReason.track", locale: german))
         XCTAssertEqual(albumRow.trackCountText, "10 Titel")
         guard case let .empty(message) = emptyState else { return XCTFail("Expected an empty state") }
         XCTAssertEqual(message.string, SpotiglassL10n.string("browser.empty.signInToBrowse", locale: german))
