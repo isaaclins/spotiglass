@@ -248,9 +248,10 @@ struct PlaylistBrowserView: View {
             // The bar's items belong to the detail column, outside its `.disabled` page so Close
             // Lyrics stays usable while the lyrics cover it. The title is what pushed them to the
             // bar's trailing edge; without it on Home they slid over next to the sidebar button
-            // and jumped back on every other page. A flexible space takes its place, and it has
-            // to come first in the same toolbar as the items: SwiftUI orders the bar by where
-            // items are declared, not by their placement (#495).
+            // and jumped back on every other page. A flexible space takes its place. It has to be
+            // in the same toolbar as the buttons, ahead of them: a spacer declared anywhere else
+            // landed before the sidebar button or after Refresh. Back keeps its leading place
+            // (#495).
             .toolbar {
                 if !showsTitleInToolbar {
                     ToolbarSpacer(.flexible)

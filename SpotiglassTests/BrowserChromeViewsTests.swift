@@ -444,8 +444,11 @@ final class BrowserWindowTitleTests: XCTestCase {
 
     /// Where the queue button sits in the bar, in window coordinates.
     private func queueButtonFrame(in window: NSWindow) -> CGRect? {
-        let queue = ViewTestHost.localizedString("browser.queue")
-        guard let view = window.toolbar?.items.first(where: { $0.label == queue })?.view else { return nil }
+        toolbarItemFrame(in: window) { $0.label == ViewTestHost.localizedString("browser.queue") }
+    }
+
+    private func toolbarItemFrame(in window: NSWindow, where matches: (NSToolbarItem) -> Bool) -> CGRect? {
+        guard let view = window.toolbar?.items.first(where: matches)?.view else { return nil }
         return view.convert(view.bounds, to: nil)
     }
 
@@ -464,6 +467,8 @@ final class BrowserWindowTitleTests: XCTestCase {
         .environmentObject(store)
         .environmentObject(LyricsOverlayController())
         .defaultAppStorage(ViewTestHost.appStorageDefaults)
+        // RootView gives every screen this flexible space (#515); the real bar has it too.
+        .toolbar { ToolbarSpacer(.flexible) }
         let controller = NSHostingController(rootView: view)
         controller.sceneBridgingOptions = [.title, .toolbars]
         let window = OffscreenTestWindow(
@@ -520,6 +525,30 @@ final class BrowserWindowTitleTests: XCTestCase {
         XCTAssertEqual(window.frame.size, size, "showing or hiding the title must not resize the window")
 
         XCTAssertNotEqual(window.title, AppMetadata.displayName)
+    }
+
+    /// Opening a playlist and then clicking Home in the sidebar leaves Home with somewhere to go
+    /// back to. Back stays at the bar's leading edge, and the other buttons at its trailing edge.
+    func testHomeWithBackHistoryKeepsBackLeadingAndButtonsTrailing() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.playlist("p1"))
+        let window = hostBrowser(viewModel)
+        let playlistQueue = try XCTUnwrap(queueButtonFrame(in: window))
+
+        await viewModel.selectSidebar(.home)
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        XCTAssertTrue(viewModel.canNavigateBack, "Home should have somewhere to go back to")
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        let backLabel = NavigationToolbarChrome.destinationDescription(for: viewModel, locale: SpotiglassL10n.locale)
+        let back = try XCTUnwrap(toolbarItemFrame(in: window) { $0.label == backLabel }, "no Back in the bar")
+        let homeQueue = try XCTUnwrap(queueButtonFrame(in: window))
+        XCTAssertLessThan(back.minX, window.frame.width / 2, "Back left the bar's leading edge")
+        XCTAssertEqual(homeQueue.minX, playlistQueue.minX, accuracy: 0.5, "the bar's buttons moved between a page and Home")
     }
 
     /// A Command-click on the selected sidebar row clears the selection and leaves an empty
