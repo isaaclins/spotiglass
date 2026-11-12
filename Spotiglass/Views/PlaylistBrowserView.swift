@@ -143,16 +143,24 @@ struct PlaylistBrowserView: View {
         return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
-    /// Where you are, falling back to the app name at the root. With the lyrics open that is
-    /// the lyrics, not the page underneath them (#438).
+    /// Where you are, Home at the root unless nothing is selected. With the lyrics open that is the lyrics, not the page
+    /// underneath them (#438).
     private var windowTitle: String {
         if lyricsOverlay.isPresented {
             return SpotiglassL10n.string("playback.controls.lyrics")
         }
         return BrowserToolbarPresentation.windowTitle(
             for: viewModel.breadcrumbPath,
+            selection: viewModel.sidebarSelection,
             locale: spotiglassLocale
         )
+    }
+
+    /// The window keeps its name (`windowTitle`) everywhere; only the bar above Home, which
+    /// has its own greeting, shows none (#495).
+    private var showsTitleInToolbar: Bool {
+        lyricsOverlay.isPresented
+            || BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath)
     }
 
     // The browser body is split into sequential stages on purpose. As one
@@ -237,6 +245,19 @@ struct PlaylistBrowserView: View {
                 )
                 .modifier(PlayerBarClearance(barHeight: playerBarHeight))
             }
+            // The bar's items belong to the detail column, outside its `.disabled` page so Close
+            // Lyrics stays usable while the lyrics cover it. The title is what pushed them to the
+            // bar's trailing edge; without it on Home they slid over next to the sidebar button
+            // and jumped back on every other page. A flexible space takes its place. It has to be
+            // in the same toolbar as the buttons, ahead of them: a spacer declared anywhere else
+            // landed before the sidebar button or after Refresh. Back keeps its leading place
+            // (#495).
+            .toolbar {
+                if !showsTitleInToolbar {
+                    ToolbarSpacer(.flexible)
+                }
+                browserToolbarItems
+            }
         }
         // The bar floats over the bottom of the columns instead of taking a row of its own
         // under them: that row was an opaque strip where the sidebar's glass and the lyrics
@@ -265,6 +286,79 @@ struct PlaylistBrowserView: View {
         .scrollEdgeEffectStyle(.soft, for: .bottom)
     }
 
+    @ToolbarContentBuilder
+    private var browserToolbarItems: some ToolbarContent {
+        if let progress = viewModel.prefetchAllPlaylistsProgress {
+            ToolbarItem(placement: .automatic) {
+                PlaylistBrowserPrefetchProgressToolbarItem(progress: progress) {
+                    Task { await viewModel.toggleBulkPlaylistTrackPrefetch() }
+                }
+                .hiddenFromAccessibilityBehindPalette()
+            }
+        }
+        // Only once there is somewhere to go back to, like Music: at the
+        // root a dimmed chevron would sit beside the title doing nothing.
+        // Back belongs to the page under the lyrics, so it leaves with that page (#438).
+        if !lyricsOverlay.isPresented, viewModel.canNavigateBack {
+            ToolbarItem(placement: .navigation) {
+                NavigationToolbarChrome(viewModel: viewModel)
+                    .hiddenFromAccessibilityBehindPalette()
+            }
+        }
+        // With the lyrics open the bar keeps what still applies (the queue panel stays next
+        // to them) and trades Refresh and Disconnect for closing the lyrics: Refresh would
+        // reload a page that isn't showing (#438).
+        ToolbarItemGroup(placement: .automatic) {
+            Button {
+                isQueueVisible.toggle()
+            } label: {
+                Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
+            }
+            .help(
+                isQueueVisible
+                    ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
+                    : SpotiglassL10n.string("tooltip.toolbar.queue.show")
+            )
+            .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
+            .hiddenFromAccessibilityBehindPalette()
+
+            if lyricsOverlay.isPresented {
+                // Moves the lyrics into the small window that can stay above other apps (#439).
+                Button {
+                    commandPaletteManager.execute(commandID: CommandPaletteCommandID.popOutLyrics)
+                } label: {
+                    Label(SpotiglassL10n.string("lyrics.popOut.button"), systemImage: "pip.enter")
+                }
+                .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
+                .hiddenFromAccessibilityBehindPalette()
+
+                Button {
+                    lyricsOverlay.dismiss()
+                } label: {
+                    Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark")
+                }
+                .help(SpotiglassL10n.string("browser.closeLyrics"))
+                .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
+                .hiddenFromAccessibilityBehindPalette()
+            } else if canDisconnect {
+                Button {
+                    isConfirmingDisconnect = true
+                } label: {
+                    Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .help(SpotiglassL10n.string("browser.disconnect"))
+                .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
+                .hiddenFromAccessibilityBehindPalette()
+            }
+        }
+        if !lyricsOverlay.isPresented {
+            ToolbarItem(placement: .primaryAction) {
+                unifiedRefreshToolbarButton
+                    .hiddenFromAccessibilityBehindPalette()
+            }
+        }
+    }
+
     private var browserChrome: some View {
         browserSplitLayout
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
@@ -289,79 +383,10 @@ struct PlaylistBrowserView: View {
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was
         // correctly named (#161). The title is the current location rather than
-        // the app name; the back button names the place before it (#443).
+        // the app name; the back button names the place before it (#443). Home keeps
+        // that name for the window but shows none in the bar (#495).
         .navigationTitle(windowTitle)
-        .toolbar {
-            if let progress = viewModel.prefetchAllPlaylistsProgress {
-                ToolbarItem(placement: .automatic) {
-                    PlaylistBrowserPrefetchProgressToolbarItem(progress: progress) {
-                        Task { await viewModel.toggleBulkPlaylistTrackPrefetch() }
-                    }
-                    .hiddenFromAccessibilityBehindPalette()
-                }
-            }
-            // Only once there is somewhere to go back to, like Music: at the
-            // root a dimmed chevron would sit beside the title doing nothing.
-            // Back belongs to the page under the lyrics, so it leaves with that page (#438).
-            if !lyricsOverlay.isPresented, viewModel.canNavigateBack {
-                ToolbarItem(placement: .navigation) {
-                    NavigationToolbarChrome(viewModel: viewModel)
-                        .hiddenFromAccessibilityBehindPalette()
-                }
-            }
-            // With the lyrics open the bar keeps what still applies (the queue panel stays next
-            // to them) and trades Refresh and Disconnect for closing the lyrics: Refresh would
-            // reload a page that isn't showing (#438).
-            ToolbarItemGroup(placement: .automatic) {
-                Button {
-                    isQueueVisible.toggle()
-                } label: {
-                    Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
-                }
-                .help(
-                    isQueueVisible
-                        ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
-                        : SpotiglassL10n.string("tooltip.toolbar.queue.show")
-                )
-                .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
-                .hiddenFromAccessibilityBehindPalette()
-
-                if lyricsOverlay.isPresented {
-                    // Moves the lyrics into the small window that can stay above other apps (#439).
-                    Button {
-                        commandPaletteManager.execute(commandID: CommandPaletteCommandID.popOutLyrics)
-                    } label: {
-                        Label(SpotiglassL10n.string("lyrics.popOut.button"), systemImage: "pip.enter")
-                    }
-                    .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
-                    .hiddenFromAccessibilityBehindPalette()
-
-                    Button {
-                        lyricsOverlay.dismiss()
-                    } label: {
-                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark")
-                    }
-                    .help(SpotiglassL10n.string("browser.closeLyrics"))
-                    .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
-                    .hiddenFromAccessibilityBehindPalette()
-                } else if canDisconnect {
-                    Button {
-                        isConfirmingDisconnect = true
-                    } label: {
-                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
-                    }
-                    .help(SpotiglassL10n.string("browser.disconnect"))
-                    .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
-                    .hiddenFromAccessibilityBehindPalette()
-                }
-            }
-            if !lyricsOverlay.isPresented {
-                ToolbarItem(placement: .primaryAction) {
-                    unifiedRefreshToolbarButton
-                        .hiddenFromAccessibilityBehindPalette()
-                }
-            }
-        }
+        .toolbar(removing: showsTitleInToolbar ? nil : .title)
         .alert(
             SpotiglassL10n.string("browser.disconnect.confirm.title"),
             isPresented: $isConfirmingDisconnect
