@@ -10124,6 +10124,52 @@
         }
       }
     },
+    "playback.controls.retryCommand.hint": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sendet deine Anfrage erneut an Spotify."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sends what you asked for to Spotify again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a enviar a Spotify lo que pediste."
+          }
+        }
+      }
+    },
+    "playback.controls.retryCommand.label": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagenen Befehl erneut versuchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry the command that failed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar el comando que falló"
+          }
+        }
+      }
+    },
     "playback.controls.state.connecting.subtitle": {
       "comment": "Status copy shown while the SDK is connecting; it must not imply a Premium failure before Spotify reports one.",
       "extractionState": "stale",

@@ -237,6 +237,22 @@ extension PlaybackSessionViewModel {
         }
     }
 
+    /// Retry in the bar. A command that failed (play, next, seek, ...) is sent again, from the
+    /// state the bar showed before it failed: moving playback here again, as Retry used to do,
+    /// cleared the error but left what you asked for undone (#451). Without one, the failure
+    /// was moving playback to this device, and that is retried.
+    func retryAfterError() async {
+        guard let failedCommand else {
+            await retryPlaybackTransfer()
+            return
+        }
+        self.failedCommand = nil
+        if let restoreState = failedCommand.restoreState {
+            setConnectionState(restoreState)
+        }
+        await failedCommand.resend(self)
+    }
+
     /// Retries Spotify “transfer playback” to this device after API or transport failures that set `recoveryAction` to `.retryTransfer`.
     /// If no device ID is known, falls back to `start()` (full Web Playback SDK reconnect).
     func retryPlaybackTransfer() async {

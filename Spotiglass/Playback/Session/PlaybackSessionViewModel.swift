@@ -322,6 +322,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// restore before the session reads that player again (#430).
     let passingErrorRecoveryDelay: Duration
     var passingErrorRecoveryTask: Task<Void, Never>?
+    /// The command whose failure is on screen with Retry: what Retry sends again (#451).
+    /// Any other state, or another error, drops it.
+    var failedCommand: FailedPlaybackCommand?
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
@@ -1107,6 +1110,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     func setConnectionState(_ newState: PlaybackConnectionState) {
+        failedCommand = nil
         let state = offeringOnlyRecoveryThatHelps(newState)
         updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)

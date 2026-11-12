@@ -905,9 +905,14 @@ struct PlaybackControlsView: View {
                 recoveryButton(
                     title: SpotiglassL10n.string("playback.controls.retry"),
                     systemImage: "arrow.clockwise",
-                    accessibilityLabel: SpotiglassL10n.string("playback.controls.retry.label"),
-                    accessibilityHint: SpotiglassL10n.string("playback.controls.retry.hint"),
-                    action: { Task { await viewModel.retryPlaybackTransfer() } }
+                    // A failed command is sent again; a failed move of playback here is retried.
+                    accessibilityLabel: SpotiglassL10n.string(viewModel.retriesFailedCommand
+                        ? "playback.controls.retryCommand.label"
+                        : "playback.controls.retry.label"),
+                    accessibilityHint: SpotiglassL10n.string(viewModel.retriesFailedCommand
+                        ? "playback.controls.retryCommand.hint"
+                        : "playback.controls.retry.hint"),
+                    action: { Task { await viewModel.retryAfterError() } }
                 )
             case .reauthenticate:
                 recoveryButton(

@@ -699,7 +699,15 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
-            setConnectionState(.error(Self.displayError(for: error)))
+            // Retry skips again; the failed skip moved nothing, so it doesn't count toward the
+            // spacing between skips.
+            showFailedCommand(error) { viewModel in
+                viewModel.lastSkipDispatchInstant = nil
+                switch dispatch.kind {
+                case .previous: await viewModel.previous()
+                case .next: await viewModel.next()
+                }
+            }
             return false
         }
     }

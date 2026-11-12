@@ -165,7 +165,9 @@ extension PlaybackSessionViewModel {
             return true
         } catch {
             guard intent.owner == seekOwnershipKey else { return false }
-            failSeek(intent, with: Self.displayError(for: error))
+            clearPendingSeek()
+            failedSeekOwnershipKey = intent.owner
+            showFailedCommand(error) { await $0.seek(to: intent.milliseconds) }
             return false
         }
     }

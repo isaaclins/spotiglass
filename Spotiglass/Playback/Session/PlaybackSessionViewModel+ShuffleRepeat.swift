@@ -51,7 +51,10 @@ extension PlaybackSessionViewModel {
                 if shuffleEnabled == requestedTarget {
                     shuffleEnabled = fallback
                 }
-                setConnectionState(.error(Self.displayError(for: error)))
+                showFailedCommand(error) { viewModel in
+                    guard viewModel.shuffleEnabled != requestedTarget else { return }
+                    await viewModel.toggleShuffle()
+                }
                 return
             }
             inFlightShuffleTarget = nil
@@ -191,7 +194,7 @@ extension PlaybackSessionViewModel {
                 if repeatMode == targetMode {
                     repeatMode = confirmedRepeatMode
                 }
-                setConnectionState(.error(Self.displayError(for: error)))
+                showFailedCommand(error) { await $0.setRepeatMode(targetMode) }
             }
 
             repeatWriteInFlight = false

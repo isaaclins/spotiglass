@@ -51,7 +51,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            showFailedPlay(error, key: commandKey) { await $0.play(uri: uri) }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }
@@ -93,7 +93,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            showFailedPlay(error, key: commandKey) { await $0.play(contextURI: contextURI, playlistID: playlistID) }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }
@@ -167,9 +167,25 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            showFailedPlay(error, key: commandKey) {
+                await $0.playFromPlaylist(clickedURI: clickedURI, playableURIs: playableURIs, playlistID: playlistID)
+            }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
+    }
+
+    /// A play that failed: Retry sends the same play again. The failed play no longer counts
+    /// as just sent, so the play sent again isn't taken for a double click.
+    private func showFailedPlay(
+        _ error: Error,
+        key: PlayCommandKey,
+        resend: @escaping @MainActor (PlaybackSessionViewModel) async -> Void
+    ) {
+        if lastDispatchedPlayCommandKey == key {
+            lastDispatchedPlayCommandKey = nil
+            lastDispatchedPlayCommandInstant = nil
+        }
+        showFailedCommand(error, resend: resend)
     }
 
     private func beginPendingPlay(uri: String, dispatch: PlayCommandDispatch) {
