@@ -850,6 +850,22 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(result.suffix(20).map(\.id), (0..<20).map { "added-\($0)" }, "the adds on their way, in order")
     }
 
+    /// Two songs added through the Music app in one edit: its script appends them one by one, so a
+    /// read that overlaps it can list the first only. Each song shows once.
+    func testAReadWithPartOfABatchAddShowsEachSongOnce() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
+        let c = AppleMusicLibraryEditorTests.track(id: "-32", name: "C")
+        pending.recordPlaylistAdditions([
+            (a, AppleMusicSongReference(itemID: "-30", isInLibrary: true)),
+            (c, AppleMusicSongReference(itemID: "-32", isInLibrary: true)),
+        ], route: .musicApp, playlistID: "-1", shown: [b])
+
+        let read = [(track: b, keys: Set(["-31"])), (track: a, keys: Set(["-30"]))]
+        XCTAssertEqual(pending.applied(toPlaylistTracks: read, playlistID: "-1").map(\.name), ["B", "A", "C"])
+    }
+
     func testEntriesExpire() {
         final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
         let clock = Clock()
@@ -2534,6 +2550,7 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
     private var lookup: MockLibraryLookup!
     private var source: EditTestContentSource!
     private var provider: AppleMusicBrowsingProvider!
+    private var musicApp: MockMusicApp!
     private final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
     private let clock = Clock()
 
@@ -2546,8 +2563,9 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         lookup = MockLibraryLookup()
         let cloud = MockCloudLibrary()
         cloud.playlists = [AppleMusicCloudPlaylist(id: "p.test", name: "Spotiglass test")]
+        musicApp = MockMusicApp()
         let editor = AppleMusicLibraryEditor(
-            lookup: lookup, cloud: cloud, musicApp: MockMusicApp(), pending: AppleMusicPendingLibraryEdits(now: { [clock] in clock.now }),
+            lookup: lookup, cloud: cloud, musicApp: musicApp, pending: AppleMusicPendingLibraryEdits(now: { [clock] in clock.now }),
             songReferences: AppleMusicSongReferenceRegistry()
         )
         lookup.playlistsByID[playlistID] = AppleMusicPlaylistReference(name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511")
@@ -2915,5 +2933,70 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await expectShown(["A", "B"], "a read from before the removal")
         try library("A", "B")
         try await expectShown(["A", "B"])
+    }
+
+    // MARK: - Second review of #553
+
+    /// Rows by name, any song: A, B and C as `library` names them, others under their own IDs.
+    private func libraryRows(_ names: [String]) throws {
+        let ids = ["A": songA, "B": songB, "C": songC]
+        source.tracksByPlaylistID[playlistID] = try names.enumerated().map { _, name in
+            let id = ids[name] ?? "-30173761077587300\(Int(name.unicodeScalars.first!.value))"
+            return .song(try AppleMusicFixtures.song(id: id, title: name, artist: "Santigold", catalogID: "5066\(Int(name.unicodeScalars.first!.value))"))
+        }
+    }
+
+    /// In [C, B] I add A through the API (on its way), then C through the Music app (in at once).
+    /// The view is [C, B, A, C] while the Music app's playlist is [C, B, C]. Removing the C I just
+    /// added must take that copy: the Music app's script reads the position I picked in its own
+    /// playlist, and falls back to the song's first copy when the position isn't the song.
+    func testRemovingAMusicAppAddShownAfterAnAPIAddTakesThatCopyInMusic() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("C", "B")
+        try await add(songA)
+        try await add(songC)
+        try library("C", "B", "C")
+        let names = try await shown()
+        XCTAssertEqual(names, ["C", "B", "A", "C"])
+
+        try await remove(songC, at: 3)
+
+        // The Music app's playlist is [C, B, C]: the copy I picked is its row 2.
+        let call = try XCTUnwrap(musicApp.calls.last)
+        XCTAssertTrue(call.hasSuffix("@[2]])"), "the Music app was told \(call); on its [C, B, C] that takes the first C, not the one I picked")
+    }
+
+    /// [A, B] with my add of a second B on its way. I unlike A (Music takes it out of every
+    /// playlist), then add A back to this playlist. The playlist is [B, B, A].
+    func testASongUnlikedThenAddedBackToAPlaylistWithPendingEditsShowsOnce() async throws {
+        knowSongB()
+        try library("A", "B")
+        try await add(songB)
+        try await expectShown(["A", "B", "B"])
+        try await provider.removeSavedTracks(ids: [songA])
+        try await expectShown(["B", "B"], "A left the playlist with the library")
+
+        try await add(songA)
+
+        try await expectShown(["B", "B", "A"], "a read from before the unlike")
+        try library("B", "B", "A")
+        try await expectShown(["B", "B", "A"], "the library has caught up")
+    }
+
+    /// In [A, B] I add C through the Music app, remove A, then (after a song E was added on another
+    /// device) remove B. The Music app makes these in order, so a read can have the add of C only.
+    func testMusicAppEditsKeepTheirOrderWhenTheRecordMovesOntoARead() async throws {
+        knowSongB()
+        knowSongCOnlyByItsPersistentID()
+        try library("A", "B")
+        try await add(songC)
+        try await remove(songA, at: 0)
+        try libraryRows(["A", "B", "E"])
+        try await expectShown(["B", "E", "C"], "E from elsewhere, none of my edits in yet")
+
+        try await remove(songB, at: 0)
+
+        try libraryRows(["A", "B", "E", "C"])
+        try await expectShown(["E", "C"], "the Music app's add of C is in, its removals are not yet")
     }
 }

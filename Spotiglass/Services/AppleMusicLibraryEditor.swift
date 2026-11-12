@@ -482,7 +482,10 @@ struct AppleMusicLibraryEditor: Sendable {
             guard let match = reference.musicAppMatch else {
                 throw AppleMusicLibraryEditError.notInMusicYet
             }
-            scripted.append(MusicAppPlaylistRemoval(track: match, positions: removal.positions))
+            // The browser's positions count copies on their way from the cloud, which the Music
+            // app's playlist doesn't have yet.
+            let positions = pending.musicAppPositions(removal.positions, playlistID: playlistID, shown: shownTracks)
+            scripted.append(MusicAppPlaylistRemoval(track: match, positions: positions ?? removal.positions))
             // A copy added from Spotiglass shows under another of the song's IDs than the
             // library's rows do: every one of them counts as the song.
             let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
