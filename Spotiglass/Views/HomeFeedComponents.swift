@@ -108,6 +108,9 @@ struct HomeMediaCardView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("HomeMediaCardView:\(card.id)")
+        #endif
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             Button(action: action) {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {

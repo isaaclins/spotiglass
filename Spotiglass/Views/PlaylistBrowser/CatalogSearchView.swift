@@ -225,7 +225,7 @@ struct CatalogSearchView: View {
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
+        LazyVStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
             let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
@@ -344,7 +344,7 @@ struct CatalogSearchView: View {
             }
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
+                LazyHStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                     content()
                 }
                 .padding(.vertical, SpotiglassDesign.spacingXS)

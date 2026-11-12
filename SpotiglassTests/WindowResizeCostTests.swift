@@ -34,12 +34,22 @@ final class WindowResizeCostTests: XCTestCase {
             ])],
             trackResults: ["p1": [.success(tracks)]]
         )
+        // Home as a Spotify account fills it: 20 top tracks and a shelf of recently played
+        // albums, most of both off screen. Empty sections hid what a full Home costs (#473).
+        api.topTracksHandler = { _, _ in Self.homeTracks(prefix: "top", count: Self.topTrackCount) }
+        api.recentlyPlayedHandler = { _ in Self.homeTracks(prefix: "recent", count: Self.recentAlbumCount) }
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         // As the browser's own `.task` loads it, so the hosted view doesn't load it again.
         await browserVM.loadIfNeeded()
         switch page {
         case .home:
-            browserVM.sidebarSelection = .home
+            await browserVM.selectSidebar(.home)
+            guard case let .loaded(top) = browserVM.homeTopTracks, case let .loaded(recent) = browserVM.homeRecentlyPlayed else {
+                XCTFail("Home's sections didn't load: \(browserVM.homeTopTracks), \(browserVM.homeRecentlyPlayed)")
+                throw CancellationError()
+            }
+            XCTAssertEqual(top.count, Self.topTrackCount)
+            XCTAssertEqual(recent.count, Self.recentAlbumCount)
         case .bigPlaylist:
             await browserVM.selectPlaylist(id: "p1")
             XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, tracks.count)
@@ -85,16 +95,40 @@ final class WindowResizeCostTests: XCTestCase {
             ("the live player bar isn't on screen", { $0 == "PlaybackControlsView" }),
             ("the sidebar doesn't list the playlist p1", { $0 == "PlaylistListRow:p1" }),
             ("the sidebar doesn't list the playlist p2", { $0 == "PlaylistListRow:p2" }),
-            page == .home
-                ? ("Home isn't on screen", { $0 == "HomeView" })
-                : ("no song rows on screen", { $0.hasPrefix("TrackListRow:") }),
-        ]
+        ] + (page == .home ? [
+            ("Home isn't on screen", { $0 == "HomeView" }),
+            ("no recently played album on screen", { $0 == "HomeMediaCardView:recent-album-0" }),
+        ] : [
+            ("no song rows on screen", { $0.hasPrefix("TrackListRow:") }),
+        ])
         let missing = { onScreen.filter { _, matches in !(ViewBodyTally.counts ?? [:]).keys.contains(where: matches) } }
         _ = AppKitTestSupport.pumpRunLoop(until: { missing().isEmpty })
         for (message, _) in missing() {
             XCTFail(message)
         }
         return window
+    }
+
+    private static let topTrackCount = 20
+    private static let recentAlbumCount = 30
+
+    /// Songs from `count` different albums, so each one is its own recently played card.
+    nonisolated private static func homeTracks(prefix: String, count: Int) -> [MusicTrack] {
+        (0..<count).map { index in
+            MusicTrack(
+                id: "\(prefix)-\(index)",
+                name: "Song \(index)",
+                artists: ["Artist \(index)"],
+                albumArtworkURL: nil,
+                albumName: "Album \(index)",
+                albumID: "\(prefix)-album-\(index)",
+                durationMilliseconds: 200_000,
+                isExplicit: false,
+                isPlayable: true,
+                linkedFromID: nil,
+                uri: "spotify:track:\(prefix)-\(index)"
+            )
+        }
     }
 
     /// One step of a window manager's animated resize: the new size, then the frame AppKit saves.
@@ -113,12 +147,42 @@ final class WindowResizeCostTests: XCTestCase {
 
     func testAnAnimatedResizeFromCodeDoesNotReRenderHome() async throws {
         let window = try await hostBrowser(on: .home)
-        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["HomeView"])
+        // Growing back brings rows and cards into Home's lazy stacks again, which builds them;
+        // while the window only shrinks nothing new comes into view, so nothing may run.
+        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["HomeView"], rowsMayReturnWhileGrowing: true)
+    }
+
+    /// Home's top tracks and its recently played shelf were plain stacks, which build and lay out
+    /// every row and card on every size the window takes, on screen or not, so a full Home cost
+    /// each resize step about twice what its content costs now (#473). Only what can be seen may
+    /// be built, before and during a resize.
+    func testHomeBuildsOnlyTheRowsAndCardsOnScreen() async throws {
+        let window = try await hostBrowser(on: .home)
+        // Home's sections load after it appears; wait for the first top track as well.
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?["TrackListRow:top-0"] != nil }),
+            "the top tracks never came on screen"
+        )
+        let offScreen = { () -> [String] in
+            (ViewBodyTally.counts ?? [:]).keys.filter {
+                $0 == "TrackListRow:top-\(Self.topTrackCount - 1)"
+                    || $0 == "HomeMediaCardView:recent-album-\(Self.recentAlbumCount - 1)"
+            }.sorted()
+        }
+        XCTAssertEqual(offScreen(), [], "Home built a row or card far outside the window")
+
+        ViewBodyTally.counts = [:]
+        for step in 0..<12 {
+            resize(window, toWidth: 1_450 - CGFloat(step) * 30, height: 900 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertEqual(offScreen(), [], "a resize built a row or card far outside the window")
     }
 
     private func assertAnAnimatedResizeReRendersNothing(
         in window: NSWindow,
         extraViews: [String],
+        rowsMayReturnWhileGrowing: Bool = false,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -132,9 +196,11 @@ final class WindowResizeCostTests: XCTestCase {
         let content = window.contentView!
         let wideLimit = Self.sidebarMaximumThickness(in: content)
         ViewBodyTally.counts = [:]
+        var countsWhileShrinking: [String: Int] = [:]
         for (step, width) in (widths + widths.reversed()).enumerated() {
             resize(window, toWidth: width, height: 900 - CGFloat(step % steps) * 10)
             if step == steps - 1 {
+                countsWhileShrinking = ViewBodyTally.counts ?? [:]
                 // At the narrowest step the browser must have taken the new width: its sidebar
                 // limit follows the committed width, so a resize that never reached it can't pass.
                 // However late a busy Mac commits it (#535).
@@ -165,7 +231,9 @@ final class WindowResizeCostTests: XCTestCase {
                 file: file, line: line
             )
         }
-        let rows = counts.keys.filter { $0.hasPrefix("TrackListRow:") || $0.hasPrefix("PlaylistListRow:") }
+        let rows = (rowsMayReturnWhileGrowing ? countsWhileShrinking : counts).keys.filter { name in
+            ["TrackListRow:", "PlaylistListRow:", "HomeMediaCardView:"].contains(where: name.hasPrefix)
+        }
         XCTAssertTrue(rows.isEmpty, "rows re-rendered while resizing: \(rows.sorted().prefix(5))", file: file, line: line)
     }
 

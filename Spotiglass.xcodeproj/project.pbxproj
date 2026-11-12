@@ -2485,7 +2485,7 @@
 			repositoryURL = "https://github.com/nalexn/ViewInspector";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.10.0;
+				minimumVersion = 0.10.4;
 			};
 		};
 		PKG00000000000000000007 /* XCRemoteSwiftPackageReference "Sparkle" */ = {

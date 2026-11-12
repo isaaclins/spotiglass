@@ -89,8 +89,10 @@ struct HomeView: View {
                     // so nothing said it scrolled (#162). The indicator is back,
                     // and a trackpad swipe settles on card boundaries, so it never
                     // leaves a card bisected. A mouse wheel moves the shelf freely (#475).
+                    // Lazy, like the top tracks: a plain stack laid out every card on every
+                    // size the window took, which made resizing Home slow (#473).
                     ScrollView(.horizontal, showsIndicators: true) {
-                        HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
+                        LazyHStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                             ForEach(cards) { card in
                                 HomeMediaCardView(card: card, browserViewModel: viewModel, openArtist: openArtist) {
                                     open(card.destination)
@@ -145,7 +147,9 @@ struct HomeView: View {
     private func topTracksList(_ tracks: [TrackRowViewModel]) -> some View {
         let playableURIs = tracks.compactMap(\.playableURI)
         let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
-        return VStack(spacing: 0) {
+        // Lazy: a plain stack laid out all 20 rows, mostly below the window, on every size the
+        // window took, about half of each resize step on Home (#473).
+        return LazyVStack(spacing: 0) {
             ForEach(tracks) { track in
                 marks.row(for: track) { mark in
                     TrackListRow(

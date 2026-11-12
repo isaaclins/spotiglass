@@ -277,7 +277,7 @@ struct ArtistDetailContent: View {
                 // Keep the shelf discoverable and scroll it like the Home shelf:
                 // a swipe settles on whole release cards (#232), a wheel moves freely (#475).
                 ScrollView(.horizontal, showsIndicators: true) {
-                    HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
+                    LazyHStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                         ForEach(albums) { album in
                             albumCardButton(album, group: group)
                         }
