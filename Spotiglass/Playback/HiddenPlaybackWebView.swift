@@ -110,9 +110,11 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     /// The last stop of Spotify's player that an ended session started. Each stop starts at
     /// once and doesn't wait for an earlier one: a stop held up behind another would land after
-    /// a newer session connected and cut it off.
+    /// a newer session connected and cut it off. Kept so tests can await it (`SpotiglassTests` only).
+    // periphery:ignore
     private(set) var spotifyStop: Task<Void, Never>?
     /// The last stop of Apple Music's player that removing the service started, likewise.
+    // periphery:ignore
     private(set) var appleMusicStop: Task<Void, Never>?
 
     init(spotify: SpotiglassPlaybackHost, makeAppleMusic: @escaping () -> SpotiglassPlaybackHost) {
