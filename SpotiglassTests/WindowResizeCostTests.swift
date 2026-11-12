@@ -182,19 +182,28 @@ final class WindowResizeCostTests: XCTestCase {
         XCTAssertEqual(offScreen(), [], "a resize built a row or card far outside the window")
     }
 
-    /// Search's track list was a plain stack too, so a page of results built every row on every
-    /// size the window took (#473).
+    /// Search's track list and its card rows were plain stacks too, so a page of results built
+    /// every row and card on every size the window took (#473).
     func testSearchBuildsOnlyTheTrackRowsOnScreen() async throws {
         try await assertSearchBuildsOnlyWhatIsOnScreen(
-            tracks: Self.homeTracks(prefix: "found", count: 10),
+            tracks: Self.homeTracks(prefix: "found", count: 10), albums: [],
             farOff: "TrackListRow:found-9"
         )
     }
 
-    /// Hosts Search on `tracks`, lays it out once, and checks `farOff` (a row below the window)
-    /// is built neither then nor during a resize.
+    /// Back on All after a category pill, a row of cards holds every page that pill fetched.
+    func testSearchBuildsOnlyTheAlbumCardsOnScreen() async throws {
+        let albums = (0..<30).map { index in
+            MusicAlbum(id: "found-album-\(index)", name: "Album \(index)", artists: ["Artist \(index)"], imageURL: nil, uri: "spotify:album:found-album-\(index)")
+        }
+        try await assertSearchBuildsOnlyWhatIsOnScreen(tracks: [], albums: albums, farOff: "HomeMediaCardView:found-album-29")
+    }
+
+    /// Hosts Search on results, lays it out once, and checks `farOff` (a row below the window or
+    /// a card past its right edge) is built neither then nor during a resize.
     private func assertSearchBuildsOnlyWhatIsOnScreen(
         tracks: [MusicTrack],
+        albums: [MusicAlbum],
         farOff: String,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -207,13 +216,14 @@ final class WindowResizeCostTests: XCTestCase {
         let search = browserVM.catalogSearch
         search.searchProvider = { _, offset, _ in
             offset == 0
-                ? MusicSearchResults(tracks: tracks, artists: [], albums: [], playlists: [])
+                ? MusicSearchResults(tracks: tracks, artists: [], albums: albums, playlists: [])
                 : MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
         search.query = "found"
         search.queryDidChange()
         await search.waitForSearchCompletion()
         XCTAssertEqual(search.visibleResults.tracks.count, tracks.count, file: file, line: line)
+        XCTAssertEqual(search.visibleResults.albums.count, albums.count, file: file, line: line)
 
         let playback = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
@@ -232,8 +242,9 @@ final class WindowResizeCostTests: XCTestCase {
         let window = try XCTUnwrap(controller.view.window, file: file, line: line)
         // The hosted page lays itself out fully once its window takes a size, as a real one does.
         resize(window, toWidth: 900, height: 600)
+        let second = tracks.isEmpty ? "HomeMediaCardView:found-album-1" : "TrackListRow:found-1"
         XCTAssertTrue(
-            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?["TrackListRow:found-1"] != nil }),
+            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?[second] != nil }),
             "the results never came on screen", file: file, line: line
         )
         AppKitTestSupport.pumpRunLoop(for: 0.3)
