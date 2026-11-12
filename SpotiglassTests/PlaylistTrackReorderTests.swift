@@ -112,6 +112,15 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertEqual(playlist, [1, 2, 4, 0, 3])
     }
 
+    func testSpotifyOffersReorderingAndNoOtherNewEdits() {
+        let client: any MusicBrowsingProvider = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: QueueHTTPClient([])
+        )
+        // Removing from a playlist, deleting playlists and saving albums stay as they were.
+        XCTAssertEqual(client.supportedLibraryEdits, [.reorderPlaylistTracks])
+    }
+
     func testSpotifyPlaylistsSayWhenTheyAreCollaborative() throws {
         let data = Data(#"""
         {"id": "p", "name": "Shared", "owner": {"id": "friend"}, "images": [], "snapshot_id": "s", "collaborative": true}
