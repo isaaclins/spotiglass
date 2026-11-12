@@ -108,8 +108,9 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     /// keeps it, so the bar stays on the song you paused, whichever service is on screen.
     private let lastHeardService = CurrentValueSubject<MusicService?, Never>(nil)
     private var cancellables: Set<AnyCancellable> = []
-    /// The last stop of Spotify's player that an ended session started. A stop runs after the
-    /// one before it, so one player is never stopped twice at once.
+    /// The last stop of Spotify's player that an ended session started. Each stop starts at
+    /// once and doesn't wait for an earlier one: a stop held up behind another would land after
+    /// a newer session connected and cut it off.
     private(set) var spotifyStop: Task<Void, Never>?
     /// The last stop of Apple Music's player that removing the service started, likewise.
     private(set) var appleMusicStop: Task<Void, Never>?
@@ -161,7 +162,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .filter { !$0 }
             .sink { [weak self] _ in
                 guard let self else { return }
-                spotifyStop = Self.stop(spotify.playbackViewModel, after: spotifyStop)
+                spotifyStop = Self.stop(spotify.playbackViewModel)
             }
             .store(in: &cancellables)
     }
@@ -176,14 +177,11 @@ final class SpotiglassPlaybackHosts: ObservableObject {
               previous.contains(.appleMusic), !services.contains(.appleMusic),
               let appleMusic = appleMusicIfCreated?.playbackViewModel
         else { return }
-        appleMusicStop = Self.stop(appleMusic, after: appleMusicStop)
+        appleMusicStop = Self.stop(appleMusic)
     }
 
-    private static func stop(_ player: PlaybackSessionViewModel, after previous: Task<Void, Never>?) -> Task<Void, Never> {
-        Task {
-            await previous?.value
-            await player.disconnect()
-        }
+    private static func stop(_ player: PlaybackSessionViewModel) -> Task<Void, Never> {
+        Task { await player.disconnect() }
     }
 
     /// Music that starts in `player` by any way (its bar, another device, the Music app) makes it

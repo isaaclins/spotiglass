@@ -102,7 +102,6 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var saveTracksCalls: [[String]] = []
         var removeSavedTracksCalls: [[String]] = []
         var savedTrackStatusesCalls: [[String]] = []
-        var playlistTracksDelayOnInvocation: UInt64?
         var onPlaylistTracksInvocation: ((String) -> Void)?
         var onCurrentUserPlaylistsInvocation: (() async -> Void)?
         var recentlyPlayedHandler: ((Int) async throws -> [MusicTrack])?
@@ -152,10 +151,6 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     var saveTracksCalls: [[String]] { locked { $0.saveTracksCalls } }
     var removeSavedTracksCalls: [[String]] { locked { $0.removeSavedTracksCalls } }
     var savedTrackStatusesCalls: [[String]] { locked { $0.savedTrackStatusesCalls } }
-    var playlistTracksDelayOnInvocation: UInt64? {
-        get { locked { $0.playlistTracksDelayOnInvocation } }
-        set { locked { $0.playlistTracksDelayOnInvocation = newValue } }
-    }
     var onPlaylistTracksInvocation: ((String) -> Void)? {
         get { locked { $0.onPlaylistTracksInvocation } }
         set { locked { $0.onPlaylistTracksInvocation = newValue } }
@@ -259,14 +254,13 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        let (onInvocation, delay, hold) = locked {
-            ($0.onPlaylistTracksInvocation, $0.playlistTracksDelayOnInvocation, $0.playlistTracksHold)
-        }
+        let (onInvocation, hold) = locked { ($0.onPlaylistTracksInvocation, $0.playlistTracksHold) }
         onInvocation?(playlistID)
-        if let delay {
-            try await Task.sleep(nanoseconds: delay)
+        if let hold {
+            // A held read ends early when its task is cancelled, like a network read.
+            await hold.wait()
+            try Task.checkCancellation()
         }
-        await hold?.wait()
         let result = locked { state -> Result<[MusicPlaylistTrackItem], Error>? in
             state.playlistTracksInvocationCountByID[playlistID, default: 0] += 1
             guard var results = state.trackResults[playlistID], !results.isEmpty else { return nil }

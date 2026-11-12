@@ -158,7 +158,6 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
                 "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])]
             ]
         )
-        api.playlistTracksDelayOnInvocation = 400_000_000
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB], playlistListCacheAge: 20_000)
         let viewModel = PlaylistBrowserViewModel(
             api: api,
@@ -172,9 +171,14 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
+        // From here reads are held until the test lets them go, or until their task is cancelled.
+        let readsHeld = AsyncSignal()
+        api.playlistTracksHold = readsHeld
         let fetchBStarted = AsyncSignal()
         api.onPlaylistTracksInvocation = { playlistID in
             if playlistID == "b" { fetchBStarted.signal() }
+            // Reading A again would be a bug the assertions catch; don't let it hang the test.
+            if playlistID == "a" { readsHeld.signal() }
         }
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
         let didStartFetchB = await fetchBStarted.wait(timeout: .seconds(1))
@@ -183,6 +187,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             "the first playlist switch should start fetching playlist B"
         )
         await viewModel.selectPlaylist(id: "a")
+        // B's read is let go only now: if the switch back to A didn't cancel it, it finishes.
+        readsHeld.signal()
         await firstSwitch.value
 
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1, "Cancelled in-flight fetch for B should not complete.")
@@ -387,17 +393,24 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testOpeningAPlaylistFromHomeReadsItOnce() async {
         let (playlist, tracks) = bigPlaylist(count: 796)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        api.playlistTracksDelayOnInvocation = 50_000_000
+        let firstReadStarted = AsyncSignal()
+        let readsHeld = AsyncSignal()
+        api.playlistTracksHold = readsHeld
         let reads = ReadCounter()
-        api.onPlaylistTracksInvocation = { _ in reads.increment() }
+        api.onPlaylistTracksInvocation = { _ in
+            reads.increment()
+            // A second read is the bug under test: let it run so the count shows it.
+            if reads.count == 1 { firstReadStarted.signal() } else { readsHeld.signal() }
+        }
         let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
 
         let opening = Task { await viewModel.selectSidebar(.playlist("big")) }
-        // The first read is under way (MusicKit's read doesn't stop when its task is cancelled).
-        while reads.count == 0 { await Task.yield() }
+        // The first read is under way and held until the sidebar has reported back.
+        await firstReadStarted.wait()
         // What the sidebar's selection change does.
         await viewModel.selectSidebar(.playlist("big"))
+        readsHeld.signal()
         await opening.value
 
         XCTAssertEqual(reads.count, 1)
