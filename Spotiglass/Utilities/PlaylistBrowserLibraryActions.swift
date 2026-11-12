@@ -55,7 +55,7 @@ enum PlaylistBrowserLibraryActions {
     static func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> MusicPlaylistSummary {
         MusicPlaylistSummary(
             id: row.id,
-            name: row.title,
+            name: row.playlistName,
             ownerID: row.ownerID,
             ownerName: row.owner,
             imageURL: row.artworkURL,

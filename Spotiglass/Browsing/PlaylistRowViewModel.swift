@@ -13,6 +13,12 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     /// The playlist has no name and ``title`` is the stand-in from when the row was built.
     let isUnnamed: Bool
 
+    /// The name to build the playlist from again (for a pin, a menu, the palette): blank when it
+    /// has none, so the stand-in from when the row was built isn't kept as a real name (#547).
+    var playlistName: String {
+        isUnnamed ? "" : title
+    }
+
     var isAlbumDetail: Bool {
         snapshotID.hasPrefix("album-")
     }

@@ -335,15 +335,7 @@ extension PlaylistBrowserViewModel {
             guard let summary = playlistsByID[id],
                   summary.trackCount != count,
                   summary.trackCount == nil || playlistTrackCountStandIns.contains(id) || replacing.contains(id) else { continue }
-            playlistsByID[id] = MusicPlaylistSummary(
-                id: summary.id,
-                name: summary.name,
-                ownerID: summary.ownerID,
-                ownerName: summary.ownerName,
-                imageURL: summary.imageURL,
-                trackCount: count,
-                snapshotID: summary.snapshotID
-            )
+            playlistsByID[id] = summary.with(trackCount: count)
             patchedIDs.insert(id)
         }
         guard !patchedIDs.isEmpty else { return }

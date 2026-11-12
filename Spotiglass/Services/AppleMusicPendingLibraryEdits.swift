@@ -124,15 +124,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         locked {
             guard let index = createdPlaylists.firstIndex(where: { $0.summary.id == id }) else { return }
             let summary = createdPlaylists[index].summary
-            createdPlaylists[index].summary = MusicPlaylistSummary(
-                id: summary.id,
-                name: summary.name,
-                ownerID: summary.ownerID,
-                ownerName: summary.ownerName,
-                imageURL: summary.imageURL,
-                trackCount: max(0, (summary.trackCount ?? 0) + delta),
-                snapshotID: summary.snapshotID
-            )
+            createdPlaylists[index].summary = summary.with(trackCount: max(0, (summary.trackCount ?? 0) + delta))
         }
     }
 

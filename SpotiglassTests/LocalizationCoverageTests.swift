@@ -544,6 +544,43 @@ final class LocalizationCoverageTests: XCTestCase {
         }
     }
 
+    /// The sidebar, the playlist header and the palette build the playlist again from its row,
+    /// and Apple Music fills in track counts after the list loaded. None of them may turn the
+    /// stand-in into a real name, or a pin or row made in German stays German (#547).
+    func testAPlaylistWithoutANameKeepsFollowingTheLanguageWhenRebuilt() throws {
+        let unnamed = MusicPlaylistSummary(
+            id: "p.blank", name: "  ", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+            ownerName: "You", imageURL: nil, trackCount: nil, snapshotID: "applemusic"
+        )
+        try store.mutate { $0.appearance.language = .german }
+        let germanRow = PlaylistRowViewModel(unnamed)
+        let counted = unnamed.with(trackCount: 12)
+        let pins = [
+            PinnedItem.playlist(PlaylistBrowserLibraryActions.playlistSummaryFromRow(germanRow)),
+            PlaylistDetailHeaderPinning.item(for: germanRow),
+            PinnedItem.playlist(counted)
+        ]
+        let rebuiltRow = PlaylistRowViewModel(PlaylistBrowserLibraryActions.playlistSummaryFromRow(germanRow))
+
+        try store.mutate { $0.appearance.language = .english }
+        let locale = store.appLocale
+        XCTAssertEqual(counted.trackCount, 12)
+        XCTAssertTrue(counted.isUnnamed)
+        XCTAssertEqual(counted.name, "Untitled Playlist")
+        XCTAssertEqual(pins.map { $0.localizedTitle(locale: locale) }, Array(repeating: "Untitled Playlist", count: 3))
+        XCTAssertEqual(rebuiltRow.localizedTitle(locale: locale), "Untitled Playlist")
+        XCTAssertEqual(PlaylistRowViewModel(counted).localizedTitle(locale: locale), "Untitled Playlist")
+
+        // A real name comes back unchanged.
+        let named = PlaylistRowViewModel(
+            MusicPlaylistSummary(
+                id: "p.4", name: "Night Drive", ownerID: "me", ownerName: "me",
+                imageURL: nil, trackCount: 3, snapshotID: "s"
+            )
+        )
+        XCTAssertEqual(PlaylistBrowserLibraryActions.playlistSummaryFromRow(named).name, "Night Drive")
+    }
+
 
     /// The equalizer exposes one gain fader per fixed centre frequency and no
     /// control over Q or centre frequency, which is a graphic equalizer. The

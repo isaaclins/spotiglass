@@ -144,15 +144,7 @@ extension PlaylistBrowserViewModel {
         playlistTrackCountEdits[playlistID, default: 0] += 1
         countPlaylistTracks(of: playlistID)
         guard let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
-        let adjusted = MusicPlaylistSummary(
-            id: summary.id,
-            name: summary.name,
-            ownerID: summary.ownerID,
-            ownerName: summary.ownerName,
-            imageURL: summary.imageURL,
-            trackCount: max(0, count + delta),
-            snapshotID: summary.snapshotID
-        )
+        let adjusted = summary.with(trackCount: max(0, count + delta))
         playlistsByID[playlistID] = adjusted
         guard let rows = playlistState.currentValue else { return }
         let updated = rows.map { $0.id == playlistID ? PlaylistRowViewModel(adjusted) : $0 }

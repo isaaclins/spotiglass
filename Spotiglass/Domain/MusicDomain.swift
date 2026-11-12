@@ -63,6 +63,20 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
         case storedName = "name"
         case ownerID, ownerName, imageURL, trackCount, snapshotID
     }
+
+    /// The same playlist with another track count. Keeps the name as the service sent it, so a
+    /// playlist without one keeps following the app's language (#547).
+    func with(trackCount: Int?) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
+            id: id,
+            name: storedName,
+            ownerID: ownerID,
+            ownerName: ownerName,
+            imageURL: imageURL,
+            trackCount: trackCount,
+            snapshotID: snapshotID
+        )
+    }
 }
 
 struct MusicPlaylistTrackItem: Codable, Equatable, Identifiable {
