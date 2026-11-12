@@ -486,14 +486,16 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             playlistResults: [.success([first, second])],
             trackResults: ["a": [.success([PlaylistBrowsingTestFixtures.track(id: "a1")])], "b": [.success(secondTracks)]]
         )
-        api.lastReadDelayNanoseconds = ["a": 200_000_000]
+        let lookup = MockBrowsingAPI.LastReadHold()
+        api.lastReadHolds = ["a": lookup]
         let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
 
         let opening = Task { await viewModel.selectPlaylist(id: "a") }
-        // A has to be opening before B is, however late a busy machine starts its task.
-        while viewModel.sidebarSelection != .playlist("a") { await Task.yield() }
+        // A's lookup is in flight when B opens, and answers only after B has.
+        await lookup.entered.wait()
         await viewModel.selectPlaylist(id: "b")
+        lookup.release.signal()
         await opening.value
 
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), ["b1"],
