@@ -21,7 +21,7 @@ extension PlaybackSessionViewModel {
         let restoreState = stateToRestoreOnRetry()
         setConnectionState(.error(Self.displayError(for: error)))
         guard case let .error(shown) = connectionState, shown.recoveryAction == .retryTransfer,
-              !lastFailedControlCommandWasReplaced else { return }
+              !lastFailedControlCommandWasReplaced, Self.sendingAgainCanHelp(error) else { return }
         failedCommand = FailedPlaybackCommand(restoreState: restoreState, resend: resend)
     }
 
@@ -30,6 +30,18 @@ extension PlaybackSessionViewModel {
     func noteNewCommand() {
         failedCommand = nil
         controlCommandSerial &+= 1
+    }
+
+    /// Whether the same command sent again can go through. Not after "not found": that is
+    /// mostly a Connect device that left (a phone gone offline), and the way out is moving
+    /// playback here, what Retry did before. Not for a song this Mac only allows clean.
+    private static func sendingAgainCanHelp(_ error: Error) -> Bool {
+        switch MusicPlaybackError.from(error)?.reason {
+        case .notFound, .explicitContentRestricted:
+            false
+        case nil, .signInExpired, .missingPermission, .subscriptionRequired, .rateLimited, .network, .server, .failed:
+            true
+        }
     }
 
     /// Whether Retry sends a failed command again rather than moving playback here.

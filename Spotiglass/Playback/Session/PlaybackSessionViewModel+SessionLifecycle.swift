@@ -244,7 +244,8 @@ extension PlaybackSessionViewModel {
     /// A click while the command is still being sent again does nothing: moving playback here
     /// next to it would race it.
     func retryAfterError() async {
-        guard !isResendingFailedCommand else { return }
+        // A newer failure that came while it's out has its own Retry, and that one goes.
+        guard !isResendingFailedCommand || failedCommand != nil else { return }
         guard let failedCommand else {
             await retryPlaybackTransfer()
             return

@@ -192,9 +192,10 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    /// Whether the player already reported playing what this play asked for: the song it named,
-    /// or a first song of the list it named. Then a failure is a lost answer, and sending the
-    /// play again would start the song over.
+    /// Whether the player already reported playing the song this play named. Then a failure is
+    /// a lost answer, and sending the play again would start the song over. A play of an album
+    /// or playlist names no song, and the old queue moving on looks the same, so it can't be
+    /// confirmed this way.
     private func playerReportsPlay(of dispatch: PlayCommandDispatch) -> Bool {
         confirmedPlayCommandID == dispatch.id
     }
@@ -336,8 +337,8 @@ extension PlaybackSessionViewModel {
     /// take effect. Allows matching events through, lets the timeout window
     /// fall back gracefully, and lets nil-track teardown events through so
     /// the SDK can still report errors / device loss while a play is pending.
-    /// A report of the asked-for song playing also confirms that play (`confirmedPlayCommandID`);
-    /// a paused one doesn't: the play may not have reached the player.
+    /// A report of the asked-for song playing also confirms a play of that song
+    /// (`confirmedPlayCommandID`); a paused one doesn't: the play may not have reached the player.
     func shouldSuppressStaleStateChange(nowPlaying: PlaybackNowPlaying?, isPlaying: Bool) -> Bool {
         guard var transition = pendingPlayTransition else {
             return false
@@ -376,9 +377,6 @@ extension PlaybackSessionViewModel {
             if transition.firstContextURI == nil {
                 transition.firstContextURI = eventURI
                 pendingPlayTransition = transition
-            }
-            if isPlaying, transition.firstContextURI == eventURI {
-                confirmedPlayCommandID = transition.ownerID
             }
             return false
         }
