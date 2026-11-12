@@ -12,6 +12,8 @@ extension PlaybackSessionViewModel {
             return
         }
         let target = !shuffleEnabled
+        // A press while a write is out replaces that write for Retry, even when it only queues.
+        noteNewCommand()
         shuffleEnabled = target
         let mutationVersion = nextShuffleMutationVersion()
         setPendingShuffle(enabled: target)
@@ -51,7 +53,10 @@ extension PlaybackSessionViewModel {
                 if shuffleEnabled == requestedTarget {
                     shuffleEnabled = fallback
                 }
-                setConnectionState(.error(Self.displayError(for: error, service: service)))
+                showFailedCommand(error) { viewModel in
+                    guard viewModel.shuffleEnabled != requestedTarget else { return }
+                    await viewModel.toggleShuffle()
+                }
                 return
             }
             inFlightShuffleTarget = nil
@@ -86,6 +91,8 @@ extension PlaybackSessionViewModel {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
+        // A pick while a write is out replaces that write for Retry, even when it only queues.
+        noteNewCommand()
         repeatMode = mode
         desiredRepeatMode = mode
         setPendingRepeat(mode: mode)
@@ -191,7 +198,7 @@ extension PlaybackSessionViewModel {
                 if repeatMode == targetMode {
                     repeatMode = confirmedRepeatMode
                 }
-                setConnectionState(.error(Self.displayError(for: error, service: service)))
+                showFailedCommand(error) { await $0.setRepeatMode(targetMode) }
             }
 
             repeatWriteInFlight = false

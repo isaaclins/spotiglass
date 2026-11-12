@@ -76,7 +76,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
             positionMilliseconds: 0,
             uri: "spotify:track:other"
         )
-        XCTAssertTrue(viewModel.shouldSuppressStaleStateChange(nowPlaying: stale))
+        XCTAssertTrue(viewModel.shouldSuppressStaleStateChange(nowPlaying: stale, isPlaying: true))
 
         let matching = PlaybackNowPlaying(
             name: "Pending",
@@ -88,7 +88,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
             positionMilliseconds: 0,
             uri: "spotify:track:pending"
         )
-        XCTAssertFalse(viewModel.shouldSuppressStaleStateChange(nowPlaying: matching))
+        XCTAssertFalse(viewModel.shouldSuppressStaleStateChange(nowPlaying: matching, isPlaying: true))
         XCTAssertNil(viewModel.pendingPlayURI)
     }
 
