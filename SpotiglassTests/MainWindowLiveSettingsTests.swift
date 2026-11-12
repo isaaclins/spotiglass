@@ -62,7 +62,9 @@ final class MainWindowLiveSettingsTests: XCTestCase {
     }
 
     /// The same live switches over Spotify's library, as the main window shows it to a signed-in
-    /// Spotify account: its own toolbar items (Disconnect among them) and live playback.
+    /// Spotify account: its own toolbar items (Disconnect among them) and live playback. Then
+    /// straight from that library to Apple Music's and back, each a new split view and new toolbar
+    /// items: the toolbar has to take each one up.
     func testLiveSwitchesKeepSpotifysSidebarUnderTheToolbar() async throws {
         let settings = try ViewTestHost.makeSettingsStore()
         SpotiglassL10n.settingsStore = settings
@@ -71,8 +73,24 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             $0.appearance.colorScheme = .dark
         }
         let rendered = RenderedSettings()
-        let window = try await hostSpotifyLibrary(settings: settings, rendered: rendered)
-        try assertLiveSwitchesKeepTheTitleBar(of: window, settings: settings, rendered: rendered)
+        let (window, services) = try await hostSignedInLibraries(settings: settings, rendered: rendered)
+        let start = try assertLiveSwitchesKeepTheTitleBar(of: window, settings: settings, rendered: rendered)
+
+        for service in [MusicService.appleMusic, .spotify] {
+            let shown = try XCTUnwrap(TitleBarLayout(window), "no library on screen before switching to \(service)")
+            XCTAssertTrue(services.activate(service), "couldn't switch to \(service)")
+            let switched = AppKitTestSupport.pumpRunLoop(until: {
+                guard let layout = TitleBarLayout(window) else { return false }
+                return layout.splitView !== shown.splitView && layout.sidebarSeparator?.splitView === layout.splitView
+            })
+            window.contentView?.layoutSubtreeIfNeeded()
+            XCTAssertTrue(switched, "after switching to \(service) the toolbar's sidebar divider doesn't follow its library")
+            let after = try XCTUnwrap(TitleBarLayout(window), "no library after switching to \(service)")
+            XCTAssertEqual(
+                after.sidebarTopInset, start.sidebarTopInset, accuracy: 0.5,
+                "after switching to \(service) the sidebar moved up under the window buttons"
+            )
+        }
     }
 
     /// System hands the content macOS's scheme itself, so it has to follow macOS turning dark or
@@ -172,46 +190,58 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         return try showLikeTheMainWindow(root, settings: settings, rendered: rendered)
     }
 
-    /// Spotify's library as the main window shows it to a signed-in account, with its library
-    /// from a stand-in API, so nothing reaches Spotify.
-    private func hostSpotifyLibrary(
+    /// Spotify's library as the main window shows it to a signed-in account, and Apple Music's
+    /// next to it, switched by the sidebar's service switcher. Both read from a stand-in API, the
+    /// account's profile included, so nothing reaches Spotify or Apple Music.
+    private func hostSignedInLibraries(
         settings: SpotiglassSettingsStore,
         rendered: RenderedSettings
-    ) async throws -> NSWindow {
-        let api = MockBrowsingAPI(
-            playlistResults: [.success([
-                PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
-                PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Deep Focus"),
-            ])],
-            trackResults: [:]
-        )
-        let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        await browser.load()
-        let pins = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
-        pins.bind(userID: "u1")
+    ) async throws -> (NSWindow, MusicServiceStore) {
         let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
             services: [.spotify, .appleMusic], active: .spotify
         ))
         let palette = CommandPaletteManager()
         let tokens = LiveSettingsSpotifyTokens()
-        let library = PlaylistBrowserView(
-            viewModel: browser,
-            playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
-            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
-            commandPaletteManager: palette,
-            signOut: {},
-            sidebarHeader: AnyView(MusicServiceSwitcher(
-                store: services, keymapStore: palette.keymapStore, switchTo: { _ in }, add: { _ in }
+        var libraries: [MusicService: AnyView] = [:]
+        for service in [MusicService.spotify, .appleMusic] {
+            let api = MockBrowsingAPI(
+                playlistResults: [.success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Deep Focus"),
+                ])],
+                trackResults: [:]
+            )
+            let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+            await browser.load()
+            libraries[service] = AnyView(PlaylistBrowserView(
+                viewModel: browser,
+                playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+                catalogProvider: api,
+                commandPaletteManager: palette,
+                signOut: {},
+                // Apple Music's library is set up as AppleMusicBrowserRoot sets it up.
+                playbackMode: service == .appleMusic
+                    ? .unavailable(SpotiglassL10n.string("error.playback.appleMusic.subscription.message"))
+                    : .live,
+                canDisconnect: service != .appleMusic,
+                sidebarHeader: AnyView(MusicServiceSwitcher(
+                    store: services, keymapStore: palette.keymapStore,
+                    switchTo: { services.activate($0) }, add: { _ in }
+                ))
             ))
-        )
-        // RootView gives every screen this space ahead of the library's own items.
-        .toolbar { ToolbarSpacer(.flexible) }
-        .background(RenderedSettingsProbe(rendered: rendered))
-        .environmentObject(pins)
-        .environmentObject(settings)
-        .environmentObject(LyricsOverlayController())
-        .spotiglassLiveSettings(settings)
-        return try showLikeTheMainWindow(library, settings: settings, rendered: rendered)
+        }
+        let pins = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        // The stand-in API's account.
+        pins.bind(userID: "u")
+        let content = ActiveLibrary(services: services, libraries: libraries)
+            // RootView gives every screen this space ahead of the library's own items.
+            .toolbar { ToolbarSpacer(.flexible) }
+            .background(RenderedSettingsProbe(rendered: rendered))
+            .environmentObject(pins)
+            .environmentObject(settings)
+            .environmentObject(LyricsOverlayController())
+            .spotiglassLiveSettings(settings)
+        return (try showLikeTheMainWindow(content, settings: settings, rendered: rendered), services)
     }
 
     /// Hosts `content` in a window shaped like the main window and waits until it has drawn.
@@ -263,6 +293,18 @@ final class MainWindowLiveSettingsTests: XCTestCase {
 
     private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+}
+
+/// The active service's library, a new one for each service, as RootView shows them.
+private struct ActiveLibrary: View {
+    @ObservedObject var services: MusicServiceStore
+    let libraries: [MusicService: AnyView]
+
+    var body: some View {
+        if let active = services.active, let library = libraries[active] {
+            library.id(active)
+        }
     }
 }
 
