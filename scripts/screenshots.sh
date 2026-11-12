@@ -285,7 +285,7 @@ stop() {
             kill -0 "$pid" 2>/dev/null || break
             sleep 0.25
         done
-        kill -9 "$pid" 2>/dev/null || true
+        if kill -0 "$pid" 2>/dev/null; then kill -9 "$pid" 2>/dev/null || true; fi
     fi
     [ -f "$WORK/mock.pid" ] && { kill "$(cat "$WORK/mock.pid")" 2>/dev/null || true; rm -f "$WORK/mock.pid"; }
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
