@@ -19,16 +19,17 @@ final class BrowserChromeViewsTests: XCTestCase {
             savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
         XCTAssertEqual(
-            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection),
             ViewTestHost.localizedString("browser.home")
         )
         XCTAssertFalse(BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath))
-        await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
         await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
         XCTAssertEqual(
-            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection),
             "Artist artist-xyz"
         )
         XCTAssertTrue(BrowserToolbarPresentation.showsTitleInToolbar(for: viewModel.breadcrumbPath))
@@ -228,9 +229,9 @@ final class BrowserChromeViewsTests: XCTestCase {
         // and open again on the way out.
         var visited: [String] = ["Home"]
         await viewModel.selectSidebar(.likedSongs)
-        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath))
+        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection))
         await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
-        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath))
+        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection))
         await viewModel.selectAlbum(
             id: "album-1",
             displayTitle: "Sweet Boy",
@@ -248,7 +249,7 @@ final class BrowserChromeViewsTests: XCTestCase {
             landed.append(
                 viewModel.sidebarSelection == .home
                     ? "Home"
-                    : BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath)
+                    : BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection)
             )
         }
 
@@ -350,7 +351,7 @@ final class BrowserChromeViewsTests: XCTestCase {
             await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name)
         }
         await entered.wait()
-        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection), "Bonobo")
         await viewModel.selectSidebar(.home)
         release.open()
         await opening.value
@@ -378,7 +379,7 @@ final class BrowserChromeViewsTests: XCTestCase {
 
         XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
         await viewModel.navigateBack()
-        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection), "Bonobo")
 
         await viewModel.selectArtist(id: "artist-tycho", origin: .extend, displayName: "Tycho")
         XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
@@ -508,9 +509,32 @@ final class BrowserWindowTitleTests: XCTestCase {
         XCTAssertNotEqual(window.title, AppMetadata.displayName)
     }
 
+    /// A Command-click on the selected sidebar row clears the selection and leaves an empty
+    /// placeholder. That page is not Home, so the window must not be named "Home" there, and
+    /// the bar shows no title (it has no name of its own and must not say "Spotiglass").
+    func testNothingSelectedIsNotNamedHome() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+        let window = hostBrowser(viewModel)
+        XCTAssertEqual(window.title, ViewTestHost.localizedString("browser.home"))
+
+        await viewModel.selectSidebar(nil)
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        XCTAssertNil(viewModel.sidebarSelection)
+        XCTAssertNotEqual(window.title, ViewTestHost.localizedString("browser.home"))
+        XCTAssertFalse(window.title.isEmpty, "the window keeps a real name (#161)")
+        XCTAssertEqual(window.titleVisibility, .hidden)
+    }
+
     /// The welcome, sign-in and Apple Music access screens are a card whose heading is the
     /// app's name; the bar above it said "Spotiglass" a second time. The bar shows nothing
-    /// there and the window keeps its name.
+    /// there and the window keeps its name. The window starts with the name the main
+    /// `WindowGroup` gives it (the app's), and the card must not replace or blank it.
     func testCardScreensShowNoTitleInTheBar() {
         let welcome = MusicServiceWelcomeView(services: MusicService.allCases, choose: { _ in })
         let controller = NSHostingController(rootView: welcome)

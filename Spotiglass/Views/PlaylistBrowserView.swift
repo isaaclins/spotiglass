@@ -143,7 +143,7 @@ struct PlaylistBrowserView: View {
         return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
-    /// Where you are, Home at the root. With the lyrics open that is the lyrics, not the page
+    /// Where you are, Home at the root when Home is selected. With the lyrics open that is the lyrics, not the page
     /// underneath them (#438).
     private var windowTitle: String {
         if lyricsOverlay.isPresented {
@@ -151,6 +151,7 @@ struct PlaylistBrowserView: View {
         }
         return BrowserToolbarPresentation.windowTitle(
             for: viewModel.breadcrumbPath,
+            selection: viewModel.sidebarSelection,
             locale: spotiglassLocale
         )
     }

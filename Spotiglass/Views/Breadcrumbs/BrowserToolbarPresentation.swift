@@ -19,16 +19,25 @@ enum BrowserToolbarPresentation {
         }
     }
 
+    /// An empty path is Home only while Home is selected. With nothing selected (a Command-click
+    /// on the selected sidebar row, or before Home has loaded) the page is an empty placeholder,
+    /// not Home: the window keeps the app's name there and the bar shows none, as on the cards.
     static func windowTitle(
         for path: [BrowserBreadcrumb],
+        selection: SidebarSelection?,
         locale: Locale = SpotiglassL10n.locale
     ) -> String {
-        guard let last = path.last else { return SpotiglassL10n.string("browser.home", locale: locale) }
+        guard let last = path.last else {
+            return selection == .home
+                ? SpotiglassL10n.string("browser.home", locale: locale)
+                : AppMetadata.displayName
+        }
         return localizedLabel(for: last, locale: locale)
     }
 
     /// Home has its own big greeting, so the bar above it stays empty, like Music's
-    /// Home. Every other page keeps its name there (#495).
+    /// Home. Every other page keeps its name there (#495). The empty placeholder has no name
+    /// of its own to show, so its bar stays empty too.
     static func showsTitleInToolbar(for path: [BrowserBreadcrumb]) -> Bool {
         !path.isEmpty
     }

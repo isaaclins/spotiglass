@@ -144,9 +144,9 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertFalse(viewModel.breadcrumbPath.contains { $0.kind == .playlist(id: "-1") })
         await viewModel.navigateBack()
         XCTAssertEqual(viewModel.sidebarSelection, .home)
-        XCTAssertNotEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Spotiglass test")
+        XCTAssertNotEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection), "Spotiglass test")
         XCTAssertEqual(
-            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath, selection: viewModel.sidebarSelection),
             ViewTestHost.localizedString("browser.home")
         )
     }
