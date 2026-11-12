@@ -322,8 +322,10 @@ final class SpotifyAuthStepTests: XCTestCase {
               "expires_in": 1800,
               "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
             }
-            """, statusCode: 200, delayNanoseconds: 150_000_000)
+            """, statusCode: 200)
         ])
+        let refreshHeld = MockCallHold()
+        httpClient.hold = refreshHeld
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 }),
@@ -332,9 +334,13 @@ final class SpotifyAuthStepTests: XCTestCase {
             artworkCacheClearer: {}
         )
 
-        async let first = viewModel.refreshedPlaybackAccessToken()
-        async let second = viewModel.refreshedPlaybackAccessToken()
-        let (a, b) = try await (first, second)
+        let first = Task { try await viewModel.refreshedPlaybackAccessToken() }
+        let didStartRefresh = await refreshHeld.entered.wait(timeout: .seconds(10))
+        XCTAssertTrue(didStartRefresh, "the first caller should start the token call")
+        // Runs on the main actor up to where it waits for the call already under way.
+        let second = Task.immediate { try await viewModel.refreshedPlaybackAccessToken() }
+        refreshHeld.release()
+        let (a, b) = try await (first.value, second.value)
 
         XCTAssertEqual(a, "shared-access-token")
         XCTAssertEqual(b, "shared-access-token")
@@ -794,19 +800,16 @@ private final class SequencedTokenHTTPClient: HTTPClient {
         let data: Data
         let statusCode: Int
         let headers: [String: String]
-        let delayNanoseconds: UInt64
 
         static func json(
             _ json: String,
             statusCode: Int = 200,
-            headers: [String: String] = [:],
-            delayNanoseconds: UInt64 = 0
+            headers: [String: String] = [:]
         ) -> Response {
             Response(
                 data: Data(json.utf8),
                 statusCode: statusCode,
-                headers: headers,
-                delayNanoseconds: delayNanoseconds
+                headers: headers
             )
         }
     }
@@ -814,25 +817,24 @@ private final class SequencedTokenHTTPClient: HTTPClient {
     private let lock = NSLock()
     private var responses: [Response]
     private(set) var requestCount = 0
+    /// Holds the first request until the test releases it; a second request releases it too.
+    var hold: MockCallHold?
 
     init(_ responses: [Response]) {
         self.responses = responses
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lock.withLock { requestCount += 1 }
+        await hold?.pass()
         let response: Response
         lock.lock()
-        requestCount += 1
         guard !responses.isEmpty else {
             lock.unlock()
             throw URLError(.badServerResponse)
         }
         response = responses.removeFirst()
         lock.unlock()
-
-        if response.delayNanoseconds > 0 {
-            try await Task.sleep(nanoseconds: response.delayNanoseconds)
-        }
 
         return (
             response.data,

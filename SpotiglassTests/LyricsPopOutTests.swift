@@ -399,7 +399,10 @@ final class LyricsPopOutTests: XCTestCase {
 
         states.send(.signedOut)
         let firstStop = try XCTUnwrap(hosts.spotifyStop)
-        await firstDisconnectSent.wait()
+        guard await firstDisconnectSent.wait(timeout: .seconds(10)) else {
+            releaseFirstDisconnect.signal()
+            return XCTFail("signing out never told the page to disconnect")
+        }
 
         states.send(.signedIn(session))
         states.send(.signedOut)

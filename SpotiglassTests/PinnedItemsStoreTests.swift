@@ -657,18 +657,22 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         cache.saved[account] = [homePin("1225217998", title: "Migration 487e"), savedPin("9177095676878600744", title: "Migration 487e")]
         let catalog = try catalogAlbum(id: "1225217998", title: "Migration 487e")
         let loaded = [catalog, try libraryAlbum(persistentID: "9177095676878600744", title: "Migration 487e")]
+        let launchLookup = MockCallHold()
         let store = PinnedItemsStore(cache: cache, aliases: AppleMusicPinAliases(
             registry: AppleMusicPinAliasRegistry(), lookUp: { _, _ in [:] },
             albums: { ids in
-                try await Task.sleep(for: .milliseconds(50))
+                await launchLookup.pass()
                 return loaded.filter { ids.contains($0.id.rawValue) }
             },
             searchAlbums: { _ in AppleMusicAlbumSearch(catalog: [catalog], library: loaded.filter { $0.id != catalog.id }) },
             songReferences: AppleMusicSongReferenceRegistry()
         ))
         store.bind(userID: account)
-        // A pin right after launch, while the launch lookup still runs.
+        let didStartLookup = await launchLookup.entered.wait(timeout: .seconds(10))
+        XCTAssertTrue(didStartLookup, "binding should look up the pinned albums")
+        // A pin while the launch lookup still runs.
         XCTAssertTrue(store.pin(.likedSongs(ownerDisplay: "You", artworkURL: nil), at: 0))
+        launchLookup.release()
         await waitUntil { store.items.count == 2 }
 
         XCTAssertEqual(store.items.map(\.id), [PinnedItem.likedSongsID, "album:1225217998"])
