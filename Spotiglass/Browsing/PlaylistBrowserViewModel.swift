@@ -41,6 +41,21 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published var isSidebarShown = true
     /// The playlist whose "Delete Playlist" confirmation is showing.
     @Published var playlistPendingDeletion: MusicPlaylistSummary?
+    /// The playlist whose new order is being saved (#543). No playlist takes another drop until
+    /// the save is done: a second order sent meanwhile would count positions from one the
+    /// service doesn't have yet, and one save runs at a time.
+    @Published internal(set) var reorderingPlaylistID: String?
+    /// Counts the new orders the service took per playlist, as each save ends (#543): a read of the
+    /// playlist that started before one of them ended lists the old order and isn't shown. A save
+    /// that changed nothing doesn't count, so a read it crossed (maybe with changes made
+    /// elsewhere) is shown as usual.
+    var reorderGenerationByPlaylistID: [String: Int] = [:]
+    /// Playlists whose read was left out because it ended while a new order was saving (#543): if
+    /// that save fails, nothing was saved over what the read found, so the list is read again.
+    var playlistsWithReadLeftOut: Set<String> = []
+    /// Playlists the service refused to reorder as not editable (Apple Music's smart playlists):
+    /// they stop offering dragging (#543).
+    var playlistsRefusingReorder: Set<String> = []
     /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).
     @Published var pendingLibraryRemoval: PendingLibraryRemoval?
     /// User-facing toast banner published after a successful track-ops mutation

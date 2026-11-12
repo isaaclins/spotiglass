@@ -6,7 +6,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
     /// for selection, so pinning and badge state use this separate identity.
     let spotifyTrackID: String?
     /// 1-based row index in playlist / artist track lists (for ``TrackListRow``).
-    let listPosition: Int
+    private(set) var listPosition: Int
     let title: String
     let subtitle: String
     let artworkURL: URL?
@@ -21,6 +21,13 @@ struct TrackRowViewModel: Equatable, Identifiable {
     let isExplicit: Bool
     let playableURI: String?
     let artistRefs: [MusicArtistRef]
+
+    /// The same row at another spot in its list, with the same ``id`` so the list keeps it (#543).
+    func at(listPosition: Int) -> TrackRowViewModel {
+        var moved = self
+        moved.listPosition = listPosition
+        return moved
+    }
 
     /// Builds playlist rows with stable numbering without allocating `enumerated()` in SwiftUI bodies.
     static func numberedPlaylistRows(_ items: [MusicPlaylistTrackItem]) -> [TrackRowViewModel] {

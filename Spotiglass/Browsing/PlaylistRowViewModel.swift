@@ -9,7 +9,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let trackCount: Int?
     let trackCountText: String
     let artworkURL: URL?
-    let snapshotID: String
+    private(set) var snapshotID: String
     /// The playlist has no name and ``title`` is the stand-in from when the row was built.
     let isUnnamed: Bool
 
@@ -38,6 +38,13 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.snapshotID = playlist.snapshotID
         self.isUnnamed = playlist.isUnnamed
         self.playlistName = playlist.nameAsSent
+    }
+
+    /// The same playlist at the snapshot an edit made from here returned (#543).
+    func at(snapshotID: String) -> PlaylistRowViewModel {
+        var moved = self
+        moved.snapshotID = snapshotID
+        return moved
     }
 
     /// Rows outlive a language switch, so a stand-in name is resolved when the row renders,

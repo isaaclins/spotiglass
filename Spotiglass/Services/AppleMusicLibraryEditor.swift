@@ -22,6 +22,9 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
     case notEditable
     /// Apple Music answered with an error.
     case requestFailed
+    /// Music lists the playlist differently than Spotiglass shows it: it changed elsewhere since
+    /// it was read, so a new order counted from the screen would move the wrong songs (#543).
+    case playlistChanged
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +44,8 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
             SpotiglassL10n.string("appleMusic.edit.error.notEditable")
         case .requestFailed:
             SpotiglassL10n.string("appleMusic.edit.error.requestFailed")
+        case .playlistChanged:
+            SpotiglassL10n.string("playlist.mutation.reorderChangedElsewhere")
         }
     }
 }
@@ -492,6 +497,35 @@ struct AppleMusicLibraryEditor: Sendable {
                 playlistID: playlistID
             )
         }
+    }
+
+    /// Saves a new order through the Music app (#543): the Apple Music API has no reorder. Every
+    /// row must be one Music knows by its persistent ID, as rows read from the library on this
+    /// Mac are; a song added moments ago that the library doesn't list yet can't be placed.
+    func reorderPlaylist(playlistID: String, reorder: MusicPlaylistReorder) async throws {
+        let moves = PlaylistTrackReorder.moveToEndSequence(for: reorder.order)
+        guard !moves.isEmpty else { return }
+        // Songs added or removed through Apple Music moments ago are shown before Music lists
+        // them (an added one under its catalog ID, which reads like a persistent ID): Music's
+        // playlist can't match the screen until the library has them.
+        guard !pending.hasPendingTracks(playlistID: playlistID) else {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
+        let expected = try reorder.currentTrackIDs.map { id -> String in
+            guard let id, let persistentID = Self.musicAppPersistentID(fromMusicKitID: id) else {
+                throw AppleMusicLibraryEditError.notInMusicYet
+            }
+            return persistentID
+        }
+        // Music not finding the playlist yet (synced moments ago) is not Music refusing it as one
+        // it can't edit (a smart playlist): the browser stops offering dragging only for that.
+        let playlist: MusicAppPlaylistMatch
+        do {
+            playlist = try await musicAppPlaylist(for: playlistID)
+        } catch AppleMusicLibraryEditError.notEditable {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
+        try await musicApp.reorderPlaylist(playlist, expectedPersistentIDs: expected, moveToEnd: moves)
     }
 
     func renamePlaylist(playlistID: String, name: String) async throws {

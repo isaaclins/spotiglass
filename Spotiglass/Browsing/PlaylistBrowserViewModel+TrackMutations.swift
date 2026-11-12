@@ -11,6 +11,7 @@ enum PlaylistMutationOperation: Equatable {
     case removeFromPlaylist
     case deletePlaylist
     case saveAlbum
+    case reorderPlaylist
 }
 
 /// Track URIs a provider can put into playlists and Liked Songs: Spotify catalog tracks and
@@ -354,7 +355,8 @@ extension PlaylistBrowserViewModel {
             ownerName: previous.ownerName,
             imageURL: previous.imageURL,
             trackCount: previous.trackCount,
-            snapshotID: previous.snapshotID
+            snapshotID: previous.snapshotID,
+            isCollaborative: previous.isCollaborative
         )
         applyPlaylistName(renamed)
 
@@ -387,7 +389,7 @@ extension PlaylistBrowserViewModel {
     /// Stops an edit the account may not make before the provider can issue the request. This
     /// is intentionally a redirecting toast rather than a silent no-op, so the service's own fix
     /// (Spotify: Settings ▸ Account ▸ Reconnect) is discoverable.
-    private func ensureEditAllowed(_ operation: PlaylistMutationOperation) async -> Bool {
+    func ensureEditAllowed(_ operation: PlaylistMutationOperation) async -> Bool {
         guard let editPermissions, let failure = await editPermissions.missingPermission(for: operation) else {
             return true
         }
@@ -406,7 +408,7 @@ extension PlaylistBrowserViewModel {
                 case .addToLikedSongs, .removeFromLikedSongs:
                     return SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect")
                 case .addToPlaylist, .moveBetweenPlaylists, .createPlaylist, .renamePlaylist,
-                     .removeFromPlaylist, .deletePlaylist, .saveAlbum:
+                     .removeFromPlaylist, .deletePlaylist, .saveAlbum, .reorderPlaylist:
                     return SpotiglassL10n.string("playlist.mutation.playlistRequiresReconnect")
                 case .generic:
                     break

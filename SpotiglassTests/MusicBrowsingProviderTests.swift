@@ -167,7 +167,9 @@ final class MusicBrowsingProviderTests: XCTestCase {
         let data = try JSONEncoder().encode(summary)
         let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]).keys
 
-        XCTAssertEqual(Set(keys), ["id", "name", "ownerID", "ownerName", "trackCount", "snapshotID"])
+        // `isCollaborative` joined in #543; a build from before it ignores the key, and one after
+        // it reads a summary cached without it as not collaborative.
+        XCTAssertEqual(Set(keys), ["id", "name", "ownerID", "ownerName", "trackCount", "snapshotID", "isCollaborative"])
         XCTAssertEqual(try JSONDecoder().decode(MusicPlaylistSummary.self, from: data), summary)
     }
 }

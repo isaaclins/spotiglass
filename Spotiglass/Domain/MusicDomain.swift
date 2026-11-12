@@ -30,6 +30,9 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
     let imageURL: URL?
     let trackCount: Int?
     let snapshotID: String
+    /// A Spotify playlist its owner opened to collaborators, which they may reorder too (#543).
+    /// Caches written before this existed decode it as `false`.
+    let isCollaborative: Bool
 
     var name: String {
         UnnamedMusicItem.displayName(storedName, kind: .playlist)
@@ -54,7 +57,8 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
         ownerName: String,
         imageURL: URL?,
         trackCount: Int?,
-        snapshotID: String
+        snapshotID: String,
+        isCollaborative: Bool = false
     ) {
         self.id = id
         self.storedName = name
@@ -63,12 +67,25 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
         self.imageURL = imageURL
         self.trackCount = trackCount
         self.snapshotID = snapshotID
+        self.isCollaborative = isCollaborative
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
         case storedName = "name"
-        case ownerID, ownerName, imageURL, trackCount, snapshotID
+        case ownerID, ownerName, imageURL, trackCount, snapshotID, isCollaborative
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        storedName = try container.decode(String.self, forKey: .storedName)
+        ownerID = try container.decode(String.self, forKey: .ownerID)
+        ownerName = try container.decode(String.self, forKey: .ownerName)
+        imageURL = try container.decodeIfPresent(URL.self, forKey: .imageURL)
+        trackCount = try container.decodeIfPresent(Int.self, forKey: .trackCount)
+        snapshotID = try container.decode(String.self, forKey: .snapshotID)
+        isCollaborative = try container.decodeIfPresent(Bool.self, forKey: .isCollaborative) ?? false
     }
 
     /// The same playlist with another track count. Keeps the name as the service sent it, so a
@@ -81,7 +98,22 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
             ownerName: ownerName,
             imageURL: imageURL,
             trackCount: trackCount,
-            snapshotID: snapshotID
+            snapshotID: snapshotID,
+            isCollaborative: isCollaborative
+        )
+    }
+
+    /// The same playlist at the snapshot an edit made from here returned (#543).
+    func with(snapshotID: String) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
+            id: id,
+            name: storedName,
+            ownerID: ownerID,
+            ownerName: ownerName,
+            imageURL: imageURL,
+            trackCount: trackCount,
+            snapshotID: snapshotID,
+            isCollaborative: isCollaborative
         )
     }
 }
@@ -89,6 +121,40 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
 struct MusicPlaylistTrackItem: Codable, Equatable, Identifiable {
     let id: String
     let content: MusicPlaylistItemContent
+}
+
+/// A new order for the rows of a playlist as they are shown: `order[i]` is the current position
+/// (zero-based) of the row that goes to position `i`. `currentTrackIDs` are the rows' track IDs in
+/// their current order (`nil` for a row without one), for a provider that has to check it is
+/// moving the rows that are shown. Rows past the end of `order` (not loaded yet) stay where
+/// they are.
+struct MusicPlaylistReorder: Equatable {
+    let order: [Int]
+    let currentTrackIDs: [String?]
+}
+
+/// Spotify lists the playlist differently than the rows the new order was counted in: it changed
+/// elsewhere since it was read, so the order isn't sent (#543).
+struct MusicPlaylistChangedElsewhere: LocalizedError, Equatable {
+    var errorDescription: String? { SpotiglassL10n.string("playlist.mutation.reorderChangedElsewhere") }
+}
+
+/// A reorder the service took only part of: Spotify saves an order one request at a time, and
+/// one after the first failed. `orderSoFar` is the order the playlist has now (like
+/// `MusicPlaylistReorder.order`), `snapshotID` the one the last request that went through
+/// returned, `underlying` why the next one failed.
+struct MusicPlaylistReorderPartialFailure: Error {
+    let orderSoFar: [Int]
+    let snapshotID: String?
+    let underlying: Error
+}
+
+/// One Spotify reorder request: `rangeLength` items from `rangeStart` go before the item at
+/// `insertBefore`, positions counted in the playlist before this request.
+struct MusicPlaylistRangeMove: Equatable {
+    let rangeStart: Int
+    let rangeLength: Int
+    let insertBefore: Int
 }
 
 /// One or more exact positions for a URI in a playlist mutation.

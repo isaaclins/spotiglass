@@ -128,6 +128,21 @@ struct PlaylistDetailContent: View {
         return detail.playlist.ownerID == currentUserID
     }
 
+    /// Drag-to-reorder for a playlist the user may edit (#543); `nil` (no dragging) for the rest
+    /// and while an earlier order is still saving.
+    private var moveRows: ((IndexSet, Int) -> Void)? {
+        let playlistID = detail.playlist.id
+        guard !detail.playlist.isAlbumDetail,
+              browserViewModel.reorderingPlaylistID == nil,
+              browserViewModel.canReorderTracks(inPlaylist: playlistID)
+        else { return nil }
+        let tracks = detail.tracks
+        return { [browserViewModel] source, destination in
+            let rowIDs = source.filter { tracks.indices.contains($0) }.map { tracks[$0].id }
+            Task { await browserViewModel.moveTracks(rowIDs: rowIDs, toOffset: destination, inPlaylist: playlistID) }
+        }
+    }
+
     private var isEditingDisplayedPlaylistName: Bool {
         guard isEditingPlaylistName,
               let editingPlaylistID
@@ -196,7 +211,8 @@ struct PlaylistDetailContent: View {
                             let uri = track.playableURI
                         else { return }
                         playURI(uri)
-                    }
+                    },
+                    moveRows: moveRows
                 )
             }
         }
