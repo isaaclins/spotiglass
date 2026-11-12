@@ -67,10 +67,12 @@ struct SpotiglassMenuCommands: Commands {
     var hasPlayback = true
 
     /// Connect Playback (and its ⇧⌘K) is there only for a player that has a connection to make:
-    /// Spotify's web player. Apple Music plays on this Mac, so it has none (#453). With no
-    /// window open, it follows the selected service.
+    /// Spotify's web player. Apple Music plays on this Mac, so it has none (#453). Until a
+    /// signed-in window has wired its palette (no window, signed out, Apple Music's permission
+    /// screen), it follows the selected service, and the item dims there as before.
     var isConnectPlaybackOffered: Bool {
-        activeCommandPaletteManager?.canConnectPlayback ?? (serviceStore.active == .spotify)
+        guard isAvailable, let manager = activeCommandPaletteManager else { return serviceStore.active == .spotify }
+        return manager.canConnectPlayback
     }
 
     /// Next and Previous Track need a song to skip from (#500).

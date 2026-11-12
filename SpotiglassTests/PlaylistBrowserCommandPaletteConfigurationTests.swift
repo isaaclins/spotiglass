@@ -59,7 +59,9 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
     /// Spotiglass playback device" were still offered. Apple Music plays on this Mac, so there is
     /// nothing to connect, and running it restarted the player session. Spotify keeps it.
     func testConnectPlaybackIsOfferedOnlyForAPlayerWithAConnection() throws {
-        func menu(_ registry: SpotiglassSceneRegistry, keymap: CommandPaletteKeymapStore, service: MusicService) -> SpotiglassMenuCommands {
+        func menu(
+            _ registry: SpotiglassSceneRegistry, keymap: CommandPaletteKeymapStore, service: MusicService, isSignedIn: Bool = true
+        ) -> SpotiglassMenuCommands {
             let settingsURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("SpotiglassConnectPlayback-\(UUID().uuidString)", isDirectory: true)
                 .appendingPathComponent("settings.json", isDirectory: false)
@@ -70,7 +72,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
                 serviceStore: MusicServiceStore(
                     storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: service)
                 ),
-                isSignedIn: true,
+                isSignedIn: isSignedIn,
                 isQueueVisible: false
             )
         }
@@ -178,6 +180,18 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         let noWindow = SpotiglassSceneRegistry()
         XCTAssertFalse(menu(noWindow, keymap: spotifyManager.keymapStore, service: .appleMusic).isConnectPlaybackOffered)
         XCTAssertTrue(menu(noWindow, keymap: spotifyManager.keymapStore, service: .spotify).isConnectPlaybackOffered)
+
+        // Until the window is signed in, its palette may still hold the last service's wiring
+        // (signing out clears it; Apple Music's permission screen, reached from Spotify, keeps
+        // Spotify's): the menu follows the selected service there too, dimmed.
+        let window = SpotiglassSceneRegistry()
+        window.activate(SpotiglassSceneHost(commandPaletteManager: spotifyManager))
+        spotifyManager.connectPlayback = nil
+        let signedOutSpotify = menu(window, keymap: spotifyManager.keymapStore, service: .spotify, isSignedIn: false)
+        XCTAssertTrue(signedOutSpotify.isConnectPlaybackOffered, "signed-out Spotify lost its dimmed Connect Playback")
+        spotifyManager.connectPlayback = {}
+        let appleMusicPermission = menu(window, keymap: spotifyManager.keymapStore, service: .appleMusic, isSignedIn: false)
+        XCTAssertFalse(appleMusicPermission.isConnectPlaybackOffered, "Apple Music's permission screen offers Spotify's Connect")
     }
 
     func testApplyWiresCallbacksWithoutHostingView() async throws {
