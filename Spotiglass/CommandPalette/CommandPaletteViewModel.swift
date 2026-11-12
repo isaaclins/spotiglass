@@ -500,8 +500,8 @@ final class CommandPaletteViewModel: ObservableObject {
             lastSuccessfulSongSearchQuery = nil
             isLoading = false
             // Apple Music's search failures read as calm sentences, like the Search view's (#397).
-            errorText = PlaylistBrowserViewModel.appleMusicDisplayError(for: error)?.message
-                ?? SpotifyAPIError.userMessage(for: error)
+            errorText = BrowsingDisplayError.appleMusic(for: error)?.message
+                ?? MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current)
         }
     }
 

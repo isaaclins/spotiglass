@@ -134,9 +134,9 @@ extension PlaylistBrowserViewModel {
                 return .failed(apiError.userMessage)
             }
         }
-        if let appleMusicError = appleMusicDisplayError(for: error) {
+        if let appleMusicError = BrowsingDisplayError.appleMusic(for: error) {
             return .failed(appleMusicError.message)
         }
-        return .failed(SpotifyAPIError.userMessage(for: error))
+        return .failed(MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current))
     }
 }

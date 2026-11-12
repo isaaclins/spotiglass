@@ -481,7 +481,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 }
 
-final class MockBrowsingCache: SpotifyBrowsingCache {
+final class MockBrowsingCache: MusicBrowsingCache {
     var cachedPlaylists: [MusicPlaylistSummary]?
     var cachedTracks: [String: [MusicPlaylistTrackItem]]
     /// Mirrors disk cache snapshot binding so `snapshotID` rotation invalidates track rows.

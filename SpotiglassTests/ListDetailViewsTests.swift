@@ -323,7 +323,7 @@ final class ListDetailViewsTests: XCTestCase {
             api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
             cache: MockBrowsingCache()
         )
-        browserViewModel.currentUserSpotifyID = source.ownerID
+        browserViewModel.currentUserID = source.ownerID
         browserViewModel.playlistsByID = [source.id: source, destination.id: destination]
         browserViewModel.playlistState = .loaded([
             PlaylistRowViewModel(source),

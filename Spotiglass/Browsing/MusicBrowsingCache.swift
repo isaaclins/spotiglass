@@ -1,6 +1,10 @@
 import Foundation
 
-protocol SpotifyBrowsingCache {
+/// Where the browser keeps playlist lists, track lists and the library continuation index
+/// between reads, whichever service they came from. Spotify keeps them on disk
+/// (``SpotifyLocalCache``, its files and their format unchanged); Apple Music in memory
+/// (``MemoryBrowsingCache``).
+protocol MusicBrowsingCache {
     /// On-disk playlist list and its age; used to skip a redundant `me/playlists` round-trip when the cache is still fresh.
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)?
     func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws
@@ -14,14 +18,14 @@ protocol SpotifyBrowsingCache {
     func invalidateLibraryContinuationIndex() throws
 }
 
-extension SpotifyBrowsingCache {
+extension MusicBrowsingCache {
     func loadLibraryContinuationIndex(now _: Date, maxAge _: TimeInterval) throws -> LibraryContinuationLibrary? { nil }
     func loadLibraryContinuationIndexIgnoringAge() throws -> LibraryContinuationLibrary? { nil }
     func saveLibraryContinuationIndex(_: LibraryContinuationLibrary, cachedAt _: Date) throws {}
     func invalidateLibraryContinuationIndex() throws {}
 }
 
-extension SpotifyLocalCache: SpotifyBrowsingCache {}
+extension SpotifyLocalCache: MusicBrowsingCache {}
 
 /// Track lists kept in memory for this session only, for a service whose rows can't outlive it.
 ///
@@ -29,7 +33,7 @@ extension SpotifyLocalCache: SpotifyBrowsingCache {}
 /// lives, so a disk copy would show blank covers and rows that don't play. Without any copy,
 /// though, reopening a playlist read it again every time (#442). Bounded to `maxTracks` over all
 /// playlists, least recently used first out; the playlist list is not kept.
-final class MemoryBrowsingCache: SpotifyBrowsingCache, @unchecked Sendable {
+final class MemoryBrowsingCache: MusicBrowsingCache, @unchecked Sendable {
     static let maxTracks = 20_000
 
     private struct Entry {

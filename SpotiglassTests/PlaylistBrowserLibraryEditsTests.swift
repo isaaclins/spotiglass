@@ -19,7 +19,7 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
     }
 
     private func makeViewModel(_ api: LibraryEditsMockAPI) async -> PlaylistBrowserViewModel {
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         return viewModel
     }

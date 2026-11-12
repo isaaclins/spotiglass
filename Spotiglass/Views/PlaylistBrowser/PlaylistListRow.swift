@@ -3,7 +3,7 @@ import SwiftUI
 struct PlaylistListRow: View {
     let playlist: PlaylistRowViewModel
     /// Signed-in Spotify user id; hides owner subtitle on the user's own playlists.
-    var currentUserSpotifyID: String?
+    var currentUserID: String?
     var isActive: Bool = false
     var isPlaying: Bool = false
     /// Sidebar list row is the current `List` selection (drives heart vs heart.fill for Liked Songs).
@@ -24,7 +24,7 @@ struct PlaylistListRow: View {
         #if DEBUG
         let _ = ViewBodyTally.record("PlaylistListRow:\(playlist.id)")
         #endif
-        SidebarRow(subtitle: playlist.ownerTracksLine(currentUserID: currentUserSpotifyID, locale: spotiglassLocale)) {
+        SidebarRow(subtitle: playlist.ownerTracksLine(currentUserID: currentUserID, locale: spotiglassLocale)) {
             if isLikedSongsRow {
                 LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected, cornerRadius: SpotiglassDesign.cornerXS)
             } else {
@@ -48,7 +48,7 @@ struct PlaylistListRow: View {
                 ownerName: playlist.localizedOwner(locale: spotiglassLocale),
                 ownerID: playlist.ownerID,
                 trackCountText: playlist.localizedTrackCountText(locale: spotiglassLocale),
-                currentUserID: currentUserSpotifyID,
+                currentUserID: currentUserID,
                 nowPlaying: isActive
                     ? SpotiglassL10n.string("browser.playlistRow.nowPlaying", locale: spotiglassLocale)
                     : "",

@@ -51,7 +51,7 @@ extension PlaybackSessionViewModel {
                 if shuffleEnabled == requestedTarget {
                     shuffleEnabled = fallback
                 }
-                setConnectionState(.error(Self.displayError(for: error)))
+                setConnectionState(.error(Self.displayError(for: error, service: service)))
                 return
             }
             inFlightShuffleTarget = nil
@@ -191,7 +191,7 @@ extension PlaybackSessionViewModel {
                 if repeatMode == targetMode {
                     repeatMode = confirmedRepeatMode
                 }
-                setConnectionState(.error(Self.displayError(for: error)))
+                setConnectionState(.error(Self.displayError(for: error, service: service)))
             }
 
             repeatWriteInFlight = false
