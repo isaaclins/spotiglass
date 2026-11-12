@@ -130,16 +130,21 @@ extension PlaylistBrowserViewModel {
     func moveTracks(rowIDs: [String], toOffset offset: Int, inPlaylist playlistID: String) async {
         guard reorderingPlaylistID == nil,
               canReorderTracks(inPlaylist: playlistID),
-              let shown = shownPlaylistTracks(playlistID)
+              let detail = shownPlaylistDetail(playlistID)
         else { return }
+        let shown = detail.tracks
         let positions = Set(rowIDs.compactMap { id in shown.firstIndex { $0.id == id } })
         guard !positions.isEmpty else { return }
         let order = PlaylistTrackReorder.order(count: shown.count, moving: positions, toOffset: offset)
         guard !PlaylistTrackReorder.isUnchanged(order) else { return }
-        let reordered = order.enumerated().map { shown[$0.element].at(listPosition: $0.offset + 1) }
+        let reordered = Self.rows(shown, in: order)
         showReorderedTracks(reordered, playlistID: playlistID)
         reorderingPlaylistID = playlistID
         defer { reorderingPlaylistID = nil }
+        // A read that started before the save, or while it runs, lists the old order: it must
+        // not replace the new one once the save is done.
+        reorderGenerationByPlaylistID[playlistID, default: 0] += 1
+        defer { reorderGenerationByPlaylistID[playlistID, default: 0] += 1 }
 
         guard await ensureScope(
             SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
@@ -149,10 +154,12 @@ extension PlaylistBrowserViewModel {
             return
         }
         do {
+            // Positions count in the rows on screen, so the snapshot is the one they were read
+            // at, not the sidebar's: a library refresh may have learned a newer one meanwhile.
             let newSnapshotID = try await api.reorderPlaylistTracks(
                 playlistID: playlistID,
                 reorder: MusicPlaylistReorder(order: order, currentTrackIDs: shown.map(\.spotifyTrackID)),
-                snapshotID: (playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID])?.snapshotID
+                snapshotID: detail.playlist.snapshotID
             )
             invalidateTracksCache(playlistID: playlistID)
             if let newSnapshotID { recordSnapshotID(newSnapshotID, playlistID: playlistID) }
@@ -160,6 +167,21 @@ extension PlaylistBrowserViewModel {
             if let now = shownPlaylistTracks(playlistID), now != reordered {
                 await refreshCurrentPlaylistMutationDetail(for: [playlistID])
             }
+        } catch let partial as MusicPlaylistReorderPartialFailure {
+            // Spotify took the first requests of the order and not the rest: the screen shows
+            // the order the playlist has now, under the snapshot those requests returned, so
+            // the next edit counts from it.
+            invalidateTracksCache(playlistID: playlistID)
+            if let snapshotID = partial.snapshotID { recordSnapshotID(snapshotID, playlistID: playlistID) }
+            if shownPlaylistTracks(playlistID) == reordered {
+                showReorderedTracks(Self.rows(shown, in: partial.orderSoFar), playlistID: playlistID)
+            } else {
+                await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+            }
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.reorderFailed",
+                Self.describeFailure(partial.underlying, operation: .reorderPlaylist)
+            )
         } catch {
             putBack(shown, replacing: reordered, playlistID: playlistID)
             trackMutationToast = SpotiglassL10n.format(
@@ -175,15 +197,27 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    /// The open playlist's rows, when `playlistID` is the playlist on screen.
-    private func shownPlaylistTracks(_ playlistID: String) -> [TrackRowViewModel]? {
-        guard case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == playlistID else { return nil }
-        return detail.tracks
+    /// `rows` put in `order` (`order[i]` = the current position of the row that goes to `i`),
+    /// numbered anew with the same row IDs.
+    private static func rows(_ rows: [TrackRowViewModel], in order: [Int]) -> [TrackRowViewModel] {
+        order.enumerated().map { rows[$0.element].at(listPosition: $0.offset + 1) }
     }
 
-    private func showReorderedTracks(_ tracks: [TrackRowViewModel], playlistID: String) {
-        guard case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == playlistID else { return }
-        let content = BrowsingDetailContent.playlist(PlaylistDetailViewModel(playlist: detail.playlist, tracks: tracks))
+    /// The open playlist, when `playlistID` is the playlist on screen.
+    private func shownPlaylistDetail(_ playlistID: String) -> PlaylistDetailViewModel? {
+        guard case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == playlistID else { return nil }
+        return detail
+    }
+
+    /// The open playlist's rows, when `playlistID` is the playlist on screen.
+    private func shownPlaylistTracks(_ playlistID: String) -> [TrackRowViewModel]? {
+        shownPlaylistDetail(playlistID)?.tracks
+    }
+
+    private func showReorderedTracks(_ tracks: [TrackRowViewModel], playlistID: String, snapshotID: String? = nil) {
+        guard let detail = shownPlaylistDetail(playlistID) else { return }
+        let playlist = snapshotID.map { detail.playlist.at(snapshotID: $0) } ?? detail.playlist
+        let content = BrowsingDetailContent.playlist(PlaylistDetailViewModel(playlist: playlist, tracks: tracks))
         switch detailState {
         case .loaded: detailState = .loaded(content)
         case .refreshing: detailState = .refreshing(content)
@@ -240,6 +274,10 @@ extension PlaylistBrowserViewModel {
         }
         if let summary = knownPlaylistSummariesByID[playlistID] {
             knownPlaylistSummariesByID[playlistID] = updated(summary)
+        }
+        // The open playlist's rows are in the new order now; the next drop counts from them.
+        if let detail = shownPlaylistDetail(playlistID) {
+            showReorderedTracks(detail.tracks, playlistID: playlistID, snapshotID: snapshotID)
         }
     }
 

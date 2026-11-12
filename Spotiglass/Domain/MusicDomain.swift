@@ -67,6 +67,16 @@ struct MusicPlaylistReorder: Equatable {
     let currentTrackIDs: [String?]
 }
 
+/// A reorder the service took only part of: Spotify saves an order one request at a time, and
+/// one after the first failed. `orderSoFar` is the order the playlist has now (like
+/// `MusicPlaylistReorder.order`), `snapshotID` the one the last request that went through
+/// returned, `underlying` why the next one failed.
+struct MusicPlaylistReorderPartialFailure: Error {
+    let orderSoFar: [Int]
+    let snapshotID: String?
+    let underlying: Error
+}
+
 /// One Spotify reorder request: `rangeLength` items from `rangeStart` go before the item at
 /// `insertBefore`, positions counted in the playlist before this request.
 struct MusicPlaylistRangeMove: Equatable {

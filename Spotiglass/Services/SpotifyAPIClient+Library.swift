@@ -108,7 +108,8 @@ extension SpotifyAPIClient {
     /// range_length), one request per run of rows that move together. Each request carries the
     /// snapshot the one before it returned, so Spotify applies them to the playlist as the
     /// previous request left it, and a playlist changed elsewhere meanwhile fails instead of
-    /// moving the wrong songs. Returns the last snapshot ID.
+    /// moving the wrong songs. Returns the last snapshot ID. A request that fails after others
+    /// went through throws `MusicPlaylistReorderPartialFailure` with the order they left.
     func reorderPlaylistTracks(
         playlistID: String,
         reorder: MusicPlaylistReorder,
@@ -118,7 +119,8 @@ extension SpotifyAPIClient {
             throw SpotifyAPIError.invalidRequest("Playlist ID is required.")
         }
         var currentSnapshotID = snapshotID
-        for move in PlaylistTrackReorder.rangeMoves(for: reorder.order) {
+        var orderSoFar = Array(reorder.order.indices)
+        for (index, move) in PlaylistTrackReorder.rangeMoves(for: reorder.order).enumerated() {
             var body: [String: Any] = [
                 "range_start": move.rangeStart,
                 "insert_before": move.insertBefore,
@@ -127,12 +129,18 @@ extension SpotifyAPIClient {
             if let currentSnapshotID, !currentSnapshotID.isEmpty {
                 body["snapshot_id"] = currentSnapshotID
             }
-            let responseData = try await sendDataWrite(
-                method: "PUT",
-                path: "/v1/playlists/\(playlistID)/items",
-                queryItems: [],
-                jsonBody: body
-            )
+            let responseData: Data
+            do {
+                responseData = try await sendDataWrite(
+                    method: "PUT",
+                    path: "/v1/playlists/\(playlistID)/items",
+                    queryItems: [],
+                    jsonBody: body
+                )
+            } catch where index > 0 {
+                throw MusicPlaylistReorderPartialFailure(orderSoFar: orderSoFar, snapshotID: currentSnapshotID, underlying: error)
+            }
+            PlaylistTrackReorder.apply(move, to: &orderSoFar)
             if let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData),
                let nextSnapshotID = response.snapshotID,
                !nextSnapshotID.isEmpty {

@@ -112,6 +112,43 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertEqual(playlist, [1, 2, 4, 0, 3])
     }
 
+    func testASpotifyRequestThatFailsAfterAnotherWentThroughSaysWhereThePlaylistIs() async throws {
+        // The first request is answered; the connection is gone for the second.
+        let httpClient = QueueHTTPClient([.json(#"{"snapshot_id": "snapshot-2"}"#, statusCode: 200)])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let order = PlaylistTrackReorder.order(count: 5, moving: [0, 3], toOffset: 5)
+        XCTAssertEqual(PlaylistTrackReorder.rangeMoves(for: order).count, 2)
+
+        do {
+            _ = try await client.reorderPlaylistTracks(
+                playlistID: "playlist-1",
+                reorder: MusicPlaylistReorder(order: order, currentTrackIDs: ["a", "b", "c", "d", "e"]),
+                snapshotID: "snapshot-1"
+            )
+            XCTFail("the second request failed")
+        } catch let partial as MusicPlaylistReorderPartialFailure {
+            var playlist = Array(0..<5)
+            PlaylistTrackReorder.apply(PlaylistTrackReorder.rangeMoves(for: order)[0], to: &playlist)
+            XCTAssertEqual(partial.orderSoFar, playlist)
+            XCTAssertNotEqual(partial.orderSoFar, order)
+            XCTAssertEqual(partial.snapshotID, "snapshot-2")
+        }
+    }
+
+    func testAFirstSpotifyRequestThatFailsChangedNothing() async {
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: QueueHTTPClient([]))
+        do {
+            _ = try await client.reorderPlaylistTracks(
+                playlistID: "playlist-1",
+                reorder: MusicPlaylistReorder(order: [1, 0], currentTrackIDs: ["a", "b"]),
+                snapshotID: "snapshot-1"
+            )
+            XCTFail("the request failed")
+        } catch {
+            XCTAssertFalse(error is MusicPlaylistReorderPartialFailure)
+        }
+    }
+
     func testSpotifyOffersReorderingAndNoOtherNewEdits() {
         let client: any MusicBrowsingProvider = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
@@ -294,6 +331,60 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertNotNil(viewModel.trackMutationToast)
     }
 
+    func testASaveSpotifyTookPartOfShowsThePlaylistAsItIsNow() async {
+        let api = ReorderMockAPI()
+        // Of [One, Four, Two, Three] only the move of Four went through.
+        api.reorderError = MusicPlaylistReorderPartialFailure(orderSoFar: [0, 3, 1, 2], snapshotID: "snap-half", underlying: URLError(.notConnectedToInternet))
+        let viewModel = await makeViewModel(api)
+        let rows = shownRows(viewModel)
+
+        await viewModel.moveTracks(rowIDs: [rows[3].id, rows[0].id], toOffset: 4, inPlaylist: "pl1")
+
+        XCTAssertEqual(shownTitles(viewModel), ["One", "Four", "Two", "Three"])
+        XCTAssertEqual(shownRows(viewModel).map(\.listPosition), [1, 2, 3, 4])
+        XCTAssertNotNil(viewModel.trackMutationToast)
+        // The next drop counts from that order, under the snapshot it has.
+        api.reorderError = nil
+        await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[0].id], toOffset: 4, inPlaylist: "pl1")
+        XCTAssertEqual(api.reorderSnapshots, ["snap-half"])
+        XCTAssertEqual(api.reorders.last?.currentTrackIDs, ["t1", "t4", "t2", "t3"])
+    }
+
+    func testADropNamesTheSnapshotOfTheRowsOnScreen() async {
+        let api = ReorderMockAPI()
+        let viewModel = await makeViewModel(api)
+        // A library refresh learned a newer snapshot; the rows on screen are still the ones read
+        // at snap-1, and their positions only hold there.
+        let summary = viewModel.playlistsByID["pl1"]!
+        viewModel.playlistsByID["pl1"] = MusicPlaylistSummary(
+            id: summary.id, name: summary.name, ownerID: summary.ownerID, ownerName: summary.ownerName,
+            imageURL: nil, trackCount: 5, snapshotID: "snap-newer"
+        )
+
+        await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[3].id], toOffset: 0, inPlaylist: "pl1")
+
+        XCTAssertEqual(api.reorderSnapshots, ["snap-1"])
+    }
+
+    func testAReadThatBeganBeforeTheSaveDoesNotPutTheOldOrderBack() async {
+        let api = ReorderMockAPI()
+        let viewModel = await makeViewModel(api)
+        // The playlist is opened again: its last rows show at once while a read runs.
+        api.lastRead = try? await api.playlistTracks(playlistID: "pl1", limit: 50, maxPages: 1)
+        let gate = LibraryEditsGate()
+        api.readGate = gate
+        let reread = Task { await viewModel.refreshCurrentPlaylistMutationDetail(for: ["pl1"]) }
+        while api.readGate != nil { await Task.yield() }
+
+        await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[3].id], toOffset: 0, inPlaylist: "pl1")
+        XCTAssertEqual(api.reorders.count, 1)
+        gate.open()
+        await reread.value
+
+        XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"])
+        if case .refreshing = viewModel.detailState { XCTFail("the read that was left out still shows as running") }
+    }
+
     func testADropWhileTheLastOrderIsSavingDoesNothing() async {
         let api = ReorderMockAPI()
         let gate = LibraryEditsGate()
@@ -381,6 +472,10 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
     /// changed elsewhere or Music stopped partway.
     var namesAfterFailure: [String]?
     private var names = ["One", "Two", "Three", "Four"]
+    /// When set, the next read of the tracks waits for it, holding the order it had when it began.
+    var readGate: LibraryEditsGate?
+    /// The tracks read last, for a reopened playlist to show while the read runs.
+    var lastRead: [MusicPlaylistTrackItem]?
     private(set) var reorders: [MusicPlaylistReorder] = []
     private(set) var reorderSnapshots: [String?] = []
 
@@ -398,8 +493,14 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlists }
+    func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? { lastRead }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        names.enumerated().map { index, name in
+        let names = names
+        if let gate = readGate {
+            readGate = nil
+            await gate.wait()
+        }
+        return names.enumerated().map { index, name in
             let track = MusicTrack(
                 id: "t\(index + 1)", name: name, artists: ["Artist"], albumArtworkURL: nil, durationMilliseconds: 1000,
                 isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t\(index + 1)"

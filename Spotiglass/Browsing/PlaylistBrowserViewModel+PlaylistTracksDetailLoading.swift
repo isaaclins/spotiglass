@@ -79,12 +79,18 @@ extension PlaylistBrowserViewModel {
     }
 
     private func revalidatePlaylistTracks(playlist: MusicPlaylistSummary, playlistRow: PlaylistRowViewModel, session: Int) async {
+        let reorderGeneration = reorderGenerationByPlaylistID[playlist.id]
         do {
             // Spotify's `/v1/playlists/{id}/items` endpoint accepts a maximum
             // limit of 50 (the February 2026 rename also tightened the cap from
             // the legacy `/tracks` endpoint's 100). Passing 100 yields HTTP 400
             // invalid_request and breaks any playlist with more than 50 tracks.
             let tracks = try await api.playlistTracks(playlistID: playlist.id, limit: 50, maxPages: 200)
+            // A new order was saved from here while this read ran: it lists the old order (#543).
+            guard reorderGenerationByPlaylistID[playlist.id] == reorderGeneration else {
+                if session == detailSession, case let .refreshing(content) = detailState { detailState = .loaded(content) }
+                return
+            }
             try? cache.saveTracks(tracks, playlistID: playlist.id, snapshotID: playlist.snapshotID, cachedAt: now())
             invalidateLibraryContinuationCache()
             lastTracksRevalidationByID[playlist.id] = (playlist.snapshotID, now())

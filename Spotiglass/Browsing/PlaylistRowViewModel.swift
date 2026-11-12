@@ -9,7 +9,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let trackCount: Int?
     let trackCountText: String
     let artworkURL: URL?
-    let snapshotID: String
+    private(set) var snapshotID: String
 
     var isAlbumDetail: Bool {
         snapshotID.hasPrefix("album-")
@@ -30,6 +30,13 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         }
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
+    }
+
+    /// The same playlist at the snapshot an edit made from here returned (#543).
+    func at(snapshotID: String) -> PlaylistRowViewModel {
+        var moved = self
+        moved.snapshotID = snapshotID
+        return moved
     }
 
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
