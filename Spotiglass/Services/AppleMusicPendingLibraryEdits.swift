@@ -26,6 +26,36 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         var requestedAt: Date?
     }
 
+    /// Where a song's copies sat in a playlist as shown before the first edit to them: after
+    /// which of the other rows. A read lists the copies a step keeps from before at those places
+    /// and the copies added from Spotiglass after every row that was there, so where the copies
+    /// sit tells steps apart that list the song equally often.
+    struct PlaylistLayout {
+        /// Each other row's place in the playlist, by ID. A song the playlist listed more than
+        /// once has no single place and is left out.
+        let places: [String: Int]
+        /// For each copy of the song, how many of the other rows came before it.
+        let offsets: [Int]
+
+        init(_ rows: [MusicTrack], isSong: (MusicTrack) -> Bool) {
+            var places: [String: Int] = [:]
+            var repeated = Set<String>()
+            var offsets: [Int] = []
+            var others = 0
+            for row in rows {
+                if isSong(row) {
+                    offsets.append(others)
+                    continue
+                }
+                if places[row.id] != nil { repeated.insert(row.id) }
+                places[row.id] = others
+                others += 1
+            }
+            self.places = places.filter { !repeated.contains($0.key) }
+            self.offsets = offsets
+        }
+    }
+
     /// Every edit made from Spotiglass to one song's copies in one playlist, in order.
     ///
     /// Additions and removals of the same song are one record (#393): a read that still has the
@@ -61,6 +91,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         var metadataKeys: Set<String>
         /// How often the read listed the song before the first edit.
         let listedBefore: Int
+        /// Where those copies sat, when the playlist as shown was known.
+        let layout: PlaylistLayout?
         var edits: [Edit] = []
         var additions: [Addition] = []
         /// The earliest step a read may still show: the library never goes back past a step a
@@ -223,17 +255,20 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    /// `shownBefore` is how often the playlist showed the song before this addition (used when
-    /// the song has no pending edits in it yet).
+    /// `shownBefore` is how often the playlist showed the song before this addition, `layout`
+    /// where (both used when the song has no pending edits in it yet).
     func recordPlaylistAddition(
         _ track: MusicTrack,
         reference: AppleMusicSongReference,
         playlistID: String,
-        shownBefore: Int = 0
+        shownBefore: Int = 0,
+        layout: PlaylistLayout? = nil
     ) {
         locked {
             let keys = reference.matchKeys.union([track.id, Self.metadataKey(track)])
-            editSong(keys: keys, metadataKey: Self.metadataKey(track), shownBefore: shownBefore, playlistID: playlistID) { song in
+            editSong(
+                keys: keys, metadataKey: Self.metadataKey(track), shownBefore: shownBefore, layout: layout, playlistID: playlistID
+            ) { song in
                 song.additions.append(.init(track: track, sequence: nextAdditionSequence))
                 song.edits.append(.add(song.additions.count - 1))
                 nextAdditionSequence += 1
@@ -243,18 +278,19 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     /// `shownBefore` is how often the playlist showed the song before the edit (pending
     /// additions included), `removed` how many of those the edit took out, `ordinals` which
-    /// (0 = the first copy shown).
+    /// (0 = the first copy shown), `layout` where they sat.
     func recordPlaylistRemoval(
         _ keys: Set<String>,
         metadataKey: String? = nil,
         removed: Int,
         shownBefore: Int,
         ordinals: [Int] = [],
+        layout: PlaylistLayout? = nil,
         playlistID: String
     ) {
         guard removed > 0 else { return }
         locked {
-            editSong(keys: keys, metadataKey: metadataKey, shownBefore: shownBefore, playlistID: playlistID) { song in
+            editSong(keys: keys, metadataKey: metadataKey, shownBefore: shownBefore, layout: layout, playlistID: playlistID) { song in
                 song.remove(removed, ordinals: ordinals)
             }
         }
@@ -265,6 +301,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         keys: Set<String>,
         metadataKey: String?,
         shownBefore: Int,
+        layout: PlaylistLayout?,
         playlistID: String,
         _ edit: (inout PlaylistSongEdits) -> Void
     ) {
@@ -276,6 +313,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             keys: [],
             metadataKeys: [],
             listedBefore: max(0, shownBefore),
+            layout: layout?.offsets.count == shownBefore ? layout : nil,
             at: now()
         )
         song.keys.formUnion(keys)
@@ -421,7 +459,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             var pending: [PlaylistSongEdits] = []
             for var song in songs {
                 let occurrences = result.indices.filter { !result[$0].keys.isDisjoint(with: song.keys) }
-                guard let shown = Self.lay(&song, over: occurrences, rows: rows) else { continue }
+                guard let shown = Self.lay(&song, over: occurrences, rows: rows, keys: result.map(\.keys)) else { continue }
                 pending.append(song)
                 hidden.formUnion(shown.hidden)
                 if !removedSongs.keys.contains(where: { !$0.isDisjoint(with: song.keys) }) {
@@ -440,24 +478,15 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     private static func lay(
         _ song: inout PlaylistSongEdits,
         over occurrences: [Int],
-        rows: [MusicTrack]
+        rows: [MusicTrack],
+        keys: [Set<String>]
     ) -> (hidden: [Int], added: [(sequence: Int, track: MusicTrack)])? {
         let last = song.edits.count
-        let steps = Array(song.shownStep...last)
-        let counts = steps.map { song.state(after: $0).count }
         let final = song.state(after: last)
-        // The earliest step that lists the song this often. A read can't tell a later step with
-        // the same count from it, and laying the edits over the earliest one shows the same rows.
-        guard let stepIndex = counts.firstIndex(of: occurrences.count) else {
-            guard let low = counts.min(), let high = counts.max(), (low...high).contains(occurrences.count) else { return nil }
-            // Between steps (an edit of several copies the library shows half of): the count
-            // the edits leave, hiding or adding the last copies.
-            let extra = occurrences.count - final.count
-            let missing = final.added.suffix(max(0, -extra)).map { song.additions[$0] }
-            return (Array(occurrences.suffix(max(0, extra))), missing.map { ($0.sequence, $0.track) })
-        }
-        let step = steps[stepIndex]
-        if step == last { return nil }
+        // Every edit adds or takes one copy, so a count no step has means the playlist changed
+        // elsewhere.
+        let steps = (song.shownStep...last).filter { song.state(after: $0).count == occurrences.count }
+        guard let step = earliestStep(of: song, among: steps, over: occurrences, keys: keys), step != last else { return nil }
         song.shownStep = step
         let read = song.state(after: step)
         var hidden: [Int] = []
@@ -474,6 +503,38 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             (addition.sequence, offset < hidden.count ? rows[hidden[offset]] : addition.track)
         }
         return (hidden, added)
+    }
+
+    /// The first of `steps` (all listing the song as often as the read) whose copies sit where
+    /// the read has them. When the places can't tell them apart, the earliest: laying the edits
+    /// over it shows the same rows.
+    private static func earliestStep(
+        of song: PlaylistSongEdits,
+        among steps: [Int],
+        over occurrences: [Int],
+        keys: [Set<String>]
+    ) -> Int? {
+        guard steps.count > 1, let layout = song.layout else { return steps.first }
+        // Each other row's place before the edits, and around each copy the latest place before
+        // it and the earliest after it.
+        let songRows = Set(occurrences)
+        let places = keys.indices.map { row in
+            songRows.contains(row) ? nil : keys[row].lazy.compactMap { layout.places[$0] }.first
+        }
+        let around = occurrences.map { row in
+            (before: places[..<row].compactMap { $0 }.max(), after: places[(row + 1)...].compactMap { $0 }.min())
+        }
+        let sits = steps.first { step in
+            let state = song.state(after: step)
+            return around.indices.allSatisfy { position in
+                let (before, after) = around[position]
+                // An added copy comes after every row that was there.
+                guard position < state.listed.count else { return after == nil }
+                let offset = layout.offsets[state.listed[position]]
+                return (before ?? -1) < offset && (after ?? .max) >= offset
+            }
+        }
+        return sits ?? steps.first
     }
 
     /// True when `playlistID` has edits a read of its tracks has to account for.

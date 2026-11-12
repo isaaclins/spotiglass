@@ -451,11 +451,13 @@ struct AppleMusicLibraryEditor: Sendable {
             // was listed as stands in for it.
             guard let track = reference.catalogID.flatMap({ tracksByCatalogID[$0] }) ?? reference.shownTrack else { continue }
             let metadataKey = AppleMusicPendingLibraryEdits.metadataKey(track)
-            let shown = shownTracks.filter {
+            let layout = AppleMusicPendingLibraryEdits.PlaylistLayout(shownTracks) {
                 reference.matchKeys.contains($0.id) || $0.id == track.id
                     || AppleMusicPendingLibraryEdits.metadataKey($0) == metadataKey
-            }.count
-            pending.recordPlaylistAddition(track, reference: reference, playlistID: playlistID, shownBefore: shown)
+            }
+            pending.recordPlaylistAddition(
+                track, reference: reference, playlistID: playlistID, shownBefore: layout.offsets.count, layout: layout
+            )
         }
     }
 
@@ -483,14 +485,16 @@ struct AppleMusicLibraryEditor: Sendable {
             // A copy added from Spotiglass shows under another of the song's IDs than the
             // library's rows do: every one of them counts as the song.
             let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
+            let layout = AppleMusicPendingLibraryEdits.PlaylistLayout(shownTracks, isSong: isSong)
             pending.recordPlaylistRemoval(
                 reference.matchKeys,
                 metadataKey: reference.title.map { AppleMusicPendingLibraryEdits.metadataKey(name: $0, artist: reference.artistName) },
                 removed: removal.positions.count,
-                shownBefore: shownTracks.filter(isSong).count,
+                shownBefore: layout.offsets.count,
                 ordinals: removal.positions.filter { $0 < shownTracks.count }.map { position in
                     shownTracks[..<position].filter(isSong).count
                 },
+                layout: layout,
                 playlistID: playlistID
             )
         }

@@ -2466,6 +2466,9 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
 
         try await expectShown(["B", "A"])
         try await expectShown(["B", "A"])
+        // The record ended with that read: another copy added on another device shows as it is.
+        try library("B", "A", "A")
+        try await expectShown(["B", "A", "A"], "a later change made elsewhere")
     }
 
     /// Sequence 2 of #393: I remove the only A, then add it back while the read still has the
@@ -2484,6 +2487,35 @@ final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
         try await expectShown(["B", "A"], "the library has caught up")
         try library("B")
         try await expectShown(["B"], "the record ended once the library had both edits")
+    }
+
+    /// A song listed twice: I remove its first copy and add it back. The library going straight
+    /// from before both edits to after them looks the same by count, but its copies sit
+    /// elsewhere: the read after them is shown as it is, not moved around again.
+    func testRemovingOneOfTwoCopiesThenAddingItBackSurvivesACatchUpInOneGo() async throws {
+        try library("A", "A", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+        try await expectShown(["A", "B", "A"], "a read from before both edits")
+
+        try library("A", "B", "A")
+
+        try await expectShown(["A", "B", "A"], "the library has caught up")
+        try await expectShown(["A", "B", "A"])
+    }
+
+    /// The same with an intermediate read in between, then the rest at once.
+    func testRemovingOneOfTwoCopiesThenAddingItBackShowsEveryStep() async throws {
+        try library("A", "A", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+
+        try library("A", "B")
+        try await expectShown(["A", "B", "A"], "a read with the removal only")
+        try library("A", "B", "A")
+        try await expectShown(["A", "B", "A"], "the library has caught up")
+        try library("A", "B")
+        try await expectShown(["A", "B"], "the record ended once the library had both edits")
     }
 
     /// Removing the copy that was just added (shown under its catalog ID) takes that copy, not
