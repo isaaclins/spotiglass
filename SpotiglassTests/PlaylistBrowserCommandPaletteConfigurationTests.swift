@@ -59,15 +59,39 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
     /// Spotiglass playback device" were still offered. Apple Music plays on this Mac, so there is
     /// nothing to connect, and running it restarted the player session. Spotify keeps it.
     func testConnectPlaybackIsOfferedOnlyForAPlayerWithAConnection() throws {
-        func wire(_ playback: PlaybackSessionViewModel, service: MusicService) throws -> (CommandPaletteManager, SpotiglassMenuCommands) {
-            let keymap = CommandPaletteKeymapStore(settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()))
-            try keymap.setBinding(
-                commandID: CommandPaletteCommandID.connectPlayback,
-                shortcut: try CommandShortcut(keystroke: "shift-cmd-k"),
-                replaceConflicting: true
+        func menu(_ registry: SpotiglassSceneRegistry, keymap: CommandPaletteKeymapStore, service: MusicService) -> SpotiglassMenuCommands {
+            let settingsURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SpotiglassConnectPlayback-\(UUID().uuidString)", isDirectory: true)
+                .appendingPathComponent("settings.json", isDirectory: false)
+            return SpotiglassMenuCommands(
+                sceneRegistry: registry,
+                keymapStore: keymap,
+                settingsStore: SpotiglassSettingsStore(fileURL: settingsURL),
+                serviceStore: MusicServiceStore(
+                    storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: service)
+                ),
+                isSignedIn: true,
+                isQueueVisible: false
             )
-            let manager = CommandPaletteManager(keymapStore: keymap)
-            manager.isSignedIn = true
+        }
+        // `onto` rewires a window's manager the way switching services does: each service's
+        // browser binds the window's palette when it appears.
+        func wire(
+            _ playback: PlaybackSessionViewModel, service: MusicService, onto existing: CommandPaletteManager? = nil
+        ) throws -> (CommandPaletteManager, SpotiglassMenuCommands) {
+            let manager: CommandPaletteManager
+            if let existing {
+                manager = existing
+            } else {
+                let keymap = CommandPaletteKeymapStore(settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()))
+                try keymap.setBinding(
+                    commandID: CommandPaletteCommandID.connectPlayback,
+                    shortcut: try CommandShortcut(keystroke: "shift-cmd-k"),
+                    replaceConflicting: true
+                )
+                manager = CommandPaletteManager(keymapStore: keymap)
+                manager.isSignedIn = true
+            }
             PlaylistBrowserCommandPaletteConfiguration.apply(
                 to: manager,
                 dependencies: .init(
@@ -90,20 +114,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
             let scene = SpotiglassSceneHost(commandPaletteManager: manager)
             let registry = SpotiglassSceneRegistry()
             registry.activate(scene)
-            let settingsURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("SpotiglassConnectPlayback-\(UUID().uuidString)", isDirectory: true)
-                .appendingPathComponent("settings.json", isDirectory: false)
-            let menu = SpotiglassMenuCommands(
-                sceneRegistry: registry,
-                keymapStore: manager.keymapStore,
-                settingsStore: SpotiglassSettingsStore(fileURL: settingsURL),
-                serviceStore: MusicServiceStore(
-                    storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: service)
-                ),
-                isSignedIn: true,
-                isQueueVisible: false
-            )
-            return (manager, menu)
+            return (manager, menu(registry, keymap: manager.keymapStore, service: service))
         }
         func paletteIDs(_ manager: CommandPaletteManager) -> Set<String> {
             Set(manager.viewModel.staticItemsProvider().map(\.id))
@@ -152,6 +163,21 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         XCTAssertTrue(pressConnectShortcut(spotifyManager))
         XCTAssertEqual(spotify.connectionState, .connecting)
         XCTAssertEqual(spotify.playbackHostReloadAttemptCount, 1)
+
+        // Switching the window to Apple Music and back rewires the same manager each way.
+        let (_, switchedToAppleMusic) = try wire(appleMusic, service: .appleMusic, onto: spotifyManager)
+        XCTAssertFalse(spotifyManager.canConnectPlayback, "Spotify's Connect outlives the switch to Apple Music")
+        XCTAssertFalse(switchedToAppleMusic.isConnectPlaybackOffered)
+        XCTAssertFalse(pressConnectShortcut(spotifyManager))
+        XCTAssertFalse(paletteIDs(spotifyManager).contains(CommandPaletteCommandID.connectPlayback))
+        let (_, switchedBack) = try wire(spotify, service: .spotify, onto: spotifyManager)
+        XCTAssertTrue(switchedBack.isConnectPlaybackOffered)
+        XCTAssertTrue(paletteIDs(spotifyManager).contains(CommandPaletteCommandID.connectPlayback))
+
+        // With every window closed the menu follows the selected service.
+        let noWindow = SpotiglassSceneRegistry()
+        XCTAssertFalse(menu(noWindow, keymap: spotifyManager.keymapStore, service: .appleMusic).isConnectPlaybackOffered)
+        XCTAssertTrue(menu(noWindow, keymap: spotifyManager.keymapStore, service: .spotify).isConnectPlaybackOffered)
     }
 
     func testApplyWiresCallbacksWithoutHostingView() async throws {
