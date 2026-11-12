@@ -535,7 +535,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         let whileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
         api.finishReading()
         await opening.value
@@ -554,7 +556,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -583,7 +587,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -650,7 +656,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -676,7 +684,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -704,7 +714,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -730,7 +742,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
+        await waitUntil("the first page on screen", changes: viewModel.$detailState) {
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200
+        }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }

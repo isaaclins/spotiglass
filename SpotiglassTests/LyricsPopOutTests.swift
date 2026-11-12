@@ -186,9 +186,7 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 53, characters: "\u{1b}", window: popOut)))
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 40, characters: "k", modifiers: [.command], window: popOut)))
         XCTAssertTrue(monitor.handle(keyDown(keyCode: 49, characters: " ", window: popOut)))
-        while pauses(commander) == 0 {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Spotify told to pause", changes: commander.changes) { pauses(commander) > 0 }
         XCTAssertEqual(pauses(commander), 1, "Space pauses what the pop-out shows")
 
         // The same key in another window is not the pop-out's to answer.
@@ -641,18 +639,14 @@ final class LyricsPopOutTests: XCTestCase {
         let (playback, api, _, _) = playingWithLyrics()
         XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
         LyricsPopOutTransport.run(CommandPaletteCommandID.nextTrack, on: playback)
-        while !api.actions.contains(where: { $0.hasPrefix("next") }) {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Next sent", changes: api.changes) { api.actions.contains { $0.hasPrefix("next") } }
         XCTAssertTrue(api.actions.contains { $0.hasPrefix("next") }, "\(api.actions)")
 
         // A fresh player: right after a skip the player holds further skips for a moment.
         let (fresh, freshAPI, _, _) = playingWithLyrics()
         XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.previousTrack, on: fresh))
         LyricsPopOutTransport.run(CommandPaletteCommandID.previousTrack, on: fresh)
-        while !freshAPI.actions.contains(where: { $0.hasPrefix("previous") }) {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Previous sent", changes: freshAPI.changes) { freshAPI.actions.contains { $0.hasPrefix("previous") } }
         XCTAssertTrue(freshAPI.actions.contains { $0.hasPrefix("previous") }, "\(freshAPI.actions)")
         XCTAssertFalse(LyricsPopOutTransport.canRun(CommandPaletteCommandID.openSearch, on: playback))
     }

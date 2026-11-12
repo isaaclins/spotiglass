@@ -333,8 +333,8 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         let viewModel = await makeViewModel(api)
 
         let renaming = Task { await viewModel.renamePlaylist(id: "-1", name: "Road trip") }
-        while viewModel.playlistState.currentValue?.last?.title != "Road trip" {
-            await Task.yield()
+        await waitUntil("the playlist's title", changes: viewModel.$playlistState) {
+            viewModel.playlistState.currentValue?.last?.title == "Road trip"
         }
         counts.open()
         await viewModel.playlistTrackCountTask?.value
@@ -366,8 +366,8 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         api.trackCounts = ["-1": 13]
         gate.open()
         await viewModel.playlistTrackCountTask?.value
-        while viewModel.playlistState.currentValue?.last?.trackCount != 13 {
-            await Task.yield()
+        await waitUntil("the playlist's track count", changes: viewModel.$playlistState) {
+            viewModel.playlistState.currentValue?.last?.trackCount == 13
         }
 
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 13)
@@ -385,8 +385,8 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 11)
 
         await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Road")
-        while viewModel.playlistState.currentValue?.last?.trackCount != 11 {
-            await Task.yield()
+        await waitUntil("the playlist's track count", changes: viewModel.$playlistState) {
+            viewModel.playlistState.currentValue?.last?.trackCount == 11
         }
 
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 11)
@@ -402,8 +402,8 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
 
         api.trackCounts = ["-1": 3]
         await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Road")
-        while viewModel.playlistState.currentValue?.last?.trackCount == nil {
-            await Task.yield()
+        await waitUntil("the playlist's track count", changes: viewModel.$playlistState) {
+            viewModel.playlistState.currentValue?.last?.trackCount != nil
         }
 
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 3)

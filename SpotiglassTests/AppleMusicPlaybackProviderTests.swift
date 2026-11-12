@@ -1,3 +1,4 @@
+import Combine
 import MusicKit
 import XCTest
 @testable import Spotiglass
@@ -151,14 +152,35 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let queue = QueueViewModel(provider: provider, playbackSession: session)
 
         let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
-        while player.waitingLookups.isEmpty { await Task.yield() }
+        await waitUntil("the play looking up its songs", changes: player.changes) { !player.waitingLookups.isEmpty }
         let open = Task { await Self.openPanel(queue) }
-        for _ in 0..<20 { await Task.yield() }
+        // The panel's read is loading, so it waits for the play: released earlier, the play
+        // would be in before the read and the test would pass without testing its case.
+        await waitUntil("the panel's read waiting for the play", changes: queue.$isLoading) { queue.isLoading }
         player.releaseLookups()
         try await play.value
         await open.value
 
         XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+    }
+
+    /// On a busy machine a play can reach its lookup long after the test starts waiting for
+    /// it: here later than the whole budget the old waits had (40 × 25 ms, or 20 turns). The
+    /// wait lasts until the lookup is waiting, not for a fixed number of turns (#535).
+    func testWaitingForALookupOutlastsAPlayThatReachesThePlayerLate() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        player.holdLookups = true
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let late = Task {
+            // What the busy machine did: the play is scheduled, then runs much later.
+            try await Task.sleep(for: .milliseconds(1_500))
+            try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x")
+        }
+        await Self.waitForLookups(1, on: player)
+        XCTAssertEqual(player.waitingLookups, ["play \(Self.uris[0])"])
+        player.releaseLookups()
+        try await late.value
+        XCTAssertEqual(player.commands, ["play"])
     }
 
     /// A slow play is replaced by a quick one while the panel is reading the queue. The read
@@ -169,12 +191,10 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let provider = AppleMusicPlaybackProvider(player: player)
         player.holdLookups = true
         let slow = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
-        await Self.settle()
-        XCTAssertEqual(player.waitingLookups.count, 1)
+        await Self.waitForLookups(1, on: player)
 
         var upcoming: [String]?
-        let read = Task { upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri) }
-        await Self.settle()
+        let read = await Self.startRead { upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri) }
         XCTAssertNil(upcoming, "the read waits for the play that is still looking up its songs")
 
         player.holdLookups = false
@@ -197,8 +217,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let provider = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .milliseconds(50))
         player.holdLookups = true
         let stalled = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
-        await Self.settle()
-        XCTAssertEqual(player.waitingLookups.count, 1)
+        await Self.waitForLookups(1, on: player)
 
         // The wait limit passes while the lookup still hangs.
         _ = try await provider.fetchQueue()
@@ -207,10 +226,9 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         // Disconnecting releases a waiting read at once.
         let patient = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .seconds(600))
         let slow = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
-        await Self.settle()
+        await Self.waitForLookups(2, on: player)
         var returned = false
-        let read = Task { _ = try await patient.fetchQueue(); returned = true }
-        await Self.settle()
+        let read = await Self.startRead { _ = try await patient.fetchQueue(); returned = true }
         XCTAssertFalse(returned)
         try await patient.disconnectPlayer(generation: .initial)
         try await read.value
@@ -218,9 +236,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
         // A cancelled read lets go too.
         let again = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
-        await Self.settle()
-        let cancelled = Task { _ = try await patient.fetchQueue() }
-        await Self.settle()
+        await Self.waitForLookups(3, on: player)
+        let cancelled = await Self.startRead { _ = try await patient.fetchQueue() }
         cancelled.cancel()
         _ = try? await cancelled.value
 
@@ -246,15 +263,13 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
         player.holdLookups = true
         let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
-        while player.waitingLookups.isEmpty { await Task.yield() }
+        await waitUntil("the play looking up its songs", changes: player.changes) { !player.waitingLookups.isEmpty }
         await Self.openPanel(queue)
         XCTAssertTrue(queue.upcomingItems.isEmpty, "the wait ran out while the play still looks up")
 
         player.releaseLookups()
         try await play.value
-        while queue.upcomingItems.isEmpty {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil("the started list in the panel", changes: queue.$upcomingItems) { !queue.upcomingItems.isEmpty }
         XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
     }
 
@@ -405,7 +420,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         let provider = AppleMusicPlaybackProvider(player: player)
         player.holdLookups = true
         let slow = Task { try await provider.play(.items(uris: Self.uris, startURI: Self.uris[0]), deviceID: "x") }
-        await Self.settle()
+        await Self.waitForLookups(1, on: player)
         XCTAssertEqual(player.waitingLookups, ["play \(Self.uris[0])"])
 
         player.holdLookups = false
@@ -428,12 +443,14 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         player.holdLookups = true
         let first = Task { try await provider.enqueue(uri: "applemusic:song:a", deviceID: "x") }
         let second = Task { try await provider.enqueue(uri: "applemusic:song:b", deviceID: "x") }
+        await Self.waitForLookups(1, on: player)
         await Self.settle()
         XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:a"], "b waits until a is in")
 
         player.releaseLookups()
-        await Self.settle()
-        XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:b"])
+        await waitUntil("b looking up its song", changes: player.changes) {
+            player.waitingLookups == ["enqueue applemusic:song:b"]
+        }
         player.releaseLookups()
         try await first.value
         try await second.value
@@ -451,14 +468,16 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         player.holdLookups = true
         let newPlaylist = ["applemusic:song:b1", "applemusic:song:b2"]
         let play = Task { try await provider.play(.items(uris: newPlaylist, startURI: nil), deviceID: "x") }
-        await Self.settle()
+        await Self.waitForLookups(1, on: player)
         let add = Task { try await provider.enqueue(uri: "applemusic:song:x", deviceID: "x") }
         await Self.settle()
         XCTAssertEqual(player.waitingLookups, ["play applemusic:song:b1"], "the add waits for the play")
 
         player.releaseLookups()
         try await play.value
-        await Self.settle()
+        await waitUntil("the add looking up its song", changes: player.changes) {
+            player.waitingLookups == ["enqueue applemusic:song:x"]
+        }
         player.releaseLookups()
         try await add.value
 
@@ -526,8 +545,39 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(keys("Halo", "Beyoncé", nil), [standard.last!])
     }
 
+    /// Only for showing that something did *not* happen: a few turns for it to go wrong in.
     private static func settle() async {
         for _ in 0..<20 { await Task.yield() }
+    }
+
+    /// Waits until `count` lookups wait in the scripted player, however late they start.
+    private static func waitForLookups(
+        _ count: Int,
+        on player: ScriptedAppleMusicPlayer,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        await waitUntil("\(count) lookups waiting", changes: player.changes, file: file, line: line) {
+            player.waitingLookups.count >= count
+        }
+        XCTAssertEqual(player.waitingLookups.count, count, file: file, line: line)
+    }
+
+    /// Starts a queue read and returns once it waits for the play. The read registers its wait
+    /// in its first turn on the main actor, before it suspends, and only then does this resume.
+    private static func startRead(
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ read: @escaping @MainActor () async throws -> Void
+    ) async -> Task<Void, Error> {
+        let asked = AsyncSignal()
+        let task = Task { @MainActor in
+            asked.signal()
+            try await read()
+        }
+        let didAsk = await asked.wait(timeout: testWaitDeadline)
+        XCTAssertTrue(didAsk, "the read never started", file: file, line: line)
+        return task
     }
 
     func testMusicKitFailuresSurfaceAsAppleMusicErrors() async {
@@ -1371,7 +1421,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
         player.holdLookups = true
         let play = Task { await session.play(uri: Self.uris[3]) }
-        while player.waitingLookups.isEmpty { await Task.yield() }
+        await waitUntil("the play looking up its song", changes: player.changes) { !player.waitingLookups.isEmpty }
         clock.advance(by: session.passingErrorRecoveryDelay)
         // Due: the recovery sees the play still running and waits once more instead of reading.
         let waitsAgain = await clock.waitForSleeper(dueAt: clock.now.advanced(by: session.passingErrorRecoveryDelay))
@@ -1716,14 +1766,19 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     var failure: Error?
     /// A skip MusicKit refuses; the song that was playing keeps playing.
     var skipFailure: MusicPlaybackError?
-    private(set) var commands: [String] = []
+    /// Sends whenever a command is recorded, a lookup starts or stops waiting, or the repeat
+    /// changes: what tests wait on.
+    let changes = TestChanges()
+    private(set) var commands: [String] = [] { didSet { changes.send() } }
     /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
     /// ``releaseLookups()``. ``waitingLookups`` names who waits.
     var holdLookups = false
     /// While true, play waits after it set its queue (like MusicKit's own `play()` finishing)
     /// until ``releaseLookups()``; it waits as "started <uri>".
     var holdAfterQueueSet = false
-    private var lookupWaiters: [(name: String, resume: CheckedContinuation<Void, Never>)] = []
+    private var lookupWaiters: [(name: String, resume: CheckedContinuation<Void, Never>)] = [] {
+        didSet { changes.send() }
+    }
     var waitingLookups: [String] { lookupWaiters.map(\.name) }
 
     func releaseLookups() {
@@ -1744,7 +1799,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     private var positionBase = 0.0
     private var positionAnchor = 0.0
     private var shuffle = false
-    private var repeatMode: MusicRepeatMode = .off
+    private var repeatMode: MusicRepeatMode = .off { didSet { changes.send() } }
     /// The live player's queue rules, on this queue.
     private var book = AppleMusicQueueBook()
     private var pending: [(at: Double, apply: () -> Void)] = []

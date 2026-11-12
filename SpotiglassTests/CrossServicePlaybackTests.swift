@@ -77,9 +77,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let provider = hosts.appleMusic.playbackProvider
 
         services.send([.spotify])
-        while !player.commands.contains("stop") {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("the sign-out's stop", changes: player.changes) { player.commands.contains("stop") }
         player.advance(by: 1)
 
         XCTAssertEqual(appleMusic.connectionState, .disconnected)
@@ -134,15 +132,11 @@ final class CrossServicePlaybackTests: XCTestCase {
         let play = Task {
             try await provider.play(.items(uris: ["applemusic:song:slow"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        while player.waitingLookups.isEmpty {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("a lookup waiting", changes: player.changes) { !player.waitingLookups.isEmpty }
         XCTAssertEqual(player.waitingLookups, ["play applemusic:song:slow"])
 
         services.send([.spotify])
-        while !player.commands.contains("stop") {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("the sign-out's stop", changes: player.changes) { player.commands.contains("stop") }
         player.releaseLookups()
         _ = try? await play.value
         player.advance(by: 1)
@@ -165,9 +159,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         try await provider.enqueue(uri: "applemusic:song:added-before", deviceID: AppleMusicPlaybackProvider.deviceID)
 
         services.send([.spotify])
-        while !player.commands.contains("stop") {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("the sign-out's stop", changes: player.changes) { player.commands.contains("stop") }
         player.advance(by: 1)
         // Apple Music added again: its player is ready, with nothing loaded.
         appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
@@ -203,9 +195,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let provider = hosts.appleMusic.playbackProvider
 
         services.send([.spotify])
-        while !player.commands.contains("stop") {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("the sign-out's stop", changes: player.changes) { player.commands.contains("stop") }
         player.advance(by: 1)
         player.failure = NSError(domain: "MusicKit", code: 404)
         _ = try? await provider.play(.items(uris: ["applemusic:song:missing"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
@@ -232,14 +222,10 @@ final class CrossServicePlaybackTests: XCTestCase {
         let add = Task {
             try await provider.enqueue(uri: "applemusic:song:slow-add", deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        while player.waitingLookups.isEmpty {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("a lookup waiting", changes: player.changes) { !player.waitingLookups.isEmpty }
         XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:slow-add"])
         services.send([.spotify])
-        while !player.commands.contains("stop") {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("the sign-out's stop", changes: player.changes) { player.commands.contains("stop") }
         player.holdLookups = false
         player.releaseLookups()
         _ = try? await add.value
@@ -267,7 +253,7 @@ final class CrossServicePlaybackTests: XCTestCase {
             let play = Task {
                 try await provider.play(.items(uris: ["applemusic:song:first"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
             }
-            while player.waitingLookups.isEmpty { await Task.yield() }
+            await waitUntil("a lookup waiting", changes: player.changes) { !player.waitingLookups.isEmpty }
             let add = Task {
                 try await provider.enqueue(uri: "applemusic:song:added", deviceID: AppleMusicPlaybackProvider.deviceID)
             }
@@ -296,9 +282,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let playA = Task {
             try await provider.play(.items(uris: ["applemusic:song:a"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        while player.waitingLookups.isEmpty {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("a lookup waiting", changes: player.changes) { !player.waitingLookups.isEmpty }
         XCTAssertEqual(player.waitingLookups, ["started applemusic:song:a"])
         player.holdAfterQueueSet = false
         player.failure = NSError(domain: "MusicKit", code: 404)
@@ -395,9 +379,10 @@ final class CrossServicePlaybackTests: XCTestCase {
 
         // The Lyrics view in the main window loads the song in the bar while it plays.
         var looked: [String] = []
-        let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+        let lookups = TestChanges()
+        let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0); lookups.send() }
         defer { ViewTestHost.tearDownAll() }
-        try await waitUntil { !looked.isEmpty }
+        await waitUntil("the lyrics looked up", changes: lookups) { !looked.isEmpty }
         XCTAssertEqual(looked, ["Piranguera"], "not Midnight City, Spotify's paused song on screen")
 
         // Pause from the bar: the bar stays on Piranguera (#468), and so do the lyrics.
@@ -457,24 +442,25 @@ final class CrossServicePlaybackTests: XCTestCase {
             XCTAssertTrue(playback.audiblePlayer === appleMusic, label)
 
             var looked: [String] = []
-            let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+            let lookups = TestChanges()
+            let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0); lookups.send() }
             let manager = wirePalette(
                 to: playback,
                 lyricsPresented: lyricsOverlay.presentedBinding {}
             )
             manager.bindPlaybackReadiness(to: playback)
-            try await waitUntil { looked == ["Piranguera"] }
+            await waitUntil("Piranguera's lyrics looked up, \(label)", changes: lookups) { looked == ["Piranguera"] }
 
             // Play a Spotify song from the palette.
             let strobeURI = "spotify:track:strobe-\(UUID().uuidString)"
             let play = Task { await playback.play(uri: strobeURI) }
-            try await waitUntil {
+            await waitUntil("the play under way, \(label)", changes: playback.objectWillChange) {
                 if case .error = playback.connectionState { return true }
                 return playback.pendingPlayTransition != nil
             }
             if ending == .fails {
                 await play.value
-                try await waitUntil { !lyricsOverlay.isPresented }
+                await waitUntil("the lyrics closed, \(label)", changes: lyricsOverlay.$isPresented) { !lyricsOverlay.isPresented }
                 XCTAssertFalse(lyricsOverlay.isPresented, "the play failed: no song to show the lyrics of, \(label)")
                 ViewTestHost.tearDownAll()
                 continue
@@ -492,7 +478,7 @@ final class CrossServicePlaybackTests: XCTestCase {
             if ending == .timesOut {
                 // What the session does when no report came in time (`pendingPlayURITimeout`).
                 playback.clearPendingPlay()
-                try await waitUntil { !lyricsOverlay.isPresented }
+                await waitUntil("the lyrics closed, \(label)", changes: lyricsOverlay.$isPresented) { !lyricsOverlay.isPresented }
                 XCTAssertFalse(lyricsOverlay.isPresented, "the wait for the song never ended, \(label)")
                 ViewTestHost.tearDownAll()
                 continue
@@ -500,7 +486,7 @@ final class CrossServicePlaybackTests: XCTestCase {
 
             // Spotify's page reports the song.
             playback.handle(.stateChanged(Self.song("Strobe", uri: strobeURI), isPaused: false, nextTracks: []))
-            try await waitUntil { looked.last == "Strobe" }
+            await waitUntil("Strobe's lyrics looked up, \(label)", changes: lookups) { looked.last == "Strobe" }
             XCTAssertEqual(looked, ["Piranguera", "Strobe"], label)
             XCTAssertNil(playback.pendingPlayTransition, "the report is the song the play asked for, \(label)")
             XCTAssertTrue(lyricsOverlay.isPresented, label)
@@ -543,12 +529,6 @@ final class CrossServicePlaybackTests: XCTestCase {
         return lyricsOverlay
     }
 
-    private func waitUntil(_ condition: () -> Bool) async throws {
-        while !condition() {
-            try await Task.sleep(for: .milliseconds(25))
-        }
-    }
-
     /// The mirror: Spotify played, Apple Music is on screen with its own paused song. After
     /// Spotify pauses, the bar stays on Spotify's song, and Play resumes it, not Apple Music's.
     func testAppleMusicsBarStaysOnSpotifysPausedSong() async throws {
@@ -569,9 +549,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer, "the bar stays on Midnight City")
         let manager = wirePalette(to: appleMusic)
         manager.togglePlayback?()
-        while toggles(commander) == 0 {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Spotify's page told to play", changes: commander.changes) { toggles(commander) > 0 }
         XCTAssertEqual(toggles(commander), 1, "Play resumes Midnight City")
         XCTAssertFalse(player.commands.contains("play"), "Piranguera stays paused")
     }
@@ -652,9 +630,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         manager.bindPlaybackReadiness(to: playback)
 
         manager.requestRepeatMode(.track)
-        while player.readState().repeatMode != .track {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Apple Music's repeat set", changes: player.changes) { player.readState().repeatMode == .track }
 
         XCTAssertEqual(player.readState().repeatMode, .track, "Apple Music repeats the song you hear")
         XCTAssertEqual(appleMusic.repeatMode, .track)

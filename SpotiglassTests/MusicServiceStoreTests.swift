@@ -631,9 +631,7 @@ final class PlaybackHandoverTests: XCTestCase {
 
         appleMusic.playbackViewModel.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
         await appleMusic.playbackViewModel.play(uri: "applemusic:song:1")
-        while pauses(commander) == 0 {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Spotify told to pause", changes: commander.changes) { pauses(commander) > 0 }
 
         XCTAssertEqual(pauses(commander), 1, "Spotify pauses once Apple Music starts something")
     }
@@ -654,9 +652,7 @@ final class PlaybackHandoverTests: XCTestCase {
         )))
 
         await appleMusic.togglePlayPause()
-        while pauses(commander) == 0 {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await waitUntil("Spotify told to pause", changes: commander.changes) { pauses(commander) > 0 }
 
         XCTAssertEqual(pauses(commander), 1, "Spotify pauses once Apple Music resumes")
     }

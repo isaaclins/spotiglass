@@ -172,8 +172,8 @@ final class CollectionContextMenuTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistPendingDeletion, ownPlaylist, "asks first, like the sidebar")
 
         try tile.inspect().find(button: editTitle).tap()
-        while viewModel.playlistNameEditRequestID == nil {
-            await Task.yield()
+        await waitUntil("the rename asked for", changes: viewModel.$playlistNameEditRequestID) {
+            viewModel.playlistNameEditRequestID != nil
         }
         XCTAssertEqual(viewModel.playlistNameEditRequestID, ownPlaylist.id)
     }
