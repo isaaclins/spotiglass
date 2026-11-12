@@ -846,7 +846,7 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.toggleShuffle()
 
-        XCTAssertTrue(api.actions.contains { $0.hasPrefix("setShuffle:") }, "the shuffle was never tried")
+        XCTAssertEqual(api.setShuffleAttempts, 1, "the shuffle was never tried")
         XCTAssertEqual(queue.upcomingItems.map(\.id), original)
         XCTAssertFalse(playback.shuffleEnabled)
     }
@@ -1337,6 +1337,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         var addToQueueHold: MockCallHold?
         var addToQueueErrors: [Error?] = []
         var concurrentFetchDetected = false
+        var setShuffleAttempts = 0
         var maxConcurrentFetches = 0
         var currentConcurrentFetches = 0
         var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
@@ -1348,6 +1349,8 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     var actions: [String] { locked { $0.actions } }
     var concurrentFetchDetected: Bool { locked { $0.concurrentFetchDetected } }
     var maxConcurrentFetches: Int { locked { $0.maxConcurrentFetches } }
+    /// Every shuffle write that reached the player, including the ones it refused.
+    var setShuffleAttempts: Int { locked { $0.setShuffleAttempts } }
     var queueResponse: MusicPlaybackQueue {
         get { locked { $0.queueResponse } }
         set { locked { $0.queueResponse = newValue } }
@@ -1464,6 +1467,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {
+        locked { $0.setShuffleAttempts += 1 }
         if let setShuffleError { throw setShuffleError }
         locked { state in
             state.actions.append("setShuffle:\(deviceID):\(enabled)")

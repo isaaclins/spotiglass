@@ -254,10 +254,14 @@ final class CrossServicePlaybackTests: XCTestCase {
                 try await provider.play(.items(uris: ["applemusic:song:first"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
             }
             await waitUntil("a lookup waiting", changes: player.changes) { !player.waitingLookups.isEmpty }
-            let add = Task {
+            // The add takes the running play to wait for before it first suspends; this goes on
+            // only once it has, however late a busy machine starts it (#535).
+            let addStarted = AsyncSignal()
+            let add = Task { @MainActor in
+                addStarted.signal()
                 try await provider.enqueue(uri: "applemusic:song:added", deviceID: AppleMusicPlaybackProvider.deviceID)
             }
-            await Task.yield()
+            await addStarted.wait()
             player.holdLookups = false
             player.releaseLookups()
             try await play.value

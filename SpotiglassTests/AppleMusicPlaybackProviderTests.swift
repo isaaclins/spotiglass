@@ -2001,7 +2001,7 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
 
     /// Waits until `count` plays are held, however long the press takes to reach the player on a
     /// busy machine (#517). The deadline only keeps a press that never comes from hanging the run.
-    func waitForHeldPlays(_ count: Int, deadline: Duration = .seconds(30)) async {
+    func waitForHeldPlays(_ count: Int, deadline: Duration = testWaitDeadline) async {
         if held.count < count {
             let id = UUID()
             let guardTask = Task { @MainActor [weak self] in
