@@ -11,6 +11,8 @@ extension PlaybackSessionViewModel {
     func requestTogglePlayPause() -> Task<Void, Never>? {
         playbackCommandCount &+= 1
         guard let request = beginPlayPauseRequest() else { return nil }
+        // A press replaces a failed command for Retry, like any other command (#451).
+        noteNewCommand()
         let previous = playPauseCommandTail
         let send = Task { @MainActor [weak self] in
             // One after another: a quick pause then play must reach the player in that order,
@@ -553,7 +555,8 @@ extension PlaybackSessionViewModel {
             hostGeneration: playbackHostGeneration,
             kind: kind,
             expectedPreviousURI: currentNowPlayingURI,
-            startedAt: now
+            startedAt: now,
+            playWasPending: pendingPlayTransition != nil || inFlightPlayCommandID != nil
         )
         pendingSkipDispatch = dispatch
         isSkipCommandPending = true
@@ -702,8 +705,9 @@ extension PlaybackSessionViewModel {
             // The player already moved on from the song the Next left (its answer to the
             // request was lost): the skip happened, so there is nothing to show and nothing for
             // Retry to skip again. A Previous can't be told from the song ending by itself, and a
-            // skip sent with no song known can't be told from any report, so those still fail.
-            if dispatch.kind == .next, dispatch.expectedPreviousURI != nil,
+            // skip sent with no song known can't be told from any report, so those still fail. Nor
+            // can a Next sent while a play was landing: the new song may be that play's.
+            if dispatch.kind == .next, dispatch.expectedPreviousURI != nil, !dispatch.playWasPending,
                let liveDispatch = pendingSkipDispatch, hasObservedSkipAdvance(liveDispatch) {
                 SpotiglassLog.info(.playback, "skip request failed after the player moved on: \(error.localizedDescription)")
                 noteLocalPlaybackMutation()

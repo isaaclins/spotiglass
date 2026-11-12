@@ -325,8 +325,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The command whose failure is on screen with Retry: what Retry sends again (#451).
     /// Any other state, or another error, drops it.
     var failedCommand: FailedPlaybackCommand?
-    /// Retry is sending a failed command again: another Retry does nothing until it finishes.
-    var isResendingFailedCommand = false
+    /// How many Retries are sending a failed command again: a second click on the same Retry
+    /// does nothing until they finish.
+    var failedCommandResendsInFlight = 0
     /// The last play whose song the player reported: its request failing after that lost only
     /// the answer, so Retry doesn't send it again.
     var confirmedPlayCommandID: UInt64?
@@ -550,6 +551,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         let expectedPreviousURI: String?
         let startedAt: ContinuousClock.Instant
         var observedAdvance = false
+        /// A play was still landing when the skip went out: a change of song may be that play.
+        var playWasPending = false
         var lockoutDeadline: ContinuousClock.Instant?
     }
 

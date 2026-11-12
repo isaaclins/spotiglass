@@ -245,7 +245,7 @@ extension PlaybackSessionViewModel {
     /// next to it would race it.
     func retryAfterError() async {
         // A newer failure that came while it's out has its own Retry, and that one goes.
-        guard !isResendingFailedCommand || failedCommand != nil else { return }
+        guard failedCommandResendsInFlight == 0 || failedCommand != nil else { return }
         guard let failedCommand else {
             await retryPlaybackTransfer()
             return
@@ -254,8 +254,8 @@ extension PlaybackSessionViewModel {
         if let restoreState = failedCommand.restoreState {
             setConnectionState(restoreState)
         }
-        isResendingFailedCommand = true
-        defer { isResendingFailedCommand = false }
+        failedCommandResendsInFlight += 1
+        defer { failedCommandResendsInFlight -= 1 }
         await failedCommand.resend(self)
     }
 
