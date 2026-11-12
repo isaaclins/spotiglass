@@ -34,6 +34,7 @@ struct SpotifyPlaylistDTO: Decodable {
     let images: [SpotifyImageDTO]
     let items: SpotifyPlaylistTracksReferenceDTO?
     let snapshotID: String
+    let collaborative: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -43,6 +44,7 @@ struct SpotifyPlaylistDTO: Decodable {
         case items
         case tracks
         case snapshotID = "snapshot_id"
+        case collaborative
     }
 
     init(from decoder: Decoder) throws {
@@ -58,6 +60,7 @@ struct SpotifyPlaylistDTO: Decodable {
         let tracksReference = try container.decodeIfPresent(SpotifyPlaylistTracksReferenceDTO.self, forKey: .tracks)
         items = itemsReference ?? tracksReference
         snapshotID = try container.decodeIfPresent(String.self, forKey: .snapshotID) ?? id
+        collaborative = (try? container.decodeIfPresent(Bool.self, forKey: .collaborative)) ?? false
     }
 
     func domainModel() -> MusicPlaylistSummary {
@@ -68,7 +71,8 @@ struct SpotifyPlaylistDTO: Decodable {
             ownerName: owner.displayName ?? owner.id,
             imageURL: images.largestImageURL,
             trackCount: items?.total,
-            snapshotID: snapshotID
+            snapshotID: snapshotID,
+            isCollaborative: collaborative
         )
     }
 }

@@ -108,6 +108,123 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    // MARK: - Reorder (#543)
+
+    /// True when the rows of `playlistID` can be dragged to a new spot: the provider can save a
+    /// new order, and the playlist is the user's own or (Spotify) one they collaborate on.
+    /// Liked Songs, albums and other people's playlists keep their order.
+    func canReorderTracks(inPlaylist playlistID: String?) -> Bool {
+        guard supportedLibraryEdits.contains(.reorderPlaylistTracks),
+              let playlistID, playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              let me = currentUserSpotifyID, !me.isEmpty,
+              let summary = playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID]
+        else { return false }
+        return summary.ownerID == me || summary.isCollaborative
+    }
+
+    /// Drops the rows `rowIDs` of the open playlist before the row at `offset` (a position in
+    /// the list as shown; the row count drops them at the end), like the Spotify and Music
+    /// apps: the list shows the new order at once, the service saves it, and a failed save puts
+    /// the rows back with a one-line message. A drop while an earlier order is still saving
+    /// does nothing.
+    func moveTracks(rowIDs: [String], toOffset offset: Int, inPlaylist playlistID: String) async {
+        guard reorderingPlaylistID == nil,
+              canReorderTracks(inPlaylist: playlistID),
+              let shown = shownPlaylistTracks(playlistID)
+        else { return }
+        let positions = Set(rowIDs.compactMap { id in shown.firstIndex { $0.id == id } })
+        guard !positions.isEmpty else { return }
+        let order = PlaylistTrackReorder.order(count: shown.count, moving: positions, toOffset: offset)
+        guard !PlaylistTrackReorder.isUnchanged(order) else { return }
+        let reordered = order.enumerated().map { shown[$0.element].at(listPosition: $0.offset + 1) }
+        showReorderedTracks(reordered, playlistID: playlistID)
+        reorderingPlaylistID = playlistID
+        defer { reorderingPlaylistID = nil }
+
+        guard await ensureScope(
+            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
+            operation: .reorderPlaylist
+        ) else {
+            putBack(shown, replacing: reordered, playlistID: playlistID)
+            return
+        }
+        do {
+            let newSnapshotID = try await api.reorderPlaylistTracks(
+                playlistID: playlistID,
+                reorder: MusicPlaylistReorder(order: order, currentTrackIDs: shown.map(\.spotifyTrackID)),
+                snapshotID: (playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID])?.snapshotID
+            )
+            invalidateTracksCache(playlistID: playlistID)
+            if let newSnapshotID { recordSnapshotID(newSnapshotID, playlistID: playlistID) }
+            // A read that finished meanwhile may have put the old order back on screen.
+            if let now = shownPlaylistTracks(playlistID), now != reordered {
+                await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+            }
+        } catch {
+            putBack(shown, replacing: reordered, playlistID: playlistID)
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.reorderFailed",
+                Self.describeFailure(error, operation: .reorderPlaylist)
+            )
+        }
+    }
+
+    /// The open playlist's rows, when `playlistID` is the playlist on screen.
+    private func shownPlaylistTracks(_ playlistID: String) -> [TrackRowViewModel]? {
+        guard case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == playlistID else { return nil }
+        return detail.tracks
+    }
+
+    private func showReorderedTracks(_ tracks: [TrackRowViewModel], playlistID: String) {
+        guard case let .playlist(detail)? = detailState.currentValue, detail.playlist.id == playlistID else { return }
+        let content = BrowsingDetailContent.playlist(PlaylistDetailViewModel(playlist: detail.playlist, tracks: tracks))
+        switch detailState {
+        case .loaded: detailState = .loaded(content)
+        case .refreshing: detailState = .refreshing(content)
+        case let .staleCache(_, error): detailState = .staleCache(content, error)
+        case .loading, .empty, .error: return
+        }
+        if completeRowsOnScreen?.playlistID == playlistID {
+            completeRowsOnScreen?.tracks = tracks
+        }
+    }
+
+    /// After a failed save: the old order goes back when the screen still shows the new one;
+    /// a list read meanwhile is read once more, as the playlist may have changed elsewhere.
+    private func putBack(_ previous: [TrackRowViewModel], replacing reordered: [TrackRowViewModel], playlistID: String) {
+        guard let now = shownPlaylistTracks(playlistID) else { return }
+        if now == reordered {
+            showReorderedTracks(previous, playlistID: playlistID)
+        } else {
+            invalidateTracksCache(playlistID: playlistID)
+            Task { await refreshCurrentPlaylistMutationDetail(for: [playlistID]) }
+        }
+    }
+
+    /// Spotify's new snapshot after a reorder, so the next edit and the track cache name the
+    /// playlist as it is now.
+    private func recordSnapshotID(_ snapshotID: String, playlistID: String) {
+        func updated(_ summary: MusicPlaylistSummary) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: summary.id,
+                name: summary.name,
+                ownerID: summary.ownerID,
+                ownerName: summary.ownerName,
+                imageURL: summary.imageURL,
+                trackCount: summary.trackCount,
+                snapshotID: snapshotID,
+                isCollaborative: summary.isCollaborative
+            )
+        }
+        if let summary = playlistsByID[playlistID] {
+            playlistsByID[playlistID] = updated(summary)
+            try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
+        }
+        if let summary = knownPlaylistSummariesByID[playlistID] {
+            knownPlaylistSummariesByID[playlistID] = updated(summary)
+        }
+    }
+
     // MARK: - Delete playlist
 
     /// Shows the confirmation; `deletePlaylist(_:)` does the work once the user confirms.
@@ -151,7 +268,8 @@ extension PlaylistBrowserViewModel {
             ownerName: summary.ownerName,
             imageURL: summary.imageURL,
             trackCount: max(0, count + delta),
-            snapshotID: summary.snapshotID
+            snapshotID: summary.snapshotID,
+            isCollaborative: summary.isCollaborative
         )
         playlistsByID[playlistID] = adjusted
         guard let rows = playlistState.currentValue else { return }

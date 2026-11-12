@@ -355,10 +355,26 @@ def make_handler(lib):
             return self.send(204)
 
         def do_PUT(self):
-            self.discard_body()
+            parts = urllib.parse.urlparse(self.path).path.rstrip("/").split("/")
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            playlist = next((p for p in lib.playlists if len(parts) == 5 and parts[4] == "items" and p["id"] == parts[3]), None)
+            try:
+                move = json.loads(body or b"{}")
+            except ValueError:
+                move = {}
+            if playlist is not None and "range_start" in move and "uris" not in move:
+                # A drag in a playlist (#543): keep the new order, as Spotify does.
+                tracks = playlist["_tracks"]
+                start, length, before = move["range_start"], move.get("range_length", 1), move["insert_before"]
+                run = tracks[start:start + length]
+                del tracks[start:start + length]
+                tracks[before - length if before > start else before:0] = run
+                return self.send(200, {"snapshot_id": "s1"})
             return self.send(204)
 
-        do_DELETE = do_PUT
+        def do_DELETE(self):
+            self.discard_body()
+            return self.send(204)
 
     return Handler
 

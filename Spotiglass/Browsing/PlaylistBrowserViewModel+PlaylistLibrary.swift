@@ -342,7 +342,8 @@ extension PlaylistBrowserViewModel {
                 ownerName: summary.ownerName,
                 imageURL: summary.imageURL,
                 trackCount: count,
-                snapshotID: summary.snapshotID
+                snapshotID: summary.snapshotID,
+                isCollaborative: summary.isCollaborative
             )
             patchedIDs.insert(id)
         }

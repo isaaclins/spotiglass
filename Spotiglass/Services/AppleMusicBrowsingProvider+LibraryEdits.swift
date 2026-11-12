@@ -112,6 +112,19 @@ extension AppleMusicBrowsingProvider {
         await trackCountCache.forget([playlistID])
     }
 
+    /// `snapshotID` is Spotify's; Apple Music has none, so this returns none.
+    func reorderPlaylistTracks(
+        playlistID: String,
+        reorder: MusicPlaylistReorder,
+        snapshotID: String?
+    ) async throws -> String? {
+        try await editor.reorderPlaylist(playlistID: playlistID, reorder: reorder)
+        // The songs read for counting are in the old order; opening the playlist again showed
+        // them first.
+        await trackCountCache.forget([playlistID])
+        return nil
+    }
+
     func updatePlaylist(playlistID: String, name: String) async throws {
         try await editor.renamePlaylist(playlistID: playlistID, name: name)
     }

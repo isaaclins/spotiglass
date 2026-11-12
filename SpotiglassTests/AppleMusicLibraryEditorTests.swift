@@ -1020,6 +1020,11 @@ final class MockMusicApp: MusicAppLibraryControlling, @unchecked Sendable {
         calls.append("addToPlaylist(\(Self.describe(playlist)),[\(tracks.map(Self.describe).joined(separator: ", "))])")
     }
 
+    func reorderPlaylist(_ playlist: MusicAppPlaylistMatch, expectedPersistentIDs: [String], moveToEnd: [Int]) async throws {
+        if let error { throw error }
+        calls.append("reorder(\(Self.describe(playlist)),[\(expectedPersistentIDs.joined(separator: ","))],\(moveToEnd))")
+    }
+
     var createdPersistentID = "00000000000000FF"
 
     func createPlaylist(name: String, tracks: [MusicAppTrackMatch]) async throws -> String {

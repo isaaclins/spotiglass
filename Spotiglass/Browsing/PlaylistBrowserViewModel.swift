@@ -40,6 +40,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published var isSidebarShown = true
     /// The playlist whose "Delete Playlist" confirmation is showing.
     @Published var playlistPendingDeletion: MusicPlaylistSummary?
+    /// The playlist whose new order is being saved (#543). Its rows take no other drop until
+    /// the save is done: a second order sent meanwhile would count positions from one the
+    /// service doesn't have yet.
+    @Published internal(set) var reorderingPlaylistID: String?
     /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).
     @Published var pendingLibraryRemoval: PendingLibraryRemoval?
     /// User-facing toast banner published after a successful track-ops mutation

@@ -29,11 +29,50 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
     let imageURL: URL?
     let trackCount: Int?
     let snapshotID: String
+    /// A Spotify playlist its owner opened to collaborators, which they may reorder too. Caches
+    /// written before this existed decode it as `false`.
+    var isCollaborative: Bool = false
+}
+
+extension MusicPlaylistSummary {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, ownerID, ownerName, imageURL, trackCount, snapshotID, isCollaborative
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        ownerID = try container.decode(String.self, forKey: .ownerID)
+        ownerName = try container.decode(String.self, forKey: .ownerName)
+        imageURL = try container.decodeIfPresent(URL.self, forKey: .imageURL)
+        trackCount = try container.decodeIfPresent(Int.self, forKey: .trackCount)
+        snapshotID = try container.decode(String.self, forKey: .snapshotID)
+        isCollaborative = try container.decodeIfPresent(Bool.self, forKey: .isCollaborative) ?? false
+    }
 }
 
 struct MusicPlaylistTrackItem: Codable, Equatable, Identifiable {
     let id: String
     let content: MusicPlaylistItemContent
+}
+
+/// A new order for the rows of a playlist as they are shown: `order[i]` is the current position
+/// (zero-based) of the row that goes to position `i`. `currentTrackIDs` are the rows' track IDs in
+/// their current order (`nil` for a row without one), for a provider that has to check it is
+/// moving the rows that are shown. Rows past the end of `order` (not loaded yet) stay where
+/// they are.
+struct MusicPlaylistReorder: Equatable {
+    let order: [Int]
+    let currentTrackIDs: [String?]
+}
+
+/// One Spotify reorder request: `rangeLength` items from `rangeStart` go before the item at
+/// `insertBefore`, positions counted in the playlist before this request.
+struct MusicPlaylistRangeMove: Equatable {
+    let rangeStart: Int
+    let rangeLength: Int
+    let insertBefore: Int
 }
 
 /// One or more exact positions for a URI in a playlist mutation.

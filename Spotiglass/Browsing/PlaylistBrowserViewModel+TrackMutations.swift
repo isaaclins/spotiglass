@@ -11,6 +11,7 @@ enum PlaylistMutationOperation: Equatable {
     case removeFromPlaylist
     case deletePlaylist
     case saveAlbum
+    case reorderPlaylist
 }
 
 /// Track URIs a provider can put into playlists and Liked Songs: Spotify catalog tracks and
@@ -367,7 +368,8 @@ extension PlaylistBrowserViewModel {
             ownerName: previous.ownerName,
             imageURL: previous.imageURL,
             trackCount: previous.trackCount,
-            snapshotID: previous.snapshotID
+            snapshotID: previous.snapshotID,
+            isCollaborative: previous.isCollaborative
         )
         applyPlaylistName(renamed)
 
@@ -404,7 +406,7 @@ extension PlaylistBrowserViewModel {
     /// the request. This is intentionally a redirecting toast rather than a
     /// silent no-op so the existing Settings ▸ Account ▸ Reconnect path is
     /// discoverable.
-    private func ensureScope(
+    func ensureScope(
         _ requirement: SpotifyScopeRequirement,
         operation: PlaylistMutationOperation
     ) async -> Bool {
@@ -433,7 +435,7 @@ extension PlaylistBrowserViewModel {
                 case .addToLikedSongs, .removeFromLikedSongs:
                     return SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect")
                 case .addToPlaylist, .moveBetweenPlaylists, .createPlaylist, .renamePlaylist,
-                     .removeFromPlaylist, .deletePlaylist, .saveAlbum:
+                     .removeFromPlaylist, .deletePlaylist, .saveAlbum, .reorderPlaylist:
                     return SpotiglassL10n.string("playlist.mutation.playlistRequiresReconnect")
                 case .generic:
                     break
@@ -543,7 +545,8 @@ extension PlaylistBrowserViewModel {
             ownerName: summary.ownerName,
             imageURL: summary.imageURL,
             trackCount: refreshedTrackCount,
-            snapshotID: summary.snapshotID
+            snapshotID: summary.snapshotID,
+            isCollaborative: summary.isCollaborative
         )
         playlistsByID[summary.id] = normalised
         var rows = playlistState.currentValue ?? []

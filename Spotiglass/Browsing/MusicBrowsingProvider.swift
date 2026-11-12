@@ -31,8 +31,10 @@ struct MusicLibraryEdits: OptionSet {
     /// which also takes it out of every playlist on every device (Apple Music), so the browser
     /// asks first. Spotify's unlike only leaves Liked Songs and goes through at once.
     static let confirmLibraryRemoval = MusicLibraryEdits(rawValue: 1 << 3)
+    /// Dragging rows to a new spot in a playlist the user may edit (#543).
+    static let reorderPlaylistTracks = MusicLibraryEdits(rawValue: 1 << 4)
 
-    static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums, .confirmLibraryRemoval]
+    static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums, .confirmLibraryRemoval, .reorderPlaylistTracks]
 }
 
 /// One page of an artist's albums. `next` is an opaque continuation the same
@@ -123,6 +125,13 @@ protocol MusicBrowsingProvider {
         items: [MusicPlaylistTrackRemoval],
         snapshotID: String?
     ) async throws
+    /// Saves a new order for a playlist's rows (`MusicLibraryEdits.reorderPlaylistTracks`).
+    /// Returns the playlist's new snapshot ID when the service has one (Spotify).
+    func reorderPlaylistTracks(
+        playlistID: String,
+        reorder: MusicPlaylistReorder,
+        snapshotID: String?
+    ) async throws -> String?
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary
     /// Creates a playlist with these tracks. The default creates it, then adds them; a provider
     /// that can do both in one step overrides it, so a failed add leaves no empty playlist.
@@ -178,6 +187,13 @@ extension MusicBrowsingProvider {
         snapshotID: String?
     ) async throws {
         throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
+    }
+    func reorderPlaylistTracks(
+        playlistID: String,
+        reorder: MusicPlaylistReorder,
+        snapshotID: String?
+    ) async throws -> String? {
+        throw SpotifyAPIError.invalidRequest("Playlist reorder is not supported by this API implementation.")
     }
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
         throw SpotifyAPIError.invalidRequest("Playlist creation is not supported by this API implementation.")

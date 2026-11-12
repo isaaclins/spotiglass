@@ -34,6 +34,10 @@ struct TrackListView<Row: View>: View {
     /// nothing consumed Return, so a keyboard user could highlight a track and
     /// never start it (#122).
     var playSelection: ((Set<String>) -> Void)? = nil
+    /// Drag-to-reorder (#543): the table's own move, with its insertion line and the selected
+    /// rows moving together. `nil` offers no reordering at all (Liked Songs, albums, other
+    /// people's playlists). Rows stay draggable to the sidebar either way.
+    var moveRows: ((IndexSet, Int) -> Void)? = nil
 
     init(
         tracks: [TrackRowViewModel],
@@ -42,6 +46,7 @@ struct TrackListView<Row: View>: View {
         pendingScrollRestoreTrackID: Binding<String?>,
         onFirstVisibleTrackChanged: @escaping (String) -> Void,
         playSelection: ((Set<String>) -> Void)? = nil,
+        moveRows: ((IndexSet, Int) -> Void)? = nil,
         headerContent: AnyView? = nil,
         footerContent: AnyView? = nil
     ) {
@@ -53,6 +58,7 @@ struct TrackListView<Row: View>: View {
         _pendingScrollRestoreTrackID = pendingScrollRestoreTrackID
         self.onFirstVisibleTrackChanged = onFirstVisibleTrackChanged
         self.playSelection = playSelection
+        self.moveRows = moveRows
     }
 
     /// Deliberately a reference type rather than stored-in-state values. Rows
@@ -94,6 +100,7 @@ struct TrackListView<Row: View>: View {
                         .onAppear { setRowRealized(true, track: track) }
                         .onDisappear { setRowRealized(false, track: track) }
                 }
+                .onMove(perform: moveRows)
 
                 if let footerContent {
                     footerContent

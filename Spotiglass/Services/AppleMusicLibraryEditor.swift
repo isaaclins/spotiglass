@@ -494,6 +494,25 @@ struct AppleMusicLibraryEditor: Sendable {
         }
     }
 
+    /// Saves a new order through the Music app (#543): the Apple Music API has no reorder. Every
+    /// row must be one Music knows by its persistent ID, as rows read from the library on this
+    /// Mac are; a song added moments ago that the library doesn't list yet can't be placed.
+    func reorderPlaylist(playlistID: String, reorder: MusicPlaylistReorder) async throws {
+        let moves = PlaylistTrackReorder.moveToEndSequence(for: reorder.order)
+        guard !moves.isEmpty else { return }
+        let expected = try reorder.currentTrackIDs.map { id -> String in
+            guard let id, let persistentID = Self.musicAppPersistentID(fromMusicKitID: id) else {
+                throw AppleMusicLibraryEditError.notInMusicYet
+            }
+            return persistentID
+        }
+        try await musicApp.reorderPlaylist(
+            try await musicAppPlaylist(for: playlistID),
+            expectedPersistentIDs: expected,
+            moveToEnd: moves
+        )
+    }
+
     func renamePlaylist(playlistID: String, name: String) async throws {
         // Learn the cloud ID while the old name still finds it; adds after the rename use it.
         if !Self.isCloudPlaylistID(playlistID), pending.cloudPlaylistID(for: playlistID) == nil {

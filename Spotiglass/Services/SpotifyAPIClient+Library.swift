@@ -104,6 +104,44 @@ extension SpotifyAPIClient {
         }
     }
 
+    /// Saves a new order with `PUT /v1/playlists/{id}/items` (range_start, insert_before,
+    /// range_length), one request per run of rows that move together. Each request carries the
+    /// snapshot the one before it returned, so Spotify applies them to the playlist as the
+    /// previous request left it, and a playlist changed elsewhere meanwhile fails instead of
+    /// moving the wrong songs. Returns the last snapshot ID.
+    func reorderPlaylistTracks(
+        playlistID: String,
+        reorder: MusicPlaylistReorder,
+        snapshotID: String?
+    ) async throws -> String? {
+        guard !playlistID.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Playlist ID is required.")
+        }
+        var currentSnapshotID = snapshotID
+        for move in PlaylistTrackReorder.rangeMoves(for: reorder.order) {
+            var body: [String: Any] = [
+                "range_start": move.rangeStart,
+                "insert_before": move.insertBefore,
+                "range_length": move.rangeLength
+            ]
+            if let currentSnapshotID, !currentSnapshotID.isEmpty {
+                body["snapshot_id"] = currentSnapshotID
+            }
+            let responseData = try await sendDataWrite(
+                method: "PUT",
+                path: "/v1/playlists/\(playlistID)/items",
+                queryItems: [],
+                jsonBody: body
+            )
+            if let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData),
+               let nextSnapshotID = response.snapshotID,
+               !nextSnapshotID.isEmpty {
+                currentSnapshotID = nextSnapshotID
+            }
+        }
+        return currentSnapshotID
+    }
+
     // MARK: - Create playlist
 
     /// Creates an empty playlist owned by the given user and returns it as a
