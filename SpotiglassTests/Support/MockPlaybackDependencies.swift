@@ -140,6 +140,9 @@ final class AsyncSignal: @unchecked Sendable {
         })
     }
 
+    /// Only for checking that something does NOT happen. To wait for something that
+    /// must happen, use `wait()`: a busy machine can take longer than any window, and
+    /// the per-test time limit already catches a signal that never comes (#503).
     func wait(timeout: Duration) async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
             group.addTask {
@@ -167,6 +170,12 @@ final class AsyncSignal: @unchecked Sendable {
         continuation?.resume()
     }
 }
+
+/// Timeout for an `XCTestExpectation` that must be fulfilled. A busy machine can take far longer
+/// than a second or two, so this is no time window: it only sits under the 120 s per-test limit
+/// (`make test`, CI) so that a fulfilment that never comes fails with the expectation's own
+/// description instead of a bare timeout (#503).
+let mustHappenTimeout: TimeInterval = 100
 
 private final class MockPlaybackActionRecorder: @unchecked Sendable {
     private let lock = NSLock()
@@ -213,7 +222,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var onSetShuffle: ((Bool) async -> Void)?
         var setRepeatError: Error?
         var fetchPlayerSnapshotError: Error?
-        var playDelayNanoseconds: UInt64 = 0
         var seekDelayNanoseconds: UInt64 = 0
         var seekError: Error?
         var nextError: Error?
@@ -222,7 +230,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var setShuffleDelayNanoseconds: UInt64 = 0
         var onTransferPlayback: ((String, Bool) async -> Void)?
         var onTransferPlaybackCompleted: ((String, Bool) async -> Void)?
-        var transferPlaybackDelayNanoseconds: UInt64 = 0
         var queueResponse = MusicPlaybackQueue(queue: [])
         var onFetchQueue: (() async -> Void)?
     }
@@ -305,10 +312,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.fetchPlayerSnapshotError } }
         set { locked { $0.fetchPlayerSnapshotError = newValue } }
     }
-    var playDelayNanoseconds: UInt64 {
-        get { locked { $0.playDelayNanoseconds } }
-        set { locked { $0.playDelayNanoseconds = newValue } }
-    }
     var playErrors: [Error] {
         get { locked { $0.playErrors } }
         set { locked { $0.playErrors = newValue } }
@@ -351,10 +354,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
     /// When non-zero, `transferPlayback` sleeps before recording the action. Lets the transfer-playback audit
     /// concurrency tests overlap the in-flight PUT with a sibling caller so the single-flight guard runs.
-    var transferPlaybackDelayNanoseconds: UInt64 {
-        get { locked { $0.transferPlaybackDelayNanoseconds } }
-        set { locked { $0.transferPlaybackDelayNanoseconds = newValue } }
-    }
     /// FIFO of errors thrown by `transferPlayback`. Empty queue means transfers succeed.
     var transferPlaybackErrors: [Error] {
         get { locked { $0.transferPlaybackErrors } }
@@ -373,9 +372,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         await onTransferPlayback?(deviceID, play)
-        if transferPlaybackDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: transferPlaybackDelayNanoseconds)
-        }
         if let next = locked({ $0.transferPlaybackErrors.isEmpty ? nil : $0.transferPlaybackErrors.removeFirst() }) {
             actionRecorder.append("transfer-error:\(deviceID):\(play)")
             throw next
@@ -386,9 +382,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         await onPlay?(uri)
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
         if let error = nextPlayError() {
             throw error
         }
@@ -397,9 +390,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(contextURI: String, deviceID: String) async throws {
         await onPlay?(contextURI)
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
         if let error = nextPlayError() {
             throw error
         }
@@ -431,9 +421,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             $0.lastPlayedOffsetURI = offsetURI
         }
         await onPlay?(offsetURI ?? uris.first ?? "")
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
         if let error = nextPlayError() {
             throw error
         }

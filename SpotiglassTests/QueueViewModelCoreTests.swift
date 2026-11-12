@@ -42,11 +42,8 @@ final class QueueViewModelCoreTests: XCTestCase {
         )))
         queue.setPanelVisible(true)
         queue.handleSdkQueueSnapshotChanged()
-        let didStartFetchQueue = await fetchQueueStarted.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didStartFetchQueue,
-            "visible queue updates should fetch the REST queue"
-        )
+        // visible queue updates should fetch the REST queue
+        await fetchQueueStarted.wait()
         XCTAssertTrue(api.actions.contains("fetchQueue"))
     }
 

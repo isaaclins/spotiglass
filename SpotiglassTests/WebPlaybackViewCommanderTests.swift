@@ -11,13 +11,10 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
         commander.attach(webView: webView)
 
-        let expectation = expectation(description: "html loaded")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            if webView.url != nil || !webView.isLoading {
-                expectation.fulfill()
-            }
+        // However long a busy machine takes to load the page.
+        while webView.url == nil, webView.isLoading {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
-        wait(for: [expectation], timeout: 2)
     }
 
     func testLoadHostWithAttachedWebViewLoadsImmediately() {
@@ -30,7 +27,7 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 2)
+        wait(for: [expectation], timeout: mustHappenTimeout)
     }
 
     func testSendWithoutWebViewIsNoOp() async throws {

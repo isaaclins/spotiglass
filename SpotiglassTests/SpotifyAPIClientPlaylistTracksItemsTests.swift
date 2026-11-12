@@ -222,11 +222,8 @@ final class SpotifyAPIClientPlaylistTracksItemsTests: XCTestCase {
         let task = Task {
             try await client.playlistTracks(playlistID: "p1", limit: 1, maxPages: 10)
         }
-        let didStartFirstRequest = await firstRequestStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartFirstRequest,
-            "the first page request should start before cancellation"
-        )
+        // the first page request should start before cancellation
+        await firstRequestStarted.wait()
         XCTAssertEqual(httpClient.requests.count, 1, "Expected exactly one request before cancellation")
         task.cancel()
         releaseFirstResponse.signal()

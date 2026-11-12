@@ -21,8 +21,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         viewModel.deviceID = "old-device"
         viewModel.setPlaybackVolume(0.40)
 
-        let didStartOldSend = await oldVolumeSendStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartOldSend)
+        await oldVolumeSendStarted.wait()
         XCTAssertNotNil(viewModel.pendingVolumeMutation)
 
         await viewModel.disconnect()
@@ -52,8 +51,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
-        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didConnectStart)
+        await connectStarted.wait()
 
         await viewModel.disconnect()
         viewModel.handle(MusicPlaybackEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
@@ -90,8 +88,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         viewModel.handle(.notReady(deviceID: "device-1"))
         let recoveryTask = viewModel.playbackHostRecoveryTask
 
-        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didConnectStart)
+        await connectStarted.wait()
         await viewModel.disconnect()
         releaseConnect.signal()
         await recoveryTask?.value
@@ -116,8 +113,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let disconnectTask = Task {
             await viewModel.disconnect()
         }
-        let didDisconnectStart = await disconnectStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didDisconnectStart)
+        await disconnectStarted.wait()
 
         viewModel.start()
         let newGeneration = viewModel.playbackHostGeneration
@@ -156,8 +152,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         viewModel.handle(.initializationError("SDK init failed"))
         let recoveryTask = viewModel.playbackHostRecoveryTask
-        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didConnectStart)
+        await connectStarted.wait()
         await viewModel.disconnect()
         releaseConnect.signal()
         await recoveryTask?.value
@@ -184,8 +179,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
         let oldConnectTask = viewModel.playbackHostConnectTask
-        let didStart = await connectStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await connectStarted.wait()
         XCTAssertEqual(blockedGeneration, oldGeneration)
 
         await viewModel.disconnect()
@@ -250,11 +244,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             event: .notReady(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
-        let didStartRecoveryConnect = await recoveryConnectStarted.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didStartRecoveryConnect,
-            "recovery should issue a host reuse connect"
-        )
+        // recovery should issue a host reuse connect
+        await recoveryConnectStarted.wait()
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertTrue(commander.commands.contains { $0.command == .connect })
@@ -370,11 +361,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         }
 
         viewModel.handle(.initializationError("SDK init failed"))
-        let didStartHardReload = await hardReloadStarted.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didStartHardReload,
-            "recovery should escalate to a hard host reload"
-        )
+        // recovery should escalate to a hard host reload
+        await hardReloadStarted.wait()
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseSoftResetAttemptCount, 1)
@@ -429,11 +417,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         // Choosing Reconnect from the error state must restart the SDK host.
         viewModel.start()
-        let didSendConnect = await connectSent.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didSendConnect,
-            "reconnect should send the SDK connect command"
-        )
+        // reconnect should send the SDK connect command
+        await connectSent.wait()
 
         XCTAssertEqual(viewModel.connectionState, .connecting)
         XCTAssertTrue(commander.didLoadHost)

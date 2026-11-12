@@ -93,7 +93,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var artistAlbumsPageCallCount = 0
         var playlistTracksInvocationCountByID: [String: Int] = [:]
         var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
-        var lastReadDelayNanoseconds: [String: UInt64] = [:]
+        var lastReadHolds: [String: LastReadHold] = [:]
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
         var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
@@ -278,16 +278,23 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         set { locked { $0.lastReadTracksByID = newValue } }
     }
 
-    /// How long `lastReadPlaylistTracks` takes, by playlist ID.
-    var lastReadDelayNanoseconds: [String: UInt64] {
-        get { locked { $0.lastReadDelayNanoseconds } }
-        set { locked { $0.lastReadDelayNanoseconds = newValue } }
+    /// Holds `lastReadPlaylistTracks` for a playlist ID: it signals `entered`, then answers only
+    /// once `release` is signalled, so a test can act while the read is in flight.
+    struct LastReadHold {
+        let entered = AsyncSignal()
+        let release = AsyncSignal()
+    }
+
+    var lastReadHolds: [String: LastReadHold] {
+        get { locked { $0.lastReadHolds } }
+        set { locked { $0.lastReadHolds = newValue } }
     }
 
     func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
-        if let delay = locked({ $0.lastReadDelayNanoseconds[playlistID] }) {
+        if let hold = locked({ $0.lastReadHolds[playlistID] }) {
+            hold.entered.signal()
             // Like MusicKit's reads, the wait doesn't end when the caller's task is cancelled.
-            await Task.detached { try? await Task.sleep(nanoseconds: delay) }.value
+            await Task.detached { await hold.release.wait() }.value
         }
         return locked { $0.lastReadTracksByID[playlistID] }
     }

@@ -333,7 +333,7 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         let viewModel = await makeViewModel(api)
 
         let renaming = Task { await viewModel.renamePlaylist(id: "-1", name: "Road trip") }
-        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.title != "Road trip" {
+        while viewModel.playlistState.currentValue?.last?.title != "Road trip" {
             await Task.yield()
         }
         counts.open()
@@ -366,7 +366,7 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         api.trackCounts = ["-1": 13]
         gate.open()
         await viewModel.playlistTrackCountTask?.value
-        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.trackCount != 13 {
+        while viewModel.playlistState.currentValue?.last?.trackCount != 13 {
             await Task.yield()
         }
 
@@ -385,7 +385,7 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 11)
 
         await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Road")
-        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.trackCount != 11 {
+        while viewModel.playlistState.currentValue?.last?.trackCount != 11 {
             await Task.yield()
         }
 
@@ -402,7 +402,7 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
 
         api.trackCounts = ["-1": 3]
         await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Road")
-        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.trackCount == nil {
+        while viewModel.playlistState.currentValue?.last?.trackCount == nil {
             await Task.yield()
         }
 
