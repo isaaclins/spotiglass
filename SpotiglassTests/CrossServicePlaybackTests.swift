@@ -468,7 +468,12 @@ final class CrossServicePlaybackTests: XCTestCase {
             XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too, \(label)")
             // The lyrics take up the wait for Spotify's song: the same step closes them when no
             // song is coming.
-            try await waitUntil { lyricsOverlay.lyricsModel?.phase == .loading }
+            // It ends on that, or at once on the lyrics closing, which fails below.
+            let lyricsModel = try XCTUnwrap(lyricsOverlay.lyricsModel, label)
+            await waitUntil(
+                "the lyrics waiting for the song, \(label)",
+                changes: lyricsModel.$phase.map { _ in }.merge(with: lyricsOverlay.$isPresented.map { _ in })
+            ) { lyricsModel.phase == .loading || !lyricsOverlay.isPresented }
             await ViewTestHost.renderPendingUpdates()
             XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way, \(label)")
             XCTAssertEqual(lyricsOverlay.lyricsModel?.phase, .loading, "the lyrics wait for the song, like the bar, \(label)")
