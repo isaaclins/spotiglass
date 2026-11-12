@@ -46,7 +46,8 @@ struct PlaybackNowPlaying: Equatable {
     }
 
     var name: String {
-        UnnamedMusicItem.displayName(storedName, kind: .track)
+        let kind: UnnamedMusicItem = uri?.hasPrefix("spotify:episode:") == true ? .episode : .track
+        return UnnamedMusicItem.displayName(storedName, kind: kind)
     }
 
     var artists: [String] {

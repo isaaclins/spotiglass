@@ -572,18 +572,32 @@ enum UnnamedMusicItem: CaseIterable {
         names.map { displayName($0, kind: kind) }
     }
 
+    /// Artist names joined with ", " (a pin's or a queue row's subtitle), with each stand-in among
+    /// them in `locale`'s language. A blank text stays blank: it means no artists, not a nameless one.
+    static func displayArtistList(_ text: String, locale: Locale) -> String {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return text }
+        return text.components(separatedBy: ", ")
+            .map { displayName($0, kind: .artist, locale: locale) }
+            .joined(separator: ", ")
+    }
+
     /// True for a blank name, and for a stand-in saved as the name itself: by builds before #547,
     /// or copied from a model into a pin, a row or the queue. Such a copy follows the language
-    /// again and keeps its own kind, so a copied "Unknown episode" stays one. Only the exact
-    /// stand-ins count: "Unknown Artist" (local files) and Music's own "Untitled Playlist" are
-    /// real names, so the playlist stand-in is only recognised as older builds wrote it.
+    /// again. Only the exact stand-ins count: "Unknown Artist" (local files) and Music's own
+    /// "Untitled Playlist" are real names, so the playlist stand-in is only recognised as older
+    /// builds wrote it. A saved stand-in only counts for its own kind, so a playlist really named
+    /// "Unbekannter Titel" keeps that name; tracks and episodes share the queue and the player
+    /// bar, so there a copied "Unknown episode" stays an episode.
     static func isStandIn(_ name: String, kind: UnnamedMusicItem) -> Bool {
         standInKind(of: name, kind: kind) != nil
     }
 
     private static func standInKind(of name: String, kind: UnnamedMusicItem) -> UnnamedMusicItem? {
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return kind }
-        return savedStandIns[name]
+        guard let saved = savedStandIns[name] else { return nil }
+        if saved == kind { return saved }
+        let playable: Set<UnnamedMusicItem> = [.track, .episode]
+        return playable.contains(saved) && playable.contains(kind) ? saved : nil
     }
 
     private static let savedStandIns: [String: UnnamedMusicItem] = {

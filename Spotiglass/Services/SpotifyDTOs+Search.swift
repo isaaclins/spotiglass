@@ -22,7 +22,8 @@ struct SpotifySearchResponseDTO: Decodable {
 
 struct SpotifySearchArtistDTO: Decodable {
     let id: String?
-    let name: String
+    /// Missing for an artist without a name; it shows the stand-in instead of failing the page (#547).
+    let name: String?
     let images: [SpotifyImageDTO]?
     let uri: String?
 
@@ -37,7 +38,7 @@ struct SpotifySearchArtistDTO: Decodable {
         let resolvedID = id ?? "unknown-artist"
         return MusicArtist(
             id: resolvedID,
-            name: name,
+            name: name ?? "",
             imageURL: images?.largestImageURL,
             uri: uri ?? "spotify:artist:\(resolvedID)"
         )
@@ -54,7 +55,8 @@ struct SpotifyFollowedArtistsResponseDTO: Decodable {
 
 struct SpotifySearchAlbumDTO: Decodable {
     let id: String?
-    let name: String
+    /// Missing for an album without a name; it shows the stand-in instead of failing the page (#547).
+    let name: String?
     let artists: [SpotifyArtistDTO]
     let images: [SpotifyImageDTO]?
     let uri: String?
@@ -71,7 +73,7 @@ struct SpotifySearchAlbumDTO: Decodable {
         let resolvedID = id ?? "unknown-album"
         return MusicAlbum(
             id: resolvedID,
-            name: name,
+            name: name ?? "",
             artists: artists.map(\.name),
             artistRefs: artists.compactMap { artist in
                 artist.id.map { MusicArtistRef(id: $0, name: artist.name) }

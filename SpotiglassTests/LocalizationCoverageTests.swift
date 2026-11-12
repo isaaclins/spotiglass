@@ -581,6 +581,63 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(PlaylistBrowserLibraryActions.playlistSummaryFromRow(named).name, "Night Drive")
     }
 
+    /// A search page with a nameless artist or album, a pin whose artist has no name, an artist
+    /// pin's label, a nameless episode in the player bar, and real names that read like another
+    /// kind's stand-in (#547).
+    func testSearchPinSubtitlesAndThePlayerBarFollowTheLanguageForNamelessItems() throws {
+        let search = try JSONDecoder().decode(SpotifySearchResponseDTO.self, from: Data(#"""
+        {"artists":{"limit":1,"total":1,"items":[{"id":"a1","uri":"spotify:artist:a1"}]},
+         "albums":{"limit":1,"total":1,"items":[{"id":"al1","artists":[{"id":"a2"}],"uri":"spotify:album:al1"}]}}
+        """#.utf8)).domainModel()
+        let track = try XCTUnwrap(try JSONDecoder().decode(SpotifyTrackDTO.self, from: Data(#"""
+        {"id":"t1","name":"Kerala","uri":"spotify:track:t1","artists":[{"id":"a3"},{"id":"a4","name":"Bonobo"}]}
+        """#.utf8)).domainModel())
+        let soloTrack = try XCTUnwrap(try JSONDecoder().decode(SpotifyTrackDTO.self, from: Data(#"""
+        {"id":"t2","name":"Solo","uri":"spotify:track:t2","artists":[{"id":"a5"}]}
+        """#.utf8)).domainModel())
+        guard case let .stateChanged(episode?, _, _) = try SpotifyPlaybackBridgeParser.parse([
+            "name": "state_changed",
+            "payload": ["paused": false, "track": ["name": "", "artists": [String](), "uri": "spotify:episode:e1"]]
+        ]) else { return XCTFail("expected a playing episode") }
+
+        try store.mutate { $0.appearance.language = .english }
+        let pins = [PinnedItem.track(track), PinnedItem.track(soloTrack), PinnedItem.album(try XCTUnwrap(search.albums.first))]
+        let artistPin = PinnedItem.artist(try XCTUnwrap(search.artists.first))
+        let commaArtist = PinnedItem(
+            id: "track:t3", kind: .track, title: "Earfquake", subtitle: "Tyler, The Creator",
+            artworkURL: nil, spotifyURI: "spotify:track:t3", isStale: false
+        )
+        let noArtist = PinnedItem(
+            id: "track:t4", kind: .track, title: "Intro", subtitle: "",
+            artworkURL: nil, spotifyURI: "spotify:track:t4", isStale: false
+        )
+
+        try store.mutate { $0.appearance.language = .german }
+        let locale = store.appLocale
+        XCTAssertEqual(search.artists.map(\.name), ["Unbekannter Künstler"])
+        XCTAssertEqual(search.albums.map(\.name), ["Unbekanntes Album"])
+        XCTAssertEqual(
+            pins.map { $0.localizedSubtitle(locale: locale) },
+            ["Unbekannter Künstler, Bonobo", "Unbekannter Künstler", "Unbekannter Künstler"]
+        )
+        XCTAssertEqual(artistPin.localizedTitle(locale: locale), "Unbekannter Künstler")
+        XCTAssertEqual(artistPin.localizedSubtitle(locale: locale), "Künstler")
+        XCTAssertEqual(commaArtist.localizedSubtitle(locale: locale), "Tyler, The Creator")
+        XCTAssertEqual(noArtist.localizedSubtitle(locale: locale), "")
+        XCTAssertEqual(episode.name, "Unbekannte Episode")
+
+        // A real name that is another kind's stand-in stays a name.
+        let realPlaylist = MusicPlaylistSummary(
+            id: "p.5", name: "Unbekannter Titel", ownerID: "me", ownerName: "me",
+            imageURL: nil, trackCount: 1, snapshotID: "s"
+        )
+        try store.mutate { $0.appearance.language = .english }
+        XCTAssertFalse(realPlaylist.isUnnamed)
+        XCTAssertEqual(realPlaylist.name, "Unbekannter Titel")
+        XCTAssertEqual(PinnedItem.playlist(realPlaylist).localizedTitle(locale: store.appLocale), "Unbekannter Titel")
+        XCTAssertEqual(MusicArtistRef(id: "a6", name: "Unknown track").name, "Unknown track")
+    }
+
 
     /// The equalizer exposes one gain fader per fixed centre frequency and no
     /// control over Q or centre frequency, which is a graphic equalizer. The
