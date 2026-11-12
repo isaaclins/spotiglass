@@ -50,7 +50,7 @@ struct SpotifyTrackDTO: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Unknown track"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         artists = try container.decodeIfPresent([SpotifyArtistDTO].self, forKey: .artists) ?? []
         album = try container.decodeIfPresent(SpotifyAlbumDTO.self, forKey: .album)
         durationMilliseconds = try container.decodeIfPresent(Int.self, forKey: .durationMilliseconds) ?? 0
@@ -115,7 +115,7 @@ struct SpotifyEpisodeDTO: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Unknown episode"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         show = try container.decodeIfPresent(SpotifyShowDTO.self, forKey: .show)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         durationMilliseconds = try container.decodeIfPresent(Int.self, forKey: .durationMilliseconds) ?? 0
@@ -149,7 +149,7 @@ struct SpotifyArtistDTO: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Unknown artist"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
     }
 }
 
@@ -186,7 +186,7 @@ struct SpotifyLinkedFromDTO: Decodable {
 }
 
 struct SpotifyShowDTO: Decodable {
-    let name: String
+    let name: String?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -194,7 +194,7 @@ struct SpotifyShowDTO: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Podcast"
+        name = try container.decodeIfPresent(String.self, forKey: .name)
     }
 }
 

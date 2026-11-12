@@ -155,7 +155,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let summary = AppleMusicItemMapping.playlistSummary(
             try AppleMusicFixtures.playlist(id: "p.blank", name: "  "), fallbackOwnerName: "You"
         )
-        XCTAssertEqual(summary.name, SpotiglassL10n.string("appleMusic.playlist.untitled"))
+        XCTAssertEqual(summary.name, UnnamedMusicItem.playlist.placeholder)
     }
 
     func testArtistAlbumGroupsAndReleaseYear() throws {

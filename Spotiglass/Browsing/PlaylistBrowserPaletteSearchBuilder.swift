@@ -235,7 +235,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
         for row in visiblePlaylists {
             let summary = MusicPlaylistSummary(
                 id: row.id,
-                name: row.title,
+                name: row.playlistName,
                 ownerID: row.ownerID,
                 ownerName: row.localizedOwner(),
                 imageURL: row.artworkURL,

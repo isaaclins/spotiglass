@@ -24,13 +24,14 @@ enum PlaylistBrowserPinnedItemActivation {
             return .selectPlaylist(summary)
         case .artist:
             guard let spotifyID = item.spotifyID else { return nil }
-            return .selectArtist(id: spotifyID, displayName: item.title)
+            // What the pin shows, so a nameless item opens in the app's language (#547).
+            return .selectArtist(id: spotifyID, displayName: item.localizedTitle())
         case .album:
             guard let spotifyID = item.spotifyID else { return nil }
             return .selectAlbum(
                 id: spotifyID,
-                title: item.title,
-                subtitle: item.subtitle,
+                title: item.localizedTitle(),
+                subtitle: item.localizedSubtitle(),
                 artworkURL: item.artworkURL
             )
         case .likedSongs:

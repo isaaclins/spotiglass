@@ -23,12 +23,67 @@ struct MusicUserProfile: Codable, Equatable {
 
 struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
+    /// The name as the service sent it, maybe blank; ``name`` is what to show (#547).
+    private let storedName: String
     let ownerID: String
     let ownerName: String
     let imageURL: URL?
     let trackCount: Int?
     let snapshotID: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .playlist)
+    }
+
+    /// True when ``name`` is the stand-in, which rows and pins resolve again when they render.
+    var isUnnamed: Bool {
+        UnnamedMusicItem.isStandIn(storedName, kind: .playlist)
+    }
+
+    /// The name exactly as the service sent it (or an earlier build saved it), for copies that
+    /// resolve it again when they render: a pin, a row rebuilt into a playlist. A real name that
+    /// reads like a stand-in is kept that way instead of being saved blank.
+    var nameAsSent: String {
+        storedName
+    }
+
+    init(
+        id: String,
+        name: String,
+        ownerID: String,
+        ownerName: String,
+        imageURL: URL?,
+        trackCount: Int?,
+        snapshotID: String
+    ) {
+        self.id = id
+        self.storedName = name
+        self.ownerID = ownerID
+        self.ownerName = ownerName
+        self.imageURL = imageURL
+        self.trackCount = trackCount
+        self.snapshotID = snapshotID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+        case ownerID, ownerName, imageURL, trackCount, snapshotID
+    }
+
+    /// The same playlist with another track count. Keeps the name as the service sent it, so a
+    /// playlist without one keeps following the app's language (#547).
+    func with(trackCount: Int?) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
+            id: id,
+            name: storedName,
+            ownerID: ownerID,
+            ownerName: ownerName,
+            imageURL: imageURL,
+            trackCount: trackCount,
+            snapshotID: snapshotID
+        )
+    }
 }
 
 struct MusicPlaylistTrackItem: Codable, Equatable, Identifiable {
@@ -80,13 +135,30 @@ enum MusicUnavailableReason: String, Codable, Equatable {
 
 struct MusicArtistRef: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
+    /// The name as the service sent it, maybe blank; ``name`` is what to show (#547).
+    private let storedName: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .artist)
+    }
+
+    init(id: String, name: String) {
+        self.id = id
+        self.storedName = name
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+    }
 }
 
 struct MusicTrack: Equatable, Identifiable {
     let id: String
-    let name: String
-    let artists: [String]
+    /// Name and artist names as the service sent them, maybe blank; ``name`` and ``artists``
+    /// are what to show (#547).
+    private let storedName: String
+    private let storedArtists: [String]
     /// Present when Spotify returned artist IDs (playlist/search tracks). Used for tappable artist links.
     let artistRefs: [MusicArtistRef]
     let albumArtworkURL: URL?
@@ -113,8 +185,8 @@ struct MusicTrack: Equatable, Identifiable {
         uri: String
     ) {
         self.id = id
-        self.name = name
-        self.artists = artists
+        self.storedName = name
+        self.storedArtists = artists
         self.artistRefs = artistRefs
         self.albumArtworkURL = albumArtworkURL
         self.albumName = albumName
@@ -124,6 +196,14 @@ struct MusicTrack: Equatable, Identifiable {
         self.isPlayable = isPlayable
         self.linkedFromID = linkedFromID
         self.uri = uri
+    }
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .track)
+    }
+
+    var artists: [String] {
+        UnnamedMusicItem.displayNames(storedArtists, kind: .artist)
     }
 }
 
@@ -146,8 +226,8 @@ extension MusicTrack: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        name = try c.decode(String.self, forKey: .name)
-        artists = try c.decode([String].self, forKey: .artists)
+        storedName = try c.decode(String.self, forKey: .name)
+        storedArtists = try c.decode([String].self, forKey: .artists)
         artistRefs = try c.decodeIfPresent([MusicArtistRef].self, forKey: .artistRefs) ?? []
         albumArtworkURL = try c.decodeIfPresent(URL.self, forKey: .albumArtworkURL)
         albumName = try c.decodeIfPresent(String.self, forKey: .albumName)
@@ -162,8 +242,8 @@ extension MusicTrack: Codable {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
-        try c.encode(name, forKey: .name)
-        try c.encode(artists, forKey: .artists)
+        try c.encode(storedName, forKey: .name)
+        try c.encode(storedArtists, forKey: .artists)
         try c.encode(artistRefs, forKey: .artistRefs)
         try c.encodeIfPresent(albumArtworkURL, forKey: .albumArtworkURL)
         try c.encodeIfPresent(albumName, forKey: .albumName)
@@ -178,11 +258,31 @@ extension MusicTrack: Codable {
 
 struct MusicArtistDetail: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
+    /// The name as the service sent it, maybe blank; ``name`` is what to show (#547).
+    private let storedName: String
     let imageURL: URL?
     let followersTotal: Int?
     let genres: [String]
     let uri: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .artist)
+    }
+
+    init(id: String, name: String, imageURL: URL?, followersTotal: Int?, genres: [String], uri: String) {
+        self.id = id
+        self.storedName = name
+        self.imageURL = imageURL
+        self.followersTotal = followersTotal
+        self.genres = genres
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+        case imageURL, followersTotal, genres, uri
+    }
 }
 
 enum MusicArtistAlbumGroup: String, Codable, Equatable, CaseIterable {
@@ -204,25 +304,74 @@ enum MusicTopItemsTimeRange: String, Equatable {
 
 struct MusicArtistAlbum: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
+    /// The name as the service sent it, maybe blank; ``name`` is what to show (#547).
+    private let storedName: String
     let imageURL: URL?
     let releaseYear: String?
     let totalTracks: Int
     let group: MusicArtistAlbumGroup
     let uri: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .album)
+    }
+
+    init(
+        id: String,
+        name: String,
+        imageURL: URL?,
+        releaseYear: String?,
+        totalTracks: Int,
+        group: MusicArtistAlbumGroup,
+        uri: String
+    ) {
+        self.id = id
+        self.storedName = name
+        self.imageURL = imageURL
+        self.releaseYear = releaseYear
+        self.totalTracks = totalTracks
+        self.group = group
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+        case imageURL, releaseYear, totalTracks, group, uri
+    }
 }
 
 struct MusicArtist: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
+    /// The name as the service sent it, maybe blank; ``name`` is what to show (#547).
+    private let storedName: String
     let imageURL: URL?
     let uri: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .artist)
+    }
+
+    init(id: String, name: String, imageURL: URL?, uri: String) {
+        self.id = id
+        self.storedName = name
+        self.imageURL = imageURL
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+        case imageURL, uri
+    }
 }
 
 struct MusicAlbum: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
-    let artists: [String]
+    /// Name and artist names as the service sent them, maybe blank; ``name`` and ``artists``
+    /// are what to show (#547).
+    private let storedName: String
+    private let storedArtists: [String]
     /// The artists by ID when the service gave them, so a card can link each one (#478).
     let artistRefs: [MusicArtistRef]
     let imageURL: URL?
@@ -237,27 +386,38 @@ struct MusicAlbum: Codable, Equatable, Identifiable {
         uri: String
     ) {
         self.id = id
-        self.name = name
-        self.artists = artists
+        self.storedName = name
+        self.storedArtists = artists
         self.artistRefs = artistRefs
         self.imageURL = imageURL
         self.uri = uri
     }
 
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .album)
+    }
+
+    var artists: [String] {
+        UnnamedMusicItem.displayNames(storedArtists, kind: .artist)
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case id, name, artists, artistRefs, imageURL, uri
+        case id
+        case storedName = "name"
+        case storedArtists = "artists"
+        case artistRefs, imageURL, uri
     }
 
     func withArtistRefs(_ refs: [MusicArtistRef]) -> MusicAlbum {
-        MusicAlbum(id: id, name: name, artists: artists, artistRefs: refs, imageURL: imageURL, uri: uri)
+        MusicAlbum(id: id, name: storedName, artists: storedArtists, artistRefs: refs, imageURL: imageURL, uri: uri)
     }
 
     /// Albums cached before `artistRefs` existed decode with none.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        name = try c.decode(String.self, forKey: .name)
-        artists = try c.decode([String].self, forKey: .artists)
+        storedName = try c.decode(String.self, forKey: .storedName)
+        storedArtists = try c.decode([String].self, forKey: .storedArtists)
         artistRefs = try c.decodeIfPresent([MusicArtistRef].self, forKey: .artistRefs) ?? []
         imageURL = try c.decodeIfPresent(URL.self, forKey: .imageURL)
         uri = try c.decode(String.self, forKey: .uri)
@@ -302,17 +462,168 @@ struct MusicSearchResults: Codable, Equatable {
 
 struct MusicEpisode: Codable, Equatable, Identifiable {
     let id: String
-    let name: String
-    let showName: String?
+    /// Names as the service sent them, maybe blank; ``name`` and ``showName`` are what to
+    /// show (#547).
+    private let storedName: String
+    private let storedShowName: String?
     let artworkURL: URL?
     let durationMilliseconds: Int
     let isPlayable: Bool?
     let uri: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .episode)
+    }
+
+    /// `nil` when the show has no name: rows then say what the item is instead.
+    var showName: String? {
+        storedShowName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false ? storedShowName : nil
+    }
+
+    init(
+        id: String,
+        name: String,
+        showName: String?,
+        artworkURL: URL?,
+        durationMilliseconds: Int,
+        isPlayable: Bool?,
+        uri: String
+    ) {
+        self.id = id
+        self.storedName = name
+        self.storedShowName = showName
+        self.artworkURL = artworkURL
+        self.durationMilliseconds = durationMilliseconds
+        self.isPlayable = isPlayable
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case storedName = "name"
+        case storedShowName = "showName"
+        case artworkURL, durationMilliseconds, isPlayable, uri
+    }
 }
 
 struct MusicLocalTrack: Codable, Equatable {
-    let name: String
-    let artists: [String]
+    /// Name and artist names as the file has them, maybe blank; ``name`` and ``artists`` are
+    /// what to show (#547).
+    private let storedName: String
+    private let storedArtists: [String]
     let durationMilliseconds: Int
     let uri: String
+
+    var name: String {
+        UnnamedMusicItem.displayName(storedName, kind: .track)
+    }
+
+    var artists: [String] {
+        UnnamedMusicItem.displayNames(storedArtists, kind: .artist)
+    }
+
+    init(name: String, artists: [String], durationMilliseconds: Int, uri: String) {
+        self.storedName = name
+        self.storedArtists = artists
+        self.durationMilliseconds = durationMilliseconds
+        self.uri = uri
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case storedName = "name"
+        case storedArtists = "artists"
+        case durationMilliseconds, uri
+    }
+}
+
+/// What an item the service sent without a name is called: a removed track, a deleted artist,
+/// a playlist without a title. The models keep the name as the service sent it and look the
+/// stand-in up each time the name is read, so it is always in the app's language, also for
+/// items cached on disk before a language switch (#547).
+enum UnnamedMusicItem: CaseIterable {
+    case track
+    case episode
+    case artist
+    case album
+    case playlist
+
+    private var key: String {
+        switch self {
+        case .track: "music.unnamed.track"
+        case .episode: "music.unnamed.episode"
+        case .artist: "music.unnamed.artist"
+        case .album: "music.unnamed.album"
+        case .playlist: "music.unnamed.playlist"
+        }
+    }
+
+    /// The stand-in in the app's current language.
+    var placeholder: String {
+        SpotiglassL10n.string(key)
+    }
+
+    func placeholder(locale: Locale) -> String {
+        SpotiglassL10n.string(key, locale: locale)
+    }
+
+    /// `name`, or the stand-in when it is blank or is a stand-in itself (see ``isStandIn(_:kind:)``).
+    static func displayName(_ name: String, kind: UnnamedMusicItem) -> String {
+        standInKind(of: name, kind: kind)?.placeholder ?? name
+    }
+
+    static func displayName(_ name: String, kind: UnnamedMusicItem, locale: Locale) -> String {
+        standInKind(of: name, kind: kind)?.placeholder(locale: locale) ?? name
+    }
+
+    static func displayNames(_ names: [String], kind: UnnamedMusicItem) -> [String] {
+        names.map { displayName($0, kind: kind) }
+    }
+
+    /// Artist names joined with ", " (a pin's or a queue row's subtitle), with each stand-in among
+    /// them in `locale`'s language. A blank text stays blank: it means no artists, not a nameless one.
+    static func displayArtistList(_ text: String, locale: Locale) -> String {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return text }
+        return text.components(separatedBy: ", ")
+            .map { displayName($0, kind: .artist, locale: locale) }
+            .joined(separator: ", ")
+    }
+
+    /// True for a blank name, and for a stand-in saved as the name itself: by builds before #547,
+    /// or copied from a model into a pin, a row or the queue. Such a copy follows the language
+    /// again. Only the exact stand-ins count: "Unknown Artist" (local files) and Music's own
+    /// "Untitled Playlist" are real names, so the playlist stand-in is only recognised as older
+    /// builds wrote it. A saved stand-in only counts for its own kind, so a playlist really named
+    /// "Unbekannter Titel" keeps that name; tracks and episodes share the queue and the player
+    /// bar, so there a copied "Unknown episode" stays an episode.
+    static func isStandIn(_ name: String, kind: UnnamedMusicItem) -> Bool {
+        standInKind(of: name, kind: kind) != nil
+    }
+
+    private static func standInKind(of name: String, kind: UnnamedMusicItem) -> UnnamedMusicItem? {
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return kind }
+        guard let saved = savedStandIns[name] else { return nil }
+        if saved == kind { return saved }
+        let playable: Set<UnnamedMusicItem> = [.track, .episode]
+        return playable.contains(saved) && playable.contains(kind) ? saved : nil
+    }
+
+    private static let savedStandIns: [String: UnnamedMusicItem] = {
+        var kinds: [String: UnnamedMusicItem] = [
+            "Unknown track": .track,
+            "Unknown episode": .episode,
+            "Unknown artist": .artist,
+            "Untitled playlist": .playlist,
+            // What earlier builds saved for an Apple Music playlist without a name in German and
+            // Spanish. The English one, "Untitled Playlist", is also Music's own name for a new
+            // playlist, so it stays a name.
+            "Unbenannte Playlist": .playlist,
+            "Lista sin título": .playlist
+        ]
+        for kind in [UnnamedMusicItem.track, .episode, .artist, .album] {
+            for language in AppLanguage.allCases {
+                kinds[SpotiglassL10n.string(kind.key, locale: Locale(identifier: language.rawValue))] = kind
+            }
+        }
+        return kinds
+    }()
 }
