@@ -27,7 +27,7 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
             _ = try await api.artist(id: "a", cacheMode: .freshOnly)
             XCTFail("expected artist load to throw")
         } catch {
-            XCTAssertTrue(error is SpotifyAPIError)
+            XCTAssertTrue(error is MusicBrowsingError)
         }
     }
 
@@ -73,7 +73,7 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
             _ = try await api.artistCached(id: "a", cacheMode: .freshOnly)
             XCTFail("expected artistCached to throw")
         } catch {
-            XCTAssertTrue(error is SpotifyAPIError)
+            XCTAssertTrue(error is MusicBrowsingError)
         }
     }
 }
