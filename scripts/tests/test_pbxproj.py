@@ -33,18 +33,16 @@ PBX_REL = 'Spotiglass.xcodeproj/project.pbxproj'
 
 
 class RepoCopy(unittest.TestCase):
-    """A throwaway copy of the project file, the Swift sources and the scripts."""
+    """A throwaway copy of the project file, the app and test sources and the scripts."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
         (self.tmp / PBX_REL).parent.mkdir(parents=True)
         shutil.copy(REPO / PBX_REL, self.tmp / PBX_REL)
+        # Whole folders, not only Swift files: the test target also compiles C sources.
         for d in ('Spotiglass', 'SpotiglassTests'):
-            for f in (REPO / d).rglob('*.swift'):
-                dest = self.tmp / f.relative_to(REPO)
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(f, dest)
+            shutil.copytree(REPO / d, self.tmp / d)
         shutil.copytree(SCRIPTS, self.tmp / 'scripts', ignore=shutil.ignore_patterns('tests', '__pycache__'))
 
     @property

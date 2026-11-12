@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import XCTest
 @testable import Spotiglass
@@ -360,12 +361,14 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertEqual(showAllRow.id, "palette.showAllResults")
         XCTAssertEqual(palette.sections.last?.section, .showAll)
 
+        // The page opens on a later turn of the main actor: wait for the selection to change.
+        let searchOpened = expectation(description: "the Search page opened")
+        let opening = browserViewModel.$sidebarSelection
+            .first { $0 == .search }
+            .sink { _ in searchOpened.fulfill() }
         await showAllRow.action()
-        // The page opens on a later turn of the main actor.
-        let deadline = ContinuousClock.now + .seconds(30)
-        while browserViewModel.sidebarSelection != .search, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
+        await fulfillment(of: [searchOpened], timeout: 30)
+        opening.cancel()
 
         XCTAssertEqual(searchViewModel.query, "daft punk")
         XCTAssertEqual(searchViewModel.category, .artists)
