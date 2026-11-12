@@ -363,13 +363,12 @@ final class LyricsPopOutTests: XCTestCase {
         // A token refresh keeps the session: the music plays on.
         states.send(.refreshing(session))
         states.send(.signedIn(session))
-        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(hosts.spotifyStop, "a token refresh started a stop of Spotify's player")
         XCTAssertTrue(spotify.playbackViewModel.connectionState.hasReadyDevice)
 
         states.send(.signedOut)
-        for _ in 0..<20 where spotify.playbackViewModel.connectionState != .disconnected {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        let stop = try XCTUnwrap(hosts.spotifyStop, "signing out started no stop")
+        await stop.value
         XCTAssertEqual(spotify.playbackViewModel.connectionState, .disconnected)
     }
 

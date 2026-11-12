@@ -1,189 +1,164 @@
 import XCTest
 @testable import Spotiglass
 
-/// Exercise the same `/v1/artists/{id}/albums` pagination rules as the former in-app
-/// `SpotifyAPIClient.artistAlbums` helper (kept here so production stays Periphery-clean).
-// swift-format-ignore: AlwaysUseLowerCamelCase
-// The `testTarget_` prefix keeps this helper from being collected as an XCTest case.
-private func testTarget_fetchAllArtistAlbums(
-    client: SpotifyAPIClient,
-    id: String,
-    includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
-    limit: Int = 10
-) async throws -> [MusicArtistAlbum] {
-    guard !id.isEmpty else {
-        throw SpotifyAPIError.invalidRequest("Artist ID is required.")
-    }
-    let effectiveLimit = min(max(1, limit), 10)
-    let maxPages = 20
-    var results: [MusicArtistAlbum] = []
-    var nextURL: URL?
-    var pagesFetched = 0
-    var seenNextURLs: Set<String> = []
-    repeat {
-        try Task.checkCancellation()
-        let page: MusicArtistAlbumsPage
-        if let url = nextURL {
-            let key = url.absoluteString
-            if seenNextURLs.contains(key) {
-                break
-            }
-            seenNextURLs.insert(key)
-            page = try await client.artistAlbumsPage(
-                id: id,
-                includeGroups: includeGroups,
-                limit: effectiveLimit,
-                offset: 0,
-                nextURL: url,
-                cacheMode: .freshOnly
-            )
-        } else {
-            page = try await client.artistAlbumsPage(
-                id: id,
-                includeGroups: includeGroups,
-                limit: effectiveLimit,
-                offset: 0,
-                nextURL: nil,
-                cacheMode: .freshOnly
-            )
-        }
-        pagesFetched += 1
-        results.append(contentsOf: page.items)
-        nextURL = page.next
-        if pagesFetched >= maxPages {
-            break
-        }
-    } while nextURL != nil
+/// Artist album pagination as the app runs it: the artist page in `PlaylistBrowserViewModel`
+/// (first pages on open, then Load More) over the real `SpotifyAPIClient`, with only the HTTP
+/// answers stood in.
+@MainActor
+final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
+    func testOpeningAnArtistAsksForTenAlbumsAndFollowsSpotifysNextURL() async throws {
+        let http = ArtistAlbumsHTTPClient(albumPages: 2)
+        let viewModel = makeViewModel(http: http, initialPages: 2)
 
-    return results
+        await viewModel.selectArtist(id: "ar1")
+
+        let requests = http.albumRequests
+        XCTAssertEqual(requests.count, 2)
+        let first = try XCTUnwrap(requests.first.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) })
+        XCTAssertEqual(first.path, "/v1/artists/ar1/albums")
+        XCTAssertEqual(first.queryItems?.first { $0.name == "limit" }?.value, "10")
+        XCTAssertEqual(requests.last, ArtistAlbumsHTTPClient.pageURL(offset: 10), "the second page is Spotify's next URL")
+        XCTAssertEqual(try shownAlbumIDs(viewModel), ["alb-0", "alb-1"])
+        XCTAssertFalse(try shownDetail(viewModel).canLoadMoreAlbums)
+    }
+
+    /// Opening reads only the first pages; Load More reads one more each time, until Spotify
+    /// has no next page.
+    func testOpeningStopsAtTheFirstPagesAndLoadMoreReadsTheRestOneByOne() async throws {
+        let http = ArtistAlbumsHTTPClient(albumPages: 4)
+        let viewModel = makeViewModel(http: http, initialPages: 2)
+
+        await viewModel.selectArtist(id: "ar1")
+        XCTAssertEqual(http.albumRequests.count, 2, "opening the artist reads only the first pages")
+        XCTAssertEqual(try shownAlbumIDs(viewModel), ["alb-0", "alb-1"])
+        XCTAssertTrue(try shownDetail(viewModel).canLoadMoreAlbums)
+
+        await viewModel.loadMoreArtistAlbums()
+        XCTAssertEqual(http.albumRequests.count, 3)
+        XCTAssertEqual(http.albumRequests.last, ArtistAlbumsHTTPClient.pageURL(offset: 20))
+        XCTAssertEqual(try shownAlbumIDs(viewModel), ["alb-0", "alb-1", "alb-2"])
+        XCTAssertTrue(try shownDetail(viewModel).canLoadMoreAlbums)
+
+        await viewModel.loadMoreArtistAlbums()
+        XCTAssertEqual(try shownAlbumIDs(viewModel), ["alb-0", "alb-1", "alb-2", "alb-3"])
+        XCTAssertFalse(try shownDetail(viewModel).canLoadMoreAlbums, "the last page has no next URL")
+
+        await viewModel.loadMoreArtistAlbums()
+        XCTAssertEqual(http.albumRequests.count, 4, "nothing left to load")
+    }
+
+    /// A next URL Spotify already sent once ends the list instead of asking for the same page
+    /// again and again.
+    func testARepeatedNextURLEndsThePaginationOnOpenAndOnLoadMore() async throws {
+        let http = ArtistAlbumsHTTPClient(albumPages: 99, repeatsNextURL: true)
+        let viewModel = makeViewModel(http: http, initialPages: 5)
+
+        await viewModel.selectArtist(id: "ar1")
+        XCTAssertEqual(http.albumRequests.count, 2, "the repeated next URL was followed again")
+        XCTAssertEqual(try shownAlbumIDs(viewModel), ["alb-0", "alb-1"])
+
+        await viewModel.loadMoreArtistAlbums()
+        XCTAssertEqual(http.albumRequests.count, 2, "Load More asked for a page it had read already")
+        XCTAssertFalse(try shownDetail(viewModel).canLoadMoreAlbums)
+    }
+
+    // MARK: - Helpers
+
+    private struct ArtistNotShown: Error {}
+
+    private func makeViewModel(http: ArtistAlbumsHTTPClient, initialPages: Int) -> PlaylistBrowserViewModel {
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: http)
+        return PlaylistBrowserViewModel(
+            api: client,
+            cache: MockBrowsingCache(),
+            initialArtistAlbumPageCount: initialPages
+        )
+    }
+
+    private func shownDetail(_ viewModel: PlaylistBrowserViewModel) throws -> ArtistDetailViewModel {
+        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+            XCTFail("expected a loaded artist, got \(viewModel.detailState)")
+            throw ArtistNotShown()
+        }
+        return detail
+    }
+
+    private func shownAlbumIDs(_ viewModel: PlaylistBrowserViewModel) throws -> [String] {
+        let detail = try shownDetail(viewModel)
+        return (detail.albums + detail.singles + detail.compilations + detail.appearsOn).map(\.id).sorted()
+    }
 }
 
-final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
-    func testArtistAlbumsRequestsLimitTenAndPaginates() async throws {
-        let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=0&limit=10",
-              "limit": 10,
-              "next": "https://api.spotify.com/v1/artists/ar1/albums?include_groups=album%2Csingle%2Ccompilation%2Cappears_on&limit=10&offset=10",
-              "offset": 0,
-              "previous": null,
-              "total": 2,
-              "items": [
-                {
-                  "id": "alb1",
-                  "name": "First Album",
-                  "images": [],
-                  "release_date": "2020-01-01",
-                  "total_tracks": 10,
-                  "uri": "spotify:album:alb1",
-                  "album_group": "album"
-                }
-              ]
-            }
-            """),
-            .json("""
-            {
-              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=10&limit=10",
-              "limit": 10,
-              "next": null,
-              "offset": 10,
-              "previous": null,
-              "total": 2,
-              "items": [
-                {
-                  "id": "alb2",
-                  "name": "Second Album",
-                  "images": [],
-                  "release_date": "2021-01-01",
-                  "total_tracks": 8,
-                  "uri": "spotify:album:alb2",
-                  "album_group": "single"
-                }
-              ]
-            }
-            """)
-        ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+/// Answers the Spotify Web API the way the artist page uses it: the profile, the artist, its
+/// album pages (one album per page, chained by `next`), an empty search and empty album tracks.
+private final class ArtistAlbumsHTTPClient: HTTPClient {
+    private let lock = NSLock()
+    private let albumPages: Int
+    private let repeatsNextURL: Bool
+    private var recordedAlbumRequests: [URL] = []
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1")
+    var albumRequests: [URL] { lock.withLock { recordedAlbumRequests } }
 
-        let firstURL = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
-        XCTAssertTrue(firstURL.contains("/v1/artists/ar1/albums"))
-        XCTAssertTrue(firstURL.contains("limit=10"))
-        XCTAssertFalse(firstURL.contains("limit=50"))
-        XCTAssertEqual(albums.count, 2)
-        XCTAssertEqual(albums.map(\.id), ["alb1", "alb2"])
+    init(albumPages: Int, repeatsNextURL: Bool = false) {
+        self.albumPages = albumPages
+        self.repeatsNextURL = repeatsNextURL
     }
 
-    func testArtistAlbumsPaginationStopsWhenNextURLRepeats() async throws {
-        let loopingPage = """
-            {
-              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=0&limit=10",
-              "limit": 10,
-              "next": "https://api.spotify.com/v1/artists/ar1/albums?include_groups=album&limit=10&offset=10",
-              "offset": 0,
-              "previous": null,
-              "total": 999,
-              "items": [
-                {
-                  "id": "alb-loop",
-                  "name": "Loop Album",
-                  "images": [],
-                  "release_date": "2020-01-01",
-                  "total_tracks": 1,
-                  "uri": "spotify:album:alb-loop",
-                  "album_group": "album"
-                }
-              ]
-            }
-            """
-        let responses = (0..<5).map { _ in QueueHTTPClient.Response.json(loopingPage) }
-        let httpClient = QueueHTTPClient(responses)
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
-
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
-
-        XCTAssertEqual(httpClient.requests.count, 2, "A repeated next URL should break pagination before duplicate page storms.")
-        XCTAssertEqual(albums.count, 2)
+    static func pageURL(offset: Int) -> URL {
+        URL(string: "https://api.spotify.com/v1/artists/ar1/albums?include_groups=album&limit=10&offset=\(offset)")!
     }
 
-    func testArtistAlbumsPaginationStillCapsAtTwentyPagesForUniqueNextURLs() async throws {
-        let responses: [QueueHTTPClient.Response] = (0..<25).map { index in
-            let next: String
-            if index < 24 {
-                next = "\"https://api.spotify.com/v1/artists/ar1/albums?include_groups=album&limit=10&offset=\((index + 1) * 10)\""
-            } else {
-                next = "null"
-            }
-            return .json("""
-            {
-              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=\(index * 10)&limit=10",
-              "limit": 10,
-              "next": \(next),
-              "offset": \(index * 10),
-              "previous": null,
-              "total": 999,
-              "items": [
-                {
-                  "id": "alb-\(index)",
-                  "name": "Album \(index)",
-                  "images": [],
-                  "release_date": "2020-01-01",
-                  "total_tracks": 1,
-                  "uri": "spotify:album:alb-\(index)",
-                  "album_group": "album"
-                }
-              ]
-            }
-            """)
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let url = try XCTUnwrap(request.url)
+        let path = url.path
+        let body: String
+        if path == "/v1/me" {
+            body = #"{"id":"user-1","display_name":"Listener","images":[],"country":"CH","product":"premium"}"#
+        } else if path == "/v1/artists/ar1/albums" {
+            body = albumPage(for: url)
+        } else if path == "/v1/artists/ar1" {
+            body = #"{"id":"ar1","name":"Paged Artist","images":[],"followers":{"total":1},"genres":[],"uri":"spotify:artist:ar1"}"#
+        } else if path == "/v1/search" {
+            body = "{}"
+        } else if path.hasPrefix("/v1/albums/") {
+            body = #"{"limit":10,"next":null,"total":0,"items":[]}"#
+        } else {
+            XCTFail("unexpected request \(url)")
+            throw URLError(.badURL)
         }
-        let httpClient = QueueHTTPClient(responses)
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        return (Data(body.utf8), HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
-
-        XCTAssertEqual(httpClient.requests.count, 20, "Pagination should stop at the max page cap when next URLs are unique.")
-        XCTAssertEqual(albums.count, 20)
+    private func albumPage(for url: URL) -> String {
+        let index = lock.withLock { () -> Int in
+            recordedAlbumRequests.append(url)
+            return recordedAlbumRequests.count - 1
+        }
+        let next: String
+        if repeatsNextURL {
+            next = "\"\(Self.pageURL(offset: 10).absoluteString)\""
+        } else if index + 1 < albumPages {
+            next = "\"\(Self.pageURL(offset: (index + 1) * 10).absoluteString)\""
+        } else {
+            next = "null"
+        }
+        return """
+        {
+          "limit": 10,
+          "next": \(next),
+          "total": \(albumPages),
+          "items": [
+            {
+              "id": "alb-\(index)",
+              "name": "Album \(index)",
+              "images": [],
+              "release_date": "2020-01-01",
+              "total_tracks": 1,
+              "uri": "spotify:album:alb-\(index)",
+              "album_group": "album"
+            }
+          ]
+        }
+        """
     }
 }

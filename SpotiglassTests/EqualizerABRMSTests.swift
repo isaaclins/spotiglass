@@ -1,6 +1,7 @@
 import XCTest
 import Accelerate
 @testable import Spotiglass
+import SpotiglassEQDriverC
 
 /// Offline A/B RMS verification of the EQ DSP path. The criterion-5 bar is
 /// "same track EQ-off vs Flat within ±0.05 dB RMS"; we satisfy it directly
@@ -8,8 +9,8 @@ import Accelerate
 ///
 ///   1. synthesising a representative input signal (pink noise + a few
 ///      tones at the band centers),
-///   2. running it through the in-process Swift biquad math (the same
-///      `EQCoefficientFrame` the GUI publishes to the HAL driver),
+///   2. publishing the frame the way the app does and running the signal through the
+///      driver's own C reader and biquad cascade (`SpotiglassEQDriver/`),
 ///   3. comparing the RMS of EQ-off output to the RMS of Flat output.
 ///
 /// Because Flat produces bit-exact identity biquads (see
@@ -144,41 +145,23 @@ final class EqualizerABRMSTests: XCTestCase {
         return output
     }
 
-    /// Pure-Swift mirror of the SpotiglassEQDSP_Apply C implementation.
-    /// Identical transposed direct-form-II topology, so RMS results match
-    /// what the HAL plugin would produce for the same input + coefficients.
+    /// Runs `input` through what the driver ships: the app publishes `frame` with its
+    /// `EQCoefficientPublisher`, and the driver's C reader and `EQDSP_Apply` filter the buffer
+    /// the way the HAL plugin's IO callback does.
     private func renderThroughCoefficientCascade(
         input: [Float],
         frame: EQCoefficientFrame
     ) -> [Float] {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("spotiglass-eq-test-\(UUID().uuidString)").path
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        EQCoefficientPublisher(shmPath: path).write(frame)
+
         var output = input
-        // 2 channels x 10 bands x {z1, z2}
-        var state = Array(repeating: Array(repeating: (z1: Float(0), z2: Float(0)), count: 10), count: 2)
-
-        let frameCount = output.count / 2
-        let preamp = frame.preampLinear
-        let bandsEnabled = frame.enabledMask != 0
-
-        for i in 0..<frameCount {
-            for ch in 0..<2 {
-                var x = output[i * 2 + ch] * preamp
-                if bandsEnabled {
-                    for band in 0..<10 {
-                        let base = band * 5
-                        let b0 = frame.bands[base + 0]
-                        let b1 = frame.bands[base + 1]
-                        let b2 = frame.bands[base + 2]
-                        let a1 = frame.bands[base + 3]
-                        let a2 = frame.bands[base + 4]
-                        let y = b0 * x + state[ch][band].z1
-                        state[ch][band].z1 = b1 * x - a1 * y + state[ch][band].z2
-                        state[ch][band].z2 = b2 * x - a2 * y
-                        x = y
-                    }
-                }
-                output[i * 2 + ch] = x
-            }
+        let status = output.withUnsafeMutableBufferPointer { buffer in
+            EQDriverTest_RenderPublishedFrame(path, buffer.baseAddress, buffer.count / 2)
         }
+        XCTAssertEqual(status, 0, "the driver could not read the frame the app published")
         return output
     }
 

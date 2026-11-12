@@ -108,6 +108,11 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     /// keeps it, so the bar stays on the song you paused, whichever service is on screen.
     private let lastHeardService = CurrentValueSubject<MusicService?, Never>(nil)
     private var cancellables: Set<AnyCancellable> = []
+    /// The last stop of Spotify's player that an ended session started. A stop runs after the
+    /// one before it, so one player is never stopped twice at once.
+    private(set) var spotifyStop: Task<Void, Never>?
+    /// The last stop of Apple Music's player that removing the service started, likewise.
+    private(set) var appleMusicStop: Task<Void, Never>?
 
     init(spotify: SpotiglassPlaybackHost, makeAppleMusic: @escaping () -> SpotiglassPlaybackHost) {
         self.spotify = spotify
@@ -155,8 +160,8 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .dropFirst()
             .filter { !$0 }
             .sink { [weak self] _ in
-                guard let player = self?.spotify.playbackViewModel else { return }
-                Task { await player.disconnect() }
+                guard let self else { return }
+                spotifyStop = Self.stop(spotify.playbackViewModel, after: spotifyStop)
             }
             .store(in: &cancellables)
     }
@@ -171,7 +176,14 @@ final class SpotiglassPlaybackHosts: ObservableObject {
               previous.contains(.appleMusic), !services.contains(.appleMusic),
               let appleMusic = appleMusicIfCreated?.playbackViewModel
         else { return }
-        Task { await appleMusic.disconnect() }
+        appleMusicStop = Self.stop(appleMusic, after: appleMusicStop)
+    }
+
+    private static func stop(_ player: PlaybackSessionViewModel, after previous: Task<Void, Never>?) -> Task<Void, Never> {
+        Task {
+            await previous?.value
+            await player.disconnect()
+        }
     }
 
     /// Music that starts in `player` by any way (its bar, another device, the Music app) makes it

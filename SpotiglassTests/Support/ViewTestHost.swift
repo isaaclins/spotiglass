@@ -171,6 +171,23 @@ enum ViewTestHost {
         transaction.disablesAnimations = true
     }
 
+    /// Lets the hosted views catch up with what changed, without waiting for a fixed time: lays
+    /// the windows out, which runs their pending SwiftUI updates (and starts the `.task`s an
+    /// update changed), then lets the main actor run what those updates started. Each pass ends
+    /// the moment its work is done, however busy the machine, so a check that something did NOT
+    /// happen runs after the view had its chance to do it.
+    static func renderPendingUpdates(passes: Int = 3) async {
+        for _ in 0..<passes {
+            for window in windows {
+                window.contentView?.layoutSubtreeIfNeeded()
+                window.displayIfNeeded()
+            }
+            await withCheckedContinuation { done in
+                DispatchQueue.main.async { done.resume() }
+            }
+        }
+    }
+
     static func tearDownAll() {
         for window in windows {
             AppKitTestSupport.closeWindowSafely(window)

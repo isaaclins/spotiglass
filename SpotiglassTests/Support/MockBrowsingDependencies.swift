@@ -93,7 +93,9 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var artistAlbumsPageCallCount = 0
         var playlistTracksInvocationCountByID: [String: Int] = [:]
         var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
-        var lastReadDelayNanoseconds: [String: UInt64] = [:]
+        var lastReadHolds: [String: AsyncSignal] = [:]
+        var onLastRead: ((String) -> Void)?
+        var playlistTracksHold: AsyncSignal?
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
         var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
@@ -257,11 +259,14 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        let (onInvocation, delay) = locked { ($0.onPlaylistTracksInvocation, $0.playlistTracksDelayOnInvocation) }
+        let (onInvocation, delay, hold) = locked {
+            ($0.onPlaylistTracksInvocation, $0.playlistTracksDelayOnInvocation, $0.playlistTracksHold)
+        }
         onInvocation?(playlistID)
         if let delay {
             try await Task.sleep(nanoseconds: delay)
         }
+        await hold?.wait()
         let result = locked { state -> Result<[MusicPlaylistTrackItem], Error>? in
             state.playlistTracksInvocationCountByID[playlistID, default: 0] += 1
             guard var results = state.trackResults[playlistID], !results.isEmpty else { return nil }
@@ -278,16 +283,30 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         set { locked { $0.lastReadTracksByID = newValue } }
     }
 
-    /// How long `lastReadPlaylistTracks` takes, by playlist ID.
-    var lastReadDelayNanoseconds: [String: UInt64] {
-        get { locked { $0.lastReadDelayNanoseconds } }
-        set { locked { $0.lastReadDelayNanoseconds = newValue } }
+    /// Holds `playlistTracks` until the signal fires, after `onPlaylistTracksInvocation` ran.
+    var playlistTracksHold: AsyncSignal? {
+        get { locked { $0.playlistTracksHold } }
+        set { locked { $0.playlistTracksHold = newValue } }
+    }
+
+    /// Holds `lastReadPlaylistTracks` for a playlist until its signal fires.
+    var lastReadHolds: [String: AsyncSignal] {
+        get { locked { $0.lastReadHolds } }
+        set { locked { $0.lastReadHolds = newValue } }
+    }
+
+    /// Runs when `lastReadPlaylistTracks` is asked, with the playlist ID.
+    var onLastRead: ((String) -> Void)? {
+        get { locked { $0.onLastRead } }
+        set { locked { $0.onLastRead = newValue } }
     }
 
     func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
-        if let delay = locked({ $0.lastReadDelayNanoseconds[playlistID] }) {
+        let (onLastRead, hold) = locked { ($0.onLastRead, $0.lastReadHolds[playlistID]) }
+        onLastRead?(playlistID)
+        if let hold {
             // Like MusicKit's reads, the wait doesn't end when the caller's task is cancelled.
-            await Task.detached { try? await Task.sleep(nanoseconds: delay) }.value
+            await Task.detached { await hold.wait() }.value
         }
         return locked { $0.lastReadTracksByID[playlistID] }
     }

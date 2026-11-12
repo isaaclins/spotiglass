@@ -211,10 +211,8 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         await loadMoreTask.value
 
         XCTAssertEqual(viewModel.currentArtistAlbumsPaging?.isLoading, false)
-        if case .refreshing(.artist) = viewModel.detailState {
-            XCTAssertTrue(true)
-        } else {
-            XCTFail("Pagination completion must not replace a same-artist refreshing surface")
+        guard case .refreshing(.artist) = viewModel.detailState else {
+            return XCTFail("Pagination completion must not replace a same-artist refreshing surface, got \(viewModel.detailState)")
         }
     }
 
