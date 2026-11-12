@@ -271,6 +271,20 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertNil(viewModel.reorderingPlaylistID)
     }
 
+    func testAFailedMusicSaveReadsThePlaylistAgain() async {
+        let api = ReorderMockAPI()
+        api.reorderError = AppleMusicLibraryEditError.notInMusicYet
+        api.namesAfterFailure = ["Two", "One", "Three", "Four"]
+        let viewModel = await makeViewModel(api)
+        let rows = shownRows(viewModel)
+
+        await viewModel.moveTracks(rowIDs: [rows[3].id], toOffset: 0, inPlaylist: "pl1")
+
+        // The list shows the order Music has, not the one this screen had before the drag.
+        XCTAssertEqual(shownTitles(viewModel), ["Two", "One", "Three", "Four"])
+        XCTAssertNotNil(viewModel.trackMutationToast)
+    }
+
     func testADropWhileTheLastOrderIsSavingDoesNothing() async {
         let api = ReorderMockAPI()
         let gate = LibraryEditsGate()
@@ -354,6 +368,10 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
     ]
     var reorderGate: LibraryEditsGate?
     var reorderError: Error?
+    /// The playlist's order on the service from the first failed reorder on, as when it was
+    /// changed elsewhere or Music stopped partway.
+    var namesAfterFailure: [String]?
+    private var names = ["One", "Two", "Three", "Four"]
     private(set) var reorders: [MusicPlaylistReorder] = []
     private(set) var reorderSnapshots: [String?] = []
 
@@ -361,7 +379,10 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
 
     func reorderPlaylistTracks(playlistID: String, reorder: MusicPlaylistReorder, snapshotID: String?) async throws -> String? {
         await reorderGate?.wait()
-        if let reorderError { throw reorderError }
+        if let reorderError {
+            if let namesAfterFailure { names = namesAfterFailure }
+            throw reorderError
+        }
         reorders.append(reorder)
         reorderSnapshots.append(snapshotID)
         return "snap-\(reorders.count + 1)"
@@ -369,7 +390,7 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
 
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlists }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        ["One", "Two", "Three", "Four"].enumerated().map { index, name in
+        names.enumerated().map { index, name in
             let track = MusicTrack(
                 id: "t\(index + 1)", name: name, artists: ["Artist"], albumArtworkURL: nil, durationMilliseconds: 1000,
                 isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t\(index + 1)"

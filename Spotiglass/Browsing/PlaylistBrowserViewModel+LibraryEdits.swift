@@ -166,6 +166,12 @@ extension PlaylistBrowserViewModel {
                 "playlist.mutation.reorderFailed",
                 Self.describeFailure(error, operation: .reorderPlaylist)
             )
+            // Music refuses a playlist that changed in Music since it was opened, and may stop
+            // partway through the moves: either way the screen's order isn't Music's, and every
+            // later drag would be refused the same way, so the list is read again.
+            if error is AppleMusicLibraryEditError {
+                await showServiceOrder(playlistID: playlistID, replacing: shown)
+            }
         }
     }
 
@@ -199,6 +205,18 @@ extension PlaylistBrowserViewModel {
             invalidateTracksCache(playlistID: playlistID)
             Task { await refreshCurrentPlaylistMutationDetail(for: [playlistID]) }
         }
+    }
+
+    /// Reads the playlist again and shows the service's order in place of `shown`, without a
+    /// loading state in between: rows the service still lists the same way keep their identity.
+    private func showServiceOrder(playlistID: String, replacing shown: [TrackRowViewModel]) async {
+        guard let items = try? await api.playlistTracks(playlistID: playlistID, limit: 50, maxPages: 200),
+              !items.isEmpty,
+              shownPlaylistTracks(playlistID) == shown
+        else { return }
+        invalidateTracksCache(playlistID: playlistID)
+        let rows = TrackRowViewModel.numberedPlaylistRows(items)
+        if rows != shown { showReorderedTracks(rows, playlistID: playlistID) }
     }
 
     /// Spotify's new snapshot after a reorder, so the next edit and the track cache name the
