@@ -442,6 +442,13 @@ final class BrowserWindowTitleTests: XCTestCase {
         super.tearDown()
     }
 
+    /// Where the queue button sits in the bar, in window coordinates.
+    private func queueButtonFrame(in window: NSWindow) -> CGRect? {
+        let queue = ViewTestHost.localizedString("browser.queue")
+        guard let view = window.toolbar?.items.first(where: { $0.label == queue })?.view else { return nil }
+        return view.convert(view.bounds, to: nil)
+    }
+
     private func hostBrowser(_ viewModel: PlaylistBrowserViewModel) -> NSWindow {
         AppKitTestSupport.activateAppIfNeeded()
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
@@ -493,11 +500,17 @@ final class BrowserWindowTitleTests: XCTestCase {
 
         XCTAssertEqual(window.title, home)
         XCTAssertEqual(window.titleVisibility, .hidden, "Home has its own greeting; the bar stays empty")
+        let homeQueue = try XCTUnwrap(queueButtonFrame(in: window))
 
         await viewModel.selectSidebar(.playlist("p1"))
         AppKitTestSupport.pumpRunLoop(for: 0.4)
         XCTAssertEqual(window.title, "Focus")
         XCTAssertEqual(window.titleVisibility, .visible)
+        // Without the title the bar's buttons slid over next to the sidebar button on Home and
+        // jumped back to the trailing edge on every other page.
+        let playlistQueue = try XCTUnwrap(queueButtonFrame(in: window))
+        XCTAssertEqual(homeQueue.minX, playlistQueue.minX, accuracy: 0.5, "the bar's buttons moved between Home and a page")
+        XCTAssertGreaterThan(homeQueue.minX, window.frame.width / 2, "the bar's buttons left the trailing edge on Home")
 
         await viewModel.navigateBack()
         AppKitTestSupport.pumpRunLoop(for: 0.4)
