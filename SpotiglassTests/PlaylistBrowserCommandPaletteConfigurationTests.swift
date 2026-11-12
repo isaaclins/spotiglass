@@ -55,6 +55,76 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         XCTAssertNil(wire(playbackAvailable: false, canDisconnect: false).signOut)
     }
 
+    /// #453: with Apple Music, Playback › Connect Playback (⇧⌘K) and the palette's "Connect
+    /// Spotiglass playback device" were still offered. Apple Music plays on this Mac, so there is
+    /// nothing to connect, and running it restarted the player session. Spotify keeps it.
+    func testConnectPlaybackIsOfferedOnlyForAPlayerWithAConnection() {
+        func wire(_ playback: PlaybackSessionViewModel, service: MusicService) -> (CommandPaletteManager, SpotiglassMenuCommands) {
+            let manager = CommandPaletteManager()
+            PlaylistBrowserCommandPaletteConfiguration.apply(
+                to: manager,
+                dependencies: .init(
+                    viewModel: PlaylistBrowserViewModel(
+                        api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                        cache: MockBrowsingCache()
+                    ),
+                    playbackViewModel: playback,
+                    queueViewModel: QueueViewModel(provider: playback.provider, playbackSession: playback),
+                    commandPaletteManager: manager,
+                    pinnedStore: PinnedItemsStore(cache: InMemoryPinnedItemsCache()),
+                    catalogProvider: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                    signOut: {},
+                    syncUnifiedRefreshRouting: {},
+                    canDisconnect: service == .spotify
+                ),
+                queueVisible: .constant(false),
+                lyricsPresented: .constant(false)
+            )
+            let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+            let registry = SpotiglassSceneRegistry()
+            registry.activate(scene)
+            let settingsURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("SpotiglassConnectPlayback-\(UUID().uuidString)", isDirectory: true)
+                .appendingPathComponent("settings.json", isDirectory: false)
+            let menu = SpotiglassMenuCommands(
+                sceneRegistry: registry,
+                keymapStore: manager.keymapStore,
+                settingsStore: SpotiglassSettingsStore(fileURL: settingsURL),
+                serviceStore: MusicServiceStore(
+                    storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: service)
+                ),
+                isSignedIn: true,
+                isQueueVisible: false
+            )
+            return (manager, menu)
+        }
+        func paletteIDs(_ manager: CommandPaletteManager) -> Set<String> {
+            Set(manager.viewModel.staticItemsProvider().map(\.id))
+        }
+
+        // Apple Music, playing: neither the menu, the palette nor the shortcut offers Connect,
+        // and running the command anyway leaves the music alone.
+        let appleMusic = PlaybackSessionViewModel(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        appleMusic.deviceID = AppleMusicPlaybackProvider.deviceID
+        appleMusic.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        appleMusic.setConnectionState(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let (appleManager, appleMenu) = wire(appleMusic, service: .appleMusic)
+        XCTAssertNil(appleManager.connectPlayback)
+        XCTAssertFalse(paletteIDs(appleManager).contains(CommandPaletteCommandID.connectPlayback))
+        XCTAssertFalse(appleMenu.isConnectPlaybackOffered, "Playback › Connect Playback shows for Apple Music")
+        appleManager.execute(commandID: CommandPaletteCommandID.connectPlayback)
+        XCTAssertEqual(appleMusic.connectionState, .ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+
+        // Spotify keeps Connect Playback in the menu and the palette.
+        let spotify = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        )
+        let (spotifyManager, spotifyMenu) = wire(spotify, service: .spotify)
+        XCTAssertNotNil(spotifyManager.connectPlayback)
+        XCTAssertTrue(paletteIDs(spotifyManager).contains(CommandPaletteCommandID.connectPlayback))
+        XCTAssertTrue(spotifyMenu.isConnectPlaybackOffered)
+    }
+
     func testApplyWiresCallbacksWithoutHostingView() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")])],

@@ -66,6 +66,13 @@ struct SpotiglassMenuCommands: Commands {
     /// transport items that only check sign-in would be enabled and do nothing there.
     var hasPlayback = true
 
+    /// Connect Playback (and its ⇧⌘K) is there only for a player that has a connection to make:
+    /// Spotify's web player. Apple Music plays on this Mac, so it has none (#453). With no
+    /// window open, it follows the selected service.
+    var isConnectPlaybackOffered: Bool {
+        activeCommandPaletteManager?.canConnectPlayback ?? (serviceStore.active == .spotify)
+    }
+
     /// Next and Previous Track need a song to skip from (#500).
     var isSkipEnabled: Bool {
         isAvailable && hasPlayback && (activeCommandPaletteManager?.canSkipTrack ?? false)
@@ -307,13 +314,15 @@ struct SpotiglassMenuCommands: Commands {
             .keyboardShortcut(.leftArrow, modifiers: .command)
             .disabled(!isAvailable || !hasPlayback)
 
-            Divider()
+            if isConnectPlaybackOffered {
+                Divider()
 
-            Button(SpotiglassL10n.string("menu.playback.connect", locale: currentLocale)) {
-                run(CommandPaletteCommandID.connectPlayback)
+                Button(SpotiglassL10n.string("menu.playback.connect", locale: currentLocale)) {
+                    run(CommandPaletteCommandID.connectPlayback)
+                }
+                .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
+                .disabled(!isAvailable || !hasPlayback)
             }
-            .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
-            .disabled(!isAvailable || !hasPlayback)
         }
 
         // The default Help menu ships an item that leads nowhere: the bundle
