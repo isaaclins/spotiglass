@@ -45,8 +45,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// the save is done: a second order sent meanwhile would count positions from one the
     /// service doesn't have yet.
     @Published internal(set) var reorderingPlaylistID: String?
-    /// Counts the saves of a new order per playlist, at their start and end (#543): a read of the
-    /// playlist that started before one of them ended lists the old order and isn't shown.
+    /// Counts the new orders the service took per playlist, as each save ends (#543): a read of the
+    /// playlist that started before one of them ended lists the old order and isn't shown. A save
+    /// that changed nothing doesn't count, so a read it crossed (maybe with changes made
+    /// elsewhere) is shown as usual.
     var reorderGenerationByPlaylistID: [String: Int] = [:]
     /// Playlists the service refused to reorder as not editable (Apple Music's smart playlists):
     /// they stop offering dragging (#543).

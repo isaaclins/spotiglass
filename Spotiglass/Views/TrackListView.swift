@@ -114,6 +114,9 @@ struct TrackListView<Row: View>: View {
                 playSelection(selection)
                 return .handled
             }
+            // Rows that change places (a reorder) don't appear again, so the topmost one is
+            // worked out anew from the rows' new order.
+            .onChange(of: tracks) { reportFirstVisibleTrack() }
             .onChange(of: pendingScrollRestoreTrackID) { _, newValue in
                 guard let id = newValue else { return }
                 if tracks.contains(where: { $0.id == id }) {
@@ -126,11 +129,15 @@ struct TrackListView<Row: View>: View {
 
     private func setRowRealized(_ isRealized: Bool, track: TrackRowViewModel) {
         if isRealized {
-            realizedRows.trackIDsByRowNumber[track.listPosition] = track.id
+            realizedRows.trackIDs.insert(track.id)
         } else {
-            realizedRows.trackIDsByRowNumber.removeValue(forKey: track.listPosition)
+            realizedRows.trackIDs.remove(track.id)
         }
-        guard let id = TrackListVisibility.firstVisibleTrackID(in: realizedRows.trackIDsByRowNumber),
+        reportFirstVisibleTrack()
+    }
+
+    private func reportFirstVisibleTrack() {
+        guard let id = TrackListVisibility.firstVisibleTrackID(in: tracks, realized: realizedRows.trackIDs),
               id != realizedRows.lastReportedFirstVisibleTrackID
         else { return }
         realizedRows.lastReportedFirstVisibleTrackID = id
@@ -138,21 +145,22 @@ struct TrackListView<Row: View>: View {
     }
 }
 
-/// Ids of the rows the table currently has realized, keyed by row number so the
-/// topmost one is simply the smallest key. A table only realizes what it draws,
-/// so this stays about a viewport deep however long the playlist is.
+/// Ids of the rows the table currently has realized. A table only realizes what
+/// it draws, so this stays about a viewport deep however long the playlist is.
+/// Kept by id, not row number: a row dragged to a new spot keeps its identity and
+/// doesn't appear again, so a number recorded for it would go stale (#543).
 @MainActor
 final class TrackListRealizedRows {
-    var trackIDsByRowNumber: [Int: String] = [:]
+    var trackIDs: Set<String> = []
     var lastReportedFirstVisibleTrackID: String?
 }
 
-/// Picks the topmost row out of the rows the table currently has on hand. Row
-/// numbers are `TrackRowViewModel.listPosition`, the 1-based position the row
-/// occupies in the list, so the lowest one is the row nearest the top.
+/// Picks the topmost row out of the rows the table currently has on hand: the
+/// first of `tracks`, in their current order, that is realized. Realized rows sit
+/// around the viewport, so the walk stops there.
 enum TrackListVisibility {
-    static func firstVisibleTrackID(in realizedTrackIDsByRowNumber: [Int: String]) -> String? {
-        guard let topmost = realizedTrackIDsByRowNumber.keys.min() else { return nil }
-        return realizedTrackIDsByRowNumber[topmost]
+    static func firstVisibleTrackID(in tracks: [TrackRowViewModel], realized: Set<String>) -> String? {
+        guard !realized.isEmpty else { return nil }
+        return tracks.first { realized.contains($0.id) }?.id
     }
 }

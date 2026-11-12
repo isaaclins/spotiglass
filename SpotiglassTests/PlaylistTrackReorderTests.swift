@@ -134,6 +134,29 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertEqual(playlist, [1, 2, 4, 0, 3])
     }
 
+    func testADragNearTheTopOfALongSpotifyPlaylistReadsOnlyThatFar() async throws {
+        let ids = (0..<120).map { "t\($0)" }
+        // Spotify would page on; the check stops after the first page.
+        var answers = listing(Array(ids.prefix(50)))
+        answers[1] = .json(String(decoding: answers[1].data, as: UTF8.self)
+            .replacingOccurrences(of: #""next": null"#, with: #""next": "https://api.spotify.com/v1/playlists/playlist-1/items?offset=50&limit=50""#)
+            .replacingOccurrences(of: #""total": 50"#, with: #""total": 120"#))
+        let httpClient = QueueHTTPClient(answers + [.json(#"{"snapshot_id": "snapshot-2"}"#)])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        // The third row dragged to the top.
+        let order = PlaylistTrackReorder.order(count: 120, moving: [2], toOffset: 0)
+        let snapshot = try await client.reorderPlaylistTracks(
+            playlistID: "playlist-1",
+            reorder: MusicPlaylistReorder(order: order, currentTrackIDs: ids),
+            snapshotID: nil
+        )
+
+        XCTAssertEqual(snapshot, "snapshot-2")
+        XCTAssertEqual(httpClient.requests.filter { $0.url?.path.hasSuffix("/items") == true && $0.httpMethod == "GET" }.count, 1)
+        XCTAssertEqual(try reorderRequests(httpClient).count, 1)
+    }
+
     func testAPlaylistChangedOnSpotifyIsNotReordered() async throws {
         // Someone added X at the top elsewhere: the rows on screen are A, B, C.
         let httpClient = QueueHTTPClient(listing(["x", "a", "b", "c"], snapshot: "snapshot-2"))
@@ -464,6 +487,27 @@ final class PlaylistTrackReorderTests: XCTestCase {
         if case .refreshing = viewModel.detailState { XCTFail("the read that was left out still shows as running") }
     }
 
+    func testASaveThatFailedKeepsAReadItCrossed() async {
+        let api = ReorderMockAPI()
+        let viewModel = await makeViewModel(api)
+        // The playlist is opened again: its last rows show while a read runs, and the read will
+        // find a song added elsewhere.
+        api.lastRead = try? await api.playlistTracks(playlistID: "pl1", limit: 50, maxPages: 1)
+        api.names = ["Zero", "One", "Two", "Three", "Four"]
+        let gate = LibraryEditsGate()
+        api.readGate = gate
+        let reread = Task { await viewModel.refreshCurrentPlaylistMutationDetail(for: ["pl1"]) }
+        while api.readGate != nil { await Task.yield() }
+
+        // Offline: nothing reaches the service.
+        api.reorderError = URLError(.notConnectedToInternet)
+        await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[3].id], toOffset: 0, inPlaylist: "pl1")
+        gate.open()
+        await reread.value
+
+        XCTAssertEqual(shownTitles(viewModel), ["Zero", "One", "Two", "Three", "Four"])
+    }
+
     func testAPlaylistOpenedAgainDuringASaveStillShowsItsRows() async {
         let api = ReorderMockAPI()
         api.playlists.append(
@@ -603,7 +647,8 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
     /// The playlist's order on the service from the first failed reorder on, as when it was
     /// changed elsewhere or Music stopped partway.
     var namesAfterFailure: [String]?
-    private var names = ["One", "Two", "Three", "Four"]
+    /// The playlist on the service.
+    var names = ["One", "Two", "Three", "Four"]
     /// When set, the next read of the tracks waits for it, holding the order it had when it began.
     var readGate: LibraryEditsGate?
     /// The tracks read last, for a reopened playlist to show while the read runs.

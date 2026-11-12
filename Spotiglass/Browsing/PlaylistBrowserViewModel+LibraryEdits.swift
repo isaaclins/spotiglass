@@ -145,11 +145,6 @@ extension PlaylistBrowserViewModel {
         showReorderedTracks(reordered, playlistID: playlistID)
         reorderingPlaylistID = playlistID
         defer { reorderingPlaylistID = nil }
-        // A read that started before the save, or while it runs, lists the old order: it must
-        // not replace the new one once the save is done.
-        reorderGenerationByPlaylistID[playlistID, default: 0] += 1
-        defer { reorderGenerationByPlaylistID[playlistID, default: 0] += 1 }
-
         guard await ensureEditAllowed(.reorderPlaylist) else {
             await putBack(shown, replacing: reordered, playlistID: playlistID)
             return
@@ -162,6 +157,9 @@ extension PlaylistBrowserViewModel {
                 reorder: MusicPlaylistReorder(order: order, currentTrackIDs: shown.map(\.spotifyTrackID)),
                 snapshotID: detail.playlist.snapshotID
             )
+            // A read that started before this point lists the old order: it must not replace the
+            // new one now that the service has it.
+            reorderGenerationByPlaylistID[playlistID, default: 0] += 1
             invalidateTracksCache(playlistID: playlistID)
             if let newSnapshotID { recordSnapshotID(newSnapshotID, playlistID: playlistID) }
             // A read that finished meanwhile may have put the old order back on screen.
@@ -169,6 +167,7 @@ extension PlaylistBrowserViewModel {
                 await refreshCurrentPlaylistMutationDetail(for: [playlistID])
             }
         } catch let partial as MusicPlaylistReorderPartialFailure {
+            reorderGenerationByPlaylistID[playlistID, default: 0] += 1
             // Spotify took the first requests of the order and not the rest: the screen shows
             // the order the playlist has now, under the snapshot those requests returned, so
             // the next edit counts from it.

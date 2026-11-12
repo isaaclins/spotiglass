@@ -122,7 +122,9 @@ extension SpotifyAPIClient {
         }
         let moves = PlaylistTrackReorder.rangeMoves(for: reorder.order)
         guard !moves.isEmpty else { return snapshotID }
-        var currentSnapshotID = try await snapshotListing(reorder.currentTrackIDs, playlistID: playlistID)
+        // Rows after the last one the order moves keep their places and aren't counted in.
+        let rowsMoved = (reorder.order.indices.last { reorder.order[$0] != $0 } ?? -1) + 1
+        var currentSnapshotID = try await snapshotListing(reorder.currentTrackIDs, upTo: rowsMoved, playlistID: playlistID)
         var orderSoFar = Array(reorder.order.indices)
         for (index, move) in moves.enumerated() {
             var body: [String: Any] = [
@@ -153,14 +155,19 @@ extension SpotifyAPIClient {
         return currentSnapshotID
     }
 
-    /// The playlist's snapshot, once Spotify lists exactly `trackIDs` (as the rows show them) in
-    /// it and the snapshot didn't change while they were read.
-    private func snapshotListing(_ trackIDs: [String?], playlistID: String) async throws -> String? {
+    /// The playlist's snapshot, once Spotify lists `trackIDs` (as the rows show them) at the start
+    /// of it and the snapshot didn't change while they were read. Only the rows up to the last one
+    /// the order moves are read: the moves count positions there and nowhere after, so a drag near
+    /// the top of a long playlist doesn't read all of it.
+    private func snapshotListing(_ trackIDs: [String?], upTo count: Int, playlistID: String) async throws -> String? {
+        let pageSize = 50
         let before = try await playlistSnapshotID(playlistID)
-        let items = try await playlistTracks(playlistID: playlistID, limit: 50, maxPages: 200)
+        let items = try await playlistTracks(playlistID: playlistID, limit: pageSize, maxPages: max(1, (count + pageSize - 1) / pageSize))
         let listed = TrackRowViewModel.numberedPlaylistRows(items).map(\.spotifyTrackID)
         let after = try await playlistSnapshotID(playlistID)
-        guard listed == trackIDs, before == after else { throw MusicPlaylistChangedElsewhere() }
+        guard count <= trackIDs.count, listed.count >= count,
+              listed.prefix(count) == trackIDs.prefix(count), before == after
+        else { throw MusicPlaylistChangedElsewhere() }
         return after
     }
 
