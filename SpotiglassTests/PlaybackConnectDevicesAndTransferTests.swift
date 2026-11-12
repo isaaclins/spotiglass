@@ -16,13 +16,17 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         ]
         let refreshStarted = AsyncSignal()
         let releaseRefresh = AsyncSignal()
-        let transferStarted = AsyncSignal()
+        let transferRecorded = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
         playbackAPI.onFetchAvailableDevices = {
             refreshStarted.signal()
             await releaseRefresh.wait()
         }
-        playbackAPI.onTransferPlayback = { _, _ in
-            transferStarted.signal()
+        // Runs after the mock has recorded the transfer and before the transfer returns, so the
+        // checks below see the recorded action and the in-flight state, whichever task runs first.
+        playbackAPI.onTransferPlaybackCompleted = { _, _ in
+            transferRecorded.signal()
+            await releaseTransfer.wait()
         }
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.autoResumeOnNextReady = true
@@ -33,7 +37,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "device-2"))
 
         releaseRefresh.signal()
-        await transferStarted.wait()
+        await transferRecorded.wait()
 
         XCTAssertEqual(
             playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
@@ -41,6 +45,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         )
         XCTAssertFalse(playbackAPI.actions.contains("transfer:device-1:false"))
         XCTAssertEqual(viewModel.connectionState, .transferring(deviceID: "device-2"))
+        releaseTransfer.signal()
     }
 
     func testDisconnectDuringAutoResumeDeviceRefreshSuppressesLateRefreshAndTransfer() async {
@@ -886,11 +891,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
-        if let mainActorStall {
-            // Queued ahead of the transfer, so the transfer can't start until it ends.
-            Task { @MainActor in Thread.sleep(forTimeInterval: mainActorStall) }
-        }
         let transferTask = Task {
+            // The transfer task itself starts late: it holds the main actor before it reaches the
+            // transfer, so the late start doesn't depend on the order two tasks are run in.
+            if let mainActorStall { Thread.sleep(forTimeInterval: mainActorStall) }
             await viewModel.transferPlayback(toConnectDevice: "target")
         }
         await transferStarted.wait()
