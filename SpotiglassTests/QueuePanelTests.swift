@@ -833,6 +833,8 @@ final class QueuePanelTests: XCTestCase {
         let clock = ManualPlaybackClock()
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
+        // Shuffle waits for the player's state, which the ready event reads in the background (#535).
+        await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, clock: clock)
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")

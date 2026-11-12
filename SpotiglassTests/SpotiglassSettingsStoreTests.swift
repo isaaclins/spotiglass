@@ -573,9 +573,8 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         defer { close(other) }
         // The cancel handler runs on the main queue; it has run once the watcher's number no
         // longer refers to the settings file. On main that close hit `other`, which had taken it.
-        let deadline = Date().addingTimeInterval(10)
-        while Self.descriptor(watcher, isOpenOn: url) || (other == watcher && fcntl(other, F_GETFD) != -1),
-              Date() < deadline {
+        // However late a busy machine runs it (#535); one that never runs hits the per-test limit.
+        while Self.descriptor(watcher, isOpenOn: url) || (other == watcher && fcntl(other, F_GETFD) != -1) {
             AppKitTestSupport.pumpRunLoop(for: 0.01)
         }
 

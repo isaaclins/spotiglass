@@ -24,7 +24,7 @@ enum AppKitTestSupport {
     /// Runs the main run loop until `condition` holds: for something an app timer does, so the
     /// test waits for it however late a busy machine fires it, instead of for a fixed time
     /// (#510). Returns whether it held before `timeout`.
-    static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = 10) -> Bool {
+    static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = mustHappenTimeout) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }
@@ -315,12 +315,12 @@ extension AppKitTestSupport {
         return value
     }
 
-    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop. The
-    /// 10 s deadline only guards against a hang; a passing read returns as soon as it holds.
+    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop,
+    /// however late that is on a busy machine (#535). A tree that never settles runs into the
+    /// per-test limit.
     static func settledAccessibilityElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
-        let deadline = Date().addingTimeInterval(10)
         var elements = try voiceOverReachableElements(in: window)
-        while !done(elements), Date() < deadline {
+        while !done(elements) {
             pumpRunLoop(for: 0.02)
             elements = try voiceOverReachableElements(in: window)
         }
