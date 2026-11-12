@@ -1104,6 +1104,9 @@ final class QueuePanelTests: XCTestCase {
         let clock = ManualPlaybackClock()
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
+        // Shuffle needs the transport state, which the initial read brings.
+        await playback.syncTransportFromSpotify()
+        XCTAssertTrue(playback.isTransportMutationReady)
         let timeout = Duration.milliseconds(40)
         let queue = QueueViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api),
@@ -1123,7 +1126,7 @@ final class QueuePanelTests: XCTestCase {
         // only the clock's own steps below can end it.
         await queue.toggleShuffle()
         let optimistic = queue.upcomingItems.map(\.id)
-        XCTAssertNotEqual(optimistic, original, "A slow read must not end the optimistic shuffle early.")
+        XCTAssertNotEqual(optimistic, original, "The toggle should show the shuffled order right away.")
 
         clock.advance(by: timeout - .milliseconds(1))
         await queue.refreshQueue()
