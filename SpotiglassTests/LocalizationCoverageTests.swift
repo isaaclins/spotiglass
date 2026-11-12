@@ -571,6 +571,18 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(rebuiltRow.localizedTitle(locale: locale), "Untitled Playlist")
         XCTAssertEqual(PlaylistRowViewModel(counted).localizedTitle(locale: locale), "Untitled Playlist")
 
+        // Earlier builds saved Apple Music's stand-in in German or Spanish as the name.
+        let savedAppleMusic = try JSONDecoder().decode([MusicPlaylistSummary].self, from: Data(#"""
+        [{"id":"p.7","name":"Unbenannte Playlist","ownerID":"me","ownerName":"me","snapshotID":"applemusic"},
+         {"id":"p.8","name":"Lista sin título","ownerID":"me","ownerName":"me","snapshotID":"applemusic"}]
+        """#.utf8))
+        XCTAssertEqual(savedAppleMusic.map(\.name), ["Untitled Playlist", "Untitled Playlist"])
+        XCTAssertEqual(
+            savedAppleMusic.map { PinnedItem.playlist($0).localizedTitle(locale: locale) },
+            ["Untitled Playlist", "Untitled Playlist"]
+        )
+        XCTAssertEqual(unnamed.with(trackCount: nil).isUnnamed, true)
+
         // A real name comes back unchanged.
         let named = PlaylistRowViewModel(
             MusicPlaylistSummary(

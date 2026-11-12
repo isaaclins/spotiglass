@@ -17,7 +17,7 @@ extension PlaylistBrowserViewModel {
             let savedCounts = api.listsPlaylistsWithoutTrackCounts ? cachedPlaylists.compactMap { summary in
                 summary.trackCount.map { (summary.id, $0) }
             } : []
-            let listed = api.listsPlaylistsWithoutTrackCounts ? cachedPlaylists.map { $0.withTrackCount(nil) } : cachedPlaylists
+            let listed = api.listsPlaylistsWithoutTrackCounts ? cachedPlaylists.map { $0.with(trackCount: nil) } : cachedPlaylists
             apply(
                 playlists: listed,
                 state: .loaded(listed.map(PlaylistRowViewModel.init)),

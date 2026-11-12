@@ -343,7 +343,8 @@ extension PlaylistBrowserViewModel {
         else { return }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, trimmedName != previous.name else { return }
+        // Compared with the name as sent, so a playlist without one can be named like its stand-in.
+        guard !trimmedName.isEmpty, trimmedName != previous.nameAsSent else { return }
 
         let renamed = MusicPlaylistSummary(
             id: previous.id,
@@ -357,7 +358,7 @@ extension PlaylistBrowserViewModel {
         applyPlaylistName(renamed)
 
         guard await ensureEditAllowed(.renamePlaylist) else {
-            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
             return
         }
 
@@ -365,7 +366,7 @@ extension PlaylistBrowserViewModel {
             try await api.updatePlaylist(playlistID: id, name: trimmedName)
         } catch {
             // Only the name goes back: a track count that arrived meanwhile stays.
-            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
             trackMutationToast = Self.describeFailure(error, operation: .renamePlaylist)
         }
     }

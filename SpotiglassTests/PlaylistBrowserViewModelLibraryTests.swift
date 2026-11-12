@@ -910,6 +910,33 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.trackMutationToast, "Offline")
     }
 
+    /// A failed rename of a playlist without a name puts the blank name back, not the stand-in it
+    /// showed, so it keeps following the language (#547).
+    func testAFailedRenameOfAPlaylistWithoutANameKeepsItUnnamed() async {
+        let playlist = MusicPlaylistSummary(
+            id: "nameless", name: "", ownerID: "u", ownerName: "Me",
+            imageURL: nil, trackCount: 0, snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            updatePlaylistHandler: { _, _ in
+                throw SpotifyAPIError.network("Offline")
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+
+        await viewModel.renamePlaylist(id: playlist.id, name: "Road Trip")
+
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.nameAsSent, "")
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.isUnnamed, true)
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.isUnnamed, true)
+        XCTAssertEqual(viewModel.trackMutationToast, "Offline")
+    }
+
     func testRenamePlaylistRejectsBlankNamesAndNonOwnedPlaylists() async {
         let playlist = MusicPlaylistSummary(
             id: "rename-me",

@@ -473,16 +473,4 @@ extension MusicPlaylistSummary {
             snapshotID: snapshotID
         )
     }
-
-    func withTrackCount(_ trackCount: Int?) -> MusicPlaylistSummary {
-        MusicPlaylistSummary(
-            id: id,
-            name: name,
-            ownerID: ownerID,
-            ownerName: ownerName,
-            imageURL: imageURL,
-            trackCount: trackCount,
-            snapshotID: snapshotID
-        )
-    }
 }

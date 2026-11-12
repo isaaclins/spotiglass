@@ -612,7 +612,12 @@ enum UnnamedMusicItem: CaseIterable {
             "Unknown track": .track,
             "Unknown episode": .episode,
             "Unknown artist": .artist,
-            "Untitled playlist": .playlist
+            "Untitled playlist": .playlist,
+            // What earlier builds saved for an Apple Music playlist without a name in German and
+            // Spanish. The English one, "Untitled Playlist", is also Music's own name for a new
+            // playlist, so it stays a name.
+            "Unbenannte Playlist": .playlist,
+            "Lista sin título": .playlist
         ]
         for kind in [UnnamedMusicItem.track, .episode, .artist, .album] {
             for language in AppLanguage.allCases {
