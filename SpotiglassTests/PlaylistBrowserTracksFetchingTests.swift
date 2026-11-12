@@ -491,7 +491,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.load()
 
         let opening = Task { await viewModel.selectPlaylist(id: "a") }
-        try? await Task.sleep(for: .milliseconds(20))
+        // A has to be opening before B is, however late a busy machine starts its task.
+        while viewModel.sidebarSelection != .playlist("a") { await Task.yield() }
         await viewModel.selectPlaylist(id: "b")
         await opening.value
 
@@ -630,10 +631,11 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
+        let started = viewModel.playbackRequestGeneration
         let earlier = Task { await viewModel.detailForPlayback(firstPage) }
-        try? await Task.sleep(for: .milliseconds(20))
+        await Self.waitForPlay(after: started, on: viewModel)
         let newer = Task { await viewModel.detailForPlayback(firstPage) }
-        try? await Task.sleep(for: .milliseconds(20))
+        await Self.waitForPlay(after: started + 1, on: viewModel)
         api.finishReading()
 
         let earlierResult = await earlier.value
@@ -657,8 +659,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
+        let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        try? await Task.sleep(for: .milliseconds(20))
+        await Self.waitForPlay(after: started, on: viewModel)
         // Leaving Liked Songs before the read finishes.
         await viewModel.selectSidebar(nil)
         api.finishReading()
@@ -685,8 +688,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         let commands = ReadCounter()
+        let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage, playbackCommands: { UInt64(commands.count) }) }
-        try? await Task.sleep(for: .milliseconds(20))
+        await Self.waitForPlay(after: started, on: viewModel)
         commands.increment() // A pinned track starts playing meanwhile.
         api.finishReading()
 
@@ -711,8 +715,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
+        let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        try? await Task.sleep(for: .milliseconds(20))
+        await Self.waitForPlay(after: started, on: viewModel)
         await viewModel.selectSidebar(nil)
         api.finishReading()
 
@@ -751,6 +756,12 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertNil(try cache.loadTracks(playlistID: "a", snapshotID: "s", now: now.addingTimeInterval(61), maxAge: 60))
         try cache.invalidateTracks(playlistID: "c")
         XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "c", snapshotID: "s"))
+    }
+
+    /// Waits until a play asked for after `generation` has started, i.e. has read its request
+    /// number and its baseline of playback commands, however late a busy machine runs its task.
+    private static func waitForPlay(after generation: Int, on viewModel: PlaylistBrowserViewModel) async {
+        while viewModel.playbackRequestGeneration <= generation { await Task.yield() }
     }
 }
 

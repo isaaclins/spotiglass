@@ -474,7 +474,8 @@ final class EqualizerHALPluginTests: XCTestCase {
         statusTarget = originalUID
         macOutput.currentOutputDeviceID = originalID
         macOutput.emitOutputChange()
-        for _ in 0..<3 { await Task.yield() }
+        // The change is handled on a task of its own; wait for it however late it runs.
+        while setIDs.count < 3 || controller.currentForwardingTargetUID() != originalUID { await Task.yield() }
 
         XCTAssertEqual(setIDs, [virtualID, virtualID, virtualID])
         XCTAssertEqual(controller.currentForwardingTargetUID(), originalUID)
