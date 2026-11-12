@@ -203,7 +203,6 @@ final class WindowResizeCostTests: XCTestCase {
         for (step, width) in (widths + widths.reversed()).enumerated() {
             resize(window, toWidth: width, height: 900 - CGFloat(step % steps) * 10)
             if step == steps - 1 {
-                countsWhileShrinking = ViewBodyTally.counts ?? [:]
                 // At the narrowest step the browser must have taken the new width: its sidebar
                 // limit follows the committed width, so a resize that never reached it can't pass.
                 // However late a busy Mac commits it (#535).
@@ -215,6 +214,8 @@ final class WindowResizeCostTests: XCTestCase {
                 } else {
                     XCTFail("no sidebar split item", file: file, line: line)
                 }
+                // After the wait, so what the last shrinking step does once it settles counts too.
+                countsWhileShrinking = ViewBodyTally.counts ?? [:]
             }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
