@@ -314,6 +314,15 @@ final class WindowResizeCostTests: XCTestCase {
             ["TrackListRow:", "PlaylistListRow:", "HomeMediaCardView:"].contains(where: name.hasPrefix)
         }
         XCTAssertTrue(rows.isEmpty, "rows re-rendered while resizing: \(rows.sorted().prefix(5))", file: file, line: line)
+        if rowsMayReturnWhileGrowing {
+            // A row coming back into view is built once; one built again on later steps means the
+            // growing half re-renders rows, which the shrinking-half check alone wouldn't see.
+            let rebuilt = counts.filter { name, count in
+                ["TrackListRow:", "HomeMediaCardView:"].contains(where: name.hasPrefix)
+                    && count - (countsWhileShrinking[name] ?? 0) > 1
+            }
+            XCTAssertTrue(rebuilt.isEmpty, "rows re-rendered while growing: \(rebuilt.keys.sorted().prefix(5))", file: file, line: line)
+        }
     }
 
     /// Waits until a whole 0.1 s passes with no counted body running, so a load or player update
