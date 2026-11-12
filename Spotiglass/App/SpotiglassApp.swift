@@ -387,10 +387,40 @@ extension View {
 /// Observes the store itself, so the content follows a switch wherever it is hosted.
 private struct SpotiglassLiveSettings: ViewModifier {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
+    @StateObject private var macOSColorScheme = MacOSColorScheme()
 
     func body(content: Content) -> some View {
         content
             .spotiglassLanguage(settingsStore)
-            .preferredColorScheme(settingsStore.settings.appearance.colorScheme.preferredColorScheme)
+            // System hands the content macOS's own scheme rather than no preference: after Light or
+            // Dark, no preference turned the window back to macOS's appearance but left the content
+            // drawn in the old scheme until the app was restarted.
+            .preferredColorScheme(
+                settingsStore.settings.appearance.colorScheme.preferredColorScheme ?? macOSColorScheme.current
+            )
+    }
+}
+
+/// Light or dark as macOS has it, kept up to date while the app runs.
+@MainActor
+private final class MacOSColorScheme: ObservableObject {
+    @Published private(set) var current: ColorScheme
+    private var observation: NSKeyValueObservation?
+
+    init() {
+        current = Self.colorScheme(of: NSApp.effectiveAppearance)
+        // The app itself never sets an appearance, so its effective one is macOS's.
+        observation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
+            let scheme = Self.colorScheme(of: app.effectiveAppearance)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if self?.current != scheme { self?.current = scheme }
+                }
+            }
+        }
+    }
+
+    nonisolated private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
     }
 }

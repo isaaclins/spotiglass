@@ -29,7 +29,11 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             $0.appearance.language = .english
             $0.appearance.colorScheme = .dark
         }
-        let window = try await hostMainWindow(settings: settings)
+        let rendered = RenderedSettings()
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic, .spotify], active: .appleMusic
+        ))
+        let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
         let before = try XCTUnwrap(TitleBarLayout(window), "the library's split view never appeared")
         XCTAssertGreaterThan(before.sidebarTopInset, 0, "the sidebar starts under the window buttons")
 
@@ -43,7 +47,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         ]
         for (name, change) in changes {
             try settings.mutate(change)
-            settle(window)
+            try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: name)
 
             let after = try XCTUnwrap(TitleBarLayout(window), "no split view after switching to \(name)")
             XCTAssertTrue(after.splitView === before.splitView, "switching to \(name) replaced the window's split view")
@@ -59,14 +63,37 @@ final class MainWindowLiveSettingsTests: XCTestCase {
                 "after switching to \(name) the sidebar moved up under the window buttons"
             )
         }
+
+        // A service switch still builds a new browser, so it gets a new split view and new toolbar
+        // items by design. The toolbar has to take them up: its divider follows the new split
+        // view and the sidebar keeps its inset.
+        let appleMusicLayout = try XCTUnwrap(TitleBarLayout(window))
+        XCTAssertTrue(services.activate(.spotify), "couldn't switch to Spotify")
+        let leftAppleMusic = AppKitTestSupport.pumpRunLoop(until: {
+            TitleBarLayout(window)?.splitView !== appleMusicLayout.splitView
+        })
+        XCTAssertTrue(leftAppleMusic, "switching to Spotify kept Apple Music's library on screen")
+        XCTAssertTrue(services.activate(.appleMusic), "couldn't switch back to Apple Music")
+        let back = AppKitTestSupport.pumpRunLoop(until: {
+            guard let layout = TitleBarLayout(window) else { return false }
+            return layout.splitView !== appleMusicLayout.splitView && layout.sidebarSeparator?.splitView === layout.splitView
+        })
+        window.contentView?.layoutSubtreeIfNeeded()
+        let afterSwitch = try XCTUnwrap(TitleBarLayout(window), "no split view after switching back to Apple Music")
+        XCTAssertTrue(back, "after switching services the toolbar's sidebar divider doesn't follow the new split view")
+        XCTAssertEqual(
+            afterSwitch.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
+            "after switching services the sidebar moved up under the window buttons"
+        )
     }
 
     /// The main window's content, set up as the window scene sets it up, with Apple Music's
     /// library on screen (it needs no sign-in and no network here).
-    private func hostMainWindow(settings: SpotiglassSettingsStore) async throws -> NSWindow {
-        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
-            services: [.appleMusic], active: .appleMusic
-        ))
+    private func hostMainWindow(
+        settings: SpotiglassSettingsStore,
+        services: MusicServiceStore,
+        rendered: RenderedSettings
+    ) async throws -> NSWindow {
         let auth = AuthViewModel(
             settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
@@ -84,6 +111,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             serviceStore: services,
             appleMusicSession: session
         )
+        .background(RenderedSettingsProbe(rendered: rendered))
         .environmentObject(auth)
         .environmentObject(settings)
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
@@ -97,17 +125,69 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         // top inset comes from.
         window.styleMask.insert([.fullSizeContentView, .resizable, .miniaturizable])
         window.setContentSize(CGSize(width: 1100, height: 700))
-        let appeared = AppKitTestSupport.pumpRunLoop(until: { TitleBarLayout(window)?.sidebarSeparator != nil })
-        XCTAssertTrue(appeared, "the library and its toolbar never appeared")
-        settle(window)
+        try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: "the start")
         return window
     }
 
-    /// Runs the main run loop until the window has taken the change, then one display cycle more.
-    private func settle(_ window: NSWindow) {
+    /// Runs the main run loop until the window shows `appearance`, however long a busy machine
+    /// takes: the content has drawn with the new language and colour scheme, the bar's Queue button
+    /// reads in the new language, and the window has the new appearance. A fixed wait could look
+    /// at the window before the switch reached it and pass without checking anything.
+    private func waitUntilTaken(
+        _ appearance: AppearanceSettings,
+        by window: NSWindow,
+        rendered: RenderedSettings,
+        name: String
+    ) throws {
+        let queueLabel = SpotiglassL10n.string("browser.queue")
+        let scheme = appearance.colorScheme.preferredColorScheme ?? Self.systemColorScheme
+        let taken = AppKitTestSupport.pumpRunLoop(until: {
+            rendered.language == appearance.language
+                && rendered.settingsColorScheme == appearance.colorScheme
+                && rendered.colorScheme == scheme
+                && Self.colorScheme(of: window.effectiveAppearance) == scheme
+                && TitleBarLayout(window)?.sidebarSeparator != nil
+                && window.toolbar?.items.contains(where: { $0.label == queueLabel }) == true
+        })
+        let labels = window.toolbar?.items.map(\.label) ?? []
+        XCTAssertTrue(taken, "the window never took \(name): toolbar labels \(labels), drawn with \(rendered), window appearance \(String(describing: window.appearance?.name)), effective \(window.effectiveAppearance.name.rawValue), app \(NSApp.effectiveAppearance.name.rawValue) / \(String(describing: NSApp.appearance?.name))")
         window.contentView?.layoutSubtreeIfNeeded()
-        AppKitTestSupport.pumpRunLoop(for: 0.3)
-        window.contentView?.layoutSubtreeIfNeeded()
+    }
+
+    /// What a window that follows macOS gets: the app's own appearance.
+    private static var systemColorScheme: ColorScheme {
+        colorScheme(of: NSApp.effectiveAppearance)
+    }
+
+    private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
+    }
+}
+
+/// What the main window's content last drew with, recorded from inside it.
+@MainActor
+private final class RenderedSettings: CustomStringConvertible {
+    var language: AppLanguage?
+    var settingsColorScheme: AppearanceColorScheme?
+    var colorScheme: ColorScheme?
+
+    var description: String {
+        "\(language?.rawValue ?? "nothing"), \(settingsColorScheme?.rawValue ?? "nothing"), \(String(describing: colorScheme))"
+    }
+}
+
+/// Sits inside the window's content and records the settings and the colour scheme each time the
+/// content draws, so a test can wait for a switch to reach it.
+private struct RenderedSettingsProbe: View {
+    @EnvironmentObject private var settings: SpotiglassSettingsStore
+    @Environment(\.colorScheme) private var colorScheme
+    let rendered: RenderedSettings
+
+    var body: some View {
+        rendered.language = settings.settings.appearance.language
+        rendered.settingsColorScheme = settings.settings.appearance.colorScheme
+        rendered.colorScheme = colorScheme
+        return Color.clear.frame(width: 0, height: 0)
     }
 }
 
