@@ -511,7 +511,8 @@ final class BrowserWindowTitleTests: XCTestCase {
 
     /// A Command-click on the selected sidebar row clears the selection and leaves an empty
     /// placeholder. That page is not Home, so the window must not be named "Home" there, and
-    /// the bar shows no title (it has no name of its own and must not say "Spotiglass").
+    /// the bar shows no title (it has no name of its own and must not say "Spotiglass"). A pinned
+    /// row selected over Home is still Home.
     func testNothingSelectedIsNotNamedHome() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
@@ -522,6 +523,12 @@ final class BrowserWindowTitleTests: XCTestCase {
         await viewModel.selectSidebar(.home)
         let window = hostBrowser(viewModel)
         XCTAssertEqual(window.title, ViewTestHost.localizedString("browser.home"))
+
+        // A pinned track selects its row while it starts playing, with Home still on screen.
+        await viewModel.selectSidebar(.pinnedItem("pinned-track"))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        XCTAssertEqual(window.title, ViewTestHost.localizedString("browser.home"))
+        XCTAssertEqual(window.titleVisibility, .hidden)
 
         await viewModel.selectSidebar(nil)
         AppKitTestSupport.pumpRunLoop(for: 0.4)
