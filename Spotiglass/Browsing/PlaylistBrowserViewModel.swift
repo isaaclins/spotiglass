@@ -47,6 +47,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Counts the saves of a new order per playlist, at their start and end (#543): a read of the
     /// playlist that started before one of them ended lists the old order and isn't shown.
     var reorderGenerationByPlaylistID: [String: Int] = [:]
+    /// Playlists the service refused to reorder as not editable (Apple Music's smart playlists):
+    /// they stop offering dragging (#543).
+    var playlistsRefusingReorder: Set<String> = []
     /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).
     @Published var pendingLibraryRemoval: PendingLibraryRemoval?
     /// User-facing toast banner published after a successful track-ops mutation

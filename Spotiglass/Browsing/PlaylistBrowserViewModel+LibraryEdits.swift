@@ -117,6 +117,7 @@ extension PlaylistBrowserViewModel {
         guard supportedLibraryEdits.contains(.reorderPlaylistTracks),
               let playlistID, playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
               let me = currentUserSpotifyID, !me.isEmpty,
+              !playlistsRefusingReorder.contains(playlistID),
               let summary = playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID]
         else { return false }
         return summary.ownerID == me || summary.isCollaborative
@@ -133,6 +134,9 @@ extension PlaylistBrowserViewModel {
               let detail = shownPlaylistDetail(playlistID)
         else { return }
         let shown = detail.tracks
+        // A long list shows its first rows a moment before the rest; an order counted in those
+        // would leave the rest out.
+        if let complete = completeRowsOnScreen, complete.playlistID == playlistID, complete.tracks.count > shown.count { return }
         let positions = Set(rowIDs.compactMap { id in shown.firstIndex { $0.id == id } })
         guard !positions.isEmpty else { return }
         let order = PlaylistTrackReorder.order(count: shown.count, moving: positions, toOffset: offset)
@@ -150,7 +154,7 @@ extension PlaylistBrowserViewModel {
             SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
             operation: .reorderPlaylist
         ) else {
-            putBack(shown, replacing: reordered, playlistID: playlistID)
+            await putBack(shown, replacing: reordered, playlistID: playlistID)
             return
         }
         do {
@@ -183,15 +187,22 @@ extension PlaylistBrowserViewModel {
                 Self.describeFailure(partial.underlying, operation: .reorderPlaylist)
             )
         } catch {
-            putBack(shown, replacing: reordered, playlistID: playlistID)
+            await putBack(shown, replacing: reordered, playlistID: playlistID)
             trackMutationToast = SpotiglassL10n.format(
                 "playlist.mutation.reorderFailed",
-                Self.describeFailure(error, operation: .reorderPlaylist)
+                (error as? MusicPlaylistChangedElsewhere)?.localizedDescription
+                    ?? Self.describeFailure(error, operation: .reorderPlaylist)
             )
-            // Music refuses a playlist that changed in Music since it was opened, and may stop
-            // partway through the moves: either way the screen's order isn't Music's, and every
-            // later drag would be refused the same way, so the list is read again.
-            if error is AppleMusicLibraryEditError {
+            // Apple Music's smart playlists can't be reordered, and nothing says so before
+            // Music refuses: the playlist stops offering dragging after the first try.
+            if error as? AppleMusicLibraryEditError == .notEditable {
+                playlistsRefusingReorder.insert(playlistID)
+            }
+            // Both services refuse a playlist that changed elsewhere since it was opened, and
+            // Music may stop partway through the moves: either way the screen's order isn't the
+            // service's, and every later drag would be refused the same way, so the list is read
+            // again.
+            if error is AppleMusicLibraryEditError || error is MusicPlaylistChangedElsewhere {
                 await showServiceOrder(playlistID: playlistID, replacing: shown)
             }
         }
@@ -231,13 +242,13 @@ extension PlaylistBrowserViewModel {
 
     /// After a failed save: the old order goes back when the screen still shows the new one;
     /// a list read meanwhile is read once more, as the playlist may have changed elsewhere.
-    private func putBack(_ previous: [TrackRowViewModel], replacing reordered: [TrackRowViewModel], playlistID: String) {
+    private func putBack(_ previous: [TrackRowViewModel], replacing reordered: [TrackRowViewModel], playlistID: String) async {
         guard let now = shownPlaylistTracks(playlistID) else { return }
         if now == reordered {
             showReorderedTracks(previous, playlistID: playlistID)
         } else {
             invalidateTracksCache(playlistID: playlistID)
-            Task { await refreshCurrentPlaylistMutationDetail(for: [playlistID]) }
+            await refreshCurrentPlaylistMutationDetail(for: [playlistID])
         }
     }
 

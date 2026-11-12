@@ -105,10 +105,12 @@ extension SpotifyAPIClient {
     }
 
     /// Saves a new order with `PUT /v1/playlists/{id}/items` (range_start, insert_before,
-    /// range_length), one request per run of rows that move together. Each request carries the
-    /// snapshot the one before it returned, so Spotify applies them to the playlist as the
-    /// previous request left it, and a playlist changed elsewhere meanwhile fails instead of
-    /// moving the wrong songs. Returns the last snapshot ID. A request that fails after others
+    /// range_length), one request per run of rows that move together. Spotify counts positions in
+    /// the snapshot a request names and applies them even to a playlist changed since, so before
+    /// the first move the playlist is read again: when it doesn't list the rows the order was
+    /// counted in, nothing is sent and `MusicPlaylistChangedElsewhere` is thrown. Each request then
+    /// carries the snapshot the one before it returned. `snapshotID` (the one the rows were shown
+    /// at) is not needed for that. Returns the last snapshot ID. A request that fails after others
     /// went through throws `MusicPlaylistReorderPartialFailure` with the order they left.
     func reorderPlaylistTracks(
         playlistID: String,
@@ -118,9 +120,11 @@ extension SpotifyAPIClient {
         guard !playlistID.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Playlist ID is required.")
         }
-        var currentSnapshotID = snapshotID
+        let moves = PlaylistTrackReorder.rangeMoves(for: reorder.order)
+        guard !moves.isEmpty else { return snapshotID }
+        var currentSnapshotID = try await snapshotListing(reorder.currentTrackIDs, playlistID: playlistID)
         var orderSoFar = Array(reorder.order.indices)
-        for (index, move) in PlaylistTrackReorder.rangeMoves(for: reorder.order).enumerated() {
+        for (index, move) in moves.enumerated() {
             var body: [String: Any] = [
                 "range_start": move.rangeStart,
                 "insert_before": move.insertBefore,
@@ -141,13 +145,31 @@ extension SpotifyAPIClient {
                 throw MusicPlaylistReorderPartialFailure(orderSoFar: orderSoFar, snapshotID: currentSnapshotID, underlying: error)
             }
             PlaylistTrackReorder.apply(move, to: &orderSoFar)
-            if let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData),
-               let nextSnapshotID = response.snapshotID,
-               !nextSnapshotID.isEmpty {
-                currentSnapshotID = nextSnapshotID
-            }
+            // Without a snapshot in the reply the next request names none, so Spotify counts it in
+            // the playlist as it is now: the old one would count it before this move.
+            let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData)
+            currentSnapshotID = response?.snapshotID.flatMap { $0.isEmpty ? nil : $0 }
         }
         return currentSnapshotID
+    }
+
+    /// The playlist's snapshot, once Spotify lists exactly `trackIDs` (as the rows show them) in
+    /// it and the snapshot didn't change while they were read.
+    private func snapshotListing(_ trackIDs: [String?], playlistID: String) async throws -> String? {
+        let before = try await playlistSnapshotID(playlistID)
+        let items = try await playlistTracks(playlistID: playlistID, limit: 50, maxPages: 200)
+        let listed = TrackRowViewModel.numberedPlaylistRows(items).map(\.spotifyTrackID)
+        let after = try await playlistSnapshotID(playlistID)
+        guard listed == trackIDs, before == after else { throw MusicPlaylistChangedElsewhere() }
+        return after
+    }
+
+    private func playlistSnapshotID(_ playlistID: String) async throws -> String? {
+        let response: SpotifyPlaylistMutationResponse = try await send(
+            path: "/v1/playlists/\(playlistID)",
+            queryItems: [URLQueryItem(name: "fields", value: "snapshot_id")]
+        )
+        return response.snapshotID
     }
 
     // MARK: - Create playlist

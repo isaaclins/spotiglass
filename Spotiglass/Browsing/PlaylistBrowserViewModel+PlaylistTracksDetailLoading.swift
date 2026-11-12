@@ -86,9 +86,13 @@ extension PlaylistBrowserViewModel {
             // the legacy `/tracks` endpoint's 100). Passing 100 yields HTTP 400
             // invalid_request and breaks any playlist with more than 50 tracks.
             let tracks = try await api.playlistTracks(playlistID: playlist.id, limit: 50, maxPages: 200)
-            // A new order was saved from here while this read ran: it lists the old order (#543).
-            guard reorderGenerationByPlaylistID[playlist.id] == reorderGeneration else {
-                if session == detailSession, case let .refreshing(content) = detailState { detailState = .loaded(content) }
+            // A new order was saved from here while this read ran: it lists the old order, and the
+            // rows on screen have the new one (#543). With no rows of this playlist on screen
+            // (opened again meanwhile) the read is all there is, so it is shown.
+            if reorderGenerationByPlaylistID[playlist.id] != reorderGeneration,
+               session == detailSession,
+               case let .playlist(shown)? = detailState.currentValue, shown.playlist.id == playlist.id {
+                if case let .refreshing(content) = detailState { detailState = .loaded(content) }
                 return
             }
             try? cache.saveTracks(tracks, playlistID: playlist.id, snapshotID: playlist.snapshotID, cachedAt: now())

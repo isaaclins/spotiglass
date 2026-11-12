@@ -171,7 +171,7 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
     }
 }
 
-/// The AppleScript sources. Script errors 9001 to 9006 carry the outcomes the editor reports.
+/// The AppleScript sources. Script errors 9001 to 9007 carry the outcomes the editor reports.
 enum MusicAppScripts {
     static let notFoundError = 9001
     static let ambiguousError = 9002
@@ -181,6 +181,8 @@ enum MusicAppScripts {
     static let stillBusyError = 9005
     /// A change timed out; its message is the script's progress (`MusicAppLateChange`).
     static let lateChangeError = 9006
+    /// Music lists a playlist other than the way Spotiglass shows it (`playlistChanged`).
+    static let playlistChangedError = 9007
     /// AppleScript's errAETimeout: Music didn't answer one event in time.
     static let eventTimeoutError = -1712
     /// Slack before the save request for Music's `date added` (the server's clock against this
@@ -404,7 +406,7 @@ enum MusicAppScripts {
         lines += [
             "set expectedIDs to {\(expectedPersistentIDs.map(quoted).joined(separator: ", "))}",
             "set listedIDs to (persistent ID of every track of pl)",
-            "if listedIDs is not expectedIDs then error \"changed\" number \(notFoundError)",
+            "if listedIDs is not expectedIDs then error \"changed\" number \(playlistChangedError)",
             "set entryIDs to (id of every track of pl)",
             "set movedIDs to {}",
             "repeat with position in {\(moveToEnd.map { String($0 + 1) }.joined(separator: ", "))}",
@@ -617,6 +619,7 @@ enum MusicAppScripts {
         case ambiguousSongError: .ambiguousSong
         case notEditableError: .notEditable
         case stillBusyError: .musicStillBusy
+        case playlistChangedError: .playlistChanged
         // errAEEventNotPermitted, errAEEventWouldRequireUserConsent
         case -1743, -1744: .musicControlDenied
         // procNotFound, connectionInvalid, errAETimeout

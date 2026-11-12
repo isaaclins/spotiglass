@@ -67,6 +67,12 @@ struct MusicPlaylistReorder: Equatable {
     let currentTrackIDs: [String?]
 }
 
+/// Spotify lists the playlist differently than the rows the new order was counted in: it changed
+/// elsewhere since it was read, so the order isn't sent (#543).
+struct MusicPlaylistChangedElsewhere: LocalizedError, Equatable {
+    var errorDescription: String? { SpotiglassL10n.string("playlist.mutation.reorderChangedElsewhere") }
+}
+
 /// A reorder the service took only part of: Spotify saves an order one request at a time, and
 /// one after the first failed. `orderSoFar` is the order the playlist has now (like
 /// `MusicPlaylistReorder.order`), `snapshotID` the one the last request that went through
