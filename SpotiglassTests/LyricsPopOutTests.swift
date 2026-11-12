@@ -527,9 +527,8 @@ final class LyricsPopOutTests: XCTestCase {
         // The size under test, as a user dragged it: not the content's smallest fitting size.
         controller.sizingOptions = []
         window.setContentSize(size)
-        while !LyricsPopOutWindow.isPopOut(window) {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-        }
+        let adopted = AppKitTestSupport.pumpRunLoop(until: { LyricsPopOutWindow.isPopOut(window) })
+        XCTAssertTrue(adopted, "the content never adopted its window")
         controller.view.layoutSubtreeIfNeeded()
         controller.view.displayIfNeeded()
         AppKitTestSupport.pumpRunLoop(for: 0.1)
@@ -538,11 +537,12 @@ final class LyricsPopOutTests: XCTestCase {
     }
 
     /// Runs the main run loop until the lyrics have loaded, however long a busy machine takes.
-    private func waitUntilReady(_ lyrics: ImmersiveLyricsViewModel) {
-        while true {
-            if case .ready = lyrics.phase { return }
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-        }
+    private func waitUntilReady(_ lyrics: ImmersiveLyricsViewModel, file: StaticString = #filePath, line: UInt = #line) {
+        let ready = AppKitTestSupport.pumpRunLoop(until: {
+            if case .ready = lyrics.phase { return true }
+            return false
+        })
+        XCTAssertTrue(ready, "the lyrics never loaded", file: file, line: line)
     }
 
     /// At every size the content loads the playing song's lyrics and makes its window the pinned
@@ -817,9 +817,8 @@ final class LyricsPopOutTests: XCTestCase {
         hosts.gate(activeService: .appleMusic)
         let appleMusic = hosts.appleMusic.playbackViewModel
         appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
-        while !appleMusic.isOtherServiceHeard {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-        }
+        let following = AppKitTestSupport.pumpRunLoop(until: { appleMusic.isOtherServiceHeard })
+        XCTAssertTrue(following, "Apple Music's bar never followed Spotify")
         XCTAssertTrue(appleMusic.audiblePlayer === spotify.playbackViewModel)
 
         var looked: [String] = []
@@ -842,9 +841,8 @@ final class LyricsPopOutTests: XCTestCase {
             ),
             size: LyricsPopOutWindow.defaultSize
         )
-        while looked.isEmpty {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-        }
+        let lookedUp = AppKitTestSupport.pumpRunLoop(until: { !looked.isEmpty })
+        XCTAssertTrue(lookedUp, "the lyrics were never looked up")
         XCTAssertEqual(looked, ["Midnight City"])
     }
 
@@ -913,9 +911,8 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(made, 0, "no player yet, nothing to follow")
 
         _ = hosts.appleMusic
-        while made == 0 {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-        }
+        let followed = AppKitTestSupport.pumpRunLoop(until: { made > 0 })
+        XCTAssertTrue(followed, "the window never followed the new player")
         XCTAssertEqual(made, 1, "the window follows the player once it exists")
     }
 

@@ -166,13 +166,16 @@ final class WindowResizeCostTests: XCTestCase {
 
     /// Waits until a whole 0.1 s passes with no counted body running, so a load or player update
     /// that lands late on a busy Mac can't be taken for a re-render the resize caused. A browser
-    /// that never stops re-rendering runs into the per-test time limit.
+    /// that never stops re-rendering fails at ``mustHappenTimeout``: a synchronous loop on the main
+    /// thread would keep the per-test limit from stopping it (#535).
     private func waitUntilNothingRenders() {
-        while true {
+        let deadline = Date().addingTimeInterval(mustHappenTimeout)
+        while Date() < deadline {
             ViewBodyTally.counts = [:]
             AppKitTestSupport.pumpRunLoop(for: 0.1)
             if ViewBodyTally.counts?.isEmpty ?? true { return }
         }
+        XCTFail("the browser kept re-rendering before the resize: \(ViewBodyTally.counts ?? [:])")
     }
 
     /// Opening the queue narrows how far the sidebar can be dragged, so a drag can't push the

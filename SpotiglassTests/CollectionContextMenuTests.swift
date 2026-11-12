@@ -350,10 +350,11 @@ final class CollectionContextMenuTests: XCTestCase {
 
         // The row's name turns into the rename field, filled with the current name.
         var field: NSTextField?
-        while field == nil {
-            AppKitTestSupport.pumpRunLoop(for: 0.04)
+        let fieldShown = AppKitTestSupport.pumpRunLoop(until: {
             field = textFields(in: host.view).first { $0.isEditable }
-        }
+            return field != nil
+        })
+        XCTAssertTrue(fieldShown, "the rename field never showed")
         XCTAssertEqual(field?.stringValue, ownPlaylist.name)
         XCTAssertNil(viewModel.playlistNameEditRequestID, "The row took the request")
     }
