@@ -62,14 +62,15 @@ final class ManualPlaybackClock: PlaybackClock, @unchecked Sendable {
 
     /// Returns `true` once at least `count` timers are armed on this clock, or `false` if none
     /// came within `timeout` of real time, so a test whose timer never arms fails with its own
-    /// message instead of hanging until the test runner's limit.
-    func waitForSleepers(_ count: Int = 1, timeout: Duration = .seconds(10)) async -> Bool {
+    /// message instead of hanging until the test runner's limit. The default is no time window:
+    /// a busy machine can take long to arm a timer (#535).
+    func waitForSleepers(_ count: Int = 1, timeout: Duration = testWaitDeadline) async -> Bool {
         await waitUntil(timeout: timeout) { $0.count >= count }
     }
 
     /// Returns `true` once a timer is armed to fire at `deadline` (a task that sleeps again from
     /// the clock's current time has gone back to waiting), or `false` after `timeout`.
-    func waitForSleeper(dueAt deadline: ContinuousClock.Instant, timeout: Duration = .seconds(10)) async -> Bool {
+    func waitForSleeper(dueAt deadline: ContinuousClock.Instant, timeout: Duration = testWaitDeadline) async -> Bool {
         await waitUntil(timeout: timeout) { $0.contains(deadline) }
     }
 
