@@ -89,26 +89,14 @@ extension AppleMusicBrowsingProvider {
             AppleMusicItemMapping.songID(fromURI: item.uri).map { (songID: $0, positions: item.positions) }
         }
         guard !removals.isEmpty else { throw AppleMusicLibraryEditError.notEditable }
-        // How often the playlist lists each song now, so the pending edit knows when the library
-        // shows the removal.
+        // The playlist as shown now, so the pending edit knows which copies were picked and
+        // when the library shows the removal.
         let shown = (try? await playlistTracks(playlistID: playlistID, limit: 100, maxPages: 100)) ?? []
-        let isSong: (MusicPlaylistTrackItem, String) -> Bool = { item, songID in
-            if case let .track(track) = item.content { return track.id == songID }
-            return false
+        let shownTracks = shown.compactMap { item -> MusicTrack? in
+            if case let .track(track) = item.content { return track }
+            return nil
         }
-        let shownCounts = removals.map { removal in shown.filter { isSong($0, removal.songID) }.count }
-        // Which copy of the song each position is, so the view hides the copies that were picked.
-        let shownOrdinals = removals.map { removal in
-            removal.positions.filter { $0 < shown.count }.map { position in
-                shown[..<position].filter { isSong($0, removal.songID) }.count
-            }
-        }
-        try await editor.removeFromPlaylist(
-            playlistID: playlistID,
-            removals: removals,
-            shownCounts: shownCounts,
-            shownOrdinals: shownOrdinals
-        )
+        try await editor.removeFromPlaylist(playlistID: playlistID, removals: removals, shownTracks: shownTracks)
         await trackCountCache.forget([playlistID])
     }
 

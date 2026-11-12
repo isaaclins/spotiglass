@@ -446,7 +446,6 @@ struct AppleMusicLibraryEditor: Sendable {
         let catalogIDs = references.compactMap(\.catalogID)
         let tracks = catalogIDs.isEmpty ? [] : ((try? await lookup.catalogTracks(ids: catalogIDs)) ?? [])
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        var addedSoFar: [String: Int] = [:]
         for reference in references {
             // A song MusicKit lists only under a persistent ID has no catalog track; the row it
             // was listed as stands in for it.
@@ -456,25 +455,18 @@ struct AppleMusicLibraryEditor: Sendable {
                 reference.matchKeys.contains($0.id) || $0.id == track.id
                     || AppleMusicPendingLibraryEdits.metadataKey($0) == metadataKey
             }.count
-            pending.recordPlaylistAddition(
-                track,
-                reference: reference,
-                playlistID: playlistID,
-                shownBefore: shown + addedSoFar[metadataKey, default: 0]
-            )
-            addedSoFar[metadataKey, default: 0] += 1
+            pending.recordPlaylistAddition(track, reference: reference, playlistID: playlistID, shownBefore: shown)
         }
     }
 
     /// Removes the given occurrences of songs from a playlist through the Music app.
-    /// `positions` are zero-based, as the browser lists them.
-    /// `shownCounts` says how often the playlist lists each song before the edit, `shownOrdinals`
-    /// which of those copies each removal takes (0 = the first).
+    /// `positions` are zero-based, as the browser lists them. `shownTracks` is the playlist as
+    /// the browser lists it before the edit (pending edits included), so the view hides the
+    /// copies that were picked until the library shows the removal.
     func removeFromPlaylist(
         playlistID: String,
         removals: [(songID: String, positions: [Int])],
-        shownCounts: [Int],
-        shownOrdinals: [[Int]] = []
+        shownTracks: [MusicTrack]
     ) async throws {
         let references = try await lookup.songs(ids: removals.map(\.songID)).map(withPendingDetails)
         var scripted: [MusicAppPlaylistRemoval] = []
@@ -487,13 +479,18 @@ struct AppleMusicLibraryEditor: Sendable {
         guard !scripted.isEmpty else { return }
         try await musicApp.removeFromPlaylist(try await musicAppPlaylist(for: playlistID), removals: scripted)
         pending.adjustCreatedPlaylistTrackCount(playlistID, by: -removals.reduce(0) { $0 + $1.positions.count })
-        for (index, (reference, removal)) in zip(references, removals).enumerated() {
+        for (reference, removal) in zip(references, removals) {
+            // A copy added from Spotiglass shows under another of the song's IDs than the
+            // library's rows do: every one of them counts as the song.
+            let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
             pending.recordPlaylistRemoval(
                 reference.matchKeys,
                 metadataKey: reference.title.map { AppleMusicPendingLibraryEdits.metadataKey(name: $0, artist: reference.artistName) },
                 removed: removal.positions.count,
-                shownBefore: index < shownCounts.count ? shownCounts[index] : removal.positions.count,
-                ordinals: index < shownOrdinals.count ? shownOrdinals[index] : [],
+                shownBefore: shownTracks.filter(isSong).count,
+                ordinals: removal.positions.filter { $0 < shownTracks.count }.map { position in
+                    shownTracks[..<position].filter(isSong).count
+                },
                 playlistID: playlistID
             )
         }
