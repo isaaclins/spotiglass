@@ -77,7 +77,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let provider = hosts.appleMusic.playbackProvider
 
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("stop") {
+        while !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.advance(by: 1)
@@ -129,13 +129,13 @@ final class CrossServicePlaybackTests: XCTestCase {
         let play = Task {
             try await provider.play(.items(uris: ["applemusic:song:slow"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        for _ in 0..<40 where player.waitingLookups.isEmpty {
+        while player.waitingLookups.isEmpty {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(player.waitingLookups, ["play applemusic:song:slow"])
 
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("stop") {
+        while !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.releaseLookups()
@@ -160,7 +160,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         try await provider.enqueue(uri: "applemusic:song:added-before", deviceID: AppleMusicPlaybackProvider.deviceID)
 
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("stop") {
+        while !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.advance(by: 1)
@@ -198,7 +198,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let provider = hosts.appleMusic.playbackProvider
 
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("stop") {
+        while !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.advance(by: 1)
@@ -227,12 +227,12 @@ final class CrossServicePlaybackTests: XCTestCase {
         let add = Task {
             try await provider.enqueue(uri: "applemusic:song:slow-add", deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        for _ in 0..<40 where player.waitingLookups.isEmpty {
+        while player.waitingLookups.isEmpty {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:slow-add"])
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("stop") {
+        while !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.holdLookups = false
@@ -291,7 +291,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         let playA = Task {
             try await provider.play(.items(uris: ["applemusic:song:a"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
         }
-        for _ in 0..<40 where player.waitingLookups.isEmpty {
+        while player.waitingLookups.isEmpty {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(player.waitingLookups, ["started applemusic:song:a"])
@@ -536,7 +536,7 @@ final class CrossServicePlaybackTests: XCTestCase {
     }
 
     private func waitUntil(_ condition: () -> Bool) async throws {
-        for _ in 0..<80 where !condition() {
+        while !condition() {
             try await Task.sleep(for: .milliseconds(25))
         }
     }
@@ -561,7 +561,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer, "the bar stays on Midnight City")
         let manager = wirePalette(to: appleMusic)
         manager.togglePlayback?()
-        for _ in 0..<40 where toggles(commander) == 0 {
+        while toggles(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(toggles(commander), 1, "Play resumes Midnight City")
@@ -644,7 +644,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         manager.bindPlaybackReadiness(to: playback)
 
         manager.requestRepeatMode(.track)
-        for _ in 0..<40 where player.readState().repeatMode != .track {
+        while player.readState().repeatMode != .track {
             try await Task.sleep(for: .milliseconds(25))
         }
 

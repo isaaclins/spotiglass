@@ -124,15 +124,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         locked {
             guard let index = createdPlaylists.firstIndex(where: { $0.summary.id == id }) else { return }
             let summary = createdPlaylists[index].summary
-            createdPlaylists[index].summary = MusicPlaylistSummary(
-                id: summary.id,
-                name: summary.name,
-                ownerID: summary.ownerID,
-                ownerName: summary.ownerName,
-                imageURL: summary.imageURL,
-                trackCount: max(0, (summary.trackCount ?? 0) + delta),
-                snapshotID: summary.snapshotID
-            )
+            createdPlaylists[index].summary = summary.with(trackCount: max(0, (summary.trackCount ?? 0) + delta))
         }
     }
 
@@ -340,13 +332,14 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             expire()
             let shownIDs = Set(playlists.map(\.id))
             deletedPlaylists = deletedPlaylists.filter { shownIDs.contains($0.key) }
+            // Names as sent, not the stand-in two different names may both show (#547).
             createdPlaylists.removeAll { created in
                 shownIDs.contains(created.summary.id) || playlists.contains { playlist in
-                    AppleMusicLibraryEditor.isSamePlaylistName(playlist.name, created.summary.name)
+                    AppleMusicLibraryEditor.isSamePlaylistName(playlist.nameAsSent, created.summary.nameAsSent)
                         && !created.existingIDsWithSameName.contains(playlist.id)
                 }
             }
-            for playlist in playlists where renamedPlaylists[playlist.id]?.name == playlist.name {
+            for playlist in playlists where renamedPlaylists[playlist.id]?.name == playlist.nameAsSent {
                 renamedPlaylists[playlist.id] = nil
             }
             let shown = playlists
@@ -471,18 +464,6 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
 extension MusicPlaylistSummary {
     func renamed(_ name: String) -> MusicPlaylistSummary {
-        MusicPlaylistSummary(
-            id: id,
-            name: name,
-            ownerID: ownerID,
-            ownerName: ownerName,
-            imageURL: imageURL,
-            trackCount: trackCount,
-            snapshotID: snapshotID
-        )
-    }
-
-    func withTrackCount(_ trackCount: Int?) -> MusicPlaylistSummary {
         MusicPlaylistSummary(
             id: id,
             name: name,

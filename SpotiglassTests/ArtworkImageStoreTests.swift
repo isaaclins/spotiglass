@@ -47,7 +47,7 @@ final class ArtworkImageStoreTests: XCTestCase {
             XCTAssertNotNil(image)
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 5)
+        wait(for: [expectation], timeout: mustHappenTimeout)
     }
 
     func testClearAllCachedImages() async {

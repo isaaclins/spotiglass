@@ -625,7 +625,7 @@ struct AppleMusicLibraryEditor: Sendable {
             guard pending.renamedName(for: playlistID) == nil else {
                 throw AppleMusicLibraryEditError.notInMusicYet
             }
-            listedName = created.name
+            listedName = created.nameAsSent
             createdMomentsAgo = true
         } else {
             throw AppleMusicLibraryEditError.notEditable
@@ -656,12 +656,12 @@ struct AppleMusicLibraryEditor: Sendable {
         if let playlist = try await lookup.playlist(id: playlistID), let persistentID = playlist.musicAppPersistentID {
             return .persistentID(persistentID)
         }
-        guard let name = pending.renamedName(for: playlistID) ?? pending.createdPlaylist(id: playlistID)?.name else {
+        guard let name = pending.renamedName(for: playlistID) ?? pending.createdPlaylist(id: playlistID)?.nameAsSent else {
             throw AppleMusicLibraryEditError.notEditable
         }
         // Music finds this playlist only by name. If another playlist has the name, the one Music
         // finds may be that one, so the edit stops instead.
-        let namesakeAtCreate = pending.createdPlaylist(id: playlistID).map { Self.isSamePlaylistName($0.name, name) } == true
+        let namesakeAtCreate = pending.createdPlaylist(id: playlistID).map { Self.isSamePlaylistName($0.nameAsSent, name) } == true
             && !pending.existingIDsWithSameName(asCreated: playlistID).isEmpty
         let namesakeInCloud = try await cloud.editablePlaylists().contains {
             Self.isSamePlaylistName($0.name, name) && $0.id != playlistID

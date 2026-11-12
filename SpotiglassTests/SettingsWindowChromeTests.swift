@@ -52,7 +52,7 @@ final class SettingsWindowChromeTests: XCTestCase {
         let window = makeWindow()
         window.contentView?.addSubview(UnifiedTitlebarProbeView())
 
-        for _ in 0..<100 where window.toolbar == nil {
+        while window.toolbar == nil {
             try await Task.sleep(for: .milliseconds(20))
         }
 

@@ -267,24 +267,12 @@ extension PlaylistBrowserViewModel {
     /// Spotify's new snapshot after a reorder, so the next edit and the track cache name the
     /// playlist as it is now.
     private func recordSnapshotID(_ snapshotID: String, playlistID: String) {
-        func updated(_ summary: MusicPlaylistSummary) -> MusicPlaylistSummary {
-            MusicPlaylistSummary(
-                id: summary.id,
-                name: summary.name,
-                ownerID: summary.ownerID,
-                ownerName: summary.ownerName,
-                imageURL: summary.imageURL,
-                trackCount: summary.trackCount,
-                snapshotID: snapshotID,
-                isCollaborative: summary.isCollaborative
-            )
-        }
         if let summary = playlistsByID[playlistID] {
-            playlistsByID[playlistID] = updated(summary)
+            playlistsByID[playlistID] = summary.with(snapshotID: snapshotID)
             try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
         }
         if let summary = knownPlaylistSummariesByID[playlistID] {
-            knownPlaylistSummariesByID[playlistID] = updated(summary)
+            knownPlaylistSummariesByID[playlistID] = summary.with(snapshotID: snapshotID)
         }
         // The open playlist's rows are in the new order now; the next drop counts from them.
         if let detail = shownPlaylistDetail(playlistID) {
@@ -328,16 +316,7 @@ extension PlaylistBrowserViewModel {
         playlistTrackCountEdits[playlistID, default: 0] += 1
         countPlaylistTracks(of: playlistID)
         guard let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
-        let adjusted = MusicPlaylistSummary(
-            id: summary.id,
-            name: summary.name,
-            ownerID: summary.ownerID,
-            ownerName: summary.ownerName,
-            imageURL: summary.imageURL,
-            trackCount: max(0, count + delta),
-            snapshotID: summary.snapshotID,
-            isCollaborative: summary.isCollaborative
-        )
+        let adjusted = summary.with(trackCount: max(0, count + delta))
         playlistsByID[playlistID] = adjusted
         guard let rows = playlistState.currentValue else { return }
         let updated = rows.map { $0.id == playlistID ? PlaylistRowViewModel(adjusted) : $0 }

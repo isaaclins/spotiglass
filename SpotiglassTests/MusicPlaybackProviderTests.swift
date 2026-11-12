@@ -752,7 +752,6 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         return false
     }
 
-    /// Lets the tasks that are ready run, until `condition` holds.
     /// Ends the wait for Spotify's page to answer the press in flight, as if it never answered.
     /// The session's clock is stepped, so a busy machine can't fire it late (#510).
     private static func endAckWait(_ session: PlaybackSessionViewModel, on clock: ManualPlaybackClock) async {
@@ -772,8 +771,14 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         await wait?.value
     }
 
-    private static func settle(until condition: () -> Bool = { false }) async {
-        for _ in 0..<50 where !condition() { await Task.yield() }
+    /// Lets the tasks that are ready run for a moment, for checks that nothing more happens.
+    private static func settle() async {
+        for _ in 0..<50 { await Task.yield() }
+    }
+
+    /// Lets the tasks that are ready run until `condition` holds, however long a busy machine takes.
+    private static func settle(until condition: () -> Bool) async {
+        while !condition() { await Task.yield() }
     }
 
     /// Apple Music: a player whose state is read, and which reports "playing" a while after it

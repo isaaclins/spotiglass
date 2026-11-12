@@ -99,7 +99,9 @@ extension PinnedItem {
         PinnedItem(
             id: id(forKind: .playlist, spotifyID: playlist.id),
             kind: .playlist,
-            title: playlist.name,
+            // As the service sent it, so a pin without a name shows the stand-in in the app's
+            // language and a real name is kept (#547).
+            title: playlist.nameAsSent,
             subtitle: playlist.ownerName,
             artworkURL: playlist.imageURL,
             spotifyURI: "spotify:playlist:\(playlist.id)",
@@ -185,18 +187,31 @@ extension PinnedItem {
     }
 
     /// Virtual Liked Songs metadata is persisted with pins, but its localized
-    /// title and fallback owner must be resolved when the row renders.
+    /// title and fallback owner must be resolved when the row renders. So must the
+    /// stand-in name of an item pinned without one (#547).
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
-        guard kind == .likedSongs else { return title }
-        return SpotiglassL10n.string("pin.likedSongs", locale: locale)
+        switch kind {
+        case .likedSongs: SpotiglassL10n.string("pin.likedSongs", locale: locale)
+        case .playlist: UnnamedMusicItem.displayName(title, kind: .playlist, locale: locale)
+        case .artist: UnnamedMusicItem.displayName(title, kind: .artist, locale: locale)
+        case .album: UnnamedMusicItem.displayName(title, kind: .album, locale: locale)
+        case .track: UnnamedMusicItem.displayName(title, kind: .track, locale: locale)
+        }
     }
 
     func localizedSubtitle(locale: Locale = SpotiglassL10n.locale) -> String {
-        // Apple Music pins saved before #398 stored the English "You".
-        if kind == .playlist {
+        switch kind {
+        case .playlist:
+            // Apple Music pins saved before #398 stored the English "You".
             return AppleMusicItemMapping.localizedOwnerName(subtitle, ownerID: playlistOwnerID, locale: locale)
+        // The label and the artist names were saved in the language the item was pinned in (#547).
+        case .artist:
+            return Self.relabelled(subtitle, key: "browser.palette.subtitle.artist", locale: locale) ?? subtitle
+        case .album, .track:
+            return UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
+        case .likedSongs:
+            break
         }
-        guard kind == .likedSongs else { return subtitle }
         let englishFallback = SpotiglassL10n.string(
             "browser.likedSongs.owner.you",
             locale: Locale(identifier: "en")
@@ -205,6 +220,14 @@ extension PinnedItem {
             return subtitle
         }
         return SpotiglassL10n.string("browser.likedSongs.owner.you", locale: locale)
+    }
+
+    /// `key` in `locale` when `text` is that string in any of the app's languages.
+    private static func relabelled(_ text: String, key: String, locale: Locale) -> String? {
+        let saved = AppLanguage.allCases.contains {
+            SpotiglassL10n.string(key, locale: Locale(identifier: $0.rawValue)) == text
+        }
+        return saved ? SpotiglassL10n.string(key, locale: locale) : nil
     }
 }
 

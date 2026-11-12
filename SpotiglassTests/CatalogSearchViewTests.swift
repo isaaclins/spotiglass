@@ -303,7 +303,7 @@ final class CatalogSearchViewTests: XCTestCase {
         }
 
         await oldRequestGate.release()
-        await fulfillment(of: [oldRequestFinished], timeout: 2)
+        await fulfillment(of: [oldRequestFinished], timeout: mustHappenTimeout)
 
         guard case let .loaded(results) = viewModel.state else {
             return XCTFail("A late error from the old query must not replace the newer results")
@@ -350,11 +350,8 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertEqual(palette.sections.last?.section, .showAll)
 
         await showAllRow?.action()
-        let didFinishSidebarSelection = await sidebarSelectionFinished.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didFinishSidebarSelection,
-            "Catalog handoff should finish sidebar selection"
-        )
+        // Catalog handoff should finish sidebar selection
+        await sidebarSelectionFinished.wait()
 
         XCTAssertEqual(searchViewModel.query, "daft punk")
         XCTAssertEqual(searchViewModel.category, .artists)

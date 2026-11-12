@@ -58,7 +58,14 @@ final class CommandPaletteManager: ObservableObject {
     var unifiedRefresh: (() async -> Void)?
     var selectNextPlaylist: (() async -> Void)?
     var selectPreviousPlaylist: (() async -> Void)?
-    var connectPlayback: (() -> Void)?
+    /// Only a player that is its own connection (Spotify's web player) has one to connect;
+    /// Apple Music plays on this Mac and leaves this unwired (#453).
+    var connectPlayback: (() -> Void)? {
+        didSet {
+            let wired = connectPlayback != nil
+            if canConnectPlayback != wired { canConnectPlayback = wired }
+        }
+    }
     /// Synchronous, so the controls show the new state before any task runs (#437).
     var togglePlayback: (() -> Void)?
     var nextTrack: (() async -> Void)?
@@ -114,6 +121,9 @@ final class CommandPaletteManager: ObservableObject {
     /// Whether Next and Previous Track have a song to skip from: with nothing loaded (the bar
     /// says "Ready to play") they did nothing (#500), so the palette and menu leave them out.
     @Published private(set) var canSkipTrack = false
+    /// Mirrors whether ``connectPlayback`` is wired, so Playback › Connect Playback shows only
+    /// for a player that has a connection (#453).
+    @Published private(set) var canConnectPlayback = false
     /// Mirrors the session's live shuffle state for the Playback menu.
     @Published private(set) var shuffleEnabled = false
     /// Mirrors the session's live repeat mode for the Playback menu.
@@ -433,6 +443,10 @@ final class CommandPaletteManager: ObservableObject {
             }
             if binding.command == CommandPaletteCommandID.popOutLyrics {
                 return popOutLyrics != nil
+            }
+            // Apple Music has no connection to make (#453): the key goes on to the app.
+            if binding.command == CommandPaletteCommandID.connectPlayback {
+                return connectPlayback != nil
             }
             if let service = MusicService(switchCommandID: binding.command) {
                 return switchService != nil && switchableServices.contains(service)

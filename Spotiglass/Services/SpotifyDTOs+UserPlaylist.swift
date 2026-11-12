@@ -50,7 +50,7 @@ struct SpotifyPlaylistDTO: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? "unknown-playlist"
-        name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Untitled playlist"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         owner = try container.decodeIfPresent(SpotifyOwnerDTO.self, forKey: .owner) ?? SpotifyOwnerDTO(id: "unknown-owner", displayName: nil)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         // The February 2026 Web API rename moved playlist track summary from `tracks`

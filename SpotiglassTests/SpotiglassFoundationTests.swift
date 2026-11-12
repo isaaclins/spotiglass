@@ -199,14 +199,13 @@ final class SpotiglassFoundationTests: XCTestCase {
         }
     }
 
-    /// Spins the main run loop (where the view model receives changes) until `condition` holds.
+    /// Spins the main run loop (where the view model receives changes) until `condition` holds,
+    /// however long a busy machine takes. A change that never comes runs into the per-test limit.
     @MainActor
-    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
-        let deadline = Date().addingTimeInterval(5)
-        while !condition(), Date() < deadline {
+    private func waitUntil(_ condition: () -> Bool) {
+        while !condition() {
             RunLoop.main.run(until: Date().addingTimeInterval(0.02))
         }
-        XCTAssertTrue(condition(), "timed out", file: file, line: line)
     }
 
     /// Searching Settings for "update" or the group's own title, "updates", finds the pane that

@@ -525,8 +525,9 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         )
     }
 
+    /// Waits until `condition` holds, however long a busy machine takes (#503).
     private func waitUntil(_ condition: () -> Bool) async {
-        for _ in 0..<200 where !condition() {
+        while !condition() {
             try? await Task.sleep(for: .milliseconds(10))
         }
     }

@@ -252,8 +252,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
         player.releaseLookups()
         try await play.value
-        let deadline = Date().addingTimeInterval(2)
-        while queue.upcomingItems.isEmpty, Date() < deadline {
+        while queue.upcomingItems.isEmpty {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))

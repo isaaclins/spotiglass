@@ -116,7 +116,7 @@ enum SpotifyPlaybackBridgeParser {
         let albumName = rawAlbum.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
         let albumURI = track["albumURI"] as? String
         return PlaybackNowPlaying(
-            name: track["name"] as? String ?? "Unknown track",
+            name: track["name"] as? String ?? "",
             artists: track["artists"] as? [String] ?? [],
             albumName: albumName,
             albumID: Self.spotifyAlbumID(fromAlbumURI: albumURI),

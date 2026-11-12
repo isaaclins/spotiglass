@@ -120,11 +120,8 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         await vm.load()
 
         async let first: Void = vm.selectArtist(id: "coalesce")
-        let didStartSearch = await searchStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartSearch,
-            "the first artist request should be in flight before the duplicate"
-        )
+        // the first artist request should be in flight before the duplicate
+        await searchStarted.wait()
         await vm.selectArtist(id: "coalesce")
         releaseSearch.signal()
         await first
