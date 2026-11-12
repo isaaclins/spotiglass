@@ -186,7 +186,7 @@ extension QueueViewModel {
 }
 
 extension Duration {
-    fileprivate var timeInterval: TimeInterval {
+    var timeInterval: TimeInterval {
         TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 }

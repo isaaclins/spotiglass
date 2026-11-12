@@ -507,6 +507,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         ]
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
+            clock: ManualPlaybackClock(),
             pendingRepeatTimeout: .seconds(5),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -530,6 +531,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         ]
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
+            clock: ManualPlaybackClock(),
             pendingRepeatTimeout: .seconds(5),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -557,6 +559,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         ]
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
+            clock: ManualPlaybackClock(),
             pendingRepeatTimeout: .milliseconds(50),
             postRepeatSyncDelay: .seconds(10)
         )

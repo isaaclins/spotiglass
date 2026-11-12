@@ -60,7 +60,8 @@ final class QueueViewModel: ObservableObject {
     /// once the follow-up round that covers their request has finished.
     var pendingRefreshWaiters: [CheckedContinuation<Void, Never>] = []
     var unchangedPollTickCount = 0
-    var queueCooldownUntil: Date?
+    /// Spotify's rate-limit pause for queue reads, on ``clock`` (a test steps it).
+    var queueCooldownUntil: ContinuousClock.Instant?
     var lastQueuePollingKey: String?
     var queueSessionGeneration: UInt64 = 0
     var queueSessionBoundaryActive = false

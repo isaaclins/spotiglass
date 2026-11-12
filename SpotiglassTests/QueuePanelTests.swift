@@ -934,7 +934,9 @@ final class QueuePanelTests: XCTestCase {
             isPaused: false,
             nextTracks: []
         ))
-        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollJitterFraction: 0, defaultRateLimitCooldownSeconds: 0.3)
+        // The cooldown runs on a clock the test steps, so a slow machine can't end it early.
+        let clock = ManualPlaybackClock()
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollJitterFraction: 0, defaultRateLimitCooldownSeconds: 0.3, clock: clock)
         queue.setPanelVisible(true)
 
         api.errorToThrow = SpotifyAPIError.rateLimited(retryAfter: 0.3)
@@ -947,6 +949,15 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(fetchesAfterFirstFailure, 1)
         XCTAssertEqual(fetchesAfterSecondAttempt, 1, "Manual refresh should yield to cooldown instead of calling Spotify again immediately.")
         XCTAssertEqual(queue.lastError?.title, "Rate limited")
+
+        // The wait is at least a second, whatever Spotify asked for.
+        clock.advance(by: .milliseconds(999))
+        await queue.refreshQueue()
+        XCTAssertEqual(api.actions.filter { $0 == "fetchQueue" }.count, 1, "The cooldown should hold until its last moment.")
+
+        clock.advance(by: .milliseconds(1))
+        await queue.refreshQueue()
+        XCTAssertEqual(api.actions.filter { $0 == "fetchQueue" }.count, 2, "Once the cooldown ends, a refresh should ask Spotify again.")
     }
 
     func testQueuePollingStopsWhenAppBecomesInactive() async {
