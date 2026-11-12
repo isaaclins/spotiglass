@@ -196,15 +196,13 @@ extension PlaylistBrowserViewModel {
             if error as? AppleMusicLibraryEditError == .notEditable {
                 playlistsRefusingReorder.insert(playlistID)
             }
-            // Both services refuse a playlist that changed elsewhere since it was opened, and
-            // Music may stop partway through the moves: either way the screen's order isn't the
-            // service's, and every later drag would be refused the same way, so the list is read
-            // again. So is a list whose read was left out while this save ran: nothing was saved
-            // over what it found.
-            let readLeftOut = playlistsWithReadLeftOut.remove(playlistID) != nil
-            if error is AppleMusicLibraryEditError || error is MusicPlaylistChangedElsewhere || readLeftOut {
-                await showServiceOrder(playlistID: playlistID)
-            }
+            // A failed save may still have changed the playlist (a reply lost after Spotify applied
+            // it, Music stopping partway through its moves), both services refuse a playlist that
+            // changed elsewhere since it was opened, and a read left out while this save ran may
+            // have found changes: the list is read again, in place, so the screen and every later
+            // drag count from the service's order. Offline the read fails and the rows stay back.
+            playlistsWithReadLeftOut.remove(playlistID)
+            await showServiceOrder(playlistID: playlistID)
         }
     }
 

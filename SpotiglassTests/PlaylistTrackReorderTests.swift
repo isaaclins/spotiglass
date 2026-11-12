@@ -629,6 +629,19 @@ final class PlaylistTrackReorderTests: XCTestCase {
         XCTAssertEqual(shownTitles(viewModel), ["One", "Two", "Three", "Four"])
     }
 
+    func testASaveWhoseReplyWasLostShowsTheOrderTheServiceHas() async {
+        let api = ReorderMockAPI()
+        // Spotify applied the move, then the connection dropped before its reply arrived.
+        api.reorderError = URLError(.timedOut)
+        api.namesAfterFailure = ["Four", "One", "Two", "Three"]
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[3].id], toOffset: 0, inPlaylist: "pl1")
+
+        XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"])
+        XCTAssertNotNil(viewModel.trackMutationToast)
+    }
+
     func testADropWhileTheLastOrderIsSavingDoesNothing() async {
         let api = ReorderMockAPI()
         let gate = LibraryEditsGate()

@@ -118,9 +118,14 @@ extension AppleMusicBrowsingProvider {
         reorder: MusicPlaylistReorder,
         snapshotID: String?
     ) async throws -> String? {
-        try await editor.reorderPlaylist(playlistID: playlistID, reorder: reorder)
         // The songs read for counting are in the old order; opening the playlist again showed
-        // them first.
+        // them first. A save that failed partway changed the order too, so they go either way.
+        do {
+            try await editor.reorderPlaylist(playlistID: playlistID, reorder: reorder)
+        } catch {
+            await trackCountCache.forget([playlistID])
+            throw error
+        }
         await trackCountCache.forget([playlistID])
         return nil
     }
