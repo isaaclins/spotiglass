@@ -3727,6 +3727,75 @@
         }
       }
     },
+    "browser.unavailableReason.episode": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episode ist nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Episode is unavailable."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El episodio no está disponible."
+          }
+        }
+      }
+    },
+    "browser.unavailableReason.noPlayableContent": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist-Eintrag hat keinen abspielbaren Inhalt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist item has no playable content."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El elemento de la lista no tiene contenido reproducible."
+          }
+        }
+      }
+    },
+    "browser.unavailableReason.track": {
+      "comment": "Second line of a playlist row Spotify can't play, saying why.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel ist nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track is unavailable."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La canción no está disponible."
+          }
+        }
+      }
+    },
     "browser.unpin": {
       "extractionState": "stale",
       "localizations": {

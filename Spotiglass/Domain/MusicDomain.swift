@@ -52,7 +52,30 @@ enum MusicPlaylistItemContent: Codable, Equatable {
     case track(MusicTrack)
     case episode(MusicEpisode)
     case localTrack(MusicLocalTrack)
-    case unavailable(reason: String)
+    case unavailable(reason: MusicUnavailableReason)
+}
+
+/// Why a playlist entry can't be played. The row turns this into a sentence in the app's
+/// language when it is shown, so the reason must not be stored as display text: rows are
+/// cached on disk and outlive a language switch (#492).
+enum MusicUnavailableReason: String, Codable, Equatable {
+    case track
+    case episode
+    case noPlayableContent
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        if let reason = MusicUnavailableReason(rawValue: value) {
+            self = reason
+            return
+        }
+        // Caches written before #492 stored the English sentence itself.
+        switch value {
+        case "Track is unavailable.": self = .track
+        case "Episode is unavailable.": self = .episode
+        default: self = .noPlayableContent
+        }
+    }
 }
 
 struct MusicArtistRef: Codable, Equatable, Identifiable {
