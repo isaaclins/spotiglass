@@ -167,6 +167,18 @@ memory only, at most 500 per kind and 12 hours) until the library shows them. Re
 seconds after liking it may say "Music on this Mac doesn't have this change yet"; trying again a
 moment later works.
 
+Playlist edits take two ways that don't wait for each other: adds through the Apple Music API come
+back from the cloud, removals (and adds of songs only the Music app knows) change this Mac's
+library through the Music app at once. Each playlist keeps one record: its rows as shown before
+the first edit and every add and remove in order. A read is matched row by row to the playlist
+after some of each way's edits and shown as it will be after all of them, so crossing edits on
+the same song show the right copies in the right order on every read (#393). Removing a copy
+added through the API before the library lists it says "Music on this Mac doesn't have this change
+yet", since the Music app would take another copy of the song out instead. One case can't be told
+apart: when removing a playlist's last song and adding it back leaves the same rows, the record
+stays until it expires, and a change to that song made on another device meanwhile shows once it
+does.
+
 ## Playback
 
 [`AppleMusicPlaybackProvider`](../Spotiglass/Playback/AppleMusicPlaybackProvider.swift)

@@ -26,14 +26,23 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         var requestedAt: Date?
     }
 
+    /// How an edit reaches the library on this Mac. Each way keeps the order of its own edits,
+    /// but the two don't wait for each other: the Music app changes this Mac's library at once,
+    /// while an add through the Apple Music API comes back from the cloud, which took over half an
+    /// hour in testing.
+    enum EditRoute {
+        case api
+        case musicApp
+    }
+
     /// Every add and remove made from Spotiglass in one playlist that the library may not show
     /// yet, in order, over the playlist as it showed before the first of them (#393).
     ///
-    /// The library on this Mac catches up in the order the edits were made, so each read lists
-    /// the playlist as it was after some number of them (its step). A read is matched row by row
-    /// to the first step it lists exactly and shown as the playlist after every edit. Whole rows,
-    /// not counts per song, tell apart steps that list each song equally often in other places:
-    /// a copy removed and added back moves to the end, and so do other songs' copies.
+    /// Each read lists the playlist after some of the API edits and some of the Music app's, the
+    /// first ones of each in the order they were made (its step). A read is matched row by row
+    /// to a step it lists exactly and shown as the playlist after every edit. Whole rows, not
+    /// counts per song, tell apart steps that list each song equally often in other places: a
+    /// copy removed and added back moves to the end, and so do other songs' copies.
     private struct PlaylistEdits {
         /// A row of the playlist after some of the edits.
         enum Entry: Hashable {
@@ -43,9 +52,24 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             case added(Int)
         }
 
+        /// One edit from the browser: everything one add or remove did at once.
         enum Edit {
-            case add(Int)
-            case remove(Entry)
+            case add([Int], EditRoute)
+            /// Removals always go through the Music app.
+            case remove([Entry])
+
+            var route: EditRoute {
+                if case let .add(_, route) = self { return route }
+                return .musicApp
+            }
+        }
+
+        /// How many of each route's edits a read has.
+        struct Step: Hashable {
+            var api = 0
+            var musicApp = 0
+
+            func has(_ other: Step) -> Bool { api >= other.api && musicApp >= other.musicApp }
         }
 
         struct Addition {
@@ -57,24 +81,43 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         let listed: [String]
         var additions: [Addition] = []
         var edits: [Edit] = []
-        /// The earliest step a read may still show: the library never goes back past a step a
-        /// read showed.
-        var shownStep = 0
+        /// The step the latest read showed: the library never goes back past it on either route.
+        var shownStep = Step()
         var at: Date
 
-        func entries(after steps: Int) -> [Entry] {
-            var entries = listed.indices.map(Entry.listed)
-            for edit in edits.prefix(steps) {
-                apply(edit, to: &entries)
-            }
-            return entries
+        var lastStep: Step {
+            Step(api: edits.filter { $0.route == .api }.count, musicApp: edits.filter { $0.route == .musicApp }.count)
         }
 
-        func apply(_ edit: Edit, to entries: inout [Entry]) {
-            switch edit {
-            case let .add(index): entries.append(.added(index))
-            case let .remove(entry): entries.removeAll { $0 == entry }
+        /// Every step, the ones that have `step` first, fewest edits first.
+        func steps(from step: Step) -> [Step] {
+            let last = lastStep
+            let all = (0...last.api).flatMap { api in (0...last.musicApp).map { Step(api: api, musicApp: $0) } }
+            return all.sorted { lhs, rhs in
+                let (lhsLater, rhsLater) = (lhs.has(step), rhs.has(step))
+                if lhsLater != rhsLater { return lhsLater }
+                return lhs.api + lhs.musicApp < rhs.api + rhs.musicApp
             }
+        }
+
+        func entries(after step: Step) -> [Entry] {
+            var entries = listed.indices.map(Entry.listed)
+            var done = Step()
+            for edit in edits {
+                switch edit.route {
+                case .api:
+                    done.api += 1
+                    if done.api > step.api { continue }
+                case .musicApp:
+                    done.musicApp += 1
+                    if done.musicApp > step.musicApp { continue }
+                }
+                switch edit {
+                case let .add(indices, _): entries += indices.map(Entry.added)
+                case let .remove(removed): entries.removeAll(where: removed.contains)
+                }
+            }
+            return entries
         }
 
         func keys(of entry: Entry) -> Set<String> {
@@ -203,17 +246,18 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     /// browser showed it before the edit (pending edits included).
     func recordPlaylistAdditions(
         _ songs: [(track: MusicTrack, reference: AppleMusicSongReference)],
+        route: EditRoute,
         playlistID: String,
         shown: [MusicTrack]
     ) {
         guard !songs.isEmpty else { return }
         locked {
             editPlaylist(playlistID, shown: shown) { playlist in
-                for song in songs {
-                    let keys = song.reference.matchKeys.union([song.track.id, Self.metadataKey(song.track)])
-                    playlist.additions.append(.init(track: song.track, keys: keys))
-                    playlist.edits.append(.add(playlist.additions.count - 1))
+                let first = playlist.additions.count
+                playlist.additions += songs.map { song in
+                    .init(track: song.track, keys: song.reference.matchKeys.union([song.track.id, Self.metadataKey(song.track)]))
                 }
+                playlist.edits.append(.add(Array(first..<playlist.additions.count), route))
             }
         }
     }
@@ -224,8 +268,28 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         guard !positions.isEmpty else { return }
         locked {
             editPlaylist(playlistID, shown: shown) { playlist in
-                let entries = visible(playlist.entries(after: playlist.edits.count), of: playlist)
-                playlist.edits += Set(positions).filter(entries.indices.contains).sorted().map { .remove(entries[$0]) }
+                let entries = visible(playlist.entries(after: playlist.lastStep), of: playlist)
+                playlist.edits.append(.remove(Set(positions).filter(entries.indices.contains).sorted().map { entries[$0] }))
+            }
+        }
+    }
+
+    /// True when one of the rows at `positions` of `shown` is a copy added through the Apple
+    /// Music API that no read has listed yet: the Music app doesn't have it, so removing it
+    /// there would take another copy of the song instead.
+    func isOnItsWayFromTheCloud(_ positions: [Int], playlistID: String, shown: [MusicTrack]) -> Bool {
+        locked {
+            guard let playlist = playlistEdits[playlistID] else { return false }
+            let final = visible(playlist.entries(after: playlist.lastStep), of: playlist)
+            guard final.count == shown.count else { return false }
+            let read = Set(playlist.entries(after: playlist.shownStep))
+            let fromTheAPI = Set(playlist.edits.flatMap { edit -> [Int] in
+                if case let .add(indices, .api) = edit { return indices }
+                return []
+            })
+            return positions.contains { position in
+                guard final.indices.contains(position), case let .added(index) = final[position] else { return false }
+                return fromTheAPI.contains(index) && !read.contains(final[position])
             }
         }
     }
@@ -235,7 +299,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     /// starts over from what is shown.
     private func editPlaylist(_ id: String, shown: [MusicTrack], _ edit: (inout PlaylistEdits) -> Void) {
         var playlist = playlistEdits[id].flatMap { playlist in
-            visible(playlist.entries(after: playlist.edits.count), of: playlist).count == shown.count ? playlist : nil
+            visible(playlist.entries(after: playlist.lastStep), of: playlist).count == shown.count ? playlist : nil
         } ?? PlaylistEdits(listed: shown.map(\.id), at: now())
         playlist.at = now()
         edit(&playlist)
@@ -382,34 +446,31 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 !removedSongs.keys.contains { !$0.isDisjoint(with: track.keys) }
             }
             guard var playlist = playlistEdits[playlistID] else { return result.map(\.track) }
-            let final = visible(playlist.entries(after: playlist.edits.count), of: playlist)
-            // The first step from the last one a read showed that lists exactly these rows.
-            var step = playlist.shownStep
-            var entries = playlist.entries(after: step)
-            var read = visible(entries, of: playlist)
-            while !Self.lists(read, of: playlist, as: result) {
-                guard step < playlist.edits.count else {
-                    // No step lists these rows: the playlist changed elsewhere.
-                    playlistEdits[playlistID] = nil
-                    return result.map(\.track)
-                }
-                playlist.apply(playlist.edits[step], to: &entries)
-                step += 1
-                read = visible(entries, of: playlist)
-            }
-            // From this step on every step lists the rows the edits leave (the read has every
-            // edit, or the rest change nothing it lists): nothing is left to lay over a read.
-            var later = entries
-            let settled = read == final && playlist.edits[step...].allSatisfy { edit in
-                playlist.apply(edit, to: &later)
-                return visible(later, of: playlist) == final
-            }
-            guard !settled else {
+            let last = playlist.lastStep
+            let final = visible(playlist.entries(after: last), of: playlist)
+            // A step that lists exactly these rows, one that has the latest read's first: an older
+            // read finishing late lists an earlier one.
+            let matched = playlist.steps(from: playlist.shownStep).lazy.map { step in
+                (step: step, read: self.visible(playlist.entries(after: step), of: playlist))
+            }.first { Self.lists($0.read, of: playlist, as: result) }
+            guard let (step, read) = matched else {
+                // No step lists these rows: the playlist changed elsewhere.
                 playlistEdits[playlistID] = nil
                 return result.map(\.track)
             }
-            playlist.shownStep = step
-            playlistEdits[playlistID] = playlist
+            if step.has(playlist.shownStep) {
+                // Every step from this one on lists the rows the edits leave (the read has every
+                // edit, or the rest change nothing it lists): nothing is left to lay over a read.
+                let settled = playlist.steps(from: step).filter { $0.has(step) }.allSatisfy { later in
+                    visible(playlist.entries(after: later), of: playlist) == final
+                }
+                guard !settled else {
+                    playlistEdits[playlistID] = nil
+                    return result.map(\.track)
+                }
+                playlist.shownStep = step
+                playlistEdits[playlistID] = playlist
+            }
             let rows = Dictionary(zip(read, result.map(\.track)), uniquingKeysWith: { first, _ in first })
             // A copy the read doesn't have yet. The row of a copy it lists that the edits took out
             // stands in for it, so a read that already has it looks the same as one that doesn't.

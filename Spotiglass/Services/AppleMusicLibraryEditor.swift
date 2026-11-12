@@ -365,7 +365,8 @@ struct AppleMusicLibraryEditor: Sendable {
     ) async throws -> MusicPlaylistSummary {
         let references = try await songReferences(ids: songIDs)
         let id: String
-        switch try Self.route(for: references) {
+        let route = try Self.route(for: references)
+        switch route {
         case let .cloud(songs):
             id = try await cloud.createPlaylist(name: name, songs: songs)
         case let .musicApp(tracks):
@@ -387,7 +388,7 @@ struct AppleMusicLibraryEditor: Sendable {
         for reference in references {
             pending.forgetRemovedSong(reference.matchKeys)
         }
-        await recordAdditions(references, playlistID: id, shownTracks: [])
+        await recordAdditions(references, route: route, playlistID: id, shownTracks: [])
         return summary
     }
 
@@ -398,7 +399,8 @@ struct AppleMusicLibraryEditor: Sendable {
     func addToPlaylist(playlistID: String, songIDs: [String], shownTracks: [MusicTrack] = []) async throws {
         let references = try await songReferences(ids: songIDs)
         guard !references.isEmpty else { throw AppleMusicLibraryEditError.notEditable }
-        switch try Self.route(for: references) {
+        let route = try Self.route(for: references)
+        switch route {
         case let .cloud(songs):
             let cloudID = try await cloudPlaylistID(for: playlistID)
             try await cloud.addToPlaylist(cloudPlaylistID: cloudID, songs: songs)
@@ -410,7 +412,7 @@ struct AppleMusicLibraryEditor: Sendable {
             pending.forgetRemovedSong(reference.matchKeys)
         }
         pending.adjustCreatedPlaylistTrackCount(playlistID, by: references.count)
-        await recordAdditions(references, playlistID: playlistID, shownTracks: shownTracks)
+        await recordAdditions(references, route: route, playlistID: playlistID, shownTracks: shownTracks)
     }
 
     /// How a set of songs gets into a playlist. One route for all of them, so an edit never
@@ -442,7 +444,12 @@ struct AppleMusicLibraryEditor: Sendable {
     }
 
     /// Lays the added songs over later reads of the playlist until the library lists them.
-    private func recordAdditions(_ references: [AppleMusicSongReference], playlistID: String, shownTracks: [MusicTrack]) async {
+    private func recordAdditions(
+        _ references: [AppleMusicSongReference],
+        route: PlaylistAddRoute,
+        playlistID: String,
+        shownTracks: [MusicTrack]
+    ) async {
         let catalogIDs = references.compactMap(\.catalogID)
         let tracks = catalogIDs.isEmpty ? [] : ((try? await lookup.catalogTracks(ids: catalogIDs)) ?? [])
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -451,7 +458,12 @@ struct AppleMusicLibraryEditor: Sendable {
         let added = references.compactMap { reference in
             (reference.catalogID.flatMap { tracksByCatalogID[$0] } ?? reference.shownTrack).map { (track: $0, reference: reference) }
         }
-        pending.recordPlaylistAdditions(added, playlistID: playlistID, shown: shownTracks)
+        let editRoute: AppleMusicPendingLibraryEdits.EditRoute
+        switch route {
+        case .cloud: editRoute = .api
+        case .musicApp: editRoute = .musicApp
+        }
+        pending.recordPlaylistAdditions(added, route: editRoute, playlistID: playlistID, shown: shownTracks)
     }
 
     /// Removes the given occurrences of songs from a playlist through the Music app.
@@ -465,23 +477,24 @@ struct AppleMusicLibraryEditor: Sendable {
     ) async throws {
         let references = try await lookup.songs(ids: removals.map(\.songID)).map(withPendingDetails)
         var scripted: [MusicAppPlaylistRemoval] = []
+        var picked = Set<Int>()
         for (reference, removal) in zip(references, removals) {
             guard let match = reference.musicAppMatch else {
                 throw AppleMusicLibraryEditError.notInMusicYet
             }
             scripted.append(MusicAppPlaylistRemoval(track: match, positions: removal.positions))
-        }
-        guard !scripted.isEmpty else { return }
-        try await musicApp.removeFromPlaylist(try await musicAppPlaylist(for: playlistID), removals: scripted)
-        pending.adjustCreatedPlaylistTrackCount(playlistID, by: -removals.reduce(0) { $0 + $1.positions.count })
-        var picked = Set<Int>()
-        for (reference, removal) in zip(references, removals) {
             // A copy added from Spotiglass shows under another of the song's IDs than the
             // library's rows do: every one of them counts as the song.
             let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
-            let rows = Self.rows(removal.positions, of: shownTracks, where: isSong, besides: picked)
-            picked.formUnion(rows)
+            picked.formUnion(Self.rows(removal.positions, of: shownTracks, where: isSong, besides: picked))
         }
+        guard !scripted.isEmpty else { return }
+        // The Music app would take another copy of the song than the one picked.
+        if pending.isOnItsWayFromTheCloud(Array(picked), playlistID: playlistID, shown: shownTracks) {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
+        try await musicApp.removeFromPlaylist(try await musicAppPlaylist(for: playlistID), removals: scripted)
+        pending.adjustCreatedPlaylistTrackCount(playlistID, by: -removals.reduce(0) { $0 + $1.positions.count })
         pending.recordPlaylistRemoval(at: Array(picked), playlistID: playlistID, shown: shownTracks)
     }
 
