@@ -128,11 +128,18 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         XCTAssertNil(appleManager.connectPlayback)
         XCTAssertFalse(paletteIDs(appleManager).contains(CommandPaletteCommandID.connectPlayback))
         XCTAssertFalse(appleMenu.isConnectPlaybackOffered, "Playback › Connect Playback shows for Apple Music")
+        // In an error the old command restarted the player session (while music plays, `start`
+        // returns early anyway, so only this state shows whether Connect reaches the player).
+        let failure = PlaybackSessionViewModel.playbackHostConnectionTimedOutError()
+        appleMusic.setConnectionState(.error(failure))
+        let appleMusicError = appleMusic.connectionState
+        guard case .error = appleMusicError else { return XCTFail("Apple Music isn't in an error: \(appleMusicError)") }
         XCTAssertFalse(pressConnectShortcut(appleManager), "⇧⌘K is swallowed for a command that does nothing")
         appleManager.execute(commandID: CommandPaletteCommandID.connectPlayback)
-        XCTAssertEqual(appleMusic.connectionState, .ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        XCTAssertEqual(appleMusic.connectionState, appleMusicError)
+        XCTAssertEqual(appleMusic.playbackHostReloadAttemptCount, 0, "Connect restarted the Apple Music session")
 
-        // Spotify keeps Connect Playback in the menu and the palette.
+        // Spotify keeps Connect Playback in the menu, the palette and the shortcut.
         let spotify = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         )
@@ -140,7 +147,11 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         XCTAssertNotNil(spotifyManager.connectPlayback)
         XCTAssertTrue(paletteIDs(spotifyManager).contains(CommandPaletteCommandID.connectPlayback))
         XCTAssertTrue(spotifyMenu.isConnectPlaybackOffered)
+        // ⇧⌘K after an error reloads the web player, as before.
+        spotify.setConnectionState(.error(failure))
         XCTAssertTrue(pressConnectShortcut(spotifyManager))
+        XCTAssertEqual(spotify.connectionState, .connecting)
+        XCTAssertEqual(spotify.playbackHostReloadAttemptCount, 1)
     }
 
     func testApplyWiresCallbacksWithoutHostingView() async throws {
