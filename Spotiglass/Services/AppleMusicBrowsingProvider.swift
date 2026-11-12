@@ -256,7 +256,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             throw AppleMusicBrowsingError.notFound
         }
         if lookingUpRatings { await lookUpRatings(tracks) }
-        return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
+        return AppleMusicItemMapping.playlistItems(
+            applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID, isComplete: tracks.count < total)
+        )
     }
 
     /// A library playlist's tracks from the last read while it provably hasn't changed since

@@ -287,7 +287,7 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         try await editor.removeFromPlaylist(
             playlistID: "-107247429512612591",
             removals: [(songID: "-3017376107758730008", positions: [1])],
-            shownCounts: [1]
+            shownTracks: [Self.track(id: "-1", name: "Other"), Self.track(id: "-3017376107758730008", name: "Song")]
         )
 
         XCTAssertEqual(musicApp.calls, [
@@ -561,7 +561,7 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         let pending = AppleMusicPendingLibraryEdits()
         let song = AppleMusicLibraryEditorTests.track(id: "-30", name: "Twice")
         // The playlist listed the song twice, one was removed.
-        pending.recordPlaylistRemoval(["-30"], removed: 1, shownBefore: 2, playlistID: "-1")
+        pending.recordPlaylistRemoval(at: [1], playlistID: "-1", shown: [song, song])
 
         let stale = [(track: song, keys: Set(["-30"])), (track: song, keys: Set(["-30"]))]
         XCTAssertEqual(pending.applied(toPlaylistTracks: stale, playlistID: "-1").count, 1)
@@ -573,7 +573,9 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
     func testPlaylistAdditionsShowUntilTheLibraryHasThem() {
         let pending = AppleMusicPendingLibraryEdits()
         let added = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth")
-        pending.recordPlaylistAddition(added, reference: AppleMusicSongReference(itemID: "i.9", catalogID: "506650076", isInLibrary: true), playlistID: "-1")
+        pending.recordPlaylistAdditions(
+            [(added, AppleMusicSongReference(itemID: "i.9", catalogID: "506650076", isInLibrary: true))], route: .api, playlistID: "-1", shown: []
+        )
 
         XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1").map(\.id), ["506650076"])
         let caughtUp = [(track: AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth"), keys: Set(["-30", "506650076"]))]
@@ -585,7 +587,7 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         let pending = AppleMusicPendingLibraryEdits()
         let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
         let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
-        pending.recordPlaylistRemoval(["-30"], removed: 1, shownBefore: 2, ordinals: [0], playlistID: "-1")
+        pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: [a, b, a])
 
         let stale = [(track: a, keys: Set(["-30", "first"])), (track: b, keys: Set(["-31"])), (track: a, keys: Set(["-30", "second"]))]
         let shown = pending.applied(toPlaylistTracks: stale, playlistID: "-1")
@@ -602,7 +604,7 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         let pending = AppleMusicPendingLibraryEdits()
         let song = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth")
         let reference = AppleMusicSongReference(itemID: "i.9", catalogID: "506650076", isInLibrary: true)
-        pending.recordPlaylistAddition(song, reference: reference, playlistID: "-1")
+        pending.recordPlaylistAdditions([(song, reference)], route: .api, playlistID: "-1", shown: [])
         XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1").map(\.id), ["506650076"])
 
         pending.recordRemovedSong(reference.matchKeys)
@@ -627,8 +629,8 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         let pending = AppleMusicPendingLibraryEdits()
         let song = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth")
         let reference = AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true)
-        pending.recordPlaylistAddition(song, reference: reference, playlistID: "-1", shownBefore: 1)
         let listed = (track: AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth"), keys: Set(["-30", "506650076"]))
+        pending.recordPlaylistAdditions([(song, reference)], route: .api, playlistID: "-1", shown: [listed.track])
 
         XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").map(\.id), ["-30", "506650076"])
         XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"))
@@ -642,25 +644,20 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         let pending = AppleMusicPendingLibraryEdits()
         let song = AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth", artist: "Santigold")
         let listed = (track: song, keys: Set(["-30", AppleMusicPendingLibraryEdits.metadataKey(song)]))
-        pending.recordPlaylistRemoval(
-            ["-30"],
-            metadataKey: AppleMusicPendingLibraryEdits.metadataKey(name: "Disparate Youth", artist: "Santigold"),
-            removed: 1,
-            shownBefore: 1,
-            playlistID: "-1"
-        )
+        pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: [song])
         XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").count, 0)
 
         // Added back from search, under its catalog ID.
         let catalog = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth", artist: "Santigold")
-        pending.recordPlaylistAddition(
-            catalog,
-            reference: AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true),
-            playlistID: "-1"
+        pending.recordPlaylistAdditions(
+            [(catalog, AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true))],
+            route: .api, playlistID: "-1",
+            shown: []
         )
 
         XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").map(\.id), ["-30"], "stale read")
-        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"), "a read with the removal only must still show the song (#393)")
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1").map(\.id), ["506650076"], "the removal without the re-add")
         let synced = (track: AppleMusicLibraryEditorTests.track(id: "-31", name: "Disparate Youth", artist: "Santigold"),
                       keys: Set(["-31", AppleMusicPendingLibraryEdits.metadataKey(song)]))
         XCTAssertEqual(pending.applied(toPlaylistTracks: [synced], playlistID: "-1").map(\.id), ["-31"], "the library has it again")
@@ -674,7 +671,9 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
             itemID: "i.aJGomv4H36dmrrA", catalogID: "1710983273", cloudLibraryID: "i.aJGomv4H36dmrrA",
             musicAppPersistentID: "367911FB05FE6876", isInLibrary: true
         )
-        pending.recordPlaylistAddition(AppleMusicLibraryEditorTests.track(id: "1710983273", name: "WHERE SHE GOES", artist: "Bad Bunny"), reference: reference, playlistID: "p.new")
+        pending.recordPlaylistAdditions(
+            [(AppleMusicLibraryEditorTests.track(id: "1710983273", name: "WHERE SHE GOES", artist: "Bad Bunny"), reference)], route: .api, playlistID: "p.new", shown: []
+        )
         let listed = AppleMusicLibraryEditorTests.track(id: "3925188320065120374", name: "WHERE SHE GOES", artist: "Bad Bunny")
 
         XCTAssertEqual(reference.musicKitPersistentID, "3925188320065120374")
@@ -687,11 +686,208 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
     func testAnAdditionEndsOnTitleAndArtistAsALastResort() {
         let pending = AppleMusicPendingLibraryEdits()
         let added = AppleMusicLibraryEditorTests.track(id: "699902614", name: "Computer Love")
-        pending.recordPlaylistAddition(added, reference: AppleMusicSongReference(itemID: "699902614", catalogID: "699902614", isInLibrary: false), playlistID: "-1")
+        pending.recordPlaylistAdditions(
+            [(added, AppleMusicSongReference(itemID: "699902614", catalogID: "699902614", isInLibrary: false))], route: .api, playlistID: "-1", shown: []
+        )
         let listed = AppleMusicLibraryEditorTests.track(id: "-77", name: "Computer Love")
 
         let shown = pending.applied(toPlaylistTracks: [(listed, ["-77", AppleMusicPendingLibraryEdits.metadataKey(listed)])], playlistID: "-1")
         XCTAssertEqual(shown.map(\.id), ["-77"])
+    }
+
+    /// Two reads in flight: the newer one is applied first, the older one after it. The older
+    /// read must not end the record and leave the next fresh read without the pending add.
+    func testAnOlderReadFinishingLateDoesNotDropTheRecord() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
+        let c = AppleMusicLibraryEditorTests.track(id: "506650078", name: "C")
+        pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: [a, b])
+        pending.recordPlaylistAdditions(
+            [(c, AppleMusicSongReference(itemID: "506650078", catalogID: "506650078", isInLibrary: true))], route: .api, playlistID: "-1", shown: [b]
+        )
+        let rowA = (track: a, keys: Set(["-30"]))
+        let rowB = (track: b, keys: Set(["-31"]))
+
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [rowB], playlistID: "-1").map(\.name), ["B", "C"], "the newer read")
+        _ = pending.applied(toPlaylistTracks: [rowA, rowB], playlistID: "-1")
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [rowB], playlistID: "-1").map(\.name), ["B", "C"], "the next fresh read")
+    }
+
+    /// Two songs added at once to a playlist of 9,999 rows: a read cut at its 10,000-row limit
+    /// lists only the first of them, which proves nothing about the second.
+    func testAReadCutAtItsLimitKeepsTheRestOfABatchAdd() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<9_999).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        let a = AppleMusicLibraryEditorTests.track(id: "101", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "102", name: "B")
+        pending.recordPlaylistAdditions([
+            (a, AppleMusicSongReference(itemID: "101", catalogID: "101", isInLibrary: true)),
+            (b, AppleMusicSongReference(itemID: "102", catalogID: "102", isInLibrary: true)),
+        ], route: .api, playlistID: "-1", shown: base)
+        // Both additions have arrived, but the caller caps its read at 10,000 rows.
+        let capped = (base + [a]).map { (track: $0, keys: Set([$0.id])) }
+        let result = pending.applied(toPlaylistTracks: capped, playlistID: "-1", isComplete: false)
+        XCTAssertEqual(result.count, 10_001)
+        XCTAssertEqual(result.suffix(2).map(\.name), ["A", "B"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"), "a capped read does not prove B is gone")
+    }
+
+    /// A read that started before the library caught up and finishes after a read that showed
+    /// every edit still shows them.
+    func testALateReadAfterTheLibraryCaughtUpKeepsTheEdits() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "101", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "102", name: "B")
+        pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: [a, b])
+        pending.recordPlaylistAdditions(
+            [(a, AppleMusicSongReference(itemID: "101", catalogID: "101", isInLibrary: true))],
+            route: .api, playlistID: "-1", shown: [b]
+        )
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(b, ["102"]), (a, ["101"])], playlistID: "-1").map(\.name), ["B", "A"])
+        // Another read captured before the two edits completes after the caught-up read.
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(a, ["101"]), (b, ["102"])], playlistID: "-1").map(\.name), ["B", "A"])
+    }
+
+    /// 20 adds and 20 removes in a 10,000-row playlist: the caught-up read is shown as it is.
+    func testABigPlaylistWithManyEditsShowsACaughtUpReadAsItIs() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<10_000).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        var shown = base
+        for i in 0..<20 {
+            let added = AppleMusicLibraryEditorTests.track(id: "added-\(i)", name: "Added \(i)")
+            pending.recordPlaylistAdditions(
+                [(added, AppleMusicSongReference(itemID: added.id, isInLibrary: true))],
+                route: .api, playlistID: "-1", shown: shown
+            )
+            shown.append(added)
+            pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: shown)
+            shown.removeFirst()
+        }
+        let rows = shown.map { (track: $0, keys: Set([$0.id])) }
+        let result = pending.applied(toPlaylistTracks: rows, playlistID: "-1")
+        XCTAssertEqual(result.map(\.id), shown.map(\.id))
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+    }
+
+    // MARK: - Review of #553
+
+    /// A read showed every edit (the record settled), then I add another song within the minute
+    /// the record stays. The new add must keep showing until the library lists it.
+    func testAnEditRightAfterAReadShowedEveryEditKeepsShowing() {
+        final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+        let clock = Clock()
+        let pending = AppleMusicPendingLibraryEdits(now: { clock.now })
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let c = AppleMusicLibraryEditorTests.track(id: "-32", name: "C")
+        let d = AppleMusicLibraryEditorTests.track(id: "506650079", name: "D")
+        // C goes in through the Music app: the next read lists it.
+        pending.recordPlaylistAdditions(
+            [(c, AppleMusicSongReference(itemID: "-32", isInLibrary: true))], route: .musicApp, playlistID: "-1", shown: [a]
+        )
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(a, ["-30"]), (c, ["-32"])], playlistID: "-1").map(\.name), ["A", "C"])
+
+        clock.now += 10
+        // D goes in through the API: the library lists it half an hour later.
+        pending.recordPlaylistAdditions(
+            [(d, AppleMusicSongReference(itemID: "506650079", catalogID: "506650079", isInLibrary: true))],
+            route: .api, playlistID: "-1", shown: [a, c]
+        )
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"), "D is not in the library yet, so counts must apply it")
+
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace
+        XCTAssertEqual(
+            pending.applied(toPlaylistTracks: [(a, ["-30"]), (c, ["-32"])], playlistID: "-1").map(\.name), ["A", "C", "D"],
+            "the add I made a minute ago"
+        )
+    }
+
+    /// I add X through the API. On another device the first song is removed and D added, so
+    /// the playlist has as many rows as my record expects. Removing D then must not hide C.
+    func testAChangeElsewhereThatKeepsTheCountDoesNotMakeARemovalHideAnotherSong() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
+        let c = AppleMusicLibraryEditorTests.track(id: "-32", name: "C")
+        let d = AppleMusicLibraryEditorTests.track(id: "-33", name: "D")
+        let x = AppleMusicLibraryEditorTests.track(id: "506650079", name: "X")
+        pending.recordPlaylistAdditions(
+            [(x, AppleMusicSongReference(itemID: "506650079", catalogID: "506650079", isInLibrary: true))],
+            route: .api, playlistID: "-1", shown: [a, b, c]
+        )
+        let row = { (track: MusicTrack) in (track: track, keys: Set([track.id])) }
+        let shown = pending.applied(toPlaylistTracks: [row(b), row(c), row(d)], playlistID: "-1")
+        XCTAssertEqual(shown.map(\.name), ["B", "C", "D", "X"])
+
+        // I remove D where it is shown; the Music app takes it out at once.
+        pending.recordPlaylistRemoval(at: [2], playlistID: "-1", shown: shown)
+
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [row(b), row(c)], playlistID: "-1").map(\.name), ["B", "C", "X"])
+    }
+
+    /// 20 adds through the API and 20 removals through the Music app in a 10,000-row playlist,
+    /// then a song added on another device: a read that fits no step exactly.
+    func testABigPlaylistWithEditsOnBothRoutesAndARowFromElsewhere() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<10_000).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        var shown = base
+        for i in 0..<20 {
+            let added = AppleMusicLibraryEditorTests.track(id: "added-\(i)", name: "Added \(i)")
+            pending.recordPlaylistAdditions(
+                [(added, AppleMusicSongReference(itemID: added.id, isInLibrary: true))],
+                route: .api, playlistID: "-1", shown: shown
+            )
+            shown.append(added)
+            pending.recordPlaylistRemoval(at: [0], playlistID: "-1", shown: shown)
+            shown.removeFirst()
+        }
+        let elsewhere = AppleMusicLibraryEditorTests.track(id: "elsewhere", name: "Elsewhere")
+        // The library has the removals (Music app, at once) but none of the API adds yet.
+        let rows = ([elsewhere] + base.dropFirst(20)).map { (track: $0, keys: Set([$0.id])) }
+        let result = pending.applied(toPlaylistTracks: rows, playlistID: "-1")
+        XCTAssertEqual(result.count, 10_001)
+        XCTAssertEqual(result.first?.id, "elsewhere", "the row added elsewhere stays where the read has it")
+        XCTAssertEqual(result.suffix(20).map(\.id), (0..<20).map { "added-\($0)" }, "the adds on their way, in order")
+    }
+
+    /// Two songs added through the Music app in one edit: its script appends them one by one, so a
+    /// read that overlaps it can list the first only. Each song shows once.
+    func testAReadWithPartOfABatchAddShowsEachSongOnce() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
+        let c = AppleMusicLibraryEditorTests.track(id: "-32", name: "C")
+        pending.recordPlaylistAdditions([
+            (a, AppleMusicSongReference(itemID: "-30", isInLibrary: true)),
+            (c, AppleMusicSongReference(itemID: "-32", isInLibrary: true)),
+        ], route: .musicApp, playlistID: "-1", shown: [b])
+
+        let read = [(track: b, keys: Set(["-31"])), (track: a, keys: Set(["-30"]))]
+        XCTAssertEqual(pending.applied(toPlaylistTracks: read, playlistID: "-1").map(\.name), ["B", "A", "C"])
+    }
+
+    // MARK: - Third review of #553
+
+    /// A 10,000-row playlist: 30 songs added one by one through the API, then 300 rows removed in
+    /// one multi-select. A read with the removal in shows the rest.
+    func testABigMultiSelectRemovalWithManyPendingAdds() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let base = (0..<10_000).map { AppleMusicLibraryEditorTests.track(id: "row-\($0)", name: "Row \($0)") }
+        let rows = { (tracks: [MusicTrack]) in tracks.map { (track: $0, keys: Set([$0.id])) } }
+        for i in 0..<30 {
+            let shown = pending.applied(toPlaylistTracks: rows(base), playlistID: "-1")
+            let added = AppleMusicLibraryEditorTests.track(id: "added-\(i)", name: "Added \(i)")
+            pending.recordPlaylistAdditions(
+                [(added, AppleMusicSongReference(itemID: added.id, catalogID: added.id, isInLibrary: true))],
+                route: .api, playlistID: "-1", shown: shown.isEmpty ? base : shown
+            )
+        }
+        let shown = pending.applied(toPlaylistTracks: rows(base), playlistID: "-1")
+        XCTAssertEqual(shown.count, 10_030)
+        pending.recordPlaylistRemoval(at: Array(0..<300), playlistID: "-1", shown: shown)
+
+        let result = pending.applied(toPlaylistTracks: rows(Array(base.dropFirst(300))), playlistID: "-1")
+        XCTAssertEqual(result.count, 9_730)
     }
 
     func testEntriesExpire() {
@@ -1146,10 +1342,11 @@ final class AppleMusicProviderEditWiringTests: XCTestCase {
             id: "p.new", name: "Spotiglass test", ownerID: "apple-music-library", ownerName: "You",
             imageURL: nil, trackCount: 0, snapshotID: "applemusic"
         ))
-        pending.recordPlaylistAddition(
-            AppleMusicLibraryEditorTests.track(id: "506650076", name: "Added"),
-            reference: AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true),
-            playlistID: "-1"
+        pending.recordPlaylistAdditions(
+            [(AppleMusicLibraryEditorTests.track(id: "506650076", name: "Added"),
+              AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true))],
+            route: .api, playlistID: "-1",
+            shown: [AppleMusicLibraryEditorTests.track(id: "-30", name: "In playlist")]
         )
 
         let liked = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil)
@@ -1484,7 +1681,8 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
             itemID: "506650076", catalogID: "506650076", musicAppPersistentID: "0000000000000001", isInLibrary: true
         )
 
-        try await editor.removeFromPlaylist(playlistID: "p.new", removals: [(songID: "506650076", positions: [0])], shownCounts: [1])
+        try await editor.removeFromPlaylist(playlistID: "p.new", removals: [(songID: "506650076", positions: [0])],
+                                        shownTracks: [AppleMusicLibraryEditorTests.track(id: "506650076", name: "Song")])
 
         XCTAssertEqual(pending.applied(toPlaylists: []).first?.trackCount, 0, "not the 1 it was created with")
     }
@@ -1994,7 +2192,8 @@ final class AppleMusicLateMusicChangeTests: XCTestCase {
         runner.lateProgress = "4021,4022"
 
         try await editor.removeFromPlaylist(
-            playlistID: playlistID, removals: [(songID: rowID, positions: [0, 3])], shownCounts: [2]
+            playlistID: playlistID, removals: [(songID: rowID, positions: [0, 3])],
+            shownTracks: [rowID, "-1", "-2", rowID].map { AppleMusicLibraryEditorTests.track(id: $0, name: "Song") }
         )
 
         XCTAssertEqual(runner.settled.first?.contains("delete (every track of pl whose id is 4021)\ndelete (every track of pl whose id is 4022)"), true)
@@ -2364,5 +2563,531 @@ private final class RegistryBackedLookup: AppleMusicLibraryLookup, @unchecked Se
     func playlist(id: String) async throws -> AppleMusicPlaylistReference? { try await base.playlist(id: id) }
     func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
         try await base.libraryIdentity(of: reference)
+    }
+}
+
+// MARK: - #393: edits on the same song that cross before MusicKit catches up
+
+/// Additions and removals of one song in one playlist, made through the browser and read back
+/// while the library on this Mac lags: every read shows the copies the edits leave, in order.
+final class AppleMusicCrossingPlaylistEditsTests: XCTestCase {
+    private var lookup: MockLibraryLookup!
+    private var source: EditTestContentSource!
+    private var provider: AppleMusicBrowsingProvider!
+    private var musicApp: MockMusicApp!
+    private final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+    private let clock = Clock()
+
+    private let playlistID = "-107247429512612591"
+    private let songA = "-3017376107758730008"
+    private let songB = "-3017376107758730009"
+
+    override func setUp() {
+        super.setUp()
+        lookup = MockLibraryLookup()
+        let cloud = MockCloudLibrary()
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.test", name: "Spotiglass test")]
+        musicApp = MockMusicApp()
+        let editor = AppleMusicLibraryEditor(
+            lookup: lookup, cloud: cloud, musicApp: musicApp, pending: AppleMusicPendingLibraryEdits(now: { [clock] in clock.now }),
+            songReferences: AppleMusicSongReferenceRegistry()
+        )
+        lookup.playlistsByID[playlistID] = AppleMusicPlaylistReference(name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511")
+        // A library song: the playlist lists it under its persistent ID, the API adds it by its
+        // catalog ID, and the added copy shows as the catalog song until the library has it.
+        lookup.songsByID[songA] = AppleMusicSongReference(
+            itemID: songA, catalogID: "506650076",
+            musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: songA),
+            isInLibrary: true, title: "A", artistName: "Santigold"
+        )
+        lookup.songsByID["506650076"] = lookup.songsByID[songA]
+        lookup.catalogTracksByID["506650076"] = AppleMusicLibraryEditorTests.track(id: "506650076", name: "A", artist: "Santigold")
+        source = EditTestContentSource()
+        provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+    }
+
+    private func library(_ names: String...) throws {
+        source.tracksByPlaylistID[playlistID] = try names.map { name in
+            .song(try AppleMusicFixtures.song(
+                id: name == "A" ? songA : (name == "B" ? songB : "-3017376107758730010"), title: name, artist: "Santigold",
+                catalogID: name == "A" ? "506650076" : (name == "B" ? "506650077" : "506650078")
+            ))
+        }
+    }
+
+    private func shown() async throws -> [String] {
+        try await provider.playlistTracks(playlistID: playlistID, limit: 100, maxPages: 1).compactMap { item in
+            guard case let .track(track) = item.content else { return nil }
+            return track.name
+        }
+    }
+
+    private func expectShown(_ names: [String], _ message: String = "", line: UInt = #line) async throws {
+        let shown = try await shown()
+        XCTAssertEqual(shown, names, message, line: line)
+    }
+
+    private func add(_ id: String) async throws {
+        try await provider.addTracksToPlaylist(playlistID: playlistID, uris: ["applemusic:song:\(id)"])
+    }
+
+    private func remove(_ id: String, at position: Int) async throws {
+        try await provider.removeTracksFromPlaylist(
+            playlistID: playlistID,
+            items: [MusicPlaylistTrackRemoval(uri: "applemusic:song:\(id)", positions: [position])],
+            snapshotID: nil
+        )
+    }
+
+    /// A song added on another device before the library lists my add keeps my add shown.
+    func testASongAddedElsewhereKeepsAPendingAdd() async throws {
+        try library("B")
+        try await add(songA)
+        try await expectShown(["B", "A"])
+        // C arrives from another device before this Mac lists our API addition of A.
+        try library("B", "C")
+        try await expectShown(["B", "C", "A"], "C must not discard our successful add of A")
+        try await expectShown(["B", "C", "A"], "the next read must still include A")
+    }
+
+    /// Sequence 1 of #393: in [A, B] I add another A, then remove the first A before MusicKit
+    /// lists the addition. The playlist is [B, A], whichever of the edits the read has.
+    func testAddingASecondCopyThenRemovingTheFirstShowsBThenA() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try await expectShown(["A", "B", "A"])
+
+        try await remove(songA, at: 0)
+
+        try await expectShown(["B", "A"], "a read from before both edits")
+        try library("A", "B", "A")
+        try await expectShown(["B", "A"], "a read with the addition only")
+        try library("B", "A")
+        try await expectShown(["B", "A"], "the library has caught up")
+        try await expectShown(["B", "A"])
+    }
+
+    /// The same, when the library goes from before both edits straight to after them.
+    func testAddingASecondCopyThenRemovingTheFirstSurvivesACatchUpInOneGo() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try await remove(songA, at: 0)
+        try await expectShown(["B", "A"])
+
+        try library("B", "A")
+
+        try await expectShown(["B", "A"])
+        try await expectShown(["B", "A"])
+        // The record ended with that read: another copy added on another device afterwards shows
+        // as it is.
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace + 1
+        try library("B", "A", "A")
+        try await expectShown(["B", "A", "A"], "a later change made elsewhere")
+    }
+
+    /// Sequence 2 of #393: I remove the only A, then add it back while the read still has the
+    /// old copy. A read that has the removal but not the re-add still shows A.
+    func testRemovingTheOnlyCopyThenAddingItBackKeepsShowingIt() async throws {
+        try library("A", "B")
+        try await remove(songA, at: 0)
+        try await expectShown(["B"])
+
+        try await add(songA)
+
+        try await expectShown(["B", "A"], "a read from before both edits")
+        try library("B")
+        try await expectShown(["B", "A"], "a read with the removal only")
+        try library("B", "A")
+        try await expectShown(["B", "A"], "the library has caught up")
+        // Past the moment reads that started before the catch-up can still finish.
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace + 1
+        try library("B")
+        try await expectShown(["B"], "the record ended once the library had both edits")
+    }
+
+    /// A song listed twice: I remove its first copy and add it back. The library going straight
+    /// from before both edits to after them looks the same by count, but its copies sit
+    /// elsewhere: the read after them is shown as it is, not moved around again.
+    func testRemovingOneOfTwoCopiesThenAddingItBackSurvivesACatchUpInOneGo() async throws {
+        try library("A", "A", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+        try await expectShown(["A", "B", "A"], "a read from before both edits")
+
+        try library("A", "B", "A")
+
+        try await expectShown(["A", "B", "A"], "the library has caught up")
+        try await expectShown(["A", "B", "A"])
+    }
+
+    /// The same with an intermediate read in between, then the rest at once.
+    func testRemovingOneOfTwoCopiesThenAddingItBackShowsEveryStep() async throws {
+        try library("A", "A", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+
+        try library("A", "B")
+        try await expectShown(["A", "B", "A"], "a read with the removal only")
+        try library("A", "B", "A")
+        try await expectShown(["A", "B", "A"], "the library has caught up")
+        // Past the moment reads that started before the catch-up can still finish.
+        clock.now += AppleMusicPendingLibraryEdits.settledGrace + 1
+        try library("A", "B")
+        try await expectShown(["A", "B"], "the record ended once the library had both edits")
+    }
+
+    /// Two songs each listed twice: removing the first A and adding it back, then the library
+    /// catching up in one go, keeps the A that stayed in its place.
+    func testRemovingOneOfTwoCopiesNextToAnotherRepeatedSongKeepsTheOtherCopyInPlace() async throws {
+        try library("A", "A", "B", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+        try await expectShown(["A", "B", "B", "A"])
+        try library("A", "B", "B", "A")
+        try await expectShown(["A", "B", "B", "A"], "caught up without reading the removal")
+        try await expectShown(["A", "B", "B", "A"], "repeat read")
+    }
+
+    /// Two songs each removed and added back: the library catching up in one go lists them in
+    /// the order they were added back.
+    func testTwoSongsRemovedAndAddedBackKeepTheOrderTheyWereAddedIn() async throws {
+        lookup.songsByID[songB] = AppleMusicSongReference(
+            itemID: songB, catalogID: "506650077",
+            musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: songB),
+            isInLibrary: true, title: "B", artistName: "Santigold"
+        )
+        lookup.catalogTracksByID["506650077"] = AppleMusicLibraryEditorTests.track(id: "506650077", name: "B", artist: "Santigold")
+        try library("A", "B", "C")
+        try await remove(songA, at: 0)
+        try await add(songA)
+        try await remove(songB, at: 1)
+        try await add(songB)
+        try await expectShown(["C", "A", "B"])
+        try library("C", "A", "B")
+        try await expectShown(["C", "A", "B"], "all four edits caught up without intermediate reads")
+    }
+
+    /// A removed and added back, then a second copy of B added: the read after all three is
+    /// shown as it is.
+    func testAnotherSongGainingACopyDoesNotMoveTheReAddedSong() async throws {
+        lookup.songsByID[songB] = AppleMusicSongReference(
+            itemID: songB, catalogID: "506650077",
+            musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: songB),
+            isInLibrary: true, title: "B", artistName: "Santigold"
+        )
+        lookup.catalogTracksByID["506650077"] = AppleMusicLibraryEditorTests.track(id: "506650077", name: "B", artist: "Santigold")
+        try library("A", "B")
+        try await remove(songA, at: 0)
+        try await add(songA)
+        try await add(songB)
+        try await expectShown(["B", "A", "B"])
+        try library("B", "A", "B")
+        try await expectShown(["B", "A", "B"], "all three caught up")
+    }
+
+    /// Reordering moments after a read showed every edit: the next read shows the new order,
+    /// not the order the edits were made in.
+    func testReorderingRightAfterTheLibraryCaughtUpShowsTheNewOrder() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try library("A", "B", "A")
+        try await expectShown(["A", "B", "A"], "the library has the addition")
+
+        _ = try await provider.reorderPlaylistTracks(
+            playlistID: playlistID,
+            reorder: MusicPlaylistReorder(order: [2, 0, 1], currentTrackIDs: [songA, songB, songA]),
+            snapshotID: nil
+        )
+        try library("A", "A", "B")
+
+        try await expectShown(["A", "A", "B"])
+    }
+
+    /// The follow-up on #393: an uploaded song (a library `i.` ID with no catalog ID) added to a
+    /// playlist shows there at once, from the library song's own details.
+    func testAnUploadedSongShowsInThePlaylistAtOnce() async throws {
+        // An uploaded file is a library song with no catalog release to name.
+        let uploaded = try AppleMusicFixtures.song(id: "i.uploadedDemo", title: "Demo Take", artist: "Me", persistentID: "4221837312334433019")
+        var reference = MusicKitLibraryLookup.reference(uploaded, identity: AppleMusicSongIdentity(encoding: uploaded), itemID: "i.uploadedDemo", isInLibrary: true)
+        reference.catalogID = nil
+        reference.cloudLibraryID = "i.uploadedDemo"
+        lookup.songsByID["i.uploadedDemo"] = reference
+        try library("B")
+
+        try await add("i.uploadedDemo")
+
+        try await expectShown(["B", "Demo Take"])
+    }
+
+    // MARK: - Adds through the API, removals through the Music app
+
+    private func knowSongB() {
+        lookup.songsByID[songB] = AppleMusicSongReference(
+            itemID: songB, catalogID: "506650077",
+            musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: songB),
+            isInLibrary: true, title: "B", artistName: "Santigold"
+        )
+        lookup.catalogTracksByID["506650077"] = AppleMusicLibraryEditorTests.track(id: "506650077", name: "B", artist: "Santigold")
+    }
+
+    /// The add goes through the API (slow), the removal through the Music app (local): a read can
+    /// have the later removal before the earlier add.
+    func testAnAddStaysWhenALaterRemovalOfAnotherSongReachesTheLibraryFirst() async throws {
+        knowSongB()
+        try library("A", "B")
+        try await add(songA)
+        try await remove(songB, at: 1)
+        try await expectShown(["A", "A"], "a read from before both edits")
+
+        try library("A")
+
+        try await expectShown(["A", "A"], "the Music app removal is in, the API add is not yet")
+    }
+
+    /// Sequence 1 of #393 with the library catching up in the order the routes are fast.
+    func testSequenceOneWhenTheRemovalReachesTheLibraryBeforeTheAdd() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try await remove(songA, at: 0)
+
+        try library("B")
+
+        try await expectShown(["B", "A"], "the Music app removal is in, the API add is not yet")
+    }
+
+    /// Removing a copy added through the API that no read lists yet is refused: the Music app's
+    /// playlist doesn't have it, so its script would take the listed copy out instead.
+    func testRemovingACopyStillOnItsWayFromTheCloudIsRefused() async throws {
+        try library("A", "B")
+        try await add(songA)
+
+        do {
+            try await remove("506650076", at: 2)
+            XCTFail("the removal went through")
+        } catch {
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .notInMusicYet)
+        }
+
+        try await expectShown(["A", "B", "A"], "nothing changed")
+    }
+
+    // MARK: - Review of #553
+
+    private let songC = "-3017376107758730010"
+
+    /// C is a library row the API has no ID for, so adding it goes through the Music app.
+    private func knowSongCOnlyByItsPersistentID() {
+        var reference = AppleMusicSongReference(
+            itemID: songC,
+            musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: songC),
+            isInLibrary: true, title: "C", artistName: "Santigold"
+        )
+        reference.shownTrack = AppleMusicLibraryEditorTests.track(id: songC, name: "C", artist: "Santigold")
+        lookup.songsByID[songC] = reference
+    }
+
+    /// I add A (through the API, slow), then C (through the Music app, at once). A read that has
+    /// C but not A yet shows the copies in the order I added them.
+    func testAnAPIAddThenAMusicAppAddShowBoth() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("B")
+        try await add(songA)
+        try await add(songC)
+        try await expectShown(["B", "A", "C"])
+
+        try library("B", "C")
+
+        try await expectShown(["B", "C", "A"], "the Music app's add is in, the API's is on its way after the rows the read has")
+    }
+
+    /// The same, and I remove C where it is shown: the Music app has C, so it goes through.
+    func testRemovingTheMusicAppsAddWhileTheAPIAddIsOnItsWayWorks() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("B")
+        try await add(songA)
+        try await add(songC)
+        try library("B", "C")
+        let names = try await shown()
+        let position = try XCTUnwrap(names.firstIndex(of: "C"))
+
+        do {
+            try await remove(songC, at: position)
+        } catch {
+            XCTFail("removing C at \(position) of \(names) was refused: \(error)")
+        }
+    }
+
+    /// The same, and I remove A where it is shown: the Music app doesn't have it yet, so it's refused.
+    func testRemovingTheAPIAddWhileTheMusicAppAddIsInIsRefused() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("B")
+        try await add(songA)
+        try await add(songC)
+        try library("B", "C")
+        let names = try await shown()
+        let position = try XCTUnwrap(names.firstIndex(of: "A"))
+
+        do {
+            try await remove("506650076", at: position)
+            XCTFail("removing A at \(position) of \(names) went through: the Music app would take another row")
+        } catch {
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .notInMusicYet)
+        }
+    }
+
+    /// I add A through the API; C is added on another device and the library lists it first.
+    /// Then I remove B: my add of A is still on its way and must keep showing.
+    func testAnEditAfterASongAddedElsewhereKeepsAPendingAdd() async throws {
+        knowSongB()
+        try library("B")
+        try await add(songA)
+        try library("B", "C")
+        try await expectShown(["B", "C", "A"])
+
+        try await remove(songB, at: 0)
+
+        try library("C")
+        try await expectShown(["C", "A"], "the removal is in, my add of A is not yet")
+    }
+
+    /// I add A; once it reached the cloud it is moved to the top on another device, and the
+    /// library on this Mac lists it there. A shows once, not twice for twelve hours.
+    func testAnAddMovedElsewhereShowsOnce() async throws {
+        try library("B")
+        try await add(songA)
+        try await expectShown(["B", "A"])
+
+        try library("A", "B")
+
+        try await expectShown(["A", "B"], "the library lists my add, moved to the top")
+        try await expectShown(["A", "B"], "the next read")
+    }
+
+    /// Once a read lists the added copy, the Music app has it and removing it works.
+    func testRemovingTheCopyJustAddedWorksOnceTheLibraryListsIt() async throws {
+        try library("A", "B")
+        try await add(songA)
+        try library("A", "B", "A")
+        try await expectShown(["A", "B", "A"], "the library has the addition")
+
+        try await remove(songA, at: 2)
+
+        try await expectShown(["A", "B"], "a read from before the removal")
+        try library("A", "B")
+        try await expectShown(["A", "B"])
+    }
+
+    // MARK: - Second review of #553
+
+    /// Rows by name, any song: A, B and C as `library` names them, others under their own IDs.
+    private func libraryRows(_ names: [String]) throws {
+        let ids = ["A": songA, "B": songB, "C": songC]
+        source.tracksByPlaylistID[playlistID] = try names.enumerated().map { _, name in
+            let id = ids[name] ?? "-30173761077587300\(Int(name.unicodeScalars.first!.value))"
+            return .song(try AppleMusicFixtures.song(id: id, title: name, artist: "Santigold", catalogID: "5066\(Int(name.unicodeScalars.first!.value))"))
+        }
+    }
+
+    /// In [C, B] I add A through the API (on its way), then C through the Music app (in at once).
+    /// The view is [C, B, A, C] while the Music app's playlist is [C, B, C]. Removing the C I just
+    /// added must take that copy: the Music app's script reads the position I picked in its own
+    /// playlist, and falls back to the song's first copy when the position isn't the song.
+    func testRemovingAMusicAppAddShownAfterAnAPIAddTakesThatCopyInMusic() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("C", "B")
+        try await add(songA)
+        try await add(songC)
+        try library("C", "B", "C")
+        let names = try await shown()
+        XCTAssertEqual(names, ["C", "B", "C", "A"])
+
+        try await remove(songC, at: 2)
+
+        // The Music app's playlist is [C, B, C]: the copy I picked is its row 2.
+        let call = try XCTUnwrap(musicApp.calls.last)
+        XCTAssertTrue(call.hasSuffix("@[2]])"), "the Music app was told \(call); on its [C, B, C] that takes the first C, not the one I picked")
+    }
+
+    /// [A, B] with my add of a second B on its way. I unlike A (Music takes it out of every
+    /// playlist), then add A back to this playlist. The playlist is [B, B, A].
+    func testASongUnlikedThenAddedBackToAPlaylistWithPendingEditsShowsOnce() async throws {
+        knowSongB()
+        try library("A", "B")
+        try await add(songB)
+        try await expectShown(["A", "B", "B"])
+        try await provider.removeSavedTracks(ids: [songA])
+        try await expectShown(["B", "B"], "A left the playlist with the library")
+
+        try await add(songA)
+
+        try await expectShown(["B", "B", "A"], "a read from before the unlike")
+        try library("B", "B", "A")
+        try await expectShown(["B", "B", "A"], "the library has caught up")
+    }
+
+    /// In [A, B] I add C through the Music app, remove A, then (after a song E was added on another
+    /// device) remove B. The Music app makes these in order, so a read can have the add of C only.
+    func testMusicAppEditsKeepTheirOrderWhenTheRecordMovesOntoARead() async throws {
+        knowSongB()
+        knowSongCOnlyByItsPersistentID()
+        try library("A", "B")
+        try await add(songC)
+        try await remove(songA, at: 0)
+        try libraryRows(["A", "B", "E"])
+        try await expectShown(["B", "E", "C"], "E from elsewhere, none of my edits in yet")
+
+        try await remove(songB, at: 0)
+
+        try libraryRows(["A", "B", "E", "C"])
+        try await expectShown(["E", "C"], "the Music app's add of C is in, its removals are not yet")
+    }
+
+    // MARK: - Third review of #553
+
+    /// [A, B, C] with my add of A on its way. On another device C is moved to the top, and the
+    /// library lists that. The playlist is [C, A, B] with my A after it, as `main` showed it.
+    func testARowMovedElsewhereShowsWhereTheReadHasIt() async throws {
+        try library("A", "B", "C")
+        try await add(songA)
+        try await expectShown(["A", "B", "C", "A"])
+
+        try library("C", "A", "B")
+
+        try await expectShown(["C", "A", "B", "A"], "C was moved to the top on another device")
+    }
+
+    /// [A, B, A] with my add of B on its way. On another device the first A is removed. The
+    /// playlist is [B, A] with my B after it.
+    func testTheFirstCopyRemovedElsewhereKeepsTheOrderOfTheRead() async throws {
+        knowSongB()
+        try library("A", "B", "A")
+        try await add(songB)
+        try await expectShown(["A", "B", "A", "B"])
+
+        try library("B", "A")
+
+        try await expectShown(["B", "A", "B"], "the first A was removed on another device")
+    }
+
+    /// In [C, B] I add A through the API, then C through the Music app: I see [C, B, A, C]. The
+    /// library then lists my API add after the Music app's: [C, B, C, A]. Without reloading, I
+    /// remove the C I added (position 3 of what I see). The view hides the library's row 2 (the
+    /// last C), so the Music app must be told its row 2 too, not the first C.
+    func testARemovalFromAnOlderViewTellsTheMusicAppTheRowItHides() async throws {
+        knowSongCOnlyByItsPersistentID()
+        try library("C", "B")
+        try await add(songA)
+        try await add(songC)
+        try library("C", "B", "C")
+        try await expectShown(["C", "B", "C", "A"])
+        try library("C", "B", "C", "A")
+
+        try await remove(songC, at: 2)
+
+        let call = try XCTUnwrap(musicApp.calls.last)
+        XCTAssertTrue(
+            call.hasSuffix("@[2]])"),
+            "the Music app was told \(call): on its [C, B, C, A] the copy I picked is row 2"
+        )
     }
 }

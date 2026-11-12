@@ -24,21 +24,178 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         let at: Date
         /// When the save was sent, for a song saved to the library: Music's `date added` is later.
         var requestedAt: Date?
-        /// For a playlist addition: how often the playlist lists the song once the library has
-        /// it. A read showing fewer still needs this addition laid over it.
-        var expectedOccurrences = 1
     }
 
-    private struct PlaylistRemoval {
-        let keys: Set<String>
-        /// Title and artist, so adding the song back from elsewhere (under another ID) finds it.
-        let metadataKey: String?
-        /// How many occurrences of the song the playlist keeps after the edit.
-        var expectedRemaining: Int
-        /// Which occurrences were removed (0 = the song's first copy in the list), so a stale
-        /// read hides those and not just the last ones.
-        let ordinals: [Int]
-        let at: Date
+    /// How an edit reaches the library on this Mac. Each way keeps the order of its own edits,
+    /// but the two don't wait for each other: the Music app changes this Mac's library at once,
+    /// while an add through the Apple Music API comes back from the cloud, which took over half an
+    /// hour in testing.
+    enum EditRoute {
+        case api
+        case musicApp
+    }
+
+    /// Every add and remove made from Spotiglass in one playlist that the library may not show
+    /// yet, in order, over the playlist as it showed before the first of them (#393).
+    ///
+    /// Each read lists the playlist after some of the API edits and some of the Music app's, the
+    /// first ones of each in the order they were made (its step). A read is matched to the step it
+    /// fits best and shown as the playlist after every edit: its rows in its order, without the
+    /// ones the edits took out, then the copies it doesn't have yet.
+    private struct PlaylistEdits {
+        /// A row of the playlist after some of the edits.
+        enum Entry: Hashable {
+            /// A row the playlist showed before the first edit, by its place then.
+            case listed(Int)
+            /// A copy added from Spotiglass, by its index in `additions`.
+            case added(Int)
+        }
+
+        /// One edit from the browser: everything one add or remove did at once.
+        enum Edit {
+            case add([Int], EditRoute)
+            /// Removals always go through the Music app.
+            case remove([Entry])
+
+            var route: EditRoute {
+                if case let .add(_, route) = self { return route }
+                return .musicApp
+            }
+        }
+
+        /// How many of each route's edits a read has.
+        struct Step: Hashable {
+            var api = 0
+            var musicApp = 0
+
+            func has(_ other: Step) -> Bool { api >= other.api && musicApp >= other.musicApp }
+        }
+
+        struct Addition {
+            let track: MusicTrack
+            let keys: Set<String>
+        }
+
+        /// A row of a view this record made.
+        enum ViewRow {
+            /// The read's row at this index.
+            case read(Int)
+            /// A copy added from Spotiglass that the read doesn't list yet, by its index in
+            /// `additions`.
+            case pending(Int)
+        }
+
+        /// A view this record made, so an edit can tell which row the browser showed where.
+        struct View {
+            let ids: [String]
+            let rows: [ViewRow]
+            /// The read it was made from: each row's keys and the entry it was paired with (`nil`
+            /// for a row no step explains).
+            let read: [(keys: Set<String>, entry: Entry?)]
+        }
+
+        /// Each row's keys (its ID, title and artist) as the playlist showed them before the
+        /// first edit.
+        let listed: [Set<String>]
+        var additions: [Addition] = []
+        var edits: [Edit] = []
+        /// The step the latest read showed: the library never goes back past it on either route.
+        var shownStep = Step()
+        var at: Date
+        /// When a read showed every edit. The record stays a little longer for reads that started
+        /// before it and finish after it.
+        var settledAt: Date?
+        /// The latest views, newest last.
+        var views: [View] = []
+
+        var lastStep: Step {
+            Step(api: edits.filter { $0.route == .api }.count, musicApp: edits.filter { $0.route == .musicApp }.count)
+        }
+
+        /// Every step, the ones that have `step` first, fewest edits first.
+        func steps(from step: Step) -> [Step] {
+            let last = lastStep
+            let all = (0...last.api).flatMap { api in (0...last.musicApp).map { Step(api: api, musicApp: $0) } }
+            return all.sorted { lhs, rhs in
+                let (lhsLater, rhsLater) = (lhs.has(step), rhs.has(step))
+                if lhsLater != rhsLater { return lhsLater }
+                return lhs.api + lhs.musicApp < rhs.api + rhs.musicApp
+            }
+        }
+
+        /// The edits a read at `step` has, in order.
+        func edits(in step: Step) -> [Edit] {
+            var done = Step()
+            return edits.filter { edit in
+                switch edit.route {
+                case .api:
+                    done.api += 1
+                    return done.api <= step.api
+                case .musicApp:
+                    done.musicApp += 1
+                    return done.musicApp <= step.musicApp
+                }
+            }
+        }
+
+        /// The playlist's rows after `step`: the listed rows left, then the added copies left, in
+        /// the order they were added (removing takes rows out, adding appends).
+        func entries(after step: Step) -> [Entry] {
+            var added: [Entry] = []
+            var removed = Set<Entry>()
+            for edit in edits(in: step) {
+                switch edit {
+                case let .add(indices, _): added += indices.map(Entry.added)
+                case let .remove(entries): removed.formUnion(entries)
+                }
+            }
+            return (listed.indices.map(Entry.listed) + added).filter { !removed.contains($0) }
+        }
+
+        func keys(of entry: Entry) -> Set<String> {
+            switch entry {
+            case let .listed(index): listed[index]
+            case let .added(index): additions[index].keys
+            }
+        }
+
+        /// The record over the read `view` was made from: its rows are the listed ones, rows of it
+        /// the edits took out are taken out again, and copies it doesn't have yet stay pending.
+        /// Also returns the entry of each row of the view.
+        func rebased(on view: View, at now: Date) -> (PlaylistEdits, [Entry]?) {
+            var record = PlaylistEdits(listed: view.read.map(\.keys), at: now)
+            let final = Set(entries(after: lastStep))
+            var readIndex: [Entry: Int] = [:]
+            for (index, row) in view.read.enumerated() {
+                if let entry = row.entry { readIndex[entry] = index }
+            }
+            // The edits the read doesn't show yet, in the order they were made: removals of rows
+            // it still lists, and copies it doesn't have yet.
+            var moved: [Int: Int] = [:]
+            for edit in edits {
+                switch edit {
+                case let .add(indices, route):
+                    let pending = indices.filter { final.contains(.added($0)) && readIndex[.added($0)] == nil }
+                    guard !pending.isEmpty else { continue }
+                    let first = record.additions.count
+                    for index in pending {
+                        moved[index] = record.additions.count
+                        record.additions.append(additions[index])
+                    }
+                    record.edits.append(.add(Array(first..<record.additions.count), route))
+                case let .remove(entries):
+                    let listed = entries.compactMap { readIndex[$0] }.map(Entry.listed)
+                    if !listed.isEmpty { record.edits.append(.remove(listed)) }
+                }
+            }
+            let rows = view.rows.map { row -> Entry? in
+                switch row {
+                case let .read(index): .listed(index)
+                case let .pending(index): moved[index].map(Entry.added)
+                }
+            }
+            return (record, rows.allSatisfy { $0 != nil } ? rows.compactMap { $0 } : nil)
+        }
     }
 
     private let lock = NSLock()
@@ -53,8 +210,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     private var deletedPlaylists: [String: Date] = [:]
     /// Cloud library IDs (`p.…`) learned for library playlists, by the playlist's MusicKit ID.
     private var cloudPlaylistIDs: [String: (cloudID: String, at: Date)] = [:]
-    private var playlistAdditions: [String: [SavedSong]] = [:]
-    private var playlistRemovals: [String: [PlaylistRemoval]] = [:]
+    private var playlistEdits: [String: PlaylistEdits] = [:]
 
     init(now: @escaping @Sendable () -> Date = Date.init) {
         self.now = now
@@ -74,16 +230,21 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     }
 
     /// A song removed from the library: Music also takes it out of every playlist, so pending
-    /// playlist additions of it end too.
+    /// playlist edits leave it out too.
     func recordRemovedSong(_ keys: Set<String>) {
         locked {
             savedSongs.removeAll { !$0.keys.isDisjoint(with: keys) }
-            playlistAdditions = playlistAdditions.compactMapValues { additions in
-                let kept = additions.filter { $0.keys.isDisjoint(with: keys) }
-                return kept.isEmpty ? nil : kept
-            }
             removedSongs[keys] = now()
             trim(&removedSongs)
+            // Music takes it out of every playlist: an edit of each record, so adding the song
+            // back later doesn't bring its old copies back.
+            for (id, var playlist) in playlistEdits {
+                let copies = playlist.entries(after: playlist.lastStep).filter { !playlist.keys(of: $0).isDisjoint(with: keys) }
+                guard !copies.isEmpty else { continue }
+                playlist.edits.append(.remove(copies))
+                playlist.settledAt = nil
+                playlistEdits[id] = playlist
+            }
         }
     }
 
@@ -154,78 +315,160 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             cloudPlaylistIDs[id] = nil
             createdPlaylists.removeAll { $0.summary.id == id }
             renamedPlaylists[id] = nil
-            playlistAdditions[id] = nil
-            playlistRemovals[id] = nil
+            playlistEdits[id] = nil
             deletedPlaylists[id] = now()
             trim(&deletedPlaylists)
         }
     }
 
-    /// `shownBefore` is how often the playlist listed the song before this addition.
-    func recordPlaylistAddition(
-        _ track: MusicTrack,
-        reference: AppleMusicSongReference,
+    /// Records adding these songs at the end of a playlist. `shown` is the playlist as the
+    /// browser showed it before the edit (pending edits included).
+    func recordPlaylistAdditions(
+        _ songs: [(track: MusicTrack, reference: AppleMusicSongReference)],
+        route: EditRoute,
         playlistID: String,
-        shownBefore: Int = 0
+        shown: [MusicTrack]
     ) {
+        guard !songs.isEmpty else { return }
         locked {
-            let keys = reference.matchKeys.union([track.id, Self.metadataKey(track)])
-            // Adding back a song removed moments ago: the playlist keeps one more copy than the
-            // removal expected, which a read can't tell from the old copy. One count, not two edits.
-            if var removals = playlistRemovals[playlistID], let index = removals.firstIndex(where: { removal in
-                !removal.keys.isDisjoint(with: keys) || removal.metadataKey == Self.metadataKey(track)
-            }) {
-                removals[index].expectedRemaining += 1
-                playlistRemovals[playlistID] = removals
-                return
+            editPlaylist(playlistID, shown: shown) { playlist, _ in
+                let first = playlist.additions.count
+                playlist.additions += songs.map { song in
+                    .init(track: song.track, keys: song.reference.matchKeys.union([song.track.id, Self.metadataKey(song.track)]))
+                }
+                let added = Array(first..<playlist.additions.count)
+                // One API request adds every song at once; the Music app adds them one by one, so
+                // a read can list some of them.
+                switch route {
+                case .api: playlist.edits.append(.add(added, .api))
+                case .musicApp: playlist.edits += added.map { .add([$0], .musicApp) }
+                }
             }
-            var additions = playlistAdditions[playlistID] ?? []
-            additions.append(SavedSong(
-                track: track,
-                keys: keys,
-                at: now(),
-                expectedOccurrences: max(0, shownBefore) + 1
-            ))
-            playlistAdditions[playlistID] = Array(additions.suffix(Self.maxEntries))
         }
     }
 
-    /// `shownBefore` is how often the playlist listed the song before the edit (pending
-    /// additions included), `removed` how many of those the edit took out.
-    func recordPlaylistRemoval(
-        _ keys: Set<String>,
-        metadataKey: String? = nil,
-        removed: Int,
-        shownBefore: Int,
-        ordinals: [Int] = [],
-        playlistID: String
-    ) {
-        guard removed > 0 else { return }
+    /// Records removing the rows at `positions` of `shown`, the playlist as the browser showed
+    /// it before the edit (pending edits included).
+    func recordPlaylistRemoval(at positions: [Int], playlistID: String, shown: [MusicTrack]) {
+        guard !positions.isEmpty else { return }
         locked {
-            var remaining = removed
-            var shown = shownBefore
-            // Songs added from Spotiglass and removed again before the library has them only
-            // undo the pending addition.
-            if var additions = playlistAdditions[playlistID] {
-                while remaining > 0, let index = additions.lastIndex(where: { !$0.keys.isDisjoint(with: keys) }) {
-                    additions.remove(at: index)
-                    remaining -= 1
-                    shown -= 1
-                }
-                playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
+            editPlaylist(playlistID, shown: shown) { playlist, rows in
+                // A view the record didn't make can't say which rows these are; the library
+                // shows the removal when it catches up.
+                guard let rows else { return }
+                let picked = Set(positions).filter(rows.indices.contains).sorted().map { rows[$0] }
+                if !picked.isEmpty { playlist.edits.append(.remove(picked)) }
             }
-            guard remaining > 0 else { return }
-            // Undone additions were the last copies; the rest are the removed ones in the read.
-            let readOrdinals = Array(ordinals.sorted().filter { $0 < shown }.prefix(remaining))
-            var removals = (playlistRemovals[playlistID] ?? []).filter { $0.keys.isDisjoint(with: keys) }
-            removals.append(PlaylistRemoval(
-                keys: keys,
-                metadataKey: metadataKey,
-                expectedRemaining: max(0, shown - remaining),
-                ordinals: readOrdinals,
-                at: now()
-            ))
-            playlistRemovals[playlistID] = Array(removals.suffix(Self.maxEntries))
+        }
+    }
+
+    /// True when one of the rows at `positions` of `shown` is a copy added through the Apple
+    /// Music API that no read has listed yet: the Music app doesn't have it, so removing it
+    /// there would take another copy of the song instead.
+    func isOnItsWayFromTheCloud(_ positions: [Int], playlistID: String, shown: [MusicTrack]) -> Bool {
+        locked {
+            let ids = shown.map(\.id)
+            guard let playlist = playlistEdits[playlistID], let view = playlist.views.last(where: { $0.ids == ids }) else {
+                return false
+            }
+            var fromTheAPI = Set<Int>()
+            for case let .add(indices, .api) in playlist.edits {
+                fromTheAPI.formUnion(indices)
+            }
+            return positions.contains { position in
+                guard view.rows.indices.contains(position), case let .pending(index) = view.rows[position] else { return false }
+                return fromTheAPI.contains(index)
+            }
+        }
+    }
+
+    /// Drops the playlist's record, once nothing is pending in it and its rows changed in a way
+    /// the record doesn't follow (a new order).
+    func endPlaylistEdits(_ playlistID: String) {
+        locked { playlistEdits[playlistID] = nil }
+    }
+
+    /// Where the rows at `positions` of `shown` sit in the Music app's own playlist: the rows the
+    /// read lists in its order, without the ones the edits took out, then the copies added
+    /// through the Music app that no read lists yet. Copies on their way from the cloud aren't
+    /// there. `nil` when the record didn't make that view.
+    func musicAppPositions(_ positions: [Int], playlistID: String, shown: [MusicTrack]) -> [Int]? {
+        locked {
+            let ids = shown.map(\.id)
+            guard let playlist = playlistEdits[playlistID], let view = playlist.views.last(where: { $0.ids == ids }) else {
+                return nil
+            }
+            let final = Set(playlist.entries(after: playlist.lastStep))
+            var inMusic: [Int: Int] = [:]
+            var count = 0
+            for (index, row) in view.read.enumerated() where row.entry.map(final.contains) ?? true {
+                inMusic[index] = count
+                count += 1
+            }
+            let pending = Set(view.rows.compactMap { row -> Int? in
+                if case let .pending(index) = row { return index }
+                return nil
+            })
+            var addedInMusic: [Int: Int] = [:]
+            for case let .add(indices, .musicApp) in playlist.edits {
+                for index in indices where pending.contains(index) {
+                    addedInMusic[index] = count
+                    count += 1
+                }
+            }
+            return positions.map { position in
+                guard view.rows.indices.contains(position) else { return position }
+                switch view.rows[position] {
+                case let .read(index): return inMusic[index] ?? position
+                case let .pending(index): return addedInMusic[index] ?? position
+                }
+            }
+        }
+    }
+
+    /// Adds edits to the playlist's record, with the entry of each row of `shown` when the
+    /// record made that view. Rows of it no step explains move the record onto the read the view
+    /// was made from first.
+    private func editPlaylist(
+        _ id: String,
+        shown: [MusicTrack],
+        _ edit: (inout PlaylistEdits, [PlaylistEdits.Entry]?) -> Void
+    ) {
+        let ids = shown.map(\.id)
+        var playlist: PlaylistEdits
+        var rows: [PlaylistEdits.Entry]?
+        if let existing = playlistEdits[id] {
+            playlist = existing
+            if let view = existing.views.last(where: { $0.ids == ids }) {
+                let entries = view.rows.map { row -> PlaylistEdits.Entry? in
+                    switch row {
+                    case let .read(index): view.read[index].entry
+                    case let .pending(index): .added(index)
+                    }
+                }
+                if entries.allSatisfy({ $0 != nil }) {
+                    rows = entries.compactMap { $0 }
+                } else {
+                    (playlist, rows) = existing.rebased(on: view, at: now())
+                }
+            } else {
+                // Edits made one after another with no read between show the record's own rows.
+                let final = existing.entries(after: existing.lastStep).filter { entry in
+                    let keys = existing.keys(of: entry)
+                    return !removedSongs.keys.contains { !$0.isDisjoint(with: keys) }
+                }
+                if final.count == shown.count { rows = final }
+            }
+        } else {
+            playlist = PlaylistEdits(listed: shown.map { [$0.id, Self.metadataKey($0)] }, at: now())
+            rows = shown.indices.map(PlaylistEdits.Entry.listed)
+        }
+        playlist.at = now()
+        playlist.settledAt = nil
+        edit(&playlist, rows)
+        playlistEdits[id] = playlist
+        if playlistEdits.count > Self.maxEntries, let oldest = playlistEdits.min(by: { $0.value.at < $1.value.at }) {
+            playlistEdits[oldest.key] = nil
         }
     }
 
@@ -349,52 +592,211 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    /// One playlist's tracks: songs added from Spotiglass at the end, removed occurrences left
-    /// out, and songs removed from the library left out (Music takes them out of every playlist).
-    func applied(toPlaylistTracks tracks: [(track: MusicTrack, keys: Set<String>)], playlistID: String) -> [MusicTrack] {
+    /// One playlist's tracks: songs added from Spotiglass at the end, removed copies left out,
+    /// and songs removed from the library left out (Music takes them out of every playlist).
+    /// `isComplete` is false when the read stopped at its limit, so rows past it prove nothing.
+    func applied(
+        toPlaylistTracks tracks: [(track: MusicTrack, keys: Set<String>)],
+        playlistID: String,
+        isComplete: Bool = true
+    ) -> [MusicTrack] {
         locked {
             expire()
-            var result = tracks.filter { track in
+            let result = tracks.filter { track in
                 !removedSongs.keys.contains { !$0.isDisjoint(with: track.keys) }
             }
-            if var removals = playlistRemovals[playlistID] {
-                removals.removeAll { removal in
-                    let occurrences = result.indices.filter { !result[$0].keys.isDisjoint(with: removal.keys) }
-                    // The library shows the removal: nothing left to lay over it.
-                    guard occurrences.count > removal.expectedRemaining else { return true }
-                    let hideCount = occurrences.count - removal.expectedRemaining
-                    // The removed copies first; when the read no longer has them all, the last ones.
-                    var hidden = removal.ordinals.filter { $0 < occurrences.count }.prefix(hideCount).map { occurrences[$0] }
-                    for position in occurrences.reversed() where hidden.count < hideCount && !hidden.contains(position) {
-                        hidden.append(position)
-                    }
-                    for position in hidden.sorted(by: >) {
-                        result.remove(at: position)
-                    }
-                    return false
-                }
-                playlistRemovals[playlistID] = removals.isEmpty ? nil : removals
+            guard var playlist = playlistEdits[playlistID] else { return result.map(\.track) }
+            if let settledAt = playlist.settledAt, now().timeIntervalSince(settledAt) > Self.settledGrace {
+                playlistEdits[playlistID] = nil
+                return result.map(\.track)
             }
-            if var additions = playlistAdditions[playlistID] {
-                // An addition ends once the read lists the song as often as the addition expects.
-                additions.removeAll { addition in
-                    tracks.filter { !$0.keys.isDisjoint(with: addition.keys) }.count >= addition.expectedOccurrences
+            let fit = fitting(result, to: playlist, isComplete: isComplete)
+            let final = fit.entries(playlist.lastStep)
+            let paired = fit.pairs(fit.step)
+            let read = Set(paired.compactMap { $0 })
+            let rawView = PlaylistEdits.View(
+                ids: result.map(\.track.id),
+                rows: result.indices.map(PlaylistEdits.ViewRow.read),
+                read: result.indices.map { (result[$0].keys, paired[$0]) }
+            )
+            if fit.step.has(playlist.shownStep) {
+                playlist.shownStep = fit.step
+                // The read has every copy added, and every step from this one on lists the rows
+                // the edits leave: nothing is left to lay over a read.
+                let settled = final.allSatisfy { entry in
+                    if case .added = entry { return read.contains(entry) }
+                    return true
+                } && playlist.steps(from: fit.step).filter { $0.has(fit.step) }.allSatisfy { fit.entries($0) == final }
+                if settled {
+                    if playlist.settledAt == nil { playlist.settledAt = now() }
+                    playlist.views = Array((playlist.views + [rawView]).suffix(Self.keptViews))
+                    playlistEdits[playlistID] = playlist
+                    return result.map(\.track)
                 }
-                playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
-                let shownAdditions = additions.filter { addition in
-                    !removedSongs.keys.contains { !$0.isDisjoint(with: addition.keys) }
-                }
-                return result.map(\.track) + shownAdditions.compactMap(\.track)
+                playlist.settledAt = nil
             }
-            return result.map(\.track)
+            // The read's rows in its order, without the ones the edits took out, then the copies
+            // it doesn't have yet. The row of a copy the edits took out stands in for one of the
+            // same song, so a read that already has it looks the same as one that doesn't.
+            let kept = Set(final)
+            var rows: [PlaylistEdits.ViewRow] = []
+            var shown: [MusicTrack] = []
+            var standIns: [Int] = []
+            for index in result.indices {
+                if let entry = paired[index], !kept.contains(entry) {
+                    standIns.append(index)
+                } else {
+                    rows.append(.read(index))
+                    shown.append(result[index].track)
+                }
+            }
+            for entry in final where !read.contains(entry) {
+                guard case let .added(index) = entry else { continue }
+                let group = fit.group(of: entry)
+                rows.append(.pending(index))
+                if let standIn = standIns.firstIndex(where: { fit.group(ofRow: $0) == group }) {
+                    shown.append(result[standIns.remove(at: standIn)].track)
+                } else {
+                    shown.append(playlist.additions[index].track)
+                }
+            }
+            playlist.views = Array((playlist.views + [.init(ids: shown.map(\.id), rows: rows, read: rawView.read)]).suffix(Self.keptViews))
+            playlistEdits[playlistID] = playlist
+            return shown
         }
+    }
+
+    /// How long a record that a read showed in full stays for reads that started before it.
+    static let settledGrace: TimeInterval = 60
+    /// Views kept per record, for edits made from one the browser shows.
+    private static let keptViews = 4
+
+    /// A read against a record: which song each row and entry is, and the step it fits best.
+    private struct Fit {
+        let playlist: PlaylistEdits
+        let visible: (PlaylistEdits.Entry) -> Bool
+        /// Rows and entries of one song share a group.
+        let entryGroups: [PlaylistEdits.Entry: Int]
+        let rowGroups: [Int]
+        var step = PlaylistEdits.Step()
+
+        func group(of entry: PlaylistEdits.Entry) -> Int { entryGroups[entry] ?? -1 }
+        func group(ofRow index: Int) -> Int { rowGroups[index] }
+
+        func entries(_ step: PlaylistEdits.Step) -> [PlaylistEdits.Entry] {
+            playlist.entries(after: step).filter(visible)
+        }
+
+        /// The entry each row is at `step`: the next one of its song, in order.
+        func pairs(_ step: PlaylistEdits.Step) -> [PlaylistEdits.Entry?] {
+            var queues: [Int: ArraySlice<PlaylistEdits.Entry>] = [:]
+            for entry in entries(step) {
+                queues[group(of: entry), default: []].append(entry)
+            }
+            return rowGroups.map { group in queues[group]?.popFirst() }
+        }
+    }
+
+    /// The step a read fits best. Each step is counted per song first (cheap); among the ones
+    /// that list every song as often as the read, the first whose rows are in the read's order
+    /// wins, else the first that leaves the fewest rows and entries unpaired.
+    private func fitting(_ rows: [(track: MusicTrack, keys: Set<String>)], to playlist: PlaylistEdits, isComplete: Bool) -> Fit {
+        // Songs: every key of a row or entry joins its group.
+        var parent: [String: String] = [:]
+        func root(_ key: String) -> String {
+            var key = key
+            while let next = parent[key], next != key { key = next }
+            return key
+        }
+        func join(_ keys: Set<String>) {
+            guard let first = keys.first else { return }
+            let target = root(first)
+            parent[target] = target
+            for key in keys.dropFirst() {
+                let other = root(key)
+                if other != target { parent[other] = target }
+            }
+        }
+        let allEntries = playlist.listed.indices.map(PlaylistEdits.Entry.listed) + playlist.additions.indices.map(PlaylistEdits.Entry.added)
+        allEntries.forEach { join(playlist.keys(of: $0)) }
+        rows.forEach { join($0.keys) }
+        var groupNumbers: [String: Int] = [:]
+        func number(_ keys: Set<String>) -> Int {
+            guard let first = keys.first else { return -1 }
+            let key = root(first)
+            if let number = groupNumbers[key] { return number }
+            groupNumbers[key] = groupNumbers.count
+            return groupNumbers.count - 1
+        }
+        let hidden = Set(allEntries.filter { entry in
+            let keys = playlist.keys(of: entry)
+            return removedSongs.keys.contains { !$0.isDisjoint(with: keys) }
+        })
+        var fit = Fit(
+            playlist: playlist,
+            visible: { !hidden.contains($0) },
+            entryGroups: Dictionary(uniqueKeysWithValues: allEntries.map { ($0, number(playlist.keys(of: $0))) }),
+            rowGroups: rows.map { number($0.keys) }
+        )
+        // How often the read and the listed rows have each song.
+        var inRead: [Int: Int] = [:]
+        fit.rowGroups.forEach { inRead[$0, default: 0] += 1 }
+        var inListed: [Int: Int] = [:]
+        for index in playlist.listed.indices where !hidden.contains(.listed(index)) {
+            inListed[fit.group(of: .listed(index)), default: 0] += 1
+        }
+        let listedPaired = inListed.reduce(0) { $0 + min($1.value, inRead[$1.key] ?? 0) }
+        let listedCount = inListed.values.reduce(0, +)
+        func misses(_ step: PlaylistEdits.Step) -> Int {
+            var change: [Int: Int] = [:]
+            var count = listedCount
+            var added = Set<Int>()
+            for edit in playlist.edits(in: step) {
+                switch edit {
+                case let .add(indices, _):
+                    for index in indices where !hidden.contains(.added(index)) {
+                        added.insert(index)
+                        change[fit.group(of: .added(index)), default: 0] += 1
+                        count += 1
+                    }
+                case let .remove(entries):
+                    for entry in entries where !hidden.contains(entry) {
+                        if case let .added(index) = entry, !added.contains(index) { continue }
+                        change[fit.group(of: entry), default: 0] -= 1
+                        count -= 1
+                    }
+                }
+            }
+            let paired = listedPaired + change.reduce(0) { sum, item in
+                let (group, change) = item
+                let read = inRead[group] ?? 0, listed = inListed[group] ?? 0
+                return sum + min(read, listed + change) - min(read, listed)
+            }
+            return (rows.count - paired) + (isComplete ? count - paired : 0)
+        }
+        let steps = playlist.steps(from: playlist.shownStep).map { (step: $0, misses: misses($0)) }
+        let inOrder = steps.first { candidate in
+            guard candidate.misses == 0 else { return false }
+            return zip(fit.entries(candidate.step), fit.rowGroups).allSatisfy { fit.group(of: $0) == $1 }
+        }
+        fit.step = (inOrder ?? steps.min { $0.misses < $1.misses })?.step ?? playlist.shownStep
+        return fit
     }
 
     /// True when `playlistID` has edits a read of its tracks has to account for.
     func hasPendingTracks(playlistID: String) -> Bool {
         locked {
             expire()
-            return playlistAdditions[playlistID] != nil || playlistRemovals[playlistID] != nil
+            return playlistEdits[playlistID].map { $0.settledAt == nil } ?? false
+        }
+    }
+
+    /// True when reads of `playlistID` go through `applied(toPlaylistTracks:)`: it has pending
+    /// edits, or a read showed them all moments ago and one that started before may still finish.
+    func laysEditsOver(playlistID: String) -> Bool {
+        locked {
+            expire()
+            return playlistEdits[playlistID] != nil
         }
     }
 
@@ -419,7 +821,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     /// Title and first artist, as a last way to recognise a saved or added song in a read: the
     /// library may list it under an ID this Mac learns only later (a playlist entry's persistent
-    /// ID, or a new cloud library ID). Only ever used to end a pending edit, never to change one.
+    /// ID, or a new cloud library ID). Used to end a pending edit and to tell which rows of a
+    /// playlist read are the same song, never to change the library.
     static func metadataKey(_ track: MusicTrack) -> String {
         metadataKey(name: track.name, artist: track.artists.first)
     }
@@ -444,14 +847,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         renamedPlaylists = renamedPlaylists.filter { $0.value.at >= cutoff }
         deletedPlaylists = deletedPlaylists.filter { $0.value >= cutoff }
         cloudPlaylistIDs = cloudPlaylistIDs.filter { $0.value.at >= cutoff }
-        playlistAdditions = playlistAdditions.compactMapValues { additions in
-            let kept = additions.filter { $0.at >= cutoff }
-            return kept.isEmpty ? nil : kept
-        }
-        playlistRemovals = playlistRemovals.compactMapValues { removals in
-            let kept = removals.filter { $0.at >= cutoff }
-            return kept.isEmpty ? nil : kept
-        }
+        playlistEdits = playlistEdits.filter { $0.value.at >= cutoff }
     }
 
     private func trim<Key>(_ entries: inout [Key: Date]) {

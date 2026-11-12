@@ -342,10 +342,12 @@ final class PlaylistTrackReorderTests: XCTestCase {
         // A song added through Apple Music moments ago shows under its catalog ID, which reads like
         // a persistent ID; Music's playlist can't match the screen until the library has it.
         let pending = AppleMusicPendingLibraryEdits()
-        pending.recordPlaylistAddition(
-            AppleMusicLibraryEditorTests.track(id: "1440857781", name: "Added"),
-            reference: AppleMusicSongReference(itemID: "1440857781", catalogID: "1440857781", isInLibrary: false),
-            playlistID: "5152964197617224883"
+        pending.recordPlaylistAdditions(
+            [(AppleMusicLibraryEditorTests.track(id: "1440857781", name: "Added"),
+              AppleMusicSongReference(itemID: "1440857781", catalogID: "1440857781", isInLibrary: false))],
+            route: .api,
+            playlistID: "5152964197617224883",
+            shown: []
         )
         let editorWithPending = AppleMusicLibraryEditor(
             lookup: MockLibraryLookup(),
