@@ -58,9 +58,16 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
     /// #453: with Apple Music, Playback › Connect Playback (⇧⌘K) and the palette's "Connect
     /// Spotiglass playback device" were still offered. Apple Music plays on this Mac, so there is
     /// nothing to connect, and running it restarted the player session. Spotify keeps it.
-    func testConnectPlaybackIsOfferedOnlyForAPlayerWithAConnection() {
-        func wire(_ playback: PlaybackSessionViewModel, service: MusicService) -> (CommandPaletteManager, SpotiglassMenuCommands) {
-            let manager = CommandPaletteManager()
+    func testConnectPlaybackIsOfferedOnlyForAPlayerWithAConnection() throws {
+        func wire(_ playback: PlaybackSessionViewModel, service: MusicService) throws -> (CommandPaletteManager, SpotiglassMenuCommands) {
+            let keymap = CommandPaletteKeymapStore(settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()))
+            try keymap.setBinding(
+                commandID: CommandPaletteCommandID.connectPlayback,
+                shortcut: try CommandShortcut(keystroke: "shift-cmd-k"),
+                replaceConflicting: true
+            )
+            let manager = CommandPaletteManager(keymapStore: keymap)
+            manager.isSignedIn = true
             PlaylistBrowserCommandPaletteConfiguration.apply(
                 to: manager,
                 dependencies: .init(
@@ -101,6 +108,15 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         func paletteIDs(_ manager: CommandPaletteManager) -> Set<String> {
             Set(manager.viewModel.staticItemsProvider().map(\.id))
         }
+        // ⇧⌘K from the key monitor; `true` means the app took the keypress for Connect.
+        func pressConnectShortcut(_ manager: CommandPaletteManager) -> Bool {
+            let event = NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+                windowNumber: 0, context: nil, characters: "K", charactersIgnoringModifiers: "k",
+                isARepeat: false, keyCode: 40
+            )!
+            return manager.handleKeyEvent(event)
+        }
 
         // Apple Music, playing: neither the menu, the palette nor the shortcut offers Connect,
         // and running the command anyway leaves the music alone.
@@ -108,10 +124,11 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         appleMusic.deviceID = AppleMusicPlaybackProvider.deviceID
         appleMusic.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
         appleMusic.setConnectionState(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
-        let (appleManager, appleMenu) = wire(appleMusic, service: .appleMusic)
+        let (appleManager, appleMenu) = try wire(appleMusic, service: .appleMusic)
         XCTAssertNil(appleManager.connectPlayback)
         XCTAssertFalse(paletteIDs(appleManager).contains(CommandPaletteCommandID.connectPlayback))
         XCTAssertFalse(appleMenu.isConnectPlaybackOffered, "Playback › Connect Playback shows for Apple Music")
+        XCTAssertFalse(pressConnectShortcut(appleManager), "⇧⌘K is swallowed for a command that does nothing")
         appleManager.execute(commandID: CommandPaletteCommandID.connectPlayback)
         XCTAssertEqual(appleMusic.connectionState, .ready(deviceID: AppleMusicPlaybackProvider.deviceID))
 
@@ -119,10 +136,11 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         let spotify = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         )
-        let (spotifyManager, spotifyMenu) = wire(spotify, service: .spotify)
+        let (spotifyManager, spotifyMenu) = try wire(spotify, service: .spotify)
         XCTAssertNotNil(spotifyManager.connectPlayback)
         XCTAssertTrue(paletteIDs(spotifyManager).contains(CommandPaletteCommandID.connectPlayback))
         XCTAssertTrue(spotifyMenu.isConnectPlaybackOffered)
+        XCTAssertTrue(pressConnectShortcut(spotifyManager))
     }
 
     func testApplyWiresCallbacksWithoutHostingView() async throws {

@@ -444,6 +444,10 @@ final class CommandPaletteManager: ObservableObject {
             if binding.command == CommandPaletteCommandID.popOutLyrics {
                 return popOutLyrics != nil
             }
+            // Apple Music has no connection to make (#453): the key goes on to the app.
+            if binding.command == CommandPaletteCommandID.connectPlayback {
+                return connectPlayback != nil
+            }
             if let service = MusicService(switchCommandID: binding.command) {
                 return switchService != nil && switchableServices.contains(service)
             }
