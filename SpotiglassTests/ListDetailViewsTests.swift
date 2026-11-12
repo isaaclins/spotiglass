@@ -592,21 +592,24 @@ final class ListDetailViewsTests: XCTestCase {
         }
     }
 
+    private func firstVisible(_ ids: [String], realized: Set<String>) -> String? {
+        TrackListVisibility.firstVisibleTrackID(realized: realized, positions: TrackListVisibility.positions(of: visibilityRows(ids)))
+    }
+
     func testFirstVisibleTrackIDPicksTheTopmostRealizedRow() {
-        let rows = visibilityRows(["x", "a", "b", "l"])
-        XCTAssertEqual(TrackListVisibility.firstVisibleTrackID(in: rows, realized: ["l", "a", "b"]), "a")
-        XCTAssertEqual(TrackListVisibility.firstVisibleTrackID(in: rows, realized: ["l"]), "l")
+        XCTAssertEqual(firstVisible(["x", "a", "b", "l"], realized: ["l", "a", "b"]), "a")
+        XCTAssertEqual(firstVisible(["x", "a", "b", "l"], realized: ["l"]), "l")
     }
 
     func testFirstVisibleTrackIDFollowsRowsDraggedToANewSpot() {
         // A was the top row; dragged to the end it keeps its identity and doesn't appear again.
         let realized: Set<String> = ["a", "b", "c"]
-        XCTAssertEqual(TrackListVisibility.firstVisibleTrackID(in: visibilityRows(["a", "b", "c"]), realized: realized), "a")
-        XCTAssertEqual(TrackListVisibility.firstVisibleTrackID(in: visibilityRows(["b", "c", "a"]), realized: realized), "b")
+        XCTAssertEqual(firstVisible(["a", "b", "c"], realized: realized), "a")
+        XCTAssertEqual(firstVisible(["b", "c", "a"], realized: realized), "b")
     }
 
     func testFirstVisibleTrackIDIsNilWhenNothingIsVisible() {
-        XCTAssertNil(TrackListVisibility.firstVisibleTrackID(in: visibilityRows(["a"]), realized: []))
+        XCTAssertNil(firstVisible(["a"], realized: []))
     }
 
     // MARK: - Playlist detail

@@ -338,6 +338,16 @@ final class PlaylistTrackReorderTests: XCTestCase {
             XCTAssertEqual(error as? AppleMusicLibraryEditError, .notInMusicYet)
         }
         XCTAssertEqual(musicApp.calls.count, 1, "nothing was sent for it")
+
+        // A playlist Music can't find yet (synced moments ago) reads as not in Music yet, not as
+        // one Music won't edit: only that stops the playlist offering dragging.
+        do {
+            try await editor.reorderPlaylist(playlistID: "p.NotInMusicYet", reorder: MusicPlaylistReorder(order: [1, 0], currentTrackIDs: ids))
+            XCTFail("expected notInMusicYet")
+        } catch {
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .notInMusicYet)
+        }
+        XCTAssertEqual(musicApp.calls.count, 1)
     }
 
     // MARK: - The browser
@@ -530,7 +540,8 @@ final class PlaylistTrackReorderTests: XCTestCase {
         readGate.open()
         await reopen.value
 
-        XCTAssertEqual(shownTitles(viewModel).count, 4, "the page shows the playlist instead of loading for good")
+        // The read that began before the save ended lists the old order; the page reads it again.
+        XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"], "the page shows the saved order, not loading for good")
     }
 
     func testAPlaylistChangedElsewhereShowsTheServiceOrder() async {
@@ -666,6 +677,7 @@ private final class ReorderMockAPI: MusicBrowsingProvider, @unchecked Sendable {
         }
         reorders.append(reorder)
         reorderSnapshots.append(snapshotID)
+        names = reorder.order.map { names[$0] }
         return "snap-\(reorders.count + 1)"
     }
 

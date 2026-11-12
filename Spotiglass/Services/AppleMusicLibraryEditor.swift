@@ -511,11 +511,15 @@ struct AppleMusicLibraryEditor: Sendable {
             }
             return persistentID
         }
-        try await musicApp.reorderPlaylist(
-            try await musicAppPlaylist(for: playlistID),
-            expectedPersistentIDs: expected,
-            moveToEnd: moves
-        )
+        // Music not finding the playlist yet (synced moments ago) is not Music refusing it as one
+        // it can't edit (a smart playlist): the browser stops offering dragging only for that.
+        let playlist: MusicAppPlaylistMatch
+        do {
+            playlist = try await musicAppPlaylist(for: playlistID)
+        } catch AppleMusicLibraryEditError.notEditable {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
+        try await musicApp.reorderPlaylist(playlist, expectedPersistentIDs: expected, moveToEnd: moves)
     }
 
     func renamePlaylist(playlistID: String, name: String) async throws {

@@ -116,7 +116,10 @@ struct TrackListView<Row: View>: View {
             }
             // Rows that change places (a reorder) don't appear again, so the topmost one is
             // worked out anew from the rows' new order.
-            .onChange(of: tracks) { reportFirstVisibleTrack() }
+            .onChange(of: tracks, initial: true) {
+                realizedRows.positionByTrackID = TrackListVisibility.positions(of: tracks)
+                reportFirstVisibleTrack()
+            }
             .onChange(of: pendingScrollRestoreTrackID) { _, newValue in
                 guard let id = newValue else { return }
                 if tracks.contains(where: { $0.id == id }) {
@@ -137,7 +140,7 @@ struct TrackListView<Row: View>: View {
     }
 
     private func reportFirstVisibleTrack() {
-        guard let id = TrackListVisibility.firstVisibleTrackID(in: tracks, realized: realizedRows.trackIDs),
+        guard let id = TrackListVisibility.firstVisibleTrackID(realized: realizedRows.trackIDs, positions: realizedRows.positionByTrackID),
               id != realizedRows.lastReportedFirstVisibleTrackID
         else { return }
         realizedRows.lastReportedFirstVisibleTrackID = id
@@ -152,15 +155,20 @@ struct TrackListView<Row: View>: View {
 @MainActor
 final class TrackListRealizedRows {
     var trackIDs: Set<String> = []
+    /// Each row's place in the list, built again when the rows change.
+    var positionByTrackID: [String: Int] = [:]
     var lastReportedFirstVisibleTrackID: String?
 }
 
-/// Picks the topmost row out of the rows the table currently has on hand: the
-/// first of `tracks`, in their current order, that is realized. Realized rows sit
-/// around the viewport, so the walk stops there.
+/// Picks the topmost row out of the rows the table currently has on hand, by
+/// their places in the list as it is now. Only the realized rows are looked at,
+/// about a viewport of them, however long the list.
 enum TrackListVisibility {
-    static func firstVisibleTrackID(in tracks: [TrackRowViewModel], realized: Set<String>) -> String? {
-        guard !realized.isEmpty else { return nil }
-        return tracks.first { realized.contains($0.id) }?.id
+    static func positions(of tracks: [TrackRowViewModel]) -> [String: Int] {
+        Dictionary(tracks.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    static func firstVisibleTrackID(realized: Set<String>, positions: [String: Int]) -> String? {
+        realized.min { (positions[$0] ?? .max, $0) < (positions[$1] ?? .max, $1) }
     }
 }
