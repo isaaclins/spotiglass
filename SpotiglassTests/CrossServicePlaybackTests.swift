@@ -450,6 +450,10 @@ final class CrossServicePlaybackTests: XCTestCase {
             )
             manager.bindPlaybackReadiness(to: playback)
             await waitUntil("Piranguera's lyrics looked up, \(label)", changes: lookups) { looked == ["Piranguera"] }
+            // Piranguera's own load ends first, so the `.loading` below can only be the wait for
+            // the next song.
+            let lyricsModel = try XCTUnwrap(lyricsOverlay.lyricsModel, label)
+            await waitUntil("Piranguera's lyrics loaded, \(label)", changes: lyricsModel.$phase) { lyricsModel.phase != .loading }
 
             // Play a Spotify song from the palette.
             let strobeURI = "spotify:track:strobe-\(UUID().uuidString)"
@@ -467,9 +471,7 @@ final class CrossServicePlaybackTests: XCTestCase {
             }
             XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too, \(label)")
             // The lyrics take up the wait for Spotify's song: the same step closes them when no
-            // song is coming.
-            // It ends on that, or at once on the lyrics closing, which fails below.
-            let lyricsModel = try XCTUnwrap(lyricsOverlay.lyricsModel, label)
+            // song is coming. It ends on that, or at once on the lyrics closing, which fails below.
             await waitUntil(
                 "the lyrics waiting for the song, \(label)",
                 changes: lyricsModel.$phase.map { _ in }.merge(with: lyricsOverlay.$isPresented.map { _ in })

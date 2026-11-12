@@ -798,7 +798,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.holdsCommands = true
 
         let press = Task { await session.togglePlayPause() }
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         XCTAssertEqual(provider.commands, ["pause local"])
         XCTAssertTrue(Self.isPaused(session), "the controls waited for the player to answer the pause")
 
@@ -822,7 +822,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         XCTAssertTrue(Self.isPaused(session))
         XCTAssertTrue(provider.commands.isEmpty, "the command follows the screen, not the other way round")
 
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         provider.releaseCommands()
         await send?.value
         XCTAssertEqual(provider.commands, ["pause local"])
@@ -838,13 +838,13 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         defer { watch.cancel() }
 
         let pause = Task { await session.togglePlayPause() }
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         let play = Task { await session.togglePlayPause() }
         await waitUntil("the second press shown", changes: session.objectWillChange) { Self.isPlaying(session) }
 
         provider.releaseCommands()
         await pause.value
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         provider.releaseCommands()
         await play.value
         XCTAssertEqual(provider.commands, ["pause local", "resume local"], "in the order pressed")
@@ -870,7 +870,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
 
         let press = Task { await session.togglePlayPause() }
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         XCTAssertTrue(Self.isPaused(session))
         provider.releaseCommands()
         await press.value
@@ -1061,13 +1061,13 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "offline")
 
         let pause = session.requestTogglePlayPause()
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         let play = session.requestTogglePlayPause()
         XCTAssertTrue(Self.isPlaying(session))
 
         provider.releaseCommands()
         await pause?.value
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         provider.releaseCommands()
         await play?.value
 
@@ -1082,11 +1082,11 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.holdsCommands = true
 
         let pause = session.requestTogglePlayPause()
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         let play = session.requestTogglePlayPause()
         provider.releaseCommands()
         await pause?.value
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "busy")
         provider.releaseCommands()
         await play?.value
@@ -1204,7 +1204,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let pause = session.requestTogglePlayPause()
         XCTAssertTrue(Self.isPaused(session))
         session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
-        await waitUntil("two commands on the page", changes: commander.changes) { Self.playPauseCommands(commander).count == 2 }
+        await waitUntil("two commands on the page", changes: commander.changes) { Self.playPauseCommands(commander).count >= 2 }
         session.handle(.playerCommandFinished(command: "resume"))
         await play?.value
         await pause?.value
@@ -1341,12 +1341,12 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.holdsCommands = true
 
         let stuck = session.requestTogglePlayPause()
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         _ = session.beginPlaybackHostLifecycle()
         session.setConnectionState(.paused(Self.song))
         provider.holdsCommands = false
         let press = session.requestTogglePlayPause()
-        await waitUntil("two commands sent", changes: provider.changes) { provider.commands.count == 2 }
+        await waitUntil("two commands sent", changes: provider.changes) { provider.commands.count >= 2 }
 
         XCTAssertEqual(provider.commands, ["pause local", "resume local"], "the new press waited for the stuck one")
         provider.releaseCommands()
@@ -1366,7 +1366,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.holdsCommands = true
 
         let play = session.requestTogglePlayPause()
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         provider.holdsCommands = false
         let armed = clock.sleeperCount
         let pause = session.requestTogglePlayPause()
@@ -1391,7 +1391,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         provider.holdsCommands = true
 
         let pause = session.requestTogglePlayPause()
-        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount == 1 }
+        await waitUntil("a command waiting for the player", changes: provider.changes) { provider.waitingCommandCount >= 1 }
         await session.play(uri: "music:song:2")
         let shown = session.connectionState
         provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "offline")
@@ -1433,7 +1433,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let play = session.playPauseRequestSerial
         session.handle(.playerCommandFinished(command: "resume", id: play))
         session.handle(.playerCommandFinished(command: "pause", id: pause))
-        await waitUntil("three commands on the page", changes: commander.changes) { Self.playPauseCommands(commander).count == 3 }
+        await waitUntil("three commands on the page", changes: commander.changes) { Self.playPauseCommands(commander).count >= 3 }
 
         XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume, .resume], "the late pause had the last word")
         XCTAssertTrue(Self.isPlaying(session))

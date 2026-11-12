@@ -846,6 +846,7 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.toggleShuffle()
 
+        XCTAssertTrue(api.actions.contains { $0.hasPrefix("setShuffle:") }, "the shuffle was never tried")
         XCTAssertEqual(queue.upcomingItems.map(\.id), original)
         XCTAssertFalse(playback.shuffleEnabled)
     }

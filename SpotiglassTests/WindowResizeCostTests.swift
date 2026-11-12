@@ -137,10 +137,12 @@ final class WindowResizeCostTests: XCTestCase {
             if step == steps - 1 {
                 // At the narrowest step the browser must have taken the new width: its sidebar
                 // limit follows the committed width, so a resize that never reached it can't pass.
-                AppKitTestSupport.pumpRunLoop(for: 0.15)
-                let narrowLimit = Self.sidebarMaximumThickness(in: content)
+                // However late a busy Mac commits it (#535).
                 XCTAssertNotNil(wideLimit, "no sidebar split item", file: file, line: line)
-                XCTAssertLessThan(narrowLimit ?? .infinity, (wideLimit ?? 0) - 100, "the resize never reached the browser", file: file, line: line)
+                let narrowed = AppKitTestSupport.pumpRunLoop(until: {
+                    (Self.sidebarMaximumThickness(in: content) ?? .infinity) < (wideLimit ?? 0) - 100
+                })
+                XCTAssertTrue(narrowed, "the resize never reached the browser", file: file, line: line)
             }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)

@@ -127,16 +127,14 @@ final class RootViewTests: XCTestCase {
         ))
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
         ViewTestHost.host(root)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+        // SwiftUI applies each change on a later pass of the run loop, however late (#535).
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { playbackHost.playbackViewModel.refusesNewPlayback }))
 
         services.activate(.spotify)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertFalse(playbackHost.playbackViewModel.refusesNewPlayback)
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { !playbackHost.playbackViewModel.refusesNewPlayback }))
 
         services.activate(.appleMusic)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { playbackHost.playbackViewModel.refusesNewPlayback }))
     }
 
     /// Spotify's sign-in screen after its session lapsed, with Apple Music added too: Disconnect
