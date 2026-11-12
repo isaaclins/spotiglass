@@ -322,6 +322,22 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// restore before the session reads that player again (#430).
     let passingErrorRecoveryDelay: Duration
     var passingErrorRecoveryTask: Task<Void, Never>?
+    /// The command whose failure is on screen with Retry: what Retry sends again (#451).
+    /// Any other state, or another error, drops it.
+    var failedCommand: FailedPlaybackCommand?
+    /// How many Retries are sending a failed command again: a second click on the same Retry
+    /// does nothing until they finish.
+    var failedCommandResendsInFlight = 0
+    /// The last play whose song the player reported: its request failing after that lost only
+    /// the answer, so Retry doesn't send it again.
+    var confirmedPlayCommandID: UInt64?
+    /// A play of the song that was already playing: reports of that song can't confirm it.
+    var playCommandIDStartedOnItsSong: UInt64?
+    /// Counts the commands sent, so a failure can tell whether a newer one went out meanwhile.
+    var controlCommandSerial: UInt64 = 0
+    /// Whether the command that failed last was replaced by a newer one while it was out: Retry
+    /// must not send it over what came after.
+    var lastFailedControlCommandWasReplaced = false
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
@@ -535,6 +551,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         let expectedPreviousURI: String?
         let startedAt: ContinuousClock.Instant
         var observedAdvance = false
+        /// A play was still landing when the skip went out: a change of song may be that play.
+        var playWasPending = false
         var lockoutDeadline: ContinuousClock.Instant?
     }
 
@@ -1118,6 +1136,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     func setConnectionState(_ newState: PlaybackConnectionState) {
+        failedCommand = nil
         let state = offeringOnlyRecoveryThatHelps(newState)
         updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)

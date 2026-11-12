@@ -67,6 +67,8 @@ extension PlaybackSessionViewModel {
     }
 
     private func enqueueSeek(milliseconds: Int) {
+        // A seek waiting behind one still out replaces it for Retry too.
+        noteNewCommand()
         let normalized = normalizedSeekMilliseconds(milliseconds)
         let intent = PlaybackSeekIntent(milliseconds: normalized, owner: seekOwnershipKey)
         if queuedSeek == nil {
@@ -165,7 +167,13 @@ extension PlaybackSessionViewModel {
             return true
         } catch {
             guard intent.owner == seekOwnershipKey else { return false }
-            failSeek(intent, with: Self.displayError(for: error, service: service))
+            clearPendingSeek()
+            failedSeekOwnershipKey = intent.owner
+            // Retry waits for the seek to go out, so a second Retry can't run beside it.
+            showFailedCommand(error) { viewModel in
+                await viewModel.seek(to: intent.milliseconds)
+                await viewModel.seekDispatchTask?.value
+            }
             return false
         }
     }
