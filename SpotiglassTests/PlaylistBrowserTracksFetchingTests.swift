@@ -181,9 +181,10 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             if playlistID == "a" { readsHeld.signal() }
         }
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
-        // the first playlist switch should start fetching playlist B
-        await fetchBStarted.wait()
-        await viewModel.selectPlaylist(id: "a")
+        guard await waitFor(fetchBStarted, "the first playlist switch fetching playlist B") else { return readsHeld.signal() }
+        guard await finishes("switching back to A waited for B's held read", elseRelease: readsHeld.signal, {
+            await viewModel.selectPlaylist(id: "a")
+        }) else { return }
         // B's read is let go only now: if the switch back to A didn't cancel it, it finishes.
         readsHeld.signal()
         await firstSwitch.value
@@ -406,7 +407,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         // The first read is under way and held until the sidebar has reported back.
         guard await waitFor(firstReadStarted, "the first read") else { return readsHeld.signal() }
         // What the sidebar's selection change does.
-        await viewModel.selectSidebar(.playlist("big"))
+        guard await finishes("the sidebar's report waited for the held first read", elseRelease: readsHeld.signal, {
+            await viewModel.selectSidebar(.playlist("big"))
+        }) else { return }
         readsHeld.signal()
         await opening.value
 
@@ -450,8 +453,10 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let album = Task {
             await viewModel.selectAlbum(id: "album-123", displayTitle: "Album Name", displaySubtitle: "Artist Name", artworkURL: nil)
         }
-        while albumReads.count == 0 { await Task.yield() }
-        await viewModel.selectPlaylist(id: "big")
+        await waitUntil { albumReads.count > 0 }
+        guard await finishes("opening the playlist waited for the held album read", elseRelease: albumHeld.signal, {
+            await viewModel.selectPlaylist(id: "big")
+        }) else { return }
         albumHeld.signal()
         await album.value
 
@@ -588,7 +593,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let started = viewModel.playbackRequestGeneration
         let playing = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         ownerHeld.signal()
         let played = await playing.value
         await opening.value
@@ -651,9 +656,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         }
         let started = viewModel.playbackRequestGeneration
         let earlier = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         let newer = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started + 1, on: viewModel)
+        await waitForPlay(after: started + 1, on: viewModel)
         api.finishReading()
 
         let earlierResult = await earlier.value
@@ -677,9 +682,11 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         }
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         // Leaving Liked Songs before the read finishes.
-        await viewModel.selectSidebar(nil)
+        guard await finishes("leaving Liked Songs waited for the held read", elseRelease: api.finishReading, {
+            await viewModel.selectSidebar(nil)
+        }) else { return }
         api.finishReading()
 
         let result = await waiting.value
@@ -704,7 +711,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let commands = ReadCounter()
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage, playbackCommands: { UInt64(commands.count) }) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         commands.increment() // A pinned track starts playing meanwhile.
         api.finishReading()
 
@@ -729,8 +736,10 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         }
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
-        await viewModel.selectSidebar(nil)
+        await waitForPlay(after: started, on: viewModel)
+        guard await finishes("leaving Liked Songs waited for the held read", elseRelease: api.finishReading, {
+            await viewModel.selectSidebar(nil)
+        }) else { return }
         api.finishReading()
 
         let result = await waiting.value
@@ -772,8 +781,14 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
     /// Waits until a play asked for after `generation` has started, i.e. has read its request
     /// number and its baseline of playback commands, however late a busy machine runs its task.
-    private static func waitForPlay(after generation: Int, on viewModel: PlaylistBrowserViewModel) async {
-        while viewModel.playbackRequestGeneration <= generation { await Task.yield() }
+    /// A play that never starts fails the test; the caller then lets its held read go.
+    private func waitForPlay(
+        after generation: Int,
+        on viewModel: PlaylistBrowserViewModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        await waitUntil({ viewModel.playbackRequestGeneration > generation }, file: file, line: line)
     }
 }
 

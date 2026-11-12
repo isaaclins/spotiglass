@@ -1,4 +1,5 @@
 import Foundation
+import XCTest
 @testable import Spotiglass
 
 @MainActor
@@ -199,6 +200,32 @@ final class MockCallHold: @unchecked Sendable {
         entered.signal()
         await released.wait()
     }
+}
+
+/// Runs `step` while the test holds a call open, and waits until `step` has ended. A build in
+/// which `step` never ends, say because a caller waits for the held call instead of returning,
+/// fails with `failure` after `mustHappenTimeout` instead of hanging until the per-test limit with
+/// no message: `release` lets the held call go then, so whatever waits on it can end too.
+/// Returns whether `step` ended in time.
+@MainActor
+func finishes(
+    _ failure: @autoclosure () -> String,
+    elseRelease release: () -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ step: @escaping @MainActor () async -> Void
+) async -> Bool {
+    let ended = AsyncSignal()
+    Task { @MainActor in
+        await step()
+        ended.signal()
+    }
+    guard await ended.wait(timeout: .seconds(mustHappenTimeout)) else {
+        release()
+        XCTFail(failure(), file: file, line: line)
+        return false
+    }
+    return true
 }
 
 /// Timeout for an `XCTestExpectation` that must be fulfilled. A busy machine can take far longer

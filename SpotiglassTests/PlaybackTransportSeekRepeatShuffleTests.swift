@@ -594,8 +594,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
         let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the next taps")
-        await viewModel.cycleRepeat() // context -> track
-        await viewModel.cycleRepeat() // track -> off
+        guard await finishes("the next repeat taps waited for the first write instead of returning", elseRelease: firstWrite.release, {
+            await viewModel.cycleRepeat() // context -> track
+            await viewModel.cycleRepeat() // track -> off
+        }) else { return }
         firstWrite.release()
         await tap1.value
 
@@ -626,7 +628,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
         let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the second tap")
-        await viewModel.cycleRepeat() // context -> track
+        guard await finishes("the second repeat tap waited for the first write instead of returning", elseRelease: firstWrite.release, {
+            await viewModel.cycleRepeat() // context -> track
+        }) else { return }
         firstWrite.release()
         await tap1.value
 
@@ -800,7 +804,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             didSendFirstWrite,
             "the first shuffle write should be in flight before the second toggle"
         )
-        await viewModel.toggleShuffle()
+        guard await finishes("the second shuffle toggle waited for the first write instead of returning", elseRelease: firstWrite.release, {
+            await viewModel.toggleShuffle()
+        }) else { return }
         firstWrite.release()
         await firstToggle.value
 

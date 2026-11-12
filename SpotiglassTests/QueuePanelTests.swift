@@ -224,7 +224,9 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertTrue(fetchStarted)
         queue.isPanelVisible = false
 
-        await playback.disconnect()
+        guard await finishes("disconnecting waited for the held queue read", elseRelease: staleFetch.release, {
+            await playback.disconnect()
+        }) else { return }
         queue.handlePlaybackStateChange()
         playback.handle(.ready(deviceID: "device-2"))
         playback.handle(.stateChanged(
@@ -280,7 +282,9 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertTrue(fetchStarted)
         queue.isPanelVisible = false
 
-        await playback.disconnect()
+        guard await finishes("disconnecting waited for the held queue read", elseRelease: staleFetch.release, {
+            await playback.disconnect()
+        }) else { return }
         queue.handlePlaybackStateChange()
         playback.handle(.ready(deviceID: "device-2"))
         queue.handlePlaybackStateChange()
@@ -544,7 +548,7 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertFalse(api.actions.contains("fetchQueue"))
     }
 
-    func testQueueViewModelAddToQueueUsesDeviceIDAndRefetches() async {
+    func testQueueViewModelAddToQueueUsesDeviceIDAndRefetches() async throws {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-42"))
@@ -554,10 +558,10 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
-        // Adding to the queue must trigger a queue refresh.
-        await api.fetchQueueSignal.wait()
-        XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
-        XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
+        // Adding to the queue refreshes it, and `addToQueue` returns only after that refresh.
+        let actions = api.actions
+        let add = try XCTUnwrap(actions.firstIndex(of: "addToQueue:device-42:spotify:track:add-me"))
+        XCTAssertTrue(actions[add...].contains("fetchQueue"), "adding to the queue must read the queue again")
     }
 
     func testQueueViewModelSuppressesDuplicateAddWhileInFlightForSameURI() async {
@@ -572,7 +576,9 @@ final class QueuePanelTests: XCTestCase {
         let first = Task { await queue.addToQueue(uri: "spotify:track:dup") }
         let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstAdd, "the first add should be in flight before the duplicate")
-        await queue.addToQueue(uri: "spotify:track:dup")
+        guard await finishes("the duplicate add waited for the first add instead of returning", elseRelease: firstAdd.release, {
+            await queue.addToQueue(uri: "spotify:track:dup")
+        }) else { return }
         firstAdd.release()
         await first.value
 
@@ -593,16 +599,11 @@ final class QueuePanelTests: XCTestCase {
         let didSendFirstAdd = await firstAdd.entered.wait(timeout: .seconds(mustHappenTimeout))
         XCTAssertTrue(didSendFirstAdd, "the add for a should be in flight before the add for b")
         // The add for b reaching the API releases the held add for a.
-        let secondDone = AsyncSignal()
-        let second = Task {
+        guard await finishes("the add for b waited for the add for a", elseRelease: firstAdd.release, {
             await queue.addToQueue(uri: "spotify:track:b")
-            secondDone.signal()
-        }
-        let didFinishSecondAdd = await secondDone.wait(timeout: .seconds(mustHappenTimeout))
-        XCTAssertTrue(didFinishSecondAdd, "the add for b should not wait for the add for a")
+        }) else { return }
         firstAdd.release()
         await first.value
-        await second.value
 
         XCTAssertEqual(api.actions.filter { $0 == "addToQueue:device-1:spotify:track:a" }.count, 1)
         XCTAssertEqual(api.actions.filter { $0 == "addToQueue:device-1:spotify:track:b" }.count, 1)
@@ -929,8 +930,8 @@ final class QueuePanelTests: XCTestCase {
     /// for had run. It now returns only after its follow-up fetch finished.
     func testManualRefreshThatJoinsAnInFlightRefreshWaitsForItsFollowUpFetch() async {
         let api = QueueTestPlaybackAPI()
-        let gate = AsyncSignal()
-        api.fetchQueueGate = gate
+        let firstFetch = MockCallHold()
+        api.fetchQueueHold = firstFetch
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         playback.handle(.stateChanged(
@@ -942,14 +943,19 @@ final class QueuePanelTests: XCTestCase {
         queue.isPanelVisible = true
 
         let inFlight = Task { await queue.refreshQueue() }
-        await api.fetchQueueSignal.wait()
-        // Runs once the main actor is free, which is after the joined refresh
-        // below has registered and suspended.
-        let release = Task { @MainActor in gate.signal() }
-        await queue.refreshQueue()
-        let fetchesWhenJoinedRefreshReturned = api.actions.filter { $0 == "fetchQueue" }.count
+        guard await firstFetch.entered.wait(timeout: .seconds(mustHappenTimeout)) else {
+            return XCTFail("the first refresh never read the queue")
+        }
+        var fetchesWhenJoinedRefreshReturned = 0
+        guard await finishes("the joined refresh never returned", elseRelease: firstFetch.release, {
+            // Runs once the main actor is free, which is after the joined refresh
+            // below has registered and suspended.
+            let release = Task { @MainActor in firstFetch.release() }
+            await queue.refreshQueue()
+            fetchesWhenJoinedRefreshReturned = api.actions.filter { $0 == "fetchQueue" }.count
+            await release.value
+        }) else { return }
         await inFlight.value
-        await release.value
 
         XCTAssertEqual(fetchesWhenJoinedRefreshReturned, 2, "A joined refresh returns after its own follow-up fetch, not before.")
         XCTAssertFalse(api.concurrentFetchDetected)
@@ -1008,13 +1014,13 @@ final class QueuePanelTests: XCTestCase {
         )
         queue.isPanelVisible = true
         await queue.refreshQueue()
-        let pollFetchStarted = AsyncSignal()
-        api.onFetchQueue = {
-            pollFetchStarted.signal()
-        }
+        let pollFetch = MockCallHold()
+        api.fetchQueueHold = pollFetch
         queue.restartPollingIfNeeded()
-        // active queue polling should issue a fetch
-        await pollFetchStarted.wait()
+        guard await pollFetch.entered.wait(timeout: .seconds(mustHappenTimeout)) else {
+            return XCTFail("active queue polling never read the queue")
+        }
+        pollFetch.release()
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         let pollTask = queue.pollTask
@@ -1090,9 +1096,9 @@ final class QueuePanelTests: XCTestCase {
 
     /// #549: the optimistic shuffle windows ran on the wall clock (the queue's 40 ms here, the
     /// player's 2 s pending shuffle), so on a busy machine one ran out before `toggleShuffle()`
-    /// returned and the old order came back. Both now run on a clock the test steps: a slow
-    /// Spotify read (the stub's delay stands in for a loaded machine) doesn't move them, only
-    /// stepping the clock past the timeout does.
+    /// returned and the old order came back. Both now run on the injected `ManualPlaybackClock`:
+    /// however long the reads take in real time, the order holds until the test steps the clock
+    /// to just under the timeout, and clears only once it steps past it.
     func testQueueOptimisticReconcileClearsAfterTimeout() async {
         let api = QueueTestPlaybackAPI()
         let clock = ManualPlaybackClock()
@@ -1316,8 +1322,6 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     // append and once saw an empty log in CI (#379).
     private struct State {
         var actions: [String] = []
-        var onFetchQueue: (() -> Void)?
-        var fetchQueueGate: AsyncSignal?
         var queueResponse = MusicPlaybackQueue(queue: [])
         var queueResponses: [MusicPlaybackQueue] = []
         var errorToThrow: Error?
@@ -1334,21 +1338,10 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     private let lock = NSLock()
     private var state = State()
-    let fetchQueueSignal = AsyncSignal()
 
     var actions: [String] { locked { $0.actions } }
     var concurrentFetchDetected: Bool { locked { $0.concurrentFetchDetected } }
     var maxConcurrentFetches: Int { locked { $0.maxConcurrentFetches } }
-    var onFetchQueue: (() -> Void)? {
-        get { locked { $0.onFetchQueue } }
-        set { locked { $0.onFetchQueue = newValue } }
-    }
-    /// When set, `fetchQueue` waits for this signal after it is recorded, so a
-    /// test can hold a fetch in flight without a timing window.
-    var fetchQueueGate: AsyncSignal? {
-        get { locked { $0.fetchQueueGate } }
-        set { locked { $0.fetchQueueGate = newValue } }
-    }
     var queueResponse: MusicPlaybackQueue {
         get { locked { $0.queueResponse } }
         set { locked { $0.queueResponse = newValue } }
@@ -1369,8 +1362,8 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.setRepeatError } }
         set { locked { $0.setRepeatError = newValue } }
     }
-    /// Holds `fetchQueue` after it is recorded and `fetchQueueGate` opened, while it still
-    /// counts as in flight.
+    /// Holds `fetchQueue` after it is recorded, while it still counts as in flight. Its `entered`
+    /// is also how a test learns that a read started.
     var fetchQueueHold: MockCallHold? {
         get { locked { $0.fetchQueueHold } }
         set { locked { $0.fetchQueueHold = newValue } }
@@ -1420,19 +1413,16 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     func previous(deviceID: String) async throws {}
 
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        let (onFetchQueue, gate, hold) = locked { state -> ((() -> Void)?, AsyncSignal?, MockCallHold?) in
+        let hold = locked { state -> MockCallHold? in
             state.actions.append("fetchQueue")
             state.currentConcurrentFetches += 1
             state.maxConcurrentFetches = max(state.maxConcurrentFetches, state.currentConcurrentFetches)
             if state.currentConcurrentFetches > 1 {
                 state.concurrentFetchDetected = true
             }
-            return (state.onFetchQueue, state.fetchQueueGate, state.fetchQueueHold)
+            return state.fetchQueueHold
         }
         defer { locked { $0.currentConcurrentFetches -= 1 } }
-        fetchQueueSignal.signal()
-        onFetchQueue?()
-        await gate?.wait()
         await hold?.pass()
         return try locked { state -> MusicPlaybackQueue in
             if let errorToThrow = state.errorToThrow {
