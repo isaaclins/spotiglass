@@ -180,6 +180,16 @@ final class WindowResizeCostTests: XCTestCase {
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
         XCTAssertEqual(offScreen(), [], "a resize built a row or card far outside the window")
+
+        // Back to full size. A window growing taller makes the lazy stack place the rows within
+        // about a window's height below the visible ones, which on Home reaches all 20 top
+        // tracks, so only the shelf's far card can be held to "never built" here.
+        for step in (0..<12).reversed() {
+            resize(window, toWidth: 1_450 - CGFloat(step) * 30, height: 900 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        let farCard = "HomeMediaCardView:recent-album-\(Self.recentAlbumCount - 1)"
+        XCTAssertNil(ViewBodyTally.counts?[farCard], "growing the window built \(farCard) far outside it")
     }
 
     /// Search's track list and its card rows were plain stacks too, so a page of results built
@@ -322,6 +332,9 @@ final class WindowResizeCostTests: XCTestCase {
                     && count - (countsWhileShrinking[name] ?? 0) > 1
             }
             XCTAssertTrue(rebuilt.isEmpty, "rows re-rendered while growing: \(rebuilt.keys.sorted().prefix(5))", file: file, line: line)
+            // The sidebar's rows never leave the window, so none may run in either half.
+            let sidebarRows = counts.keys.filter { $0.hasPrefix("PlaylistListRow:") }
+            XCTAssertTrue(sidebarRows.isEmpty, "sidebar rows re-rendered while resizing: \(sidebarRows.sorted().prefix(5))", file: file, line: line)
         }
     }
 

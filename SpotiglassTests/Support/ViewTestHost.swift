@@ -208,8 +208,8 @@ enum ViewTestHost {
     /// Skips a test when running on a toolchain where ViewInspector traps while
     /// descending into a `GeometryReader`.
     ///
-    /// ViewInspector 0.10.3 (the latest release, pinned at revision
-    /// e9a06346499a3a889165647e3f23f8a7b2609a1c) constructs a `GeometryProxy`
+    /// ViewInspector (0.10.3 when this guard was added; not rechecked since the move to
+    /// 0.10.5 for lazy stacks, #473) constructs a `GeometryProxy`
     /// to traverse a `GeometryReader`. On the new SwiftUI shipped with macOS 26
     /// and later (this machine runs the macOS 27 beta), that construction trips
     /// an internal SwiftUI assertion and raises SIGTRAP, which kills the whole
@@ -230,7 +230,7 @@ enum ViewTestHost {
         let version = ProcessInfo.processInfo.operatingSystemVersion
         guard version.majorVersion >= 26 else { return }
         throw XCTSkip(
-            "Skipped on macOS \(version.majorVersion): ViewInspector 0.10.3 traps (SIGTRAP) "
+            "Skipped on macOS \(version.majorVersion): ViewInspector traps (SIGTRAP) "
                 + "constructing a GeometryProxy to traverse the sidebar GeometryReader on the new SwiftUI. "
                 + "Remove this guard once ViewInspector supports the toolchain.",
             file: file,
