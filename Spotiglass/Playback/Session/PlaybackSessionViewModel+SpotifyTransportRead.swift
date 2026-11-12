@@ -160,7 +160,7 @@ extension PlaybackSessionViewModel {
 
         setActivePlaybackDeviceID(snapshotDeviceID)
         let remoteNowPlaying = snapshot.playbackNowPlaying
-        let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying)
+        let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying, isPlaying: snapshot.isPlaying)
         SpotiglassLog.info(
             .playback,
             "Remote player snapshot deviceID=\(snapshotDeviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"

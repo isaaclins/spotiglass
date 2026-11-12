@@ -133,7 +133,7 @@ extension PlaybackSessionViewModel {
                 SpotiglassLog.info(.playback, "Ignoring SDK state_changed while remote device is active")
                 return
             }
-            let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying)
+            let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying, isPlaying: !isPaused)
             SpotiglassLog.info(.playback, "SDK state_changed nowPlayingURI=\(nowPlaying?.uri ?? "<nil>") isPaused=\(isPaused) nextCount=\(nextTracks.count) pendingPlayURI=\(pendingPlayURI ?? "<nil>") suppressed=\(suppressed)")
             observeSkipAdvance(nowPlayingURI: nowPlaying?.uri)
             if suppressed {

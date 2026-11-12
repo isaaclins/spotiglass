@@ -192,14 +192,11 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    /// Whether the player already reported what this play asked for: the song it named, or a
-    /// first song of the list it named. Then a failure is a lost answer, and sending the play
-    /// again would start the song over.
+    /// Whether the player already reported playing what this play asked for: the song it named,
+    /// or a first song of the list it named. Then a failure is a lost answer, and sending the
+    /// play again would start the song over.
     private func playerReportsPlay(of dispatch: PlayCommandDispatch) -> Bool {
-        if confirmedPlayCommandID == dispatch.id { return true }
-        guard let transition = pendingPlayTransition, transition.ownerID == dispatch.id,
-              case .context = transition.kind else { return false }
-        return transition.firstContextURI != nil
+        confirmedPlayCommandID == dispatch.id
     }
 
     /// A play that failed: Retry sends the same play again. The failed play no longer counts
@@ -337,7 +334,9 @@ extension PlaybackSessionViewModel {
     /// take effect. Allows matching events through, lets the timeout window
     /// fall back gracefully, and lets nil-track teardown events through so
     /// the SDK can still report errors / device loss while a play is pending.
-    func shouldSuppressStaleStateChange(nowPlaying: PlaybackNowPlaying?) -> Bool {
+    /// A report of the asked-for song playing also confirms that play (`confirmedPlayCommandID`);
+    /// a paused one doesn't: the play may not have reached the player.
+    func shouldSuppressStaleStateChange(nowPlaying: PlaybackNowPlaying?, isPlaying: Bool) -> Bool {
         guard var transition = pendingPlayTransition else {
             return false
         }
@@ -356,7 +355,9 @@ extension PlaybackSessionViewModel {
         switch transition.kind {
         case let .uri(expectedURI):
             if eventURI == expectedURI {
-                confirmedPlayCommandID = transition.ownerID
+                if isPlaying {
+                    confirmedPlayCommandID = transition.ownerID
+                }
                 clearPendingPlay()
                 return false
             }
@@ -373,6 +374,9 @@ extension PlaybackSessionViewModel {
             if transition.firstContextURI == nil {
                 transition.firstContextURI = eventURI
                 pendingPlayTransition = transition
+            }
+            if isPlaying, transition.firstContextURI == eventURI {
+                confirmedPlayCommandID = transition.ownerID
             }
             return false
         }
