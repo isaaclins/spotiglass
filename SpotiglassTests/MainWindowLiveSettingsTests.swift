@@ -16,6 +16,7 @@ import XCTest
 @MainActor
 final class MainWindowLiveSettingsTests: XCTestCase {
     override func tearDown() {
+        NSApp.appearance = nil
         SpotiglassL10n.settingsStore = nil
         ViewTestHost.tearDownAll()
         super.tearDown()
@@ -85,6 +86,29 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             afterSwitch.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
             "after switching services the sidebar moved up under the window buttons"
         )
+    }
+
+    /// System hands the content macOS's scheme itself, so it has to follow macOS turning dark or
+    /// light while the app runs. The app's own appearance stands in for macOS's here.
+    func testSystemFollowsMacOSTurningDarkOrLightLive() async throws {
+        let settings = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = settings
+        try settings.mutate {
+            $0.appearance.language = .english
+            $0.appearance.colorScheme = .system
+        }
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic], active: .appleMusic
+        ))
+        let rendered = RenderedSettings()
+        let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
+        let started = try XCTUnwrap(rendered.colorScheme)
+
+        for scheme in [started == .dark ? ColorScheme.light : .dark, started] {
+            NSApp.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: "macOS in \(scheme)")
+            XCTAssertEqual(rendered.colorScheme, scheme, "the content didn't follow macOS to \(scheme)")
+        }
     }
 
     /// The main window's content, set up as the window scene sets it up, with Apple Music's

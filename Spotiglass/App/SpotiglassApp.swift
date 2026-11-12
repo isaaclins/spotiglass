@@ -412,12 +412,17 @@ private final class MacOSColorScheme: ObservableObject {
         // The app itself never sets an appearance, so its effective one is macOS's.
         observation = NSApp.observe(\.effectiveAppearance) { [weak self] app, _ in
             let scheme = Self.colorScheme(of: app.effectiveAppearance)
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    if self?.current != scheme { self?.current = scheme }
-                }
+            // AppKit changes appearances on the main thread; take it there in the same turn.
+            guard Thread.isMainThread else {
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.follow(scheme) } }
+                return
             }
+            MainActor.assumeIsolated { self?.follow(scheme) }
         }
+    }
+
+    private func follow(_ scheme: ColorScheme) {
+        if current != scheme { current = scheme }
     }
 
     nonisolated private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
