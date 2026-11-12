@@ -74,7 +74,7 @@ extension QueueViewModel {
                     // up here as a CancellationError or URLError.cancelled. Those
                     // are not real failures from the user's perspective, so don't
                     // surface them as a "Queue update failed" banner.
-                    if let mapped = Self.displayError(for: error) {
+                    if let mapped = Self.displayError(for: error, service: provider.service) {
                         lastError = mapped
                     }
                     responseApplied = true
@@ -370,7 +370,9 @@ extension QueueViewModel {
 
     /// Maps an underlying error to a user-visible banner, or returns nil for
     /// silent classes of error (cancellation from a superseded refresh).
-    static func displayError(for error: Error) -> BrowsingDisplayError? {
+    /// `service` is the player whose queue failed; it names the service when the error itself
+    /// doesn't (a dropped connection).
+    static func displayError(for error: Error, service: MusicService = MusicServiceSelection.current) -> BrowsingDisplayError? {
         if error is CancellationError {
             return nil
         }
@@ -380,7 +382,10 @@ extension QueueViewModel {
         guard let playbackError = MusicPlaybackError.from(error) else {
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), SpotifyAPIError.userMessage(for: error)),
+                message: String(
+                    format: SpotiglassL10n.string("error.queue.updateFailed.message"),
+                    MusicServiceErrorText.userMessage(for: error, service: service)
+                ),
                 canRetry: true,
                 diagnosticDetails: String(describing: error)
             )

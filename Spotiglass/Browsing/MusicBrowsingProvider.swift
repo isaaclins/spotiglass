@@ -35,6 +35,14 @@ struct MusicLibraryEdits: OptionSet {
     static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums, .confirmLibraryRemoval]
 }
 
+/// Whether the signed-in account may make a library edit, asked before the request goes out.
+/// Each service maps its own rule into it (Spotify: OAuth scopes,
+/// ``SpotifyLibraryEditPermissions``); the browser only sees the failure to show.
+protocol MusicLibraryEditPermissions {
+    /// The failure to show when the account may not make `operation`; `nil` lets it go ahead.
+    func missingPermission(for operation: PlaylistMutationOperation) async -> Error?
+}
+
 /// One page of an artist's albums. `next` is an opaque continuation the same
 /// provider understands; callers hand it back unchanged and never build one.
 struct MusicArtistAlbumsPage {
@@ -163,24 +171,25 @@ extension MusicBrowsingProvider {
     func followedArtists(limit: Int, maxPages: Int?) async throws -> [MusicArtist] { [] }
     func artistTopTracks(id: String, market: String?, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] { [] }
 
-    // Default no-op implementations for library mutations. Mocks/previews that
-    // never exercise the menu can ignore these; a provider that supports
-    // library edits overrides them.
+    // Default implementations for library mutations. Mocks/previews that never
+    // exercise the menu can ignore these; a provider that supports library edits
+    // overrides them. The failure belongs to no service, so it never reads as
+    // Spotify's or Apple Music's (#388).
     func updatePlaylist(playlistID: String, name: String) async throws {
-        throw SpotifyAPIError.invalidRequest("Playlist rename is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Playlist rename")
     }
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
-        throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Playlist mutation")
     }
     func removeTracksFromPlaylist(
         playlistID: String,
         items: [MusicPlaylistTrackRemoval],
         snapshotID: String?
     ) async throws {
-        throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Playlist mutation")
     }
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
-        throw SpotifyAPIError.invalidRequest("Playlist creation is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Playlist creation")
     }
     func createPlaylist(userID: String, name: String, isPublic: Bool, trackURIs: [String]) async throws -> MusicPlaylistSummary {
         let created = try await createPlaylist(userID: userID, name: name, isPublic: isPublic)
@@ -191,13 +200,13 @@ extension MusicBrowsingProvider {
     }
     func knownSavedTrackStatus(id: String) -> Bool? { nil }
     func saveTracks(ids: [String]) async throws {
-        throw SpotifyAPIError.invalidRequest("Library save is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Library save")
     }
     func removeSavedTracks(ids: [String]) async throws {
-        throw SpotifyAPIError.invalidRequest("Library unsave is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Library unsave")
     }
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
-        throw SpotifyAPIError.invalidRequest("Saved-track status lookup is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Saved-track status lookup")
     }
 
     func currentUserSavedTracks(
@@ -215,15 +224,15 @@ extension MusicBrowsingProvider {
 
     var supportedLibraryEdits: MusicLibraryEdits { [] }
     func deletePlaylist(playlistID: String) async throws {
-        throw SpotifyAPIError.invalidRequest("Playlist deletion is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Playlist deletion")
     }
     func saveAlbums(ids: [String]) async throws {
-        throw SpotifyAPIError.invalidRequest("Album save is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Album save")
     }
     func removeSavedAlbums(ids: [String]) async throws {
-        throw SpotifyAPIError.invalidRequest("Album unsave is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Album unsave")
     }
     func savedAlbumStatuses(ids: [String]) async throws -> [Bool] {
-        throw SpotifyAPIError.invalidRequest("Saved-album status lookup is not supported by this API implementation.")
+        throw MusicBrowsingError(unsupportedOperation: "Saved-album status lookup")
     }
 }

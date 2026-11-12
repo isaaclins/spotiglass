@@ -302,7 +302,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testALongPlaylistShowsItsFirstScreenOfRowsBeforeTheRest() async {
         let (playlist, tracks) = bigPlaylist(count: 796)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         var shown: [[String]] = []
         let observation = viewModel.$detailState.sink { state in
@@ -329,7 +329,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(current)]])
         api.lastReadTracksByID = ["big": tracks]
         api.playlistTracksDelayOnInvocation = 200_000_000
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         var shownWhileReading: [String] = []
         api.onPlaylistTracksInvocation = { _ in
@@ -349,7 +349,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let (playlist, tracks) = bigPlaylist(count: 796)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
         api.lastReadTracksByID = ["big": tracks]
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         var changes = 0
         let observation = viewModel.$detailState.dropFirst().sink { state in
@@ -366,7 +366,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testAShortPlaylistShowsAllItsRowsAtOnce() async {
         let (playlist, tracks) = bigPlaylist(count: 37)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         var shown: [Int] = []
         let observation = viewModel.$detailState.sink { state in
@@ -388,7 +388,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         api.playlistTracksDelayOnInvocation = 50_000_000
         let reads = ReadCounter()
         api.onPlaylistTracksInvocation = { _ in reads.increment() }
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
 
         let opening = Task { await viewModel.selectSidebar(.playlist("big")) }
@@ -428,7 +428,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
                 return [albumTrack]
             }
         )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         await viewModel.selectPlaylist(id: "big")
 
@@ -451,7 +451,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testANewHeaderWhileTheFirstScreenDrawsKeepsTheRestComing() async {
         let (playlist, tracks) = bigPlaylist(count: 100)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         let counted = PlaylistRowViewModel(MusicPlaylistSummary(
             id: "big", name: "My music mix", ownerID: "owner-id", ownerName: "Owner",
@@ -490,7 +490,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             trackResults: ["a": [.success([PlaylistBrowsingTestFixtures.track(id: "a1")])], "b": [.success(secondTracks)]]
         )
         api.lastReadDelayNanoseconds = ["a": 200_000_000]
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
 
         let opening = Task { await viewModel.selectPlaylist(id: "a") }
@@ -507,7 +507,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -528,7 +528,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -558,7 +558,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
         api.profileDelayAfterRead = 400_000_000
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -583,7 +583,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testPlayingFromALongListsFirstScreenQueuesTheWholeList() async {
         let (playlist, tracks) = bigPlaylist(count: 796)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         var firstScreen: PlaylistDetailViewModel?
         let observation = viewModel.$detailState.sink { state in
@@ -606,7 +606,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testPlayingRowsThatAreNotTheStartOfTheListPlaysThemAsShown() async {
         let (playlist, tracks) = bigPlaylist(count: 100)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         await viewModel.selectPlaylist(id: "big")
         guard case let .playlist(shown)? = viewModel.detailState.currentValue else { return XCTFail() }
@@ -623,7 +623,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -650,7 +650,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -677,7 +677,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
@@ -704,7 +704,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
         api.restFails = true
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()

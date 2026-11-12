@@ -234,7 +234,7 @@ extension PlaybackSessionViewModel {
         SpotiglassLog.error(.playback, "togglePlayPause refused: \(error.localizedDescription)")
         // An error that says what to do (sign in again, Premium) came meanwhile: it stays.
         if case .error = connectionState { return }
-        let displayError = Self.displayError(for: error)
+        let displayError = Self.displayError(for: error, service: service)
         localCommandExpectsPlaying = nil
         clearPushedPlayStateExpectation()
         guard Self.playPauseRefusalGoesBack(error) else {
@@ -699,7 +699,7 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
             return false
         }
     }

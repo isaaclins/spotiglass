@@ -254,7 +254,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 environment: environment,
                 loadedContextTracks: dependencies.viewModel.loadedContextTracksForPalette,
                 visiblePlaylists: dependencies.viewModel.visiblePlaylists,
-                currentUserSpotifyID: dependencies.viewModel.currentUserSpotifyID
+                currentUserID: dependencies.viewModel.currentUserID
             )
         }
     }
@@ -339,7 +339,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             environment: environment,
             loadedContextTracks: viewModel.loadedContextTracksForPalette,
             visiblePlaylists: viewModel.visiblePlaylists,
-            currentUserSpotifyID: viewModel.currentUserSpotifyID
+            currentUserID: viewModel.currentUserID
         )
     }
 }

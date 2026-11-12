@@ -4578,6 +4578,29 @@
         }
       }
     },
+    "error.browsing.unsupported": {
+      "comment": "Shown when a browsing or library request the current music service doesn't offer gets through anyway. Names no service.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ist mit diesem Musikdienst nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This isn't available with this music service."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto no está disponible con este servicio de música."
+          }
+        }
+      }
+    },
     "error.playback.connectionTimeout.message": {
       "comment": "Actionable message shown when the Spotify Web Playback SDK remains connecting past its timeout.",
       "localizations": {

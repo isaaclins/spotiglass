@@ -139,7 +139,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         )
         let toast = PlaylistBrowserViewModel.describeFailure(unreadable, operation: .createPlaylist)
         XCTAssertFalse(toast.contains("Spotify"), toast)
-        XCTAssertEqual(toast, PlaylistBrowserViewModel.appleMusicDisplayError(for: unreadable)?.message)
+        XCTAssertEqual(toast, BrowsingDisplayError.appleMusic(for: unreadable)?.message)
     }
 
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
