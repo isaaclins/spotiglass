@@ -462,6 +462,46 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertTrue(api.actions.contains("setRepeat:device-1:context"))
     }
 
+    /// A play sent while the player's own error is on screen fails too. Retry sends the play
+    /// again and takes the error and its Retry away while it goes out: a second click on a
+    /// Retry still showing moved playback here with `play: false` and stopped the song.
+    func testRetryOfAPlayStartedFromAnErrorDoesNotLeaveRetryOnScreen() async {
+        let api = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        // Playback is already here: a song played before the error.
+        await viewModel.play(uri: "spotify:track:old")
+        viewModel.handle(.playbackError("Slow down"))
+        Self.retryError(of: viewModel)
+        api.playErrors = [URLError(.notConnectedToInternet)]
+        await viewModel.play(uri: "spotify:track:asked")
+        Self.retryError(of: viewModel)
+        XCTAssertTrue(viewModel.retriesFailedCommand)
+        let actionsBeforeRetry = api.actions.count
+
+        let playReached = AsyncSignal()
+        let releasePlay = AsyncSignal()
+        api.onPlay = { _ in
+            playReached.signal()
+            await releasePlay.wait()
+        }
+        let retry = Task { await viewModel.retryAfterError() }
+        await playReached.wait()
+
+        XCTAssertNil(viewModel.connectionStateError, "Retry takes the error, and its button, away while the play goes out")
+        // A second click would land here if Retry were still on screen.
+        if viewModel.connectionStateError != nil {
+            await viewModel.retryAfterError()
+        }
+        releasePlay.signal()
+        await retry.value
+
+        XCTAssertEqual(
+            Array(api.actions.dropFirst(actionsBeforeRetry)).filter { $0 != "fetchPlayerSnapshot" },
+            ["play:device-1:spotify:track:asked"]
+        )
+    }
+
     /// A failure of moving playback here keeps its Retry: it moves playback here again.
     func testRetryAfterAPlayerErrorStillMovesPlaybackHere() async {
         let api = MockPlaybackAPI()

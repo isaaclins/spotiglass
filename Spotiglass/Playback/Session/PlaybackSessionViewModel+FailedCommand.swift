@@ -30,7 +30,10 @@ extension PlaybackSessionViewModel {
         switch connectionState {
         case .error:
             // A command sent from an error that failed too: go back to what was before that one.
-            failedCommand?.restoreState
+            // With nothing kept, go where the old Retry left the bar, so the error and its Retry
+            // don't stay up while the command goes out (a second click moved playback here with
+            // `play: false` next to the command sent again).
+            failedCommand?.restoreState ?? deviceID.map { .ready(deviceID: $0) }
         case let .transferring(deviceID):
             // A play moves playback here first; the play sent again does that again.
             .ready(deviceID: deviceID)
