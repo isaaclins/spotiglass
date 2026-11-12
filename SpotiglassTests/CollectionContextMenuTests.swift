@@ -34,7 +34,7 @@ final class CollectionContextMenuTests: XCTestCase {
     private func makeBrowserViewModel(api: MusicBrowsingProvider? = nil) -> PlaylistBrowserViewModel {
         let api = api ?? MockBrowsingAPI(playlistResults: [.success([ownPlaylist])], trackResults: [:])
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        viewModel.currentUserSpotifyID = "me"
+        viewModel.currentUserID = "me"
         viewModel.playlistsByID = [ownPlaylist.id: ownPlaylist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(ownPlaylist)])
         return viewModel

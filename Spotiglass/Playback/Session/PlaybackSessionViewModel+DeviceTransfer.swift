@@ -24,7 +24,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
         }
     }
 

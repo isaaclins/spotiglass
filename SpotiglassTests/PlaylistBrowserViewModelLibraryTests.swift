@@ -81,9 +81,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
 
         XCTAssertEqual(api.currentUserPlaylistsCallCount, 0, "a fresh cache still skips the playlist refresh")
-        XCTAssertEqual(viewModel.currentUserSpotifyID, "u")
+        XCTAssertEqual(viewModel.currentUserID, "u")
         let row = try? XCTUnwrap(viewModel.playlistState.currentValue?.first)
-        XCTAssertEqual(row?.ownerTracksLine(currentUserID: viewModel.currentUserSpotifyID), "8 tracks")
+        XCTAssertEqual(row?.ownerTracksLine(currentUserID: viewModel.currentUserID), "8 tracks")
     }
 
     /// The current user is only needed for the owner line and the rename item, so on a fresh
@@ -119,7 +119,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             try XCTUnwrap(order.firstIndex(of: "profile answered")),
             "the playlist is asked for before the profile has answered: \(order)"
         )
-        XCTAssertEqual(viewModel.currentUserSpotifyID, "u")
+        XCTAssertEqual(viewModel.currentUserID, "u")
     }
 
     func testCachedLoadUsesCacheWhenRefreshFails() async {
@@ -586,7 +586,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(
             api: api,
             cache: MockBrowsingCache(),
-            scopeProvider: scopeProvider
+            editPermissions: SpotifyLibraryEditPermissions(scopes: scopeProvider)
         )
         let row = TrackRowViewModel.numberedPlaylistRows([
             PlaylistBrowsingTestFixtures.track(id: "needs-scope")
@@ -805,7 +805,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         )
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        viewModel.currentUserSpotifyID = "owner"
+        viewModel.currentUserID = "owner"
         viewModel.playlistsByID = [first.id: first, second.id: second]
 
         let capturedTarget = PlaylistRenameEditingPolicy.commitTarget(
@@ -851,7 +851,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
         let cache = MockBrowsingCache()
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
-        viewModel.currentUserSpotifyID = "u"
+        viewModel.currentUserID = "u"
         viewModel.playlistsByID = [playlist.id: playlist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
         viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
@@ -892,7 +892,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        viewModel.currentUserSpotifyID = "u"
+        viewModel.currentUserID = "u"
         viewModel.playlistsByID = [playlist.id: playlist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
         viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
@@ -924,7 +924,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         )
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        viewModel.currentUserSpotifyID = "owner"
+        viewModel.currentUserID = "owner"
         viewModel.playlistsByID = [playlist.id: playlist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
 
@@ -932,7 +932,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
         XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
 
-        viewModel.currentUserSpotifyID = "another-user"
+        viewModel.currentUserID = "another-user"
         await viewModel.renamePlaylist(id: playlist.id, name: "After")
         XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
         XCTAssertTrue(api.updatePlaylistCalls.isEmpty)

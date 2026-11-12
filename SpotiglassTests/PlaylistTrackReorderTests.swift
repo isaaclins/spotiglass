@@ -320,7 +320,7 @@ final class PlaylistTrackReorderTests: XCTestCase {
     // MARK: - The browser
 
     private func makeViewModel(_ api: ReorderMockAPI) async -> PlaylistBrowserViewModel {
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
         await viewModel.selectPlaylist(id: "pl1")
         return viewModel

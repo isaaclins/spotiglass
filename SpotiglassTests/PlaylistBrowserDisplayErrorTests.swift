@@ -113,15 +113,15 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
     /// Spotify's generic fallback is unchanged.
     func testUnrecognisedErrorsNameTheServiceOnScreen() {
         struct Sample: Error {}
-        let appleMusic = PlaylistBrowserViewModel.appleMusicDisplayError(for: Sample(), service: .appleMusic)
+        let appleMusic = BrowsingDisplayError.appleMusic(for: Sample(), service: .appleMusic)
         XCTAssertEqual(appleMusic?.title, "Apple Music couldn't load this")
         XCTAssertEqual(appleMusic?.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
 
-        let offline = PlaylistBrowserViewModel.appleMusicDisplayError(for: URLError(.notConnectedToInternet), service: .appleMusic)
+        let offline = BrowsingDisplayError.appleMusic(for: URLError(.notConnectedToInternet), service: .appleMusic)
         XCTAssertEqual(offline?.message, "Couldn't reach Apple Music. Check your connection, then try again.")
 
-        XCTAssertNil(PlaylistBrowserViewModel.appleMusicDisplayError(for: Sample(), service: .spotify))
-        XCTAssertNil(PlaylistBrowserViewModel.appleMusicDisplayError(for: CancellationError(), service: .appleMusic))
+        XCTAssertNil(BrowsingDisplayError.appleMusic(for: Sample(), service: .spotify))
+        XCTAssertNil(BrowsingDisplayError.appleMusic(for: CancellationError(), service: .appleMusic))
     }
 
     /// Home sections showed only `localizedDescription` ("User not signed in").

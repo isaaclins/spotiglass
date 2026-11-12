@@ -125,7 +125,7 @@ extension PlaybackSessionViewModel {
                     "Spotify playback SDK connect command failed generation=\(generation.rawValue) error=\(error.localizedDescription)"
                 )
                 self.cancelPlaybackHostConnectTimeout()
-                self.setConnectionState(.error(Self.playbackHostConnectionFailedError(for: error)))
+                self.setConnectionState(.error(Self.playbackHostConnectionFailedError(for: error, service: self.service)))
             }
         }
         schedulePlaybackHostConnectTimeout(generation: generation)
@@ -282,7 +282,7 @@ extension PlaybackSessionViewModel {
             noteLocalPlaybackMutation()
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
         }
     }
 

@@ -151,7 +151,7 @@ final class MusicBrowsingProviderTests: XCTestCase {
             return XCTFail("expected a track")
         }
         XCTAssertEqual(track.artistRefs, [])
-        XCTAssertEqual(items[1].content, .unavailable(reason: "gone"))
+        XCTAssertEqual(items[1].content, .unavailable(reason: .noPlayableContent))
     }
 
     func testPlaylistSummaryRoundTripKeepsItsKeys() throws {

@@ -56,7 +56,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             visiblePlaylists: [row],
             trimmedQuery: "focus",
             environment: env,
-            currentUserSpotifyID: "owner-id"
+            currentUserID: "owner-id"
         )
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items.first?.title, "Focus Flow")
@@ -82,7 +82,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             environment: env,
             loadedContextTracks: rows,
             visiblePlaylists: [],
-            currentUserSpotifyID: nil
+            currentUserID: nil
         )
         XCTAssertEqual(result.inPlaylistMatches.count, 1)
         XCTAssertTrue(result.tracks.isEmpty)
@@ -149,7 +149,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             environment: env,
             loadedContextTracks: nil,
             visiblePlaylists: [],
-            currentUserSpotifyID: nil
+            currentUserID: nil
         )
         XCTAssertEqual(result.tracks.count, 1)
         XCTAssertEqual(result.artists.count, 1)
@@ -203,7 +203,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             environment: environment,
             loadedContextTracks: nil,
             visiblePlaylists: [],
-            currentUserSpotifyID: nil
+            currentUserID: nil
         )
         let album = try XCTUnwrap(result.albums.first)
         await album.action()
@@ -234,7 +234,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             environment: env,
             loadedContextTracks: nil,
             visiblePlaylists: [row],
-            currentUserSpotifyID: "owner-id"
+            currentUserID: "owner-id"
         )
         XCTAssertEqual(result.myPlaylists.count, 1)
         XCTAssertTrue(http.requests.isEmpty)

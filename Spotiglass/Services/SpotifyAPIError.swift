@@ -105,27 +105,9 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
     /// The sentence a listener reads for any error a Spotify request threw. A `URLError`'s own
     /// text follows the Mac's language, not the one picked in Spotiglass, so a German window
     /// read "Could not connect to the server." (#470): transport failures get the app's own
-    /// sentence instead.
+    /// sentence instead. Code that isn't Spotify's asks ``MusicServiceErrorText`` with its service.
     static func userMessage(for error: Error) -> String {
-        if let apiError = error as? SpotifyAPIError { return apiError.userMessage }
-        if let urlError = error as? URLError { return networkMessage(for: urlError) }
-        // A response that didn't decode (SpotifyPlaybackAPI decodes outside the client).
-        if error is DecodingError { return SpotiglassL10n.string("error.spotify.unexpectedShape") }
-        // Its detail is the SDK's or the error's own English text, kept for the log.
-        if let playbackError = error as? MusicPlaybackError {
-            return failedMessage(for: playbackError.service)
-        }
-        // Spotiglass's own errors already say it in the app's language. Anything else (a WebKit
-        // or Foundation NSError) would read in the Mac's language, so it gets the app's sentence.
-        // It may not come from a service at all, so it names none.
-        if let localized = error as? LocalizedError, let text = localized.errorDescription?.nilWhenEmpty {
-            return text
-        }
-        return SpotiglassL10n.string("error.generic.tryAgain")
-    }
-
-    private static func failedMessage(for service: MusicService) -> String {
-        SpotiglassL10n.string(service == .appleMusic ? "error.playback.appleMusic.failed" : "error.playback.spotify.failed")
+        MusicServiceErrorText.userMessage(for: error, service: .spotify)
     }
 
     /// Whether a `.network` sentence is one of the app's own for a request that reached Spotify
@@ -135,28 +117,10 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
             .contains { SpotiglassL10n.string($0) == message }
     }
 
-    /// A transport failure in the app's language, saying what to check. `fallback` is the
-    /// sentence for a code that isn't a connection problem (sign-in's "something went wrong");
-    /// without one, it says Spotify couldn't do it: a garbled or empty answer isn't the network.
+    /// A transport failure reaching Spotify, in the app's language
+    /// (``MusicServiceErrorText/networkMessage(for:service:fallback:)``).
     static func networkMessage(for error: URLError, fallback: String? = nil) -> String {
-        switch error.code {
-        case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
-            return SpotiglassL10n.string("auth.error.offline")
-        case .timedOut:
-            return SpotiglassL10n.string("auth.error.timeout")
-        case .cannotFindHost, .dnsLookupFailed:
-            return SpotiglassL10n.string("auth.error.dns")
-        case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
-             .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot, .clientCertificateRejected,
-             .clientCertificateRequired:
-            return SpotiglassL10n.string("auth.error.tls")
-        case .cancelled:
-            return SpotiglassL10n.string("auth.error.cancelled")
-        case .cannotConnectToHost, .networkConnectionLost:
-            return SpotiglassL10n.string("auth.error.network")
-        default:
-            return fallback ?? SpotiglassL10n.string("error.playback.spotify.failed")
-        }
+        MusicServiceErrorText.networkMessage(for: error, service: .spotify, fallback: fallback)
     }
 }
 

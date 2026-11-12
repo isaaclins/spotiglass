@@ -19,16 +19,17 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     /// `internal(set)` so split extensions in other files can update state (`private(set)` is file-private).
     @Published internal(set) var playlistState: BrowsingLoadState<[PlaylistRowViewModel]> = .loading
-    /// Spotify user id for the signed-in account; used to hide redundant owner labels on own playlists.
-    @Published internal(set) var currentUserSpotifyID: String?
+    /// The signed-in account's user ID on the current service. It hides the owner label on the
+    /// account's own playlists and decides which playlists it may edit.
+    @Published internal(set) var currentUserID: String?
     @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty(SpotiglassL10n.string("browser.empty.pickSomething"))
     /// Track IDs selected in the currently visible playlist table. Bound to the
     /// `List` selection, so the table owns click, shift and command behavior and
     /// this stays the value the context-menu actions read. Empty means "no
     /// selection, context-menu acts on the row alone".
     @Published var selectedDetailTrackIDs: Set<String> = []
-    /// Saved state keyed by canonical Spotify track ID. Context menus fill this
-    /// lazily from `/v1/me/tracks/contains` when a surface needs it.
+    /// Saved state keyed by the service's track ID. Context menus fill this lazily from
+    /// `savedTrackStatuses` when a surface needs it.
     @Published internal(set) var savedTrackStates: [String: Bool] = [:]
     /// Library state keyed by album ID, for providers that can save albums.
     @Published internal(set) var savedAlbumStates: [String: Bool] = [:]
@@ -110,10 +111,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     let api: MusicBrowsingProvider
-    let cache: SpotifyBrowsingCache
-    /// Optional live scope source used to stop a mutation before it reaches
-    /// Spotify. Mocks and catalog-only previews can omit it.
-    let scopeProvider: (any SpotifyScopeProviding)?
+    let cache: MusicBrowsingCache
+    /// Stops a library edit the account may not make before it reaches the service (Spotify maps
+    /// its OAuth scopes into it). Mocks, previews and Apple Music, which asks for its access up
+    /// front, omit it.
+    let editPermissions: (any MusicLibraryEditPermissions)?
     let now: () -> Date
     let maxCacheAge: TimeInterval
     /// When the saved playlist list is younger than this, `load()` does not call `refreshPlaylists()` (tracks for the selection still revalidate in the background when a track cache hit exists).
@@ -224,8 +226,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     init(
         api: MusicBrowsingProvider,
-        cache: SpotifyBrowsingCache,
-        scopeProvider: (any SpotifyScopeProviding)? = nil,
+        cache: MusicBrowsingCache,
+        editPermissions: (any MusicLibraryEditPermissions)? = nil,
         now: @escaping () -> Date = Date.init,
         maxCacheAge: TimeInterval = 1800,
         playlistListAutoRefreshMinInterval: TimeInterval = 1800,
@@ -239,7 +241,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         self.api = api
         self.adjacentPlaylistClock = adjacentPlaylistClock
         self.cache = cache
-        self.scopeProvider = scopeProvider
+        self.editPermissions = editPermissions
         self.now = now
         self.maxCacheAge = maxCacheAge
         self.playlistListAutoRefreshMinInterval = playlistListAutoRefreshMinInterval
@@ -257,8 +259,12 @@ final class PlaylistBrowserViewModel: ObservableObject {
             getResponseCache: .shared,
             scopeProvider: scopeProvider
         )
-        let cache: SpotifyBrowsingCache = (try? SpotifyLocalCache()) ?? DisabledSpotifyBrowsingCache()
-        return PlaylistBrowserViewModel(api: api, cache: cache, scopeProvider: scopeProvider)
+        let cache: MusicBrowsingCache = (try? SpotifyLocalCache()) ?? DisabledBrowsingCache()
+        return PlaylistBrowserViewModel(
+            api: api,
+            cache: cache,
+            editPermissions: scopeProvider.map { SpotifyLibraryEditPermissions(scopes: $0) }
+        )
     }
 
     func clearForSignOut() {
@@ -308,7 +314,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
 }
 
 /// Used when the on-disk cache cannot be created; every read misses.
-struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
+struct DisabledBrowsingCache: MusicBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [MusicPlaylistTrackItem]? { nil }

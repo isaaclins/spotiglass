@@ -136,7 +136,7 @@ extension QueueViewModel {
             } else if Self.isAmbiguousTransportError(error) {
                 enqueueUnknownOutcomeUntil[key] = clock.now.advanced(by: enqueueUnknownOutcomeCooldown)
             }
-            if let mapped = Self.displayError(for: error) {
+            if let mapped = Self.displayError(for: error, service: provider.service) {
                 lastError = mapped
             }
             return false
@@ -186,7 +186,7 @@ extension QueueViewModel {
 }
 
 extension Duration {
-    fileprivate var timeInterval: TimeInterval {
+    var timeInterval: TimeInterval {
         TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 }

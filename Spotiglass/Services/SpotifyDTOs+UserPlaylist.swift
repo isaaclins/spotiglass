@@ -160,16 +160,16 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
             } else if let domainTrack = track.domainModel() {
                 content = .track(domainTrack)
             } else {
-                content = .unavailable(reason: "Track is unavailable.")
+                content = .unavailable(reason: .track)
             }
         case let .episode(episode):
             if let domainEpisode = episode.domainModel() {
                 content = .episode(domainEpisode)
             } else {
-                content = .unavailable(reason: "Episode is unavailable.")
+                content = .unavailable(reason: .episode)
             }
         case .none:
-            content = .unavailable(reason: "Playlist item has no playable content.")
+            content = .unavailable(reason: .noPlayableContent)
         }
 
         return MusicPlaylistTrackItem(

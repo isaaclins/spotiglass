@@ -83,11 +83,11 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertNil(local.playableURI)
 
         let missing = TrackRowViewModel(
-            MusicPlaylistTrackItem(id: "x", content: .unavailable(reason: "Region locked")),
+            MusicPlaylistTrackItem(id: "x", content: .unavailable(reason: .track)),
             listPosition: 3
         )
         XCTAssertEqual(missing.title, "Unavailable item")
-        XCTAssertEqual(missing.subtitle, "Region locked")
+        XCTAssertEqual(missing.subtitle, "Track is unavailable.")
         // The placeholder comes from the catalog now, not a literal (#159).
         XCTAssertEqual(missing.durationText, SpotiglassL10n.string("browser.duration.unknown"))
         XCTAssertEqual(missing.durationMilliseconds, 0)

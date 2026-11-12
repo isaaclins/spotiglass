@@ -51,7 +51,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }
@@ -93,7 +93,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }
@@ -167,7 +167,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay(ifOwnedBy: dispatch.id)
-            setConnectionState(.error(Self.displayError(for: error)))
+            setConnectionState(.error(Self.displayError(for: error, service: service)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }

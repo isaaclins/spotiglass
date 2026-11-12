@@ -18,7 +18,7 @@ extension PlaylistBrowserViewModel {
     /// True when `playlistID` is one of the signed-in user's own playlists.
     func isUserOwnedPlaylist(_ playlistID: String?) -> Bool {
         guard let playlistID, playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              let me = currentUserSpotifyID, !me.isEmpty,
+              let me = currentUserID, !me.isEmpty,
               let summary = playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID]
         else { return false }
         return summary.ownerID == me
@@ -34,7 +34,7 @@ extension PlaylistBrowserViewModel {
     func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
         guard summary.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
               playlistsByID[summary.id] != nil,
-              let me = currentUserSpotifyID, !me.isEmpty
+              let me = currentUserID, !me.isEmpty
         else { return false }
         return summary.ownerID == me
     }
@@ -74,7 +74,7 @@ extension PlaylistBrowserViewModel {
 
     func canDeletePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
         guard supportedLibraryEdits.contains(.deletePlaylist),
-              let me = currentUserSpotifyID, !me.isEmpty
+              let me = currentUserID, !me.isEmpty
         else { return false }
         return summary.ownerID == me && summary.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
     }
@@ -116,7 +116,7 @@ extension PlaylistBrowserViewModel {
     func canReorderTracks(inPlaylist playlistID: String?) -> Bool {
         guard supportedLibraryEdits.contains(.reorderPlaylistTracks),
               let playlistID, playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              let me = currentUserSpotifyID, !me.isEmpty,
+              let me = currentUserID, !me.isEmpty,
               !playlistsRefusingReorder.contains(playlistID),
               let summary = playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID]
         else { return false }
@@ -150,10 +150,7 @@ extension PlaylistBrowserViewModel {
         reorderGenerationByPlaylistID[playlistID, default: 0] += 1
         defer { reorderGenerationByPlaylistID[playlistID, default: 0] += 1 }
 
-        guard await ensureScope(
-            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
-            operation: .reorderPlaylist
-        ) else {
+        guard await ensureEditAllowed(.reorderPlaylist) else {
             await putBack(shown, replacing: reordered, playlistID: playlistID)
             return
         }

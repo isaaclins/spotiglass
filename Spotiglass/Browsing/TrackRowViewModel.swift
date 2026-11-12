@@ -93,7 +93,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
         case let .unavailable(reason):
             self.spotifyTrackID = nil
             self.title = SpotiglassL10n.string("browser.trackBadge.unavailableItem")
-            self.subtitle = reason
+            self.subtitle = Self.text(for: reason)
             self.artworkURL = nil
             self.durationText = TrackDuration.unknownText
             self.durationMilliseconds = 0
@@ -183,6 +183,14 @@ struct TrackRowViewModel: Equatable, Identifiable {
             linkedFromID: nil,
             uri: playableURI
         )
+    }
+
+    private static func text(for reason: MusicUnavailableReason) -> String {
+        switch reason {
+        case .track: SpotiglassL10n.string("browser.unavailableReason.track")
+        case .episode: SpotiglassL10n.string("browser.unavailableReason.episode")
+        case .noPlayableContent: SpotiglassL10n.string("browser.unavailableReason.noPlayableContent")
+        }
     }
 
     private static let pinnableURIPrefixes = ["spotify:track:", "applemusic:song:"]

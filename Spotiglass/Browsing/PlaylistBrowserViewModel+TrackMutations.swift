@@ -171,10 +171,7 @@ extension PlaylistBrowserViewModel {
             return
         }
         guard !playlistID.isEmpty else { return }
-        guard await ensureScope(
-            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
-            operation: .addToPlaylist
-        ) else { return }
+        guard await ensureEditAllowed(.addToPlaylist) else { return }
         do {
             try await api.addTracksToPlaylist(playlistID: playlistID, uris: uris)
             invalidateTracksCache(playlistID: playlistID)
@@ -204,10 +201,7 @@ extension PlaylistBrowserViewModel {
             return
         }
         guard !destinationPlaylistID.isEmpty else { return }
-        guard await ensureScope(
-            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
-            operation: .moveBetweenPlaylists
-        ) else { return }
+        guard await ensureEditAllowed(.moveBetweenPlaylists) else { return }
 
         do {
             try await api.addTracksToPlaylist(playlistID: destinationPlaylistID, uris: uris)
@@ -262,10 +256,7 @@ extension PlaylistBrowserViewModel {
             trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
             return
         }
-        guard await ensureScope(
-            SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksModifyScopes),
-            operation: .addToLikedSongs
-        ) else { return }
+        guard await ensureEditAllowed(.addToLikedSongs) else { return }
         do {
             try await api.saveTracks(ids: ids)
             dropSavedTrackStatesTheProviderNowAnswers()
@@ -297,10 +288,7 @@ extension PlaylistBrowserViewModel {
             pendingLibraryRemoval = .songs(rows)
             return
         }
-        guard await ensureScope(
-            SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksModifyScopes),
-            operation: .removeFromLikedSongs
-        ) else { return }
+        guard await ensureEditAllowed(.removeFromLikedSongs) else { return }
         do {
             try await api.removeSavedTracks(ids: ids)
             dropSavedTrackStatesTheProviderNowAnswers()
@@ -325,14 +313,11 @@ extension PlaylistBrowserViewModel {
     /// `rows` to it. The created summary is inserted at the top of the
     /// sidebar so the user immediately sees it.
     func createPlaylistWithRows(name: String, rows: [TrackRowViewModel]) async {
-        guard let userID = currentUserSpotifyID, !userID.isEmpty else {
+        guard let userID = currentUserID, !userID.isEmpty else {
             trackMutationToast = SpotiglassL10n.format("playlist.mutation.signInToCreate", MusicServiceSelection.current.displayName)
             return
         }
-        guard await ensureScope(
-            SpotifyScopeRequirement(allOf: [SpotifyAuthConfiguration.requiredPlaylistModifyScopes[0]]),
-            operation: .createPlaylist
-        ) else { return }
+        guard await ensureEditAllowed(.createPlaylist) else { return }
         do {
             let uris = playableURIs(for: rows)
             let created = try await api.createPlaylist(userID: userID, name: name, isPublic: false, trackURIs: uris)
@@ -353,7 +338,7 @@ extension PlaylistBrowserViewModel {
     /// the Spotify request completes. A failed request restores the previous name.
     func renamePlaylist(id: String, name: String) async {
         guard let previous = playlistsByID[id] else { return }
-        guard let currentUserID = currentUserSpotifyID,
+        guard let currentUserID = currentUserID,
               !currentUserID.isEmpty,
               previous.ownerID == currentUserID
         else { return }
@@ -373,10 +358,7 @@ extension PlaylistBrowserViewModel {
         )
         applyPlaylistName(renamed)
 
-        guard await ensureScope(
-            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
-            operation: .renamePlaylist
-        ) else {
+        guard await ensureEditAllowed(.renamePlaylist) else {
             applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
             return
         }
@@ -392,7 +374,7 @@ extension PlaylistBrowserViewModel {
 
     /// User-owned playlists (excluding the virtual liked-songs row) for menu listing.
     func userOwnedPlaylistsForMenu(excludingPlaylistID excluding: String?) -> [MusicPlaylistSummary] {
-        let me = currentUserSpotifyID ?? ""
+        let me = currentUserID ?? ""
         return playlistState.currentValue?.compactMap { row -> MusicPlaylistSummary? in
             guard let summary = playlistsByID[row.id], summary.ownerID == me else { return nil }
             if let excluding, summary.id == excluding { return nil }
@@ -402,25 +384,14 @@ extension PlaylistBrowserViewModel {
 
     // MARK: - Internal helpers
 
-    /// Stops a known-missing capability before an API implementation can issue
-    /// the request. This is intentionally a redirecting toast rather than a
-    /// silent no-op so the existing Settings ▸ Account ▸ Reconnect path is
-    /// discoverable.
-    func ensureScope(
-        _ requirement: SpotifyScopeRequirement,
-        operation: PlaylistMutationOperation
-    ) async -> Bool {
-        guard let scopeProvider, !requirement.isEmpty else { return true }
-        let granted = await scopeProvider.grantedScopes()
-        let missing = requirement.missingScopes(from: granted)
-        guard !missing.isEmpty else { return true }
-
-        let error = SpotifyAPIError.insufficientScope(
-            requiredScopes: missing,
-            message: nil,
-            details: "Scope preflight denied a playlist mutation: missing \(missing.joined(separator: ", "))."
-        )
-        trackMutationToast = Self.describeFailure(error, operation: operation)
+    /// Stops an edit the account may not make before the provider can issue the request. This
+    /// is intentionally a redirecting toast rather than a silent no-op, so the service's own fix
+    /// (Spotify: Settings ▸ Account ▸ Reconnect) is discoverable.
+    func ensureEditAllowed(_ operation: PlaylistMutationOperation) async -> Bool {
+        guard let editPermissions, let failure = await editPermissions.missingPermission(for: operation) else {
+            return true
+        }
+        trackMutationToast = Self.describeFailure(failure, operation: operation)
         return false
     }
 
@@ -446,7 +417,8 @@ extension PlaylistBrowserViewModel {
             return apiError.localizedDescription
         }
         // An Apple Music edit's failure reads as Apple Music's, never as Spotify's (#470).
-        return appleMusicDisplayError(for: error)?.message ?? SpotifyAPIError.userMessage(for: error)
+        return BrowsingDisplayError.appleMusic(for: error)?.message
+            ?? MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current)
     }
 
     private static func isScopeFailure(_ error: Error) -> Bool {
