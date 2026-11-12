@@ -70,8 +70,8 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
         .environmentObject(settings)
         .environmentObject(LyricsOverlayController())
 
-        // The window takes each width the test gives it, and the sidebar collapses and comes
-        // back without animation, so each width is read at its final layout (#532).
+        // By default the window takes each width the test gives it, and the sidebar collapses
+        // and comes back without animation, so each width is read at its final layout (#532).
         let controller = ViewTestHost.host(
             view, size: CGSize(width: 900, height: 600), measuresLayout: !likeTheAppsWindow
         )
@@ -106,7 +106,7 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             let detailFrame = detail.convert(detail.bounds, to: controller.view)
             XCTAssertGreaterThanOrEqual(detailFrame.minX, bounds.minX - 0.5, "split view cut off at \(width) pt")
             XCTAssertLessThanOrEqual(detailFrame.maxX, bounds.maxX + 0.5, "detail column cut off at \(width) pt")
-            if split.isSubviewCollapsed(sidebar) || sidebar.isHidden || sidebar.frame.width < 1 {
+            if Self.isCollapsed(sidebar, in: split) {
                 collapsedAt.append(width)
                 XCTAssertGreaterThanOrEqual(
                     detailFrame.width, SpotiglassDesign.detailColumnMinWidth - 0.5, "detail column at \(width) pt"
@@ -176,9 +176,8 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             window.setContentSize(CGSize(width: width, height: 600))
             controller.view.layoutSubtreeIfNeeded()
             Self.waitForCommittedWidth(width, sampler)
-            // The sidebar comes back animated, as in the app: wait for the animation to end.
-            AppKitTestSupport.pumpRunLoop(for: 0.6)
-            controller.view.layoutSubtreeIfNeeded()
+            // The browser decides at the commit; the split view shows it a layout pass later.
+            Self.waitForSidebarToShowDecision(at: width, in: controller, sampler)
 
             XCTAssertEqual(
                 window.contentLayoutRect.width, width, accuracy: 0.5,
@@ -186,7 +185,7 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             )
             let split = try XCTUnwrap(Self.splitView(in: controller.view), "no split view at \(width) pt")
             guard let sidebar = split.arrangedSubviews.first else { continue }
-            let collapsed = split.isSubviewCollapsed(sidebar) || sidebar.isHidden || sidebar.frame.width < 1
+            let collapsed = Self.isCollapsed(sidebar, in: split)
             if width == 600 {
                 XCTAssertTrue(collapsed, "the sidebar didn't collapse at 600 pt")
             }
@@ -219,6 +218,38 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
             abs(sampler.latestWidth - width) < 0.5 && sampler.trailingCommit == nil
         })
         XCTAssertTrue(committed, "the browser never committed \(width) pt (latest \(sampler.latestWidth))", file: file, line: line)
+    }
+
+    /// Waits until the split view shows what the browser decided for the committed width:
+    /// the sidebar collapsed below the width where it fits next to the detail column, and shown
+    /// at or above it. Waiting for that instead of for a fixed time reads every width at the
+    /// layout it ends on, however late a busy machine gets to the next pass.
+    private static func waitForSidebarToShowDecision(
+        at width: CGFloat,
+        in controller: NSHostingController<AnyView>,
+        _ sampler: BrowserWidthSampler,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let shouldShow = !BrowserWidthCommitPolicy.mutualExclusionWidth(
+            for: sampler.committedWidth,
+            comfortableMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth(
+                sidebarWidth: sampler.playlistSidebarWidth
+            )
+        )
+        let shown = AppKitTestSupport.pumpRunLoop(until: {
+            controller.view.layoutSubtreeIfNeeded()
+            guard let split = splitView(in: controller.view), let sidebar = split.arrangedSubviews.first
+            else { return false }
+            return isCollapsed(sidebar, in: split) != shouldShow
+        })
+        XCTAssertTrue(
+            shown, "the sidebar never \(shouldShow ? "came back" : "collapsed") at \(width) pt", file: file, line: line
+        )
+    }
+
+    private static func isCollapsed(_ sidebar: NSView, in split: NSSplitView) -> Bool {
+        split.isSubviewCollapsed(sidebar) || sidebar.isHidden || sidebar.frame.width < 1
     }
 
     private static func splitView(in view: NSView) -> NSSplitView? {
