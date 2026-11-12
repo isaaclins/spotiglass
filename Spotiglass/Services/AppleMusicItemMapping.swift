@@ -136,9 +136,6 @@ enum AppleMusicItemMapping {
         let curator = playlist.curatorName
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 }
-        // A blank name would read as a broken response to the browser's playlist check (built
-        // for Spotify's error items) and fail the whole library with a Spotify-style error.
-        let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cover = catalogCopy.flatMap { $0.id == playlist.id ? nil : $0.artwork } ?? playlist.artwork
         let imageURL = artworkURL(cover, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id)
         // Search lists a shared library playlist under its catalog ID too, and pins made there
@@ -155,7 +152,9 @@ enum AppleMusicItemMapping {
         }
         return MusicPlaylistSummary(
             id: playlist.id.rawValue,
-            name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
+            // A blank name reads as "Untitled Playlist" in the app's language (#547), so the
+            // browser's playlist check (built for Spotify's error items) never sees it blank.
+            name: playlist.name,
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
             imageURL: imageURL,

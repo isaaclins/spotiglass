@@ -52,7 +52,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.selectPreviousPlaylist = { [weak viewModel = dependencies.viewModel] in
             await viewModel?.selectPreviousPlaylist()
         }
-        manager.connectPlayback = dependencies.isPlaybackAvailable
+        // Only a player that is its own connection has one to connect: Apple Music plays on this
+        // Mac, so Connect would only restart its session (#453), like Reconnect in the bar (#430).
+        manager.connectPlayback = dependencies.isPlaybackAvailable && dependencies.playbackViewModel.canReconnectPlayer
             ? { [weak playback = dependencies.playbackViewModel] in
                 playback?.start(recoveryCause: .manualReconnect)
             }

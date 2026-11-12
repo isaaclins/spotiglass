@@ -503,6 +503,19 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertNil(pending.createdPlaylist(id: "p.new"))
     }
 
+    /// A new playlist whose name reads as the stand-in isn't the nameless one already there,
+    /// although both show "Untitled Playlist" (#547).
+    func testCreatedPlaylistIsMatchedByItsNameAsSentNotTheStandIn() {
+        let pending = AppleMusicPendingLibraryEdits()
+        pending.recordCreatedPlaylist(summary("p.new", "Lista sin título"))
+
+        XCTAssertEqual(pending.applied(toPlaylists: [summary("-1", "")]).map(\.id), ["p.new", "-1"])
+        XCTAssertEqual(
+            pending.applied(toPlaylists: [summary("-2", "Lista sin título"), summary("-1", "")]).map(\.id),
+            ["-2", "-1"]
+        )
+    }
+
     func testRenamedAndDeletedPlaylistsShowTheEditUntilTheLibraryDoes() {
         let pending = AppleMusicPendingLibraryEdits()
         pending.recordRenamedPlaylist("-1", name: "New")

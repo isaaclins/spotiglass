@@ -47,7 +47,9 @@ struct HomeMediaCard: Equatable, Identifiable {
     /// Returns `nil` for tracks without album info (local files, podcasts).
     init?(recentlyPlayed track: MusicTrack) {
         guard let albumID = track.albumID else { return nil }
-        let title = track.albumName ?? track.name
+        // An album without a name is called one in the app's language, not after the track (#547).
+        let albumName = track.albumName ?? ""
+        let title = UnnamedMusicItem.displayName(albumName, kind: .album)
         let subtitle = track.artists.joined(separator: ", ")
         self.init(
             id: albumID,
@@ -59,7 +61,7 @@ struct HomeMediaCard: Equatable, Identifiable {
             artistRefs: track.artistRefs,
             menuTarget: .pinnable(.album(MusicAlbum(
                 id: albumID,
-                name: title,
+                name: albumName,
                 artists: track.artists,
                 imageURL: track.albumArtworkURL,
                 uri: Self.albumURI(id: albumID, siblingURI: track.uri)

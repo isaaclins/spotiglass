@@ -343,6 +343,8 @@ extension PlaylistBrowserViewModel {
         else { return }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Compared with what the editor showed: confirming a nameless playlist's stand-in unchanged
+        // must not save the stand-in as its name (#547).
         guard !trimmedName.isEmpty, trimmedName != previous.name else { return }
 
         let renamed = MusicPlaylistSummary(
@@ -357,7 +359,7 @@ extension PlaylistBrowserViewModel {
         applyPlaylistName(renamed)
 
         guard await ensureEditAllowed(.renamePlaylist) else {
-            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
             return
         }
 
@@ -365,7 +367,7 @@ extension PlaylistBrowserViewModel {
             try await api.updatePlaylist(playlistID: id, name: trimmedName)
         } catch {
             // Only the name goes back: a track count that arrived meanwhile stays.
-            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
             trackMutationToast = Self.describeFailure(error, operation: .renamePlaylist)
         }
     }
@@ -508,15 +510,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func insertSidebarPlaylist(_ summary: MusicPlaylistSummary, refreshedTrackCount: Int) {
-        let normalised = MusicPlaylistSummary(
-            id: summary.id,
-            name: summary.name,
-            ownerID: summary.ownerID,
-            ownerName: summary.ownerName,
-            imageURL: summary.imageURL,
-            trackCount: refreshedTrackCount,
-            snapshotID: summary.snapshotID
-        )
+        let normalised = summary.with(trackCount: refreshedTrackCount)
         playlistsByID[summary.id] = normalised
         var rows = playlistState.currentValue ?? []
         if !rows.contains(where: { $0.id == summary.id }) {
