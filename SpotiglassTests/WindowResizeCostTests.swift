@@ -91,16 +91,19 @@ final class WindowResizeCostTests: XCTestCase {
         window.setContentSize(NSSize(width: 1_450, height: 900))
 
         // What is on screen before the resize, so the test can't pass on an empty window.
-        let onScreen: [(String, (String) -> Bool)] = [
+        // Built one statement at a time: as one expression the compiler gives up on it (CI, Xcode 26).
+        typealias Expectation = (message: String, matches: (String) -> Bool)
+        var onScreen: [Expectation] = [
             ("the live player bar isn't on screen", { $0 == "PlaybackControlsView" }),
             ("the sidebar doesn't list the playlist p1", { $0 == "PlaylistListRow:p1" }),
             ("the sidebar doesn't list the playlist p2", { $0 == "PlaylistListRow:p2" }),
-        ] + (page == .home ? [
-            ("Home isn't on screen", { $0 == "HomeView" }),
-            ("no recently played album on screen", { $0 == "HomeMediaCardView:recent-album-0" }),
-        ] : [
-            ("no song rows on screen", { $0.hasPrefix("TrackListRow:") }),
-        ])
+        ]
+        if page == .home {
+            onScreen.append(("Home isn't on screen", { $0 == "HomeView" }))
+            onScreen.append(("no recently played album on screen", { $0 == "HomeMediaCardView:recent-album-0" }))
+        } else {
+            onScreen.append(("no song rows on screen", { $0.hasPrefix("TrackListRow:") }))
+        }
         let missing = { onScreen.filter { _, matches in !(ViewBodyTally.counts ?? [:]).keys.contains(where: matches) } }
         _ = AppKitTestSupport.pumpRunLoop(until: { missing().isEmpty })
         for (message, _) in missing() {
