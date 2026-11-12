@@ -241,7 +241,10 @@ extension PlaybackSessionViewModel {
     /// state the bar showed before it failed: moving playback here again, as Retry used to do,
     /// cleared the error but left what you asked for undone (#451). Without one, the failure
     /// was moving playback to this device, and that is retried.
+    /// A click while the command is still being sent again does nothing: moving playback here
+    /// next to it would race it.
     func retryAfterError() async {
+        guard !isResendingFailedCommand else { return }
         guard let failedCommand else {
             await retryPlaybackTransfer()
             return
@@ -250,6 +253,8 @@ extension PlaybackSessionViewModel {
         if let restoreState = failedCommand.restoreState {
             setConnectionState(restoreState)
         }
+        isResendingFailedCommand = true
+        defer { isResendingFailedCommand = false }
         await failedCommand.resend(self)
     }
 

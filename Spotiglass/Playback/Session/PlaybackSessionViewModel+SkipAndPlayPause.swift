@@ -699,6 +699,13 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
+            // The player already moved on (its answer to the request was lost): the skip
+            // happened, so there is nothing to show and nothing for Retry to skip again.
+            if let liveDispatch = pendingSkipDispatch, hasObservedSkipAdvance(liveDispatch) {
+                SpotiglassLog.info(.playback, "skip request failed after the player moved on: \(error.localizedDescription)")
+                noteLocalPlaybackMutation()
+                return true
+            }
             // Retry skips again; the failed skip moved nothing, so it doesn't count toward the
             // spacing between skips.
             showFailedCommand(error) { viewModel in

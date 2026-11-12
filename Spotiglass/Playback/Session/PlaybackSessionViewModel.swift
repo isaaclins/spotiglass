@@ -325,6 +325,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The command whose failure is on screen with Retry: what Retry sends again (#451).
     /// Any other state, or another error, drops it.
     var failedCommand: FailedPlaybackCommand?
+    /// Retry is sending a failed command again: another Retry does nothing until it finishes.
+    var isResendingFailedCommand = false
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
