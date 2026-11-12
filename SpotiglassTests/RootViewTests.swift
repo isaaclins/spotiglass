@@ -533,7 +533,9 @@ final class RootViewPinsAfterAddingTests: XCTestCase {
             artworkURL: nil, spotifyURI: nil, isStale: false
         ))
         services.activate(.spotify)
-        try await settle(rounds: 10)
+        // Switching away clears the pins, so switching back has to load them from disk.
+        try await settle(until: { pinned.boundUserID == nil && pinned.items.isEmpty })
+        XCTAssertNil(pinned.boundUserID, "switching to Spotify should clear Apple Music's pins")
         services.activate(.appleMusic)
         try await settle(until: { pinned.items.count == 2 }, rounds: 20)
 

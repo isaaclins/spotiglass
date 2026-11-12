@@ -278,7 +278,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testRefreshConnectDevicesCoalescesConcurrentRequests() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.fetchAvailableDevicesDelayNanoseconds = 80_000_000
+        let firstFetch = MockCallHold()
+        playbackAPI.fetchAvailableDevicesHold = firstFetch
         playbackAPI.availableDevices = [
             MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
@@ -287,10 +288,14 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             connectDevicesFreshnessWindow: .seconds(0)
         )
 
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await viewModel.refreshConnectDevices() }
-            group.addTask { await viewModel.refreshConnectDevices() }
-        }
+        let firstRefresh = Task { await viewModel.refreshConnectDevices() }
+        let didStartFirstFetch = await firstFetch.entered.wait(timeout: .seconds(5))
+        XCTAssertTrue(didStartFirstFetch, "the first devices request should be in flight before the second caller")
+        // Runs at once up to where it waits, so it is waiting on the first request before that ends.
+        let secondRefresh = Task.immediate { await viewModel.refreshConnectDevices() }
+        firstFetch.release()
+        await firstRefresh.value
+        await secondRefresh.value
 
         let refreshCalls = playbackAPI.actions.filter { $0 == "fetchAvailableDevices" }
         XCTAssertEqual(refreshCalls.count, 1, "Concurrent refresh callers should share one in-flight devices request.")
@@ -928,23 +933,23 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testConcurrentPlayRequestsCollapseToASingleTransferPUT() async {
         let playbackAPI = MockPlaybackAPI()
-        let transferStarted = AsyncSignal()
-        playbackAPI.onTransferPlayback = { _, _ in
-            transferStarted.signal()
-        }
-        // Stretch the transfer enough that two `play()` calls overlap the in-flight PUT.
-        playbackAPI.transferPlaybackDelayNanoseconds = 150_000_000
+        // Hold the transfer so the second `play()` arrives while the PUT is in flight.
+        let firstTransfer = MockCallHold()
+        playbackAPI.transferPlaybackHold = firstTransfer
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
-        async let first: Void = viewModel.play(uri: "spotify:track:1")
-        let didStartTransfer = await transferStarted.wait(timeout: .seconds(1))
+        let first = Task { await viewModel.play(uri: "spotify:track:1") }
+        let didStartTransfer = await firstTransfer.entered.wait(timeout: .seconds(5))
         XCTAssertTrue(
             didStartTransfer,
             "the first play should enter transfer before the second starts"
         )
-        async let second: Void = viewModel.play(uri: "spotify:track:2")
-        _ = await (first, second)
+        // Runs at once up to where it waits on the in-flight transfer.
+        let second = Task.immediate { await viewModel.play(uri: "spotify:track:2") }
+        firstTransfer.release()
+        await first.value
+        await second.value
 
         let transferActions = playbackAPI.actions.filter { $0.hasPrefix("transfer") }
         XCTAssertEqual(

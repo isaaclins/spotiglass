@@ -168,6 +168,34 @@ final class AsyncSignal: @unchecked Sendable {
     }
 }
 
+/// Holds the first call that reaches it until `release()`, so a test can act while that call is
+/// in flight. Any later call releases it: a build that sends a call the test expects to be dropped
+/// then fails its assertions instead of hanging. A held call also ends when its task is cancelled.
+final class MockCallHold: @unchecked Sendable {
+    /// Fires when the first call reaches the hold.
+    let entered = AsyncSignal()
+    private let released = AsyncSignal()
+    private let lock = NSLock()
+    private var callCount = 0
+
+    func release() {
+        released.signal()
+    }
+
+    func pass() async {
+        let isFirst = lock.withLock {
+            callCount += 1
+            return callCount == 1
+        }
+        guard isFirst else {
+            released.signal()
+            return
+        }
+        entered.signal()
+        await released.wait()
+    }
+}
+
 private final class MockPlaybackActionRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedActions: [String] = []
@@ -207,22 +235,21 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var availableDevices: [MusicPlaybackDevice] = []
         var onFetchPlayerSnapshot: (() async -> Void)?
         var onFetchAvailableDevices: (() async -> Void)?
-        var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
-        var fetchPlayerSnapshotDelayNanoseconds: UInt64 = 0
+        var fetchAvailableDevicesHold: MockCallHold?
+        var fetchPlayerSnapshotHold: MockCallHold?
         var setShuffleError: Error?
         var onSetShuffle: ((Bool) async -> Void)?
         var setRepeatError: Error?
         var fetchPlayerSnapshotError: Error?
-        var playDelayNanoseconds: UInt64 = 0
-        var seekDelayNanoseconds: UInt64 = 0
+        var playHold: MockCallHold?
         var seekError: Error?
         var nextError: Error?
         var pauseError: Error?
-        var setRepeatDelayNanoseconds: UInt64 = 0
-        var setShuffleDelayNanoseconds: UInt64 = 0
+        var setRepeatHold: MockCallHold?
+        var setShuffleHold: MockCallHold?
         var onTransferPlayback: ((String, Bool) async -> Void)?
         var onTransferPlaybackCompleted: ((String, Bool) async -> Void)?
-        var transferPlaybackDelayNanoseconds: UInt64 = 0
+        var transferPlaybackHold: MockCallHold?
         var queueResponse = MusicPlaybackQueue(queue: [])
         var onFetchQueue: (() async -> Void)?
     }
@@ -233,7 +260,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var actions: [String] { actionRecorder.snapshot() }
     var lastPlayedURIQueue: [String]? { locked { $0.lastPlayedURIQueue } }
     var lastPlayedOffsetURI: String? { locked { $0.lastPlayedOffsetURI } }
-    /// Runs at the top of every `play*` call (before the artificial delay), with the
+    /// Runs at the top of every `play*` call (before `playHold`), with the
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
     var onPlay: ((String) async -> Void)? {
@@ -281,13 +308,15 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.onFetchAvailableDevices } }
         set { locked { $0.onFetchAvailableDevices = newValue } }
     }
-    var fetchAvailableDevicesDelayNanoseconds: UInt64 {
-        get { locked { $0.fetchAvailableDevicesDelayNanoseconds } }
-        set { locked { $0.fetchAvailableDevicesDelayNanoseconds = newValue } }
+    /// Holds `fetchAvailableDevices` after it is recorded and `onFetchAvailableDevices` ran.
+    var fetchAvailableDevicesHold: MockCallHold? {
+        get { locked { $0.fetchAvailableDevicesHold } }
+        set { locked { $0.fetchAvailableDevicesHold = newValue } }
     }
-    var fetchPlayerSnapshotDelayNanoseconds: UInt64 {
-        get { locked { $0.fetchPlayerSnapshotDelayNanoseconds } }
-        set { locked { $0.fetchPlayerSnapshotDelayNanoseconds = newValue } }
+    /// Holds `fetchPlayerSnapshot` after it is recorded and `onFetchPlayerSnapshot` ran.
+    var fetchPlayerSnapshotHold: MockCallHold? {
+        get { locked { $0.fetchPlayerSnapshotHold } }
+        set { locked { $0.fetchPlayerSnapshotHold = newValue } }
     }
     var setShuffleError: Error? {
         get { locked { $0.setShuffleError } }
@@ -305,17 +334,14 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.fetchPlayerSnapshotError } }
         set { locked { $0.fetchPlayerSnapshotError = newValue } }
     }
-    var playDelayNanoseconds: UInt64 {
-        get { locked { $0.playDelayNanoseconds } }
-        set { locked { $0.playDelayNanoseconds = newValue } }
+    /// Holds every `play*` call after `onPlay` ran, before it is recorded.
+    var playHold: MockCallHold? {
+        get { locked { $0.playHold } }
+        set { locked { $0.playHold = newValue } }
     }
     var playErrors: [Error] {
         get { locked { $0.playErrors } }
         set { locked { $0.playErrors = newValue } }
-    }
-    var seekDelayNanoseconds: UInt64 {
-        get { locked { $0.seekDelayNanoseconds } }
-        set { locked { $0.seekDelayNanoseconds = newValue } }
     }
     var seekError: Error? {
         get { locked { $0.seekError } }
@@ -329,15 +355,17 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.pauseError } }
         set { locked { $0.pauseError = newValue } }
     }
-    var setRepeatDelayNanoseconds: UInt64 {
-        get { locked { $0.setRepeatDelayNanoseconds } }
-        set { locked { $0.setRepeatDelayNanoseconds = newValue } }
+    /// Holds `setRepeat` before it is recorded.
+    var setRepeatHold: MockCallHold? {
+        get { locked { $0.setRepeatHold } }
+        set { locked { $0.setRepeatHold = newValue } }
     }
-    var setShuffleDelayNanoseconds: UInt64 {
-        get { locked { $0.setShuffleDelayNanoseconds } }
-        set { locked { $0.setShuffleDelayNanoseconds = newValue } }
+    /// Holds `setShuffle` after `onSetShuffle` ran, before it is recorded.
+    var setShuffleHold: MockCallHold? {
+        get { locked { $0.setShuffleHold } }
+        set { locked { $0.setShuffleHold = newValue } }
     }
-    /// Runs at the top of `transferPlayback`, before any optional delay. Tests can use it
+    /// Runs at the top of `transferPlayback`, before `transferPlaybackHold`. Tests can use it
     /// to hold a PUT in flight without relying on wall-clock timing.
     var onTransferPlayback: ((String, Bool) async -> Void)? {
         get { locked { $0.onTransferPlayback } }
@@ -349,11 +377,11 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.onTransferPlaybackCompleted } }
         set { locked { $0.onTransferPlaybackCompleted = newValue } }
     }
-    /// When non-zero, `transferPlayback` sleeps before recording the action. Lets the transfer-playback audit
-    /// concurrency tests overlap the in-flight PUT with a sibling caller so the single-flight guard runs.
-    var transferPlaybackDelayNanoseconds: UInt64 {
-        get { locked { $0.transferPlaybackDelayNanoseconds } }
-        set { locked { $0.transferPlaybackDelayNanoseconds = newValue } }
+    /// Holds `transferPlayback` before it is recorded, so a sibling caller can overlap the
+    /// in-flight PUT and the single-flight guard runs.
+    var transferPlaybackHold: MockCallHold? {
+        get { locked { $0.transferPlaybackHold } }
+        set { locked { $0.transferPlaybackHold = newValue } }
     }
     /// FIFO of errors thrown by `transferPlayback`. Empty queue means transfers succeed.
     var transferPlaybackErrors: [Error] {
@@ -373,9 +401,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         await onTransferPlayback?(deviceID, play)
-        if transferPlaybackDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: transferPlaybackDelayNanoseconds)
-        }
+        await transferPlaybackHold?.pass()
         if let next = locked({ $0.transferPlaybackErrors.isEmpty ? nil : $0.transferPlaybackErrors.removeFirst() }) {
             actionRecorder.append("transfer-error:\(deviceID):\(play)")
             throw next
@@ -386,9 +412,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         await onPlay?(uri)
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
+        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }
@@ -397,9 +421,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(contextURI: String, deviceID: String) async throws {
         await onPlay?(contextURI)
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
+        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }
@@ -431,9 +453,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             $0.lastPlayedOffsetURI = offsetURI
         }
         await onPlay?(offsetURI ?? uris.first ?? "")
-        if playDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: playDelayNanoseconds)
-        }
+        await playHold?.pass()
         if let error = nextPlayError() {
             throw error
         }
@@ -444,9 +464,6 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         locked { $0.seekCallTimestamps.append(Date()) }
         await onSeekAttempt?(milliseconds)
         try Task.checkCancellation()
-        if seekDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: seekDelayNanoseconds)
-        }
         if let seekError {
             throw seekError
         }
@@ -495,9 +512,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot? {
         actionRecorder.append("fetchPlayerSnapshot")
         await onFetchPlayerSnapshot?()
-        if fetchPlayerSnapshotDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: fetchPlayerSnapshotDelayNanoseconds)
-        }
+        await fetchPlayerSnapshotHold?.pass()
         if let fetchPlayerSnapshotError {
             throw fetchPlayerSnapshotError
         }
@@ -526,26 +541,20 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     func fetchAvailableDevices() async throws -> [MusicPlaybackDevice] {
         actionRecorder.append("fetchAvailableDevices")
         await onFetchAvailableDevices?()
-        if fetchAvailableDevicesDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: fetchAvailableDevicesDelayNanoseconds)
-        }
+        await fetchAvailableDevicesHold?.pass()
         return availableDevices
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {
         await onSetShuffle?(enabled)
         if let setShuffleError { throw setShuffleError }
-        if setShuffleDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: setShuffleDelayNanoseconds)
-        }
+        await setShuffleHold?.pass()
         actionRecorder.append("setShuffle:\(deviceID):\(enabled)")
         locked { $0.reportedTransport = MusicPlaybackTransport(shuffle: enabled, repeatMode: $0.reportedTransport.repeatMode) }
     }
 
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
-        if setRepeatDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: setRepeatDelayNanoseconds)
-        }
+        await setRepeatHold?.pass()
         if let setRepeatError { throw setRepeatError }
         actionRecorder.append("setRepeat:\(deviceID):\(mode.rawValue)")
         locked { $0.reportedTransport = MusicPlaybackTransport(shuffle: $0.reportedTransport.shuffle, repeatMode: mode) }

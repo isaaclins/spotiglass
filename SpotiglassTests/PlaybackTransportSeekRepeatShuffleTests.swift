@@ -29,9 +29,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
     }
 
-    func testSeekCoalescesToLatestWhileRequestInFlight() async {
+    func testSeeksQueuedBeforeTheFirstIsSentCoalesceToTheLatest() async {
         let api = MockPlaybackAPI()
-        api.seekDelayNanoseconds = 80_000_000
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .milliseconds(10),
@@ -39,9 +38,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.ready(deviceID: "device-1"))
 
+        // `seek(to:)` only queues the intent and starts the dispatch task, which can't run
+        // before this test suspends: all three seeks are queued before the first is sent.
+        // A seek that arrives while another one is in flight isn't coalesced yet.
         await viewModel.seek(to: 10_000)
         await viewModel.seek(to: 20_000)
         await viewModel.seek(to: 30_000)
+        XCTAssertTrue(api.seekCallTimestamps.isEmpty, "no seek should be sent before the test suspends")
         await viewModel.seekDispatchTask?.value
 
         let seeks = api.actions.filter { $0.hasPrefix("seek:") }
@@ -581,7 +584,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             activeDevice: nil,
             isPlaying: false
         )]
-        api.setRepeatDelayNanoseconds = 80_000_000
+        let firstWrite = MockCallHold()
+        api.setRepeatHold = firstWrite
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             repeatWriteMinInterval: .milliseconds(40),
@@ -590,10 +594,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
-        async let tap1: Void = viewModel.cycleRepeat() // off -> context
-        async let tap2: Void = viewModel.cycleRepeat() // context -> track
-        async let tap3: Void = viewModel.cycleRepeat() // track -> off
-        _ = await (tap1, tap2, tap3)
+        let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
+        XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the next taps")
+        await viewModel.cycleRepeat() // context -> track
+        await viewModel.cycleRepeat() // track -> off
+        firstWrite.release()
+        await tap1.value
 
         let repeatWrites = api.actions.filter { $0.hasPrefix("setRepeat:") }
         XCTAssertEqual(repeatWrites.count, 2, "Rapid repeat taps should coalesce to at most first+latest writes.")
@@ -609,7 +616,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             activeDevice: nil,
             isPlaying: false
         )]
-        api.setRepeatDelayNanoseconds = 80_000_000
+        let firstWrite = MockCallHold()
+        api.setRepeatHold = firstWrite
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             repeatWriteMinInterval: .milliseconds(40),
@@ -618,9 +626,12 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
-        async let tap1: Void = viewModel.cycleRepeat() // off -> context
-        async let tap2: Void = viewModel.cycleRepeat() // context -> track
-        _ = await (tap1, tap2)
+        let tap1 = Task { await viewModel.cycleRepeat() } // off -> context
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
+        XCTAssertTrue(didSendFirstWrite, "the first repeat write should be in flight before the second tap")
+        await viewModel.cycleRepeat() // context -> track
+        firstWrite.release()
+        await tap1.value
 
         let repeatWrites = api.actions.filter { $0.hasPrefix("setRepeat:") }
         XCTAssertEqual(repeatWrites.count, 2)
@@ -776,7 +787,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             activeDevice: nil,
             isPlaying: false
         )]
-        api.setShuffleDelayNanoseconds = 120_000_000
+        let firstWrite = MockCallHold()
+        api.setShuffleHold = firstWrite
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .seconds(10)
@@ -785,19 +797,15 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.syncTransportFromSpotify()
         XCTAssertFalse(viewModel.shuffleEnabled)
 
-        let firstShuffleStarted = AsyncSignal()
-        api.onSetShuffle = { enabled in
-            if enabled { firstShuffleStarted.signal() }
-        }
         let firstToggle = Task { await viewModel.toggleShuffle() }
-        let didStartFirstShuffle = await firstShuffleStarted.wait(timeout: .seconds(1))
+        let didSendFirstWrite = await firstWrite.entered.wait(timeout: .seconds(5))
         XCTAssertTrue(
-            didStartFirstShuffle,
+            didSendFirstWrite,
             "the first shuffle write should be in flight before the second toggle"
         )
-        let secondToggle = Task { await viewModel.toggleShuffle() }
+        await viewModel.toggleShuffle()
+        firstWrite.release()
         await firstToggle.value
-        await secondToggle.value
 
         let shuffleWrites = api.actions.filter { $0.hasPrefix("setShuffle:") }
         XCTAssertEqual(shuffleWrites, ["setShuffle:device-1:true", "setShuffle:device-1:false"])
