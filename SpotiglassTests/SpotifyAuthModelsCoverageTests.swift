@@ -44,6 +44,45 @@ final class SpotifyAuthModelsCoverageTests: XCTestCase {
         XCTAssertNil(settings.grantedScope)
     }
 
+    /// Screenshot mode launches the app with `-spotify.clientID screenshot-mode`. The argument
+    /// domain makes that ID read like a saved one, and the client ID field in Settings hands it back
+    /// to `AuthViewModel.clientID` when it ends editing. That write used to save it, so a normal
+    /// launch afterwards tried to sign in with an ID that doesn't exist.
+    @MainActor
+    func testAClientIDFromALaunchArgumentIsNeverSaved() throws {
+        let suiteName = "SpotiglassTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let launchArguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        var withClientID = launchArguments
+        withClientID["spotify.clientID"] = "screenshot-mode"
+        defaults.setVolatileDomain(withClientID, forName: UserDefaults.argumentDomain)
+        addTeardownBlock {
+            defaults.setVolatileDomain(launchArguments, forName: UserDefaults.argumentDomain)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: defaults),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        XCTAssertEqual(auth.clientID, "screenshot-mode")
+
+        // What the field's binding does when it ends editing without a change.
+        auth.clientID = auth.clientID
+        auth.clientID = " screenshot-mode "
+
+        XCTAssertNil(
+            defaults.persistentDomain(forName: suiteName)?["spotify.clientID"],
+            "A client ID passed on the command line must stay out of the saved settings."
+        )
+        XCTAssertEqual(SpotifyAuthSettings(defaults: defaults).clientID, "screenshot-mode")
+
+        // An ID the user types is still theirs to save.
+        auth.clientID = "typed-id"
+        XCTAssertEqual(defaults.persistentDomain(forName: suiteName)?["spotify.clientID"] as? String, "typed-id")
+    }
+
     func testAuthenticatedSessionExpiryAndRefresh() {
         let now = Date(timeIntervalSince1970: 1_000)
         let session = AuthenticatedSession(
