@@ -446,19 +446,12 @@ struct AppleMusicLibraryEditor: Sendable {
         let catalogIDs = references.compactMap(\.catalogID)
         let tracks = catalogIDs.isEmpty ? [] : ((try? await lookup.catalogTracks(ids: catalogIDs)) ?? [])
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        for reference in references {
-            // A song MusicKit lists only under a persistent ID has no catalog track; the row it
-            // was listed as stands in for it.
-            guard let track = reference.catalogID.flatMap({ tracksByCatalogID[$0] }) ?? reference.shownTrack else { continue }
-            let metadataKey = AppleMusicPendingLibraryEdits.metadataKey(track)
-            let layout = AppleMusicPendingLibraryEdits.PlaylistLayout(shownTracks) {
-                reference.matchKeys.contains($0.id) || $0.id == track.id
-                    || AppleMusicPendingLibraryEdits.metadataKey($0) == metadataKey
-            }
-            pending.recordPlaylistAddition(
-                track, reference: reference, playlistID: playlistID, shownBefore: layout.offsets.count, layout: layout
-            )
+        // A song MusicKit lists only under a persistent ID has no catalog track; the row it was
+        // listed as stands in for it.
+        let added = references.compactMap { reference in
+            (reference.catalogID.flatMap { tracksByCatalogID[$0] } ?? reference.shownTrack).map { (track: $0, reference: reference) }
         }
+        pending.recordPlaylistAdditions(added, playlistID: playlistID, shown: shownTracks)
     }
 
     /// Removes the given occurrences of songs from a playlist through the Music app.
@@ -481,23 +474,24 @@ struct AppleMusicLibraryEditor: Sendable {
         guard !scripted.isEmpty else { return }
         try await musicApp.removeFromPlaylist(try await musicAppPlaylist(for: playlistID), removals: scripted)
         pending.adjustCreatedPlaylistTrackCount(playlistID, by: -removals.reduce(0) { $0 + $1.positions.count })
+        var picked = Set<Int>()
         for (reference, removal) in zip(references, removals) {
             // A copy added from Spotiglass shows under another of the song's IDs than the
             // library's rows do: every one of them counts as the song.
             let isSong: (MusicTrack) -> Bool = { $0.id == removal.songID || reference.matchKeys.contains($0.id) }
-            let layout = AppleMusicPendingLibraryEdits.PlaylistLayout(shownTracks, isSong: isSong)
-            pending.recordPlaylistRemoval(
-                reference.matchKeys,
-                metadataKey: reference.title.map { AppleMusicPendingLibraryEdits.metadataKey(name: $0, artist: reference.artistName) },
-                removed: removal.positions.count,
-                shownBefore: layout.offsets.count,
-                ordinals: removal.positions.filter { $0 < shownTracks.count }.map { position in
-                    shownTracks[..<position].filter(isSong).count
-                },
-                layout: layout,
-                playlistID: playlistID
-            )
+            let rows = Self.rows(removal.positions, of: shownTracks, where: isSong, besides: picked)
+            picked.formUnion(rows)
         }
+        pending.recordPlaylistRemoval(at: Array(picked), playlistID: playlistID, shown: shownTracks)
+    }
+
+    /// The rows of `shown` that removing a song at `positions` takes: each position that lists
+    /// the song, and for the rest (the list moved since) the song's last copies not yet taken.
+    static func rows(_ positions: [Int], of shown: [MusicTrack], where isSong: (MusicTrack) -> Bool, besides taken: Set<Int>) -> [Int] {
+        var rows = positions.filter { shown.indices.contains($0) && isSong(shown[$0]) && !taken.contains($0) }
+        let others = shown.indices.reversed().filter { isSong(shown[$0]) && !taken.contains($0) && !rows.contains($0) }
+        rows += others.prefix(max(0, Set(positions).count - Set(rows).count))
+        return Array(Set(rows))
     }
 
     /// Saves a new order through the Music app (#543): the Apple Music API has no reorder. Every
