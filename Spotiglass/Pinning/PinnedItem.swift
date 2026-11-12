@@ -207,10 +207,7 @@ extension PinnedItem {
         // The label and the artist names were saved in the language the item was pinned in (#547).
         case .artist:
             return Self.relabelled(subtitle, key: "browser.palette.subtitle.artist", locale: locale) ?? subtitle
-        case .album:
-            return Self.relabelled(subtitle, key: "pin.album.default", locale: locale)
-                ?? UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
-        case .track:
+        case .album, .track:
             return UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
         case .likedSongs:
             break

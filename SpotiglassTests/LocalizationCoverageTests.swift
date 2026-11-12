@@ -637,6 +637,21 @@ final class LocalizationCoverageTests: XCTestCase {
         XCTAssertEqual(commaArtist.localizedSubtitle(locale: locale), "Tyler, The Creator")
         XCTAssertEqual(noArtist.localizedSubtitle(locale: locale), "")
         XCTAssertEqual(episode.name, "Unbekannte Episode")
+        // An artist called "Album" is a name, not the album label.
+        let albumByAlbum = PinnedItem.album(
+            MusicAlbum(id: "al2", name: "Metal Box", artists: ["Album"], imageURL: nil, uri: "spotify:album:al2")
+        )
+        XCTAssertEqual(albumByAlbum.localizedSubtitle(locale: Locale(identifier: "es")), "Album")
+
+        // Recently Played names an album without a name as one, not after the track.
+        let recent = try XCTUnwrap(try JSONDecoder().decode(SpotifyTrackDTO.self, from: Data(#"""
+        {"id":"t5","name":"Kerala","uri":"spotify:track:t5","artists":[{"id":"a4","name":"Bonobo"}],
+         "album":{"id":"al3","name":null,"images":[]}}
+        """#.utf8)).domainModel())
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: recent))
+        XCTAssertEqual(card.title, "Unbekanntes Album")
+        let albumPin = try XCTUnwrap(card.menuTarget).pinnedItem
+        XCTAssertEqual(albumPin.localizedTitle(locale: Locale(identifier: "en")), "Unknown album")
 
         // A real name that is another kind's stand-in stays a name.
         let realPlaylist = MusicPlaylistSummary(
