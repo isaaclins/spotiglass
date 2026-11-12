@@ -181,13 +181,28 @@ struct PlaybackProgressAnchor: Equatable {
 
 struct PlaybackDisplayError: Error, Equatable, Identifiable {
     let id = UUID()
-    let title: String
-    let message: String
+    /// Looked up when shown, so an error on screen follows a language switch (#548).
+    private let titleText: LocalizedText
+    private let messageText: LocalizedText
+    var title: String { titleText.string }
+    var message: String { messageText.string }
     let recoveryAction: PlaybackRecoveryAction?
     /// One command failed and the player itself is fine: a player with no connection to
     /// restore goes back to what it plays after a moment (#430). Missing access or a missing
     /// subscription is not momentary: that message stays until it's fixed.
     var isMomentary = false
+
+    init(
+        title: @autoclosure @escaping () -> String,
+        message: @autoclosure @escaping () -> String,
+        recoveryAction: PlaybackRecoveryAction?,
+        isMomentary: Bool = false
+    ) {
+        self.titleText = LocalizedText(title())
+        self.messageText = LocalizedText(message())
+        self.recoveryAction = recoveryAction
+        self.isMomentary = isMomentary
+    }
 
     static func == (lhs: PlaybackDisplayError, rhs: PlaybackDisplayError) -> Bool {
         lhs.title == rhs.title && lhs.message == rhs.message && lhs.recoveryAction == rhs.recoveryAction

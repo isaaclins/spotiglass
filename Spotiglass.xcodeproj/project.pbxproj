@@ -268,6 +268,7 @@
 		EQIDENTITY000000000001 /* EqualizerPrivilegedHelperIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = EQIDENTITY000000000002 /* EqualizerPrivilegedHelperIdentity.swift */; };
 		EQHELPERIDENTITY000000001 /* EqualizerPrivilegedHelperIdentity.swift in Helper Sources */ = {isa = PBXBuildFile; fileRef = EQIDENTITY000000000002 /* EqualizerPrivilegedHelperIdentity.swift */; };
 		EQHELPERMAIN0000000000001 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = EQHELPERMAIN0000000000002 /* main.swift */; };
+		401E4AC78673A0C53DDD9B0E /* MainWindowLanguageSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 229A9559D6BDA3D94DA53A79 /* MainWindowLanguageSwitchTests.swift */; };
 		EQHELPERPLIST0000000000001 /* com.isaaclins.spotiglass.eqprivilegedhelper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = EQHELPERPLIST0000000000002 /* com.isaaclins.spotiglass.eqprivilegedhelper.plist */; };
 		EQHELPEREMBED000000000001 /* SpotiglassEQPrivilegedHelper in Embed Privileged Helper */ = {isa = PBXBuildFile; fileRef = EQHELPERPRODUCT000000000001 /* SpotiglassEQPrivilegedHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		EQSMFRAMEWORK00000000000001 /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EQSMFRAMEWORK00000000000002 /* ServiceManagement.framework */; };
@@ -902,6 +903,7 @@
 		EQCLIENT000000000000002 /* EqualizerPrivilegedHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPrivilegedHelperClient.swift; sourceTree = "<group>"; };
 		EQIDENTITY000000000002 /* EqualizerPrivilegedHelperIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPrivilegedHelperIdentity.swift; sourceTree = "<group>"; };
 		EQHELPERMAIN0000000000002 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		229A9559D6BDA3D94DA53A79 /* MainWindowLanguageSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowLanguageSwitchTests.swift; sourceTree = "<group>"; };
 		EQHELPERPLIST0000000000002 /* com.isaaclins.spotiglass.eqprivilegedhelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = com.isaaclins.spotiglass.eqprivilegedhelper.plist; sourceTree = "<group>"; };
 		EQHELPERINFO0000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EQHELPERPRODUCT000000000001 /* SpotiglassEQPrivilegedHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = SpotiglassEQPrivilegedHelper; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1215,6 +1217,7 @@
 				TST0000000000000000010104 /* CommandPaletteShortcutCoverageTests.swift */,
 				TST0000000000000000010103 /* CommandPaletteManagerKeyEventTests.swift */,
 				LPO439000000000000000003 /* LyricsPopOutTests.swift */,
+				229A9559D6BDA3D94DA53A79 /* MainWindowLanguageSwitchTests.swift */,
 				TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */,
 				TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */,
 				TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */,
@@ -2056,6 +2059,7 @@
 				TST0000000000000000000104 /* CommandPaletteShortcutCoverageTests.swift in Sources */,
 				TST0000000000000000000103 /* CommandPaletteManagerKeyEventTests.swift in Sources */,
 				LPO439000000000000000013 /* LyricsPopOutTests.swift in Sources */,
+				401E4AC78673A0C53DDD9B0E /* MainWindowLanguageSwitchTests.swift in Sources */,
 				TST0000000000000000000102 /* LyricsOverlayControllerTests.swift in Sources */,
 				TST0000000000000000000101 /* LibrarySidebarOrderTests.swift in Sources */,
 				TST00000000000000000000FF /* PlaylistBrowserDisplayErrorTests.swift in Sources */,

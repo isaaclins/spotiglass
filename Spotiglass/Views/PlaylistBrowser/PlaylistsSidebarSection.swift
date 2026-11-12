@@ -67,7 +67,8 @@ struct PlaylistsSidebarSectionContent: View {
                 ForEach(playlists) { playlist in
                     playlistSidebarRow(playlist: playlist)
                 }
-            case let .empty(message):
+            case let .empty(text):
+                let message = text.string
                 EmptyStateView(title: SpotiglassL10n.string("browser.noPlaylists.title"), message: message)
             case let .error(error):
                 ErrorStateView(error: error)

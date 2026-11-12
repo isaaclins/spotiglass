@@ -200,7 +200,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                             }
                     }
                 }
-            case let .empty(message):
+            case let .empty(text):
+                let message = text.string
                 EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: message)
             case let .error(error):
                 if let locked = error.lockedPlaylist {

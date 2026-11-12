@@ -5,7 +5,12 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
     let title: String
     let artworkURL: URL?
     let yearText: String?
-    let trackCountText: String
+    /// Worked out when shown, so the row follows a language switch (#548).
+    var trackCountText: String {
+        SpotiglassL10n.format("browser.trackCount", Int64(totalTracks))
+    }
+    /// What the service reported, negative counts included, for ``trackCountText``.
+    private let totalTracks: Int
     /// Kept as a number so nothing has to scrape digits off the localized
     /// ``trackCountText`` to recover it (#159).
     let totalTrackCount: Int
@@ -17,7 +22,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
         artworkURL = album.imageURL
         yearText = album.releaseYear
         totalTrackCount = max(0, album.totalTracks)
-        trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(album.totalTracks))
+        totalTracks = album.totalTracks
         uri = album.uri
     }
 }

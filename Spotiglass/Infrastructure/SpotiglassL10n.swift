@@ -34,6 +34,71 @@ struct L10nText: View {
     }
 }
 
+extension View {
+    /// Puts the app language into a window's content. A switch only changes text: the
+    /// content keeps its identity, so its page, scroll position, selection and open panels
+    /// stay as they were (#548). Never key the content on the language with `.id`.
+    func spotiglassLanguage(_ settingsStore: SpotiglassSettingsStore) -> some View {
+        modifier(SpotiglassLanguageEnvironment(settingsStore: settingsStore))
+    }
+}
+
+/// Observes the store itself, so the locale follows a switch wherever the content is hosted.
+private struct SpotiglassLanguageEnvironment: ViewModifier {
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.locale, settingsStore.appLocale)
+            .environment(\.spotiglassLocale, settingsStore.appLocale)
+    }
+}
+
+/// Text a model keeps for later, such as an empty-state message, an error or a badge. It is
+/// looked up again each time it is read, so it follows a language switch like text a view
+/// resolves itself (#548). Pass the lookup itself, not a string resolved earlier.
+struct LocalizedText: Equatable, ExpressibleByStringLiteral {
+    private let resolve: () -> String
+
+    init(_ resolve: @autoclosure @escaping () -> String) {
+        self.resolve = resolve
+    }
+
+    /// Fixed text that is not translated, such as a song title.
+    init(verbatim value: String) {
+        self.resolve = { value }
+    }
+
+    init(stringLiteral value: String) {
+        self.init(verbatim: value)
+    }
+
+    var string: String { resolve() }
+
+    static func == (lhs: LocalizedText, rhs: LocalizedText) -> Bool {
+        lhs.string == rhs.string
+    }
+}
+
+/// The app language as an observable value. SwiftUI records a read of ``locale`` made while
+/// a body runs, so views that resolve strings with ``SpotiglassL10n/string(_:)`` follow a
+/// language switch without being rebuilt.
+@MainActor
+@Observable
+final class SpotiglassLanguageSignal {
+    private(set) var locale: Locale?
+
+    func observe() {
+        _ = locale
+    }
+
+    /// Only a real change notifies, so other settings edits redraw nothing.
+    func update(_ newLocale: Locale?) {
+        guard newLocale?.identifier != locale?.identifier else { return }
+        locale = newLocale
+    }
+}
+
 /// Resolves UI strings from ``Localizable.xcstrings`` using the language in ``SpotiglassSettingsStore``.
 ///
 /// The lookup always goes through the `.lproj` bundle that matches the user's
@@ -47,10 +112,19 @@ enum SpotiglassL10n {
     /// Set on the main thread only (the app at launch, tests).
     nonisolated(unsafe) static weak var settingsStore: SpotiglassSettingsStore? {
         didSet {
-            let locale = MainActor.assumeIsolated { settingsStore?.appLocale }
+            let locale = MainActor.assumeIsolated {
+                let locale = settingsStore?.appLocale
+                languageSignal.update(locale)
+                return locale
+            }
             offMainLocale.withLock { $0 = locale }
         }
     }
+    /// Every view whose body looks a string up through ``locale`` reads this, so SwiftUI
+    /// redraws it when the language changes. That is what lets a switch keep the window as
+    /// it is (page, scroll position, selection, open panels) and only change its text (#548):
+    /// the window used to be rebuilt from scratch instead, which sent it back to Home.
+    @MainActor static let languageSignal = SpotiglassLanguageSignal()
     private static let catalogKeyCache = NSCache<NSURL, NSSet>()
     /// The app language for code that runs off the main thread: providers build "You" and
     /// "Untitled Playlist" on background tasks, which used to fall back to English (#398).
@@ -69,7 +143,8 @@ enum SpotiglassL10n {
     static var locale: Locale {
         if Thread.isMainThread {
             return MainActor.assumeIsolated {
-                settingsStore?.appLocale ?? Locale(identifier: "en")
+                languageSignal.observe()
+                return settingsStore?.appLocale ?? Locale(identifier: "en")
             }
         }
         return offMainLocale.withLock { $0 } ?? Locale(identifier: "en")
@@ -81,6 +156,7 @@ enum SpotiglassL10n {
     static func settingsDidChange(in store: SpotiglassSettingsStore) {
         guard settingsStore === store else { return }
         let locale = store.appLocale
+        languageSignal.update(locale)
         offMainLocale.withLock { $0 = locale }
     }
 

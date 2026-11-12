@@ -193,14 +193,9 @@ struct SpotiglassApp: App {
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
-                .environment(\.locale, settingsStore.appLocale)
-                .environment(\.spotiglassLocale, settingsStore.appLocale)
+                .spotiglassLanguage(settingsStore)
                 .environmentObject(playbackHosts.spotify)
                 .preferredColorScheme(preferredColorScheme)
-                // List rows and other cached scene content can otherwise keep
-                // the old localized strings. The host itself is app-scoped and
-                // remains the same object across this scene replacement.
-                .id(settingsStore.settings.appearance.language.rawValue)
                 // With the queue open the window keeps room for the detail column and the
                 // panel at their minimums, so the panel is never cut off at its edge (#413).
                 .frame(
@@ -275,9 +270,7 @@ struct SpotiglassApp: App {
         ) {
             LyricsPopOutRoot(playbackHosts: playbackHosts, serviceStore: serviceStore, keymapStore: keymapStore)
                 .environmentObject(settingsStore)
-                .environment(\.locale, settingsStore.appLocale)
-                .environment(\.spotiglassLocale, settingsStore.appLocale)
-                .id(settingsStore.settings.appearance.language.rawValue)
+                .spotiglassLanguage(settingsStore)
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
@@ -306,8 +299,7 @@ struct SpotiglassApp: App {
                 updater: sparkleUpdater.updater
             )
             .environmentObject(authViewModel)
-            .environment(\.locale, settingsStore.appLocale)
-            .environment(\.spotiglassLocale, settingsStore.appLocale)
+            .spotiglassLanguage(settingsStore)
             .preferredColorScheme(preferredColorScheme)
         }
     }

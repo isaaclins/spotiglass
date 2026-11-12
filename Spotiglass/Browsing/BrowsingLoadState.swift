@@ -12,15 +12,24 @@ struct LockedPlaylistInfo: Equatable {
 
 struct BrowsingDisplayError: Equatable, Identifiable {
     let id = UUID()
-    let title: String
-    let message: String
+    /// Looked up when shown, so an error on screen follows a language switch (#548).
+    private let titleText: LocalizedText
+    private let messageText: LocalizedText
+    var title: String { titleText.string }
+    var message: String { messageText.string }
     let canRetry: Bool
     let diagnosticDetails: String?
     let lockedPlaylist: LockedPlaylistInfo?
 
-    init(title: String, message: String, canRetry: Bool, diagnosticDetails: String? = nil, lockedPlaylist: LockedPlaylistInfo? = nil) {
-        self.title = title
-        self.message = message
+    init(
+        title: @autoclosure @escaping () -> String,
+        message: @autoclosure @escaping () -> String,
+        canRetry: Bool,
+        diagnosticDetails: String? = nil,
+        lockedPlaylist: LockedPlaylistInfo? = nil
+    ) {
+        self.titleText = LocalizedText(title())
+        self.messageText = LocalizedText(message())
         self.canRetry = canRetry
         self.diagnosticDetails = diagnosticDetails
         self.lockedPlaylist = lockedPlaylist
@@ -38,7 +47,8 @@ struct BrowsingDisplayError: Equatable, Identifiable {
 enum BrowsingLoadState<Value: Equatable>: Equatable {
     case loading
     case loaded(Value)
-    case empty(String)
+    /// The message is looked up when shown, so it follows a language switch (#548).
+    case empty(LocalizedText)
     case staleCache(Value, BrowsingDisplayError?)
     case refreshing(Value)
     case error(BrowsingDisplayError)

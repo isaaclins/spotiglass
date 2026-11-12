@@ -37,10 +37,9 @@ extension PlaylistBrowserViewModel {
                     diagnosticDetails: serverDiagnostics(message, details)
                 )
             case let .rateLimited(retryAfter):
-                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.browsing.rateLimited.title"),
-                    message: String(format: SpotiglassL10n.string("error.browsing.rateLimited.message"), clause),
+                    message: String(format: SpotiglassL10n.string("error.browsing.rateLimited.message"), SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)),
                     canRetry: true,
                     diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
                 )

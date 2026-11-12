@@ -423,10 +423,9 @@ extension QueueViewModel {
                 canRetry: false
             )
         case let .rateLimited(retryAfter):
-            let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.rateLimited.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
+                message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)),
                 canRetry: true,
                 diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
             )
@@ -497,10 +496,9 @@ extension QueueViewModel {
 
     private static func rateLimitDisplayError(retryAfter: TimeInterval) -> BrowsingDisplayError {
         let normalizedRetry = max(0, retryAfter)
-        let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: normalizedRetry)
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.queue.rateLimited.title"),
-            message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
+            message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), SpotifyRateLimitDisplay.retryAfterClause(seconds: normalizedRetry)),
             canRetry: true,
             diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: normalizedRetry)
         )
