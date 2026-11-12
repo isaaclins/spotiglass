@@ -634,7 +634,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         let held = MockCallHold()
         let http = CountingHeldHTTPClient(
             hold: held,
-            json: #"{"shuffle_state":false,"repeat_state":"off","is_playing":false}"#
+            json: #"{"shuffle_state":true,"repeat_state":"off","is_playing":true}"#
         )
         let api = SpotifyPlaybackAPI(tokenProvider: StaticPlaybackTokenProvider(token: "t"), httpClient: http)
 
@@ -648,9 +648,12 @@ final class SpotifyPlaybackAPITests: XCTestCase {
             await Task.yield()
         }
         held.release()
-        _ = try await (first.value, second.value)
+        let (firstSnapshot, secondSnapshot) = try await (first.value, second.value)
 
         XCTAssertEqual(http.requestsStarted, 1, "Concurrent fetchPlayerSnapshot calls must share one GET /v1/me/player.")
+        let shared = try XCTUnwrap(firstSnapshot, "the first caller got no snapshot")
+        XCTAssertTrue(shared.isPlaying)
+        XCTAssertEqual(secondSnapshot, shared, "the caller that joined must get the same snapshot")
     }
 
     func testFetchPlayerSnapshotPropagatesNonRetryableURLError() async {
