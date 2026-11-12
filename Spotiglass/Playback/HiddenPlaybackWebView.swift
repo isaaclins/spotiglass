@@ -295,12 +295,14 @@ final class SpotiglassPlaybackHost: ObservableObject {
     /// `ApplicationMusicPlayer`). Containers still mount, but there is nothing to attach.
     init(
         provider: any MusicPlaybackProvider,
-        equalizerEngine: AudioEqualizerEngine? = nil
+        equalizerEngine: AudioEqualizerEngine? = nil,
+        clock: any PlaybackClock = ContinuousClock()
     ) {
         self.playbackProvider = provider
         self.playbackViewModel = PlaybackSessionViewModel(
             provider: provider,
-            equalizerEngine: equalizerEngine
+            equalizerEngine: equalizerEngine,
+            clock: clock
         )
         self.commander = WebPlaybackViewCommander()
         self.webView = nil

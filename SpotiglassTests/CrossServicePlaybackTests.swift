@@ -17,11 +17,15 @@ final class CrossServicePlaybackTests: XCTestCase {
     }
 
     /// Spotify's player, connected and paused on Midnight City (the handover paused it).
-    private func pausedSpotify(api: MockPlaybackAPI = MockPlaybackAPI()) -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
+    private func pausedSpotify(
+        api: MockPlaybackAPI = MockPlaybackAPI(),
+        clock: any PlaybackClock = ContinuousClock()
+    ) -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
         _ = NSApplication.shared
         let commander = MockWebPlaybackCommander()
         let host = SpotiglassPlaybackHost(
-            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: commander)
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: commander),
+            clock: clock
         )
         let playback = host.playbackViewModel
         playback.deviceID = "device-1"
@@ -429,7 +433,10 @@ final class CrossServicePlaybackTests: XCTestCase {
             let label = "\(start), \(ending)"
             let api = MockPlaybackAPI()
             if ending == .fails { api.playErrors = [URLError(.notConnectedToInternet)] }
-            let (spotify, _) = pausedSpotify(api: api)
+            // Spotify's own clock stands still: its 6 s wait for the song's report can't run out
+            // while a busy machine is slow to get there, which would close the lyrics in the
+            // `.reported` runs (#535). The `.timesOut` runs end the wait by hand.
+            let (spotify, _) = pausedSpotify(api: api, clock: ManualPlaybackClock())
             let player = ScriptedAppleMusicPlayer()
             let hosts = hosts(spotify: spotify, player: player)
             hosts.gate(activeService: .appleMusic)

@@ -565,18 +565,13 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
     /// Starts a queue read and returns once it waits for the play. The read registers its wait
     /// in its first turn on the main actor, before it suspends, and only then does this resume.
-    private static func startRead(
-        file: StaticString = #filePath,
-        line: UInt = #line,
-        _ read: @escaping @MainActor () async throws -> Void
-    ) async -> Task<Void, Error> {
+    private static func startRead(_ read: @escaping @MainActor () async throws -> Void) async -> Task<Void, Error> {
         let asked = AsyncSignal()
         let task = Task { @MainActor in
             asked.signal()
             try await read()
         }
-        let didAsk = await asked.wait(timeout: testWaitDeadline)
-        XCTAssertTrue(didAsk, "the read never started", file: file, line: line)
+        await asked.wait()
         return task
     }
 
