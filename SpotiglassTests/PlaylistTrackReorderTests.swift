@@ -339,6 +339,32 @@ final class PlaylistTrackReorderTests: XCTestCase {
         }
         XCTAssertEqual(musicApp.calls.count, 1, "nothing was sent for it")
 
+        // A song added through Apple Music moments ago shows under its catalog ID, which reads like
+        // a persistent ID; Music's playlist can't match the screen until the library has it.
+        let pending = AppleMusicPendingLibraryEdits()
+        pending.recordPlaylistAddition(
+            AppleMusicLibraryEditorTests.track(id: "1440857781", name: "Added"),
+            reference: AppleMusicSongReference(itemID: "1440857781", catalogID: "1440857781", isInLibrary: false),
+            playlistID: "5152964197617224883"
+        )
+        let editorWithPending = AppleMusicLibraryEditor(
+            lookup: MockLibraryLookup(),
+            cloud: MockCloudLibrary(),
+            musicApp: musicApp,
+            pending: pending,
+            songReferences: AppleMusicSongReferenceRegistry()
+        )
+        do {
+            try await editorWithPending.reorderPlaylist(
+                playlistID: "5152964197617224883",
+                reorder: MusicPlaylistReorder(order: [1, 0, 2], currentTrackIDs: ids + ["1440857781"])
+            )
+            XCTFail("expected notInMusicYet")
+        } catch {
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .notInMusicYet)
+        }
+        XCTAssertEqual(musicApp.calls.count, 1, "nothing was sent for it")
+
         // A playlist Music can't find yet (synced moments ago) reads as not in Music yet, not as
         // one Music won't edit: only that stops the playlist offering dragging.
         do {
@@ -454,7 +480,13 @@ final class PlaylistTrackReorderTests: XCTestCase {
 
         XCTAssertEqual(shownTitles(viewModel), ["One", "Four", "Two", "Three"])
         XCTAssertEqual(shownRows(viewModel).map(\.listPosition), [1, 2, 3, 4])
-        XCTAssertNotNil(viewModel.trackMutationToast)
+        XCTAssertEqual(
+            viewModel.trackMutationToast,
+            SpotiglassL10n.format(
+                "playlist.mutation.reorderPartlySaved",
+                PlaylistBrowserViewModel.describeFailure(URLError(.notConnectedToInternet), operation: .reorderPlaylist)
+            )
+        )
         // The next drop counts from that order, under the snapshot it has.
         api.reorderError = nil
         await viewModel.moveTracks(rowIDs: [shownRows(viewModel)[0].id], toOffset: 4, inPlaylist: "pl1")
@@ -495,6 +527,31 @@ final class PlaylistTrackReorderTests: XCTestCase {
 
         XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"])
         if case .refreshing = viewModel.detailState { XCTFail("the read that was left out still shows as running") }
+    }
+
+    func testAReadThatEndsWhileTheSaveRunsLeavesTheNewOrderOnScreen() async {
+        let api = ReorderMockAPI()
+        let viewModel = await makeViewModel(api)
+        // Opened again: its last rows show and a read runs in the background.
+        api.lastRead = try? await api.playlistTracks(playlistID: "pl1", limit: 50, maxPages: 1)
+        let readGate = LibraryEditsGate()
+        api.readGate = readGate
+        let reread = Task { await viewModel.refreshCurrentPlaylistMutationDetail(for: ["pl1"]) }
+        while api.readGate != nil { await Task.yield() }
+
+        // A drop, and the read ends while it saves.
+        let saveGate = LibraryEditsGate()
+        api.reorderGate = saveGate
+        let drop = Task { await viewModel.moveTracks(rowIDs: [self.shownRows(viewModel)[3].id], toOffset: 0, inPlaylist: "pl1") }
+        while viewModel.reorderingPlaylistID == nil { await Task.yield() }
+        readGate.open()
+        await reread.value
+        XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"], "the old order doesn't come back while it saves")
+
+        saveGate.open()
+        await drop.value
+        XCTAssertEqual(shownTitles(viewModel), ["Four", "One", "Two", "Three"])
+        guard case .loaded = viewModel.detailState else { return XCTFail("the list stays loaded, it doesn't blank and load again") }
     }
 
     func testASaveThatFailedKeepsAReadItCrossed() async {

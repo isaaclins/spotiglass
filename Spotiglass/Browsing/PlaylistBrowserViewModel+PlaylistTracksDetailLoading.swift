@@ -86,25 +86,28 @@ extension PlaylistBrowserViewModel {
             // the legacy `/tracks` endpoint's 100). Passing 100 yields HTTP 400
             // invalid_request and breaks any playlist with more than 50 tracks.
             var tracks = try await api.playlistTracks(playlistID: playlist.id, limit: 50, maxPages: 200)
-            // A new order was saved from here while this read ran: it lists the old order (#543).
-            // It is neither cached nor shown. With this playlist's rows on screen, they have the
-            // new order; without (opened again meanwhile), it is read once more.
-            if reorderGenerationByPlaylistID[playlist.id] != reorderGeneration {
+            // A new order was saved from here while this read ran, or is saving now: the read may
+            // list the old order (#543). It is never cached. With this playlist's rows on screen,
+            // they have the new order and stay; without (opened again meanwhile), it is read once
+            // more, and shown even if a save crosses that read too, so the page never keeps loading.
+            var crossed = reorderGenerationByPlaylistID[playlist.id] != reorderGeneration || reorderingPlaylistID == playlist.id
+            if crossed {
                 if session == detailSession,
                    case let .playlist(shown)? = detailState.currentValue, shown.playlist.id == playlist.id {
                     if case let .refreshing(content) = detailState { detailState = .loaded(content) }
+                    if reorderingPlaylistID == playlist.id { playlistsWithReadLeftOut.insert(playlist.id) }
                     return
                 }
                 guard session == detailSession else { return }
                 reorderGeneration = reorderGenerationByPlaylistID[playlist.id]
                 tracks = try await api.playlistTracks(playlistID: playlist.id, limit: 50, maxPages: 200)
-                // Only a save of this playlist ending meanwhile again, which needs a drop on its
-                // rows, could cross this one: then they're on screen and have the new order.
-                guard reorderGenerationByPlaylistID[playlist.id] == reorderGeneration else { return }
+                crossed = reorderGenerationByPlaylistID[playlist.id] != reorderGeneration || reorderingPlaylistID == playlist.id
             }
-            try? cache.saveTracks(tracks, playlistID: playlist.id, snapshotID: playlist.snapshotID, cachedAt: now())
+            if !crossed {
+                try? cache.saveTracks(tracks, playlistID: playlist.id, snapshotID: playlist.snapshotID, cachedAt: now())
+                lastTracksRevalidationByID[playlist.id] = (playlist.snapshotID, now())
+            }
             invalidateLibraryContinuationCache()
-            lastTracksRevalidationByID[playlist.id] = (playlist.snapshotID, now())
             guard session == detailSession else { return }
             if tracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))

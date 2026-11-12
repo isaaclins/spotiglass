@@ -162,9 +162,10 @@ extension PlaylistBrowserViewModel {
             reorderGenerationByPlaylistID[playlistID, default: 0] += 1
             invalidateTracksCache(playlistID: playlistID)
             if let newSnapshotID { recordSnapshotID(newSnapshotID, playlistID: playlistID) }
-            // A read that finished meanwhile may have put the old order back on screen.
+            playlistsWithReadLeftOut.remove(playlistID)
+            // Something else replaced the rows meanwhile: they are read again, in place.
             if let now = shownPlaylistTracks(playlistID), now != reordered {
-                await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+                await showServiceOrder(playlistID: playlistID)
             }
         } catch let partial as MusicPlaylistReorderPartialFailure {
             reorderGenerationByPlaylistID[playlistID, default: 0] += 1
@@ -173,13 +174,14 @@ extension PlaylistBrowserViewModel {
             // the next edit counts from it.
             invalidateTracksCache(playlistID: playlistID)
             if let snapshotID = partial.snapshotID { recordSnapshotID(snapshotID, playlistID: playlistID) }
+            playlistsWithReadLeftOut.remove(playlistID)
             if shownPlaylistTracks(playlistID) == reordered {
                 showReorderedTracks(Self.rows(shown, in: partial.orderSoFar), playlistID: playlistID)
             } else {
-                await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+                await showServiceOrder(playlistID: playlistID)
             }
             trackMutationToast = SpotiglassL10n.format(
-                "playlist.mutation.reorderFailed",
+                "playlist.mutation.reorderPartlySaved",
                 Self.describeFailure(partial.underlying, operation: .reorderPlaylist)
             )
         } catch {
@@ -197,9 +199,11 @@ extension PlaylistBrowserViewModel {
             // Both services refuse a playlist that changed elsewhere since it was opened, and
             // Music may stop partway through the moves: either way the screen's order isn't the
             // service's, and every later drag would be refused the same way, so the list is read
-            // again.
-            if error is AppleMusicLibraryEditError || error is MusicPlaylistChangedElsewhere {
-                await showServiceOrder(playlistID: playlistID, replacing: shown)
+            // again. So is a list whose read was left out while this save ran: nothing was saved
+            // over what it found.
+            let readLeftOut = playlistsWithReadLeftOut.remove(playlistID) != nil
+            if error is AppleMusicLibraryEditError || error is MusicPlaylistChangedElsewhere || readLeftOut {
+                await showServiceOrder(playlistID: playlistID)
             }
         }
     }
@@ -237,21 +241,23 @@ extension PlaylistBrowserViewModel {
     }
 
     /// After a failed save: the old order goes back when the screen still shows the new one;
-    /// a list read meanwhile is read once more, as the playlist may have changed elsewhere.
+    /// rows something else put there meanwhile are read once more, in place.
     private func putBack(_ previous: [TrackRowViewModel], replacing reordered: [TrackRowViewModel], playlistID: String) async {
         guard let now = shownPlaylistTracks(playlistID) else { return }
         if now == reordered {
             showReorderedTracks(previous, playlistID: playlistID)
         } else {
-            invalidateTracksCache(playlistID: playlistID)
-            await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+            await showServiceOrder(playlistID: playlistID)
         }
     }
 
-    /// Reads the playlist again and shows the service's order in place of `shown`, without a
-    /// loading state in between: rows the service still lists the same way keep their identity.
-    private func showServiceOrder(playlistID: String, replacing shown: [TrackRowViewModel]) async {
-        guard let items = try? await api.playlistTracks(playlistID: playlistID, limit: 50, maxPages: 200),
+    /// Reads the playlist again and shows the service's order in place of the rows on screen,
+    /// without a loading state in between (the list doesn't blank or lose its scroll spot): rows
+    /// the service still lists the same way keep their identity. Rows that changed on screen while
+    /// it read are left as they are.
+    private func showServiceOrder(playlistID: String) async {
+        guard let shown = shownPlaylistTracks(playlistID),
+              let items = try? await api.playlistTracks(playlistID: playlistID, limit: 50, maxPages: 200),
               !items.isEmpty,
               shownPlaylistTracks(playlistID) == shown
         else { return }

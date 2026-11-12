@@ -505,6 +505,12 @@ struct AppleMusicLibraryEditor: Sendable {
     func reorderPlaylist(playlistID: String, reorder: MusicPlaylistReorder) async throws {
         let moves = PlaylistTrackReorder.moveToEndSequence(for: reorder.order)
         guard !moves.isEmpty else { return }
+        // Songs added or removed through Apple Music moments ago are shown before Music lists
+        // them (an added one under its catalog ID, which reads like a persistent ID): Music's
+        // playlist can't match the screen until the library has them.
+        guard !pending.hasPendingTracks(playlistID: playlistID) else {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
         let expected = try reorder.currentTrackIDs.map { id -> String in
             guard let id, let persistentID = Self.musicAppPersistentID(fromMusicKitID: id) else {
                 throw AppleMusicLibraryEditError.notInMusicYet
