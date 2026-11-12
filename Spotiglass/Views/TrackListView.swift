@@ -34,6 +34,10 @@ struct TrackListView<Row: View>: View {
     /// nothing consumed Return, so a keyboard user could highlight a track and
     /// never start it (#122).
     var playSelection: ((Set<String>) -> Void)? = nil
+    /// Drag-to-reorder (#543): the table's own move, with its insertion line and the selected
+    /// rows moving together. `nil` offers no reordering at all (Liked Songs, albums, other
+    /// people's playlists). Rows stay draggable to the sidebar either way.
+    var moveRows: ((IndexSet, Int) -> Void)? = nil
 
     init(
         tracks: [TrackRowViewModel],
@@ -42,6 +46,7 @@ struct TrackListView<Row: View>: View {
         pendingScrollRestoreTrackID: Binding<String?>,
         onFirstVisibleTrackChanged: @escaping (String) -> Void,
         playSelection: ((Set<String>) -> Void)? = nil,
+        moveRows: ((IndexSet, Int) -> Void)? = nil,
         headerContent: AnyView? = nil,
         footerContent: AnyView? = nil
     ) {
@@ -53,6 +58,7 @@ struct TrackListView<Row: View>: View {
         _pendingScrollRestoreTrackID = pendingScrollRestoreTrackID
         self.onFirstVisibleTrackChanged = onFirstVisibleTrackChanged
         self.playSelection = playSelection
+        self.moveRows = moveRows
     }
 
     /// Deliberately a reference type rather than stored-in-state values. Rows
@@ -94,6 +100,7 @@ struct TrackListView<Row: View>: View {
                         .onAppear { setRowRealized(true, track: track) }
                         .onDisappear { setRowRealized(false, track: track) }
                 }
+                .onMove(perform: moveRows)
 
                 if let footerContent {
                     footerContent
@@ -107,6 +114,12 @@ struct TrackListView<Row: View>: View {
                 playSelection(selection)
                 return .handled
             }
+            // Rows that change places (a reorder) don't appear again, so the topmost one is
+            // worked out anew from the rows' new order.
+            .onChange(of: tracks, initial: true) {
+                realizedRows.positionByTrackID = TrackListVisibility.positions(of: tracks)
+                reportFirstVisibleTrack()
+            }
             .onChange(of: pendingScrollRestoreTrackID) { _, newValue in
                 guard let id = newValue else { return }
                 if tracks.contains(where: { $0.id == id }) {
@@ -119,11 +132,15 @@ struct TrackListView<Row: View>: View {
 
     private func setRowRealized(_ isRealized: Bool, track: TrackRowViewModel) {
         if isRealized {
-            realizedRows.trackIDsByRowNumber[track.listPosition] = track.id
+            realizedRows.trackIDs.insert(track.id)
         } else {
-            realizedRows.trackIDsByRowNumber.removeValue(forKey: track.listPosition)
+            realizedRows.trackIDs.remove(track.id)
         }
-        guard let id = TrackListVisibility.firstVisibleTrackID(in: realizedRows.trackIDsByRowNumber),
+        reportFirstVisibleTrack()
+    }
+
+    private func reportFirstVisibleTrack() {
+        guard let id = TrackListVisibility.firstVisibleTrackID(realized: realizedRows.trackIDs, positions: realizedRows.positionByTrackID),
               id != realizedRows.lastReportedFirstVisibleTrackID
         else { return }
         realizedRows.lastReportedFirstVisibleTrackID = id
@@ -131,21 +148,27 @@ struct TrackListView<Row: View>: View {
     }
 }
 
-/// Ids of the rows the table currently has realized, keyed by row number so the
-/// topmost one is simply the smallest key. A table only realizes what it draws,
-/// so this stays about a viewport deep however long the playlist is.
+/// Ids of the rows the table currently has realized. A table only realizes what
+/// it draws, so this stays about a viewport deep however long the playlist is.
+/// Kept by id, not row number: a row dragged to a new spot keeps its identity and
+/// doesn't appear again, so a number recorded for it would go stale (#543).
 @MainActor
 final class TrackListRealizedRows {
-    var trackIDsByRowNumber: [Int: String] = [:]
+    var trackIDs: Set<String> = []
+    /// Each row's place in the list, built again when the rows change.
+    var positionByTrackID: [String: Int] = [:]
     var lastReportedFirstVisibleTrackID: String?
 }
 
-/// Picks the topmost row out of the rows the table currently has on hand. Row
-/// numbers are `TrackRowViewModel.listPosition`, the 1-based position the row
-/// occupies in the list, so the lowest one is the row nearest the top.
+/// Picks the topmost row out of the rows the table currently has on hand, by
+/// their places in the list as it is now. Only the realized rows are looked at,
+/// about a viewport of them, however long the list.
 enum TrackListVisibility {
-    static func firstVisibleTrackID(in realizedTrackIDsByRowNumber: [Int: String]) -> String? {
-        guard let topmost = realizedTrackIDsByRowNumber.keys.min() else { return nil }
-        return realizedTrackIDsByRowNumber[topmost]
+    static func positions(of tracks: [TrackRowViewModel]) -> [String: Int] {
+        Dictionary(tracks.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    static func firstVisibleTrackID(realized: Set<String>, positions: [String: Int]) -> String? {
+        realized.min { (positions[$0] ?? .max, $0) < (positions[$1] ?? .max, $1) }
     }
 }

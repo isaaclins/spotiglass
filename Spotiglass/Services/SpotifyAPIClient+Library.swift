@@ -104,6 +104,81 @@ extension SpotifyAPIClient {
         }
     }
 
+    /// Saves a new order with `PUT /v1/playlists/{id}/items` (range_start, insert_before,
+    /// range_length), one request per run of rows that move together. Spotify counts positions in
+    /// the snapshot a request names and applies them even to a playlist changed since, so before
+    /// the first move the playlist is read again: when it doesn't list the rows the order was
+    /// counted in, nothing is sent and `MusicPlaylistChangedElsewhere` is thrown. Each request then
+    /// carries the snapshot the one before it returned. `snapshotID` (the one the rows were shown
+    /// at) is not needed for that. Returns the last snapshot ID. A request that fails after others
+    /// went through throws `MusicPlaylistReorderPartialFailure` with the order they left.
+    func reorderPlaylistTracks(
+        playlistID: String,
+        reorder: MusicPlaylistReorder,
+        snapshotID: String?
+    ) async throws -> String? {
+        guard !playlistID.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Playlist ID is required.")
+        }
+        let moves = PlaylistTrackReorder.rangeMoves(for: reorder.order)
+        guard !moves.isEmpty else { return snapshotID }
+        // Rows after the last one the order moves keep their places and aren't counted in.
+        let rowsMoved = (reorder.order.indices.last { reorder.order[$0] != $0 } ?? -1) + 1
+        var currentSnapshotID = try await snapshotListing(reorder.currentTrackIDs, upTo: rowsMoved, playlistID: playlistID)
+        var orderSoFar = Array(reorder.order.indices)
+        for (index, move) in moves.enumerated() {
+            var body: [String: Any] = [
+                "range_start": move.rangeStart,
+                "insert_before": move.insertBefore,
+                "range_length": move.rangeLength
+            ]
+            if let currentSnapshotID, !currentSnapshotID.isEmpty {
+                body["snapshot_id"] = currentSnapshotID
+            }
+            let responseData: Data
+            do {
+                responseData = try await sendDataWrite(
+                    method: "PUT",
+                    path: "/v1/playlists/\(playlistID)/items",
+                    queryItems: [],
+                    jsonBody: body
+                )
+            } catch where index > 0 {
+                throw MusicPlaylistReorderPartialFailure(orderSoFar: orderSoFar, snapshotID: currentSnapshotID, underlying: error)
+            }
+            PlaylistTrackReorder.apply(move, to: &orderSoFar)
+            // Without a snapshot in the reply the next request names none, so Spotify counts it in
+            // the playlist as it is now: the old one would count it before this move.
+            let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData)
+            currentSnapshotID = response?.snapshotID.flatMap { $0.isEmpty ? nil : $0 }
+        }
+        return currentSnapshotID
+    }
+
+    /// The playlist's snapshot, once Spotify lists `trackIDs` (as the rows show them) at the start
+    /// of it and the snapshot didn't change while they were read. Only the rows up to the last one
+    /// the order moves are read: the moves count positions there and nowhere after, so a drag near
+    /// the top of a long playlist doesn't read all of it.
+    private func snapshotListing(_ trackIDs: [String?], upTo count: Int, playlistID: String) async throws -> String? {
+        let pageSize = 50
+        let before = try await playlistSnapshotID(playlistID)
+        let items = try await playlistTracks(playlistID: playlistID, limit: pageSize, maxPages: max(1, (count + pageSize - 1) / pageSize))
+        let listed = TrackRowViewModel.numberedPlaylistRows(items).map(\.spotifyTrackID)
+        let after = try await playlistSnapshotID(playlistID)
+        guard count <= trackIDs.count, listed.count >= count,
+              listed.prefix(count) == trackIDs.prefix(count), before == after
+        else { throw MusicPlaylistChangedElsewhere() }
+        return after
+    }
+
+    private func playlistSnapshotID(_ playlistID: String) async throws -> String? {
+        let response: SpotifyPlaylistMutationResponse = try await send(
+            path: "/v1/playlists/\(playlistID)",
+            queryItems: [URLQueryItem(name: "fields", value: "snapshot_id")]
+        )
+        return response.snapshotID
+    }
+
     // MARK: - Create playlist
 
     /// Creates an empty playlist owned by the given user and returns it as a

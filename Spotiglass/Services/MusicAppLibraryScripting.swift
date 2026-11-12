@@ -39,6 +39,11 @@ protocol MusicAppLibraryControlling: Sendable {
     /// Creates a playlist with these library tracks and returns its persistent ID (16 hex
     /// digits). Nothing is left behind when a track can't be added.
     func createPlaylist(name: String, tracks: [MusicAppTrackMatch]) async throws -> String
+    /// Puts a playlist's entries in a new order (#543). `expectedPersistentIDs` are the songs'
+    /// persistent IDs (16 hex digits) in the order Spotiglass shows them; the edit stops before
+    /// changing anything when Music lists anything else. `moveToEnd` are the zero-based
+    /// positions of the entries to move to the end, in turn (`PlaylistTrackReorder`).
+    func reorderPlaylist(_ playlist: MusicAppPlaylistMatch, expectedPersistentIDs: [String], moveToEnd: [Int]) async throws
 }
 
 /// Runs one AppleScript against the Music app. Separate from the script text so tests check
@@ -115,6 +120,13 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
         return id
     }
 
+    func reorderPlaylist(_ playlist: MusicAppPlaylistMatch, expectedPersistentIDs: [String], moveToEnd: [Int]) async throws {
+        guard !moveToEnd.isEmpty else { return }
+        try await run(MusicAppScripts.reorderPlaylist(playlist, expectedPersistentIDs: expectedPersistentIDs, moveToEnd: moveToEnd)) { progress in
+            .finish(MusicAppScripts.finishReordering(playlist, progress: progress))
+        }
+    }
+
     /// How an edit ends when one of its changes answered late (#411).
     enum LateChangeEnd {
         /// Carry the edit out to the end: removals, renames and deletes can be redone safely,
@@ -159,7 +171,7 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
     }
 }
 
-/// The AppleScript sources. Script errors 9001 to 9006 carry the outcomes the editor reports.
+/// The AppleScript sources. Script errors 9001 to 9007 carry the outcomes the editor reports.
 enum MusicAppScripts {
     static let notFoundError = 9001
     static let ambiguousError = 9002
@@ -169,6 +181,8 @@ enum MusicAppScripts {
     static let stillBusyError = 9005
     /// A change timed out; its message is the script's progress (`MusicAppLateChange`).
     static let lateChangeError = 9006
+    /// Music lists a playlist other than the way Spotiglass shows it (`playlistChanged`).
+    static let playlistChangedError = 9007
     /// AppleScript's errAETimeout: Music didn't answer one event in time.
     static let eventTimeoutError = -1712
     /// Slack before the save request for Music's `date added` (the server's clock against this
@@ -381,6 +395,52 @@ enum MusicAppScripts {
         return lines.joined(separator: "\n")
     }
 
+    /// Checks Music lists the playlist the way Spotiglass shows it, then moves the entries at
+    /// `moveToEnd` to the end one after another, by their entry IDs. Music's scripting moves a
+    /// track inside its playlist only to the end (`move` takes no position there, and a track's
+    /// `index` can't be set: tried on macOS 27). An entry moved that way gets a new entry ID, so
+    /// every ID is read before the first move. A playlist that changed elsewhere stops the edit
+    /// before anything moves.
+    static func reorderPlaylist(_ playlist: MusicAppPlaylistMatch, expectedPersistentIDs: [String], moveToEnd: [Int]) -> String {
+        var lines = ["tell application \"Music\""] + findPlaylist(playlist)
+        lines += [
+            "set expectedIDs to {\(expectedPersistentIDs.map(quoted).joined(separator: ", "))}",
+            "set listedIDs to (persistent ID of every track of pl)",
+            "if listedIDs is not expectedIDs then error \"changed\" number \(playlistChangedError)",
+            "set entryIDs to (id of every track of pl)",
+            "set movedIDs to {}",
+            "repeat with position in {\(moveToEnd.map { String($0 + 1) }.joined(separator: ", "))}",
+            "set end of movedIDs to item (contents of position) of entryIDs",
+            "end repeat",
+            "set moved to 0",
+        ]
+        lines += changes(
+            ["repeat with entryID in movedIDs", "move (track id (contents of entryID) of pl) to pl", "set moved to moved + 1", "end repeat"],
+            progress: "(moved as text) & \"|\" & (movedIDs as text)"
+        )
+        lines.append("end tell")
+        return lines.joined(separator: "\n")
+    }
+
+    /// After a late move in `reorderPlaylist`: moves the entries from the one that answered late
+    /// on. That one is moved only if it still has its ID: once Music moved it, it is last already
+    /// under a new ID. `progress` is "moved|movedIDs".
+    static func finishReordering(_ playlist: MusicAppPlaylistMatch, progress: String) -> String {
+        let parts = progress.components(separatedBy: "|")
+        let moved = parts.first.flatMap { Int($0) } ?? 0
+        let ids = Array(parts.dropFirst().flatMap(list).compactMap { Int($0) }.dropFirst(moved))
+        var lines = ["tell application \"Music\""] + findPlaylist(playlist)
+        for (index, id) in ids.enumerated() {
+            if index == 0 {
+                lines.append("if (count of (every track of pl whose id is \(id))) is greater than 0 then move (track id \(id) of pl) to pl")
+            } else {
+                lines.append("move (track id \(id) of pl) to pl")
+            }
+        }
+        lines.append("end tell")
+        return lines.joined(separator: "\n")
+    }
+
     /// The change part of an edit script: a change that times out stops the script with
     /// `lateChangeError` and `progress` (an AppleScript expression, lists joined by commas), so
     /// the edit can wait for Music and end truthfully. A lookup that times out changed nothing
@@ -559,6 +619,7 @@ enum MusicAppScripts {
         case ambiguousSongError: .ambiguousSong
         case notEditableError: .notEditable
         case stillBusyError: .musicStillBusy
+        case playlistChangedError: .playlistChanged
         // errAEEventNotPermitted, errAEEventWouldRequireUserConsent
         case -1743, -1744: .musicControlDenied
         // procNotFound, connectionInvalid, errAETimeout

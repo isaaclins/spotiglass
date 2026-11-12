@@ -21,7 +21,7 @@ struct SpotifyLibraryEditPermissions: MusicLibraryEditPermissions {
 
     static func requirement(for operation: PlaylistMutationOperation) -> SpotifyScopeRequirement {
         switch operation {
-        case .addToPlaylist, .moveBetweenPlaylists, .renamePlaylist:
+        case .addToPlaylist, .moveBetweenPlaylists, .renamePlaylist, .reorderPlaylist:
             SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes)
         case .addToLikedSongs, .removeFromLikedSongs:
             SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksModifyScopes)
