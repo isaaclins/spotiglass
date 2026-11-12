@@ -329,7 +329,7 @@ final class EqualizerHALPluginTests: XCTestCase {
             listener(1, addressPointer)
         }
 
-        wait(for: [change], timeout: 1)
+        wait(for: [change], timeout: mustHappenTimeout)
         provider.stopListening()
         XCTAssertNil(provider.listenerBlock)
     }

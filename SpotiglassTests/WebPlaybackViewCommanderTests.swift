@@ -17,7 +17,7 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
                 expectation.fulfill()
             }
         }
-        wait(for: [expectation], timeout: 2)
+        wait(for: [expectation], timeout: mustHappenTimeout)
     }
 
     func testLoadHostWithAttachedWebViewLoadsImmediately() {
@@ -30,7 +30,7 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 2)
+        wait(for: [expectation], timeout: mustHappenTimeout)
     }
 
     func testSendWithoutWebViewIsNoOp() async throws {

@@ -171,6 +171,12 @@ final class AsyncSignal: @unchecked Sendable {
     }
 }
 
+/// Timeout for an `XCTestExpectation` that must be fulfilled. A busy machine can take far longer
+/// than a second or two, so this is no time window: it only sits under the 120 s per-test limit
+/// (`make test`, CI) so that a fulfilment that never comes fails with the expectation's own
+/// description instead of a bare timeout (#503).
+let mustHappenTimeout: TimeInterval = 100
+
 private final class MockPlaybackActionRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedActions: [String] = []

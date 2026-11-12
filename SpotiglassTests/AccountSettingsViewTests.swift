@@ -231,10 +231,10 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertEqual(store.active, .spotify)
     }
 
-    /// Waits for the async work a tap starts (up to 5 s), instead of a fixed delay that a slow CI
-    /// runner can outlast.
+    /// Waits for the async work a tap starts, however long a busy machine takes, instead of a
+    /// fixed delay that a slow CI runner can outlast.
     private func waitUntil(_ done: () -> Bool) async throws {
-        for _ in 0..<100 where !done() {
+        while !done() {
             AppKitTestSupport.pumpRunLoop(for: 0.02)
             try await Task.sleep(for: .milliseconds(30))
         }

@@ -186,7 +186,7 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 53, characters: "\u{1b}", window: popOut)))
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 40, characters: "k", modifiers: [.command], window: popOut)))
         XCTAssertTrue(monitor.handle(keyDown(keyCode: 49, characters: " ", window: popOut)))
-        for _ in 0..<20 where pauses(commander) == 0 {
+        while pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(pauses(commander), 1, "Space pauses what the pop-out shows")
@@ -367,7 +367,7 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertTrue(spotify.playbackViewModel.connectionState.hasReadyDevice)
 
         states.send(.signedOut)
-        for _ in 0..<20 where spotify.playbackViewModel.connectionState != .disconnected {
+        while spotify.playbackViewModel.connectionState != .disconnected {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertEqual(spotify.playbackViewModel.connectionState, .disconnected)
@@ -478,7 +478,7 @@ final class LyricsPopOutTests: XCTestCase {
         // The size under test, as a user dragged it: not the content's smallest fitting size.
         controller.sizingOptions = []
         window.setContentSize(size)
-        for _ in 0..<20 where !LyricsPopOutWindow.isPopOut(window) {
+        while !LyricsPopOutWindow.isPopOut(window) {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
         controller.view.layoutSubtreeIfNeeded()
@@ -539,7 +539,7 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
 
         NSApp.postEvent(keyDown(keyCode: 49, characters: " ", window: window), atStart: false)
-        for _ in 0..<40 where pauses(commander) == 0 {
+        while pauses(commander) == 0 {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -589,7 +589,7 @@ final class LyricsPopOutTests: XCTestCase {
         let (playback, api, _, _) = playingWithLyrics()
         XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
         LyricsPopOutTransport.run(CommandPaletteCommandID.nextTrack, on: playback)
-        for _ in 0..<40 where !api.actions.contains(where: { $0.hasPrefix("next") }) {
+        while !api.actions.contains(where: { $0.hasPrefix("next") }) {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertTrue(api.actions.contains { $0.hasPrefix("next") }, "\(api.actions)")
@@ -598,7 +598,7 @@ final class LyricsPopOutTests: XCTestCase {
         let (fresh, freshAPI, _, _) = playingWithLyrics()
         XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.previousTrack, on: fresh))
         LyricsPopOutTransport.run(CommandPaletteCommandID.previousTrack, on: fresh)
-        for _ in 0..<40 where !freshAPI.actions.contains(where: { $0.hasPrefix("previous") }) {
+        while !freshAPI.actions.contains(where: { $0.hasPrefix("previous") }) {
             try await Task.sleep(for: .milliseconds(25))
         }
         XCTAssertTrue(freshAPI.actions.contains { $0.hasPrefix("previous") }, "\(freshAPI.actions)")
@@ -771,7 +771,7 @@ final class LyricsPopOutTests: XCTestCase {
         hosts.gate(activeService: .appleMusic)
         let appleMusic = hosts.appleMusic.playbackViewModel
         appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
-        for _ in 0..<20 where !appleMusic.isOtherServiceHeard {
+        while !appleMusic.isOtherServiceHeard {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
         XCTAssertTrue(appleMusic.audiblePlayer === spotify.playbackViewModel)
@@ -796,7 +796,7 @@ final class LyricsPopOutTests: XCTestCase {
             ),
             size: LyricsPopOutWindow.defaultSize
         )
-        for _ in 0..<40 where looked.isEmpty {
+        while looked.isEmpty {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
         XCTAssertEqual(looked, ["Midnight City"])
@@ -867,7 +867,7 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(made, 0, "no player yet, nothing to follow")
 
         _ = hosts.appleMusic
-        for _ in 0..<40 where made == 0 {
+        while made == 0 {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
         XCTAssertEqual(made, 1, "the window follows the player once it exists")

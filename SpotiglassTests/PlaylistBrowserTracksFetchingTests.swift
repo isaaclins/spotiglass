@@ -508,7 +508,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         let whileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
@@ -529,7 +529,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
@@ -559,7 +559,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
@@ -624,7 +624,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
@@ -651,7 +651,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
@@ -678,7 +678,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
@@ -705,7 +705,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
             try? await Task.sleep(for: .milliseconds(10))
         }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {

@@ -177,7 +177,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(viewModel.pendingVolumeMutation).target, 0.64, accuracy: 0.000_001)
 
         releaseFetch.signal()
-        for _ in 0..<1_000 where viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent != 20 {
+        while viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent != 20 {
             await Task.yield()
         }
         XCTAssertEqual(viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent, 20)

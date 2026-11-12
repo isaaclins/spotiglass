@@ -742,7 +742,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         await viewModel.refreshPlaylists()
 
         let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
-        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+        while !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
             await Task.yield()
         }
         countGate.open()
@@ -781,7 +781,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.playlistTracksGate = tracksGate
         await viewModel.refreshPlaylists()
         let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
-        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+        while !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
             await Task.yield()
         }
         countGate.open()

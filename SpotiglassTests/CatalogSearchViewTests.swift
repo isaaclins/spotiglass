@@ -303,7 +303,7 @@ final class CatalogSearchViewTests: XCTestCase {
         }
 
         await oldRequestGate.release()
-        await fulfillment(of: [oldRequestFinished], timeout: 2)
+        await fulfillment(of: [oldRequestFinished], timeout: mustHappenTimeout)
 
         guard case let .loaded(results) = viewModel.state else {
             return XCTFail("A late error from the old query must not replace the newer results")
