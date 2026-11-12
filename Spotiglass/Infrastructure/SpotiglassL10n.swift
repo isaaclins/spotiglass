@@ -187,6 +187,40 @@ enum SpotiglassL10n {
         string(key)
     }
 
+    /// `text` in the current app language when it is one of the app's own sentences, resolved
+    /// earlier in any supported language; any other text comes back unchanged. For sentences an
+    /// error carries as text, such as a failed request's "Network unavailable": shown again
+    /// after a language switch, they follow it like every other string (#548).
+    static func inAppLanguage(_ text: String) -> String {
+        guard let key = keyForResolvedText(text) else { return text }
+        return string(key)
+    }
+
+    /// Every supported language's sentences mapped back to their keys, built once. Templates
+    /// with placeholders are left out: a filled-in one never equals its template.
+    private static let keysByResolvedText: [String: String] = {
+        var keys: [String: String] = [:]
+        for language in AppLanguage.allCases {
+            let locale = Locale(identifier: language.rawValue)
+            for bundle in localizationBundles(for: locale) {
+                guard let path = bundle.path(forResource: "Localizable", ofType: "strings"),
+                      let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                      let table = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+                        as? [String: String]
+                else { continue }
+                for key in table.keys.sorted() {
+                    guard let value = table[key], !value.contains("%"), keys[value] == nil else { continue }
+                    keys[value] = key
+                }
+            }
+        }
+        return keys
+    }()
+
+    private static func keyForResolvedText(_ text: String) -> String? {
+        keysByResolvedText[text]
+    }
+
     /// `printf`-style formatting on top of ``string(_:)``. Arguments are
     /// substituted into `%@` / `%lld` / etc. placeholders in the localized
     /// template.

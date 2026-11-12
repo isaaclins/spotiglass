@@ -80,6 +80,19 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             LocalizedText(SpotiglassL10n.string("browser.empty.signInToBrowse"))
         )
         let error = PlaylistBrowserViewModel.displayError(for: SpotifyAPIError.unauthorized)
+        let namelessTrack = MusicTrack(
+            id: "n", name: "", artists: [""], albumArtworkURL: nil, durationMilliseconds: 60_000,
+            isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:n"
+        )
+        let namelessRow = TrackRowViewModel(MusicPlaylistTrackItem(id: "n", content: .track(namelessTrack)), listPosition: 3)
+        // A failed request keeps its sentence as text, resolved in the language of the moment.
+        let networkError = PlaylistBrowserViewModel.displayError(
+            for: SpotifyAPIError.network(SpotiglassL10n.string("error.spotify.unexpectedShape"))
+        )
+        let rateLimitError = PlaybackSessionViewModel.displayError(
+            for: SpotifyAPIError.rateLimited(retryAfter: 600), service: .spotify
+        )
+        let englishRateLimitMessage = rateLimitError.message
         XCTAssertEqual(trackRow.badgeText, "Explicit")
         XCTAssertEqual(albumRow.trackCountText, "10 tracks")
 
@@ -92,10 +105,42 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(unavailableRow.badgeText, SpotiglassL10n.string("browser.trackBadge.unavailable", locale: german))
         XCTAssertEqual(unavailableRow.subtitle, SpotiglassL10n.string("browser.unavailableReason.track", locale: german))
         XCTAssertEqual(albumRow.trackCountText, "10 Titel")
+        XCTAssertEqual(namelessRow.title, UnnamedMusicItem.track.placeholder(locale: german))
+        XCTAssertEqual(namelessRow.subtitle, UnnamedMusicItem.artist.placeholder(locale: german))
+        XCTAssertEqual(networkError.message, SpotiglassL10n.string("error.spotify.unexpectedShape", locale: german))
+        XCTAssertNotEqual(rateLimitError.message, englishRateLimitMessage)
+        XCTAssertEqual(
+            rateLimitError.message,
+            String(
+                format: SpotiglassL10n.string("error.playback.rateLimited.message", locale: german),
+                SpotifyRateLimitDisplay.retryAfterClause(seconds: 600)
+            ),
+            "The retry clause stayed in the old language"
+        )
         guard case let .empty(message) = emptyState else { return XCTFail("Expected an empty state") }
         XCTAssertEqual(message.string, SpotiglassL10n.string("browser.empty.signInToBrowse", locale: german))
         XCTAssertEqual(error.title, SpotiglassL10n.string("error.browsing.signInAgain.title", locale: german))
         XCTAssertEqual(error.message, SpotiglassL10n.string("error.browsing.signInAgain.message", locale: german))
+    }
+
+    /// The tests above host stand-in content, so they can't see the real windows. The bug was a
+    /// window's content keyed on the language (`.id(language)`), which rebuilds it on every
+    /// switch: no view in the app may be keyed on the language or the locale again.
+    func testNoViewIsRebuiltOnALanguageSwitch() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass", isDirectory: true)
+        let keyedOnLanguage = try NSRegularExpression(pattern: #"\.id\([^)]*(?:[Ll]anguage|[Ll]ocale)"#)
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: sourceURL, includingPropertiesForKeys: nil))
+        var offenders: [String] = []
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            if keyedOnLanguage.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)) != nil {
+                offenders.append(fileURL.lastPathComponent)
+            }
+        }
+        XCTAssertEqual(offenders, [], "Keyed on the language, so a switch rebuilds it and loses its state")
     }
 
     /// Other settings changes (theme, lyrics size) don't redraw text that only depends on the

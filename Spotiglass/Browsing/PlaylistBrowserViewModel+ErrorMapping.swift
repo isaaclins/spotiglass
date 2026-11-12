@@ -52,9 +52,12 @@ extension PlaylistBrowserViewModel {
             case let .network(message):
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string(
-                        SpotifyAPIError.isUnusableAnswerMessage(message) ? "error.browsing.generic.title" : "error.browsing.network.title"
+                        SpotifyAPIError.isUnusableAnswerMessage(SpotiglassL10n.inAppLanguage(message))
+                            ? "error.browsing.generic.title"
+                            : "error.browsing.network.title"
                     ),
-                    message: message,
+                    // Resolved when the request failed; shown in the language the app has now (#548).
+                    message: SpotiglassL10n.inAppLanguage(message),
                     canRetry: true
                 )
             case .decoding:

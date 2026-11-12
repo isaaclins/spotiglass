@@ -1038,10 +1038,12 @@ final class PlaybackSessionViewModel: ObservableObject {
                 recoveryAction: nil
             )
         case let .rateLimited(retryAfter):
-            let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.rateLimited.title"),
-                message: String(format: SpotiglassL10n.string("error.playback.rateLimited.message"), clause),
+                message: String(
+                    format: SpotiglassL10n.string("error.playback.rateLimited.message"),
+                    SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+                ),
                 recoveryAction: .retryTransfer
             )
         case .network, .server, .notFound, .explicitContentRestricted, .failed:

@@ -63,7 +63,8 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         case .decoding:
             return SpotiglassL10n.string("error.spotify.unexpectedShape")
         case let .network(message):
-            return message
+            // Resolved when the request failed; shown in the language the app has now (#548).
+            return SpotiglassL10n.inAppLanguage(message)
         case let .invalidRequest(message):
             return message
         }
