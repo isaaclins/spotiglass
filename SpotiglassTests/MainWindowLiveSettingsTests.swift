@@ -35,6 +35,78 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             services: [.appleMusic, .spotify], active: .appleMusic
         ))
         let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
+        let before = try assertLiveSwitchesKeepTheTitleBar(of: window, settings: settings, rendered: rendered)
+
+        // A service switch still builds a new browser, so it gets a new split view and new toolbar
+        // items by design. The toolbar has to take them up: its divider follows the new split
+        // view and the sidebar keeps its inset.
+        let appleMusicLayout = try XCTUnwrap(TitleBarLayout(window))
+        XCTAssertTrue(services.activate(.spotify), "couldn't switch to Spotify")
+        // Spotify isn't signed in here, so its sign-in replaces the library.
+        let leftAppleMusic = AppKitTestSupport.pumpRunLoop(until: {
+            TitleBarLayout(window).map { $0.splitView !== appleMusicLayout.splitView } ?? true
+        })
+        XCTAssertTrue(leftAppleMusic, "switching to Spotify kept Apple Music's library on screen")
+        XCTAssertTrue(services.activate(.appleMusic), "couldn't switch back to Apple Music")
+        let back = AppKitTestSupport.pumpRunLoop(until: {
+            guard let layout = TitleBarLayout(window) else { return false }
+            return layout.splitView !== appleMusicLayout.splitView && layout.sidebarSeparator?.splitView === layout.splitView
+        })
+        window.contentView?.layoutSubtreeIfNeeded()
+        let afterSwitch = try XCTUnwrap(TitleBarLayout(window), "no split view after switching back to Apple Music")
+        XCTAssertTrue(back, "after switching services the toolbar's sidebar divider doesn't follow the new split view")
+        XCTAssertEqual(
+            afterSwitch.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
+            "after switching services the sidebar moved up under the window buttons"
+        )
+    }
+
+    /// The same live switches over Spotify's library, as the main window shows it to a signed-in
+    /// Spotify account: its own toolbar items (Disconnect among them) and live playback.
+    func testLiveSwitchesKeepSpotifysSidebarUnderTheToolbar() async throws {
+        let settings = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = settings
+        try settings.mutate {
+            $0.appearance.language = .english
+            $0.appearance.colorScheme = .dark
+        }
+        let rendered = RenderedSettings()
+        let window = try await hostSpotifyLibrary(settings: settings, rendered: rendered)
+        try assertLiveSwitchesKeepTheTitleBar(of: window, settings: settings, rendered: rendered)
+    }
+
+    /// System hands the content macOS's scheme itself, so it has to follow macOS turning dark or
+    /// light while the app runs. The app's own appearance stands in for macOS's here.
+    func testSystemFollowsMacOSTurningDarkOrLightLive() async throws {
+        let settings = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = settings
+        try settings.mutate {
+            $0.appearance.language = .english
+            $0.appearance.colorScheme = .system
+        }
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic], active: .appleMusic
+        ))
+        let rendered = RenderedSettings()
+        let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
+        let started = try XCTUnwrap(rendered.colorScheme)
+
+        for scheme in [started == .dark ? ColorScheme.light : .dark, started] {
+            NSApp.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+            try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: "macOS in \(scheme)")
+            XCTAssertEqual(rendered.colorScheme, scheme, "the content didn't follow macOS to \(scheme)")
+        }
+    }
+
+    /// Switches the language and the colour scheme live six times, as Settings does, and checks
+    /// after each that the window kept its split view, its toolbar items and the sidebar's inset.
+    /// Returns the layout the window started with.
+    @discardableResult
+    private func assertLiveSwitchesKeepTheTitleBar(
+        of window: NSWindow,
+        settings: SpotiglassSettingsStore,
+        rendered: RenderedSettings
+    ) throws -> TitleBarLayout {
         let before = try XCTUnwrap(TitleBarLayout(window), "the library's split view never appeared")
         XCTAssertGreaterThan(before.sidebarTopInset, 0, "the sidebar starts under the window buttons")
 
@@ -64,51 +136,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
                 "after switching to \(name) the sidebar moved up under the window buttons"
             )
         }
-
-        // A service switch still builds a new browser, so it gets a new split view and new toolbar
-        // items by design. The toolbar has to take them up: its divider follows the new split
-        // view and the sidebar keeps its inset.
-        let appleMusicLayout = try XCTUnwrap(TitleBarLayout(window))
-        XCTAssertTrue(services.activate(.spotify), "couldn't switch to Spotify")
-        let leftAppleMusic = AppKitTestSupport.pumpRunLoop(until: {
-            TitleBarLayout(window)?.splitView !== appleMusicLayout.splitView
-        })
-        XCTAssertTrue(leftAppleMusic, "switching to Spotify kept Apple Music's library on screen")
-        XCTAssertTrue(services.activate(.appleMusic), "couldn't switch back to Apple Music")
-        let back = AppKitTestSupport.pumpRunLoop(until: {
-            guard let layout = TitleBarLayout(window) else { return false }
-            return layout.splitView !== appleMusicLayout.splitView && layout.sidebarSeparator?.splitView === layout.splitView
-        })
-        window.contentView?.layoutSubtreeIfNeeded()
-        let afterSwitch = try XCTUnwrap(TitleBarLayout(window), "no split view after switching back to Apple Music")
-        XCTAssertTrue(back, "after switching services the toolbar's sidebar divider doesn't follow the new split view")
-        XCTAssertEqual(
-            afterSwitch.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
-            "after switching services the sidebar moved up under the window buttons"
-        )
-    }
-
-    /// System hands the content macOS's scheme itself, so it has to follow macOS turning dark or
-    /// light while the app runs. The app's own appearance stands in for macOS's here.
-    func testSystemFollowsMacOSTurningDarkOrLightLive() async throws {
-        let settings = try ViewTestHost.makeSettingsStore()
-        SpotiglassL10n.settingsStore = settings
-        try settings.mutate {
-            $0.appearance.language = .english
-            $0.appearance.colorScheme = .system
-        }
-        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
-            services: [.appleMusic], active: .appleMusic
-        ))
-        let rendered = RenderedSettings()
-        let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
-        let started = try XCTUnwrap(rendered.colorScheme)
-
-        for scheme in [started == .dark ? ColorScheme.light : .dark, started] {
-            NSApp.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
-            try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: "macOS in \(scheme)")
-            XCTAssertEqual(rendered.colorScheme, scheme, "the content didn't follow macOS to \(scheme)")
-        }
+        return before
     }
 
     /// The main window's content, set up as the window scene sets it up, with Apple Music's
@@ -141,8 +169,58 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
         .environmentObject(spotifyHost)
         .spotiglassLiveSettings(settings)
+        return try showLikeTheMainWindow(root, settings: settings, rendered: rendered)
+    }
 
-        let controller = ViewTestHost.host(root, size: CGSize(width: 1100, height: 700), measuresLayout: true)
+    /// Spotify's library as the main window shows it to a signed-in account, with its library
+    /// from a stand-in API, so nothing reaches Spotify.
+    private func hostSpotifyLibrary(
+        settings: SpotiglassSettingsStore,
+        rendered: RenderedSettings
+    ) async throws -> NSWindow {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([
+                PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
+                PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Deep Focus"),
+            ])],
+            trackResults: [:]
+        )
+        let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browser.load()
+        let pins = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        pins.bind(userID: "u1")
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.spotify, .appleMusic], active: .spotify
+        ))
+        let palette = CommandPaletteManager()
+        let tokens = LiveSettingsSpotifyTokens()
+        let library = PlaylistBrowserView(
+            viewModel: browser,
+            playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            commandPaletteManager: palette,
+            signOut: {},
+            sidebarHeader: AnyView(MusicServiceSwitcher(
+                store: services, keymapStore: palette.keymapStore, switchTo: { _ in }, add: { _ in }
+            ))
+        )
+        // RootView gives every screen this space ahead of the library's own items.
+        .toolbar { ToolbarSpacer(.flexible) }
+        .background(RenderedSettingsProbe(rendered: rendered))
+        .environmentObject(pins)
+        .environmentObject(settings)
+        .environmentObject(LyricsOverlayController())
+        .spotiglassLiveSettings(settings)
+        return try showLikeTheMainWindow(library, settings: settings, rendered: rendered)
+    }
+
+    /// Hosts `content` in a window shaped like the main window and waits until it has drawn.
+    private func showLikeTheMainWindow(
+        _ content: some View,
+        settings: SpotiglassSettingsStore,
+        rendered: RenderedSettings
+    ) throws -> NSWindow {
+        let controller = ViewTestHost.host(content, size: CGSize(width: 1100, height: 700), measuresLayout: true)
         controller.sceneBridgingOptions = [.toolbars, .title]
         let window = try XCTUnwrap(controller.view.window)
         // The app's window draws its content under the title bar, which is where the sidebar's
@@ -174,7 +252,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
                 && window.toolbar?.items.contains(where: { $0.label == queueLabel }) == true
         })
         let labels = window.toolbar?.items.map(\.label) ?? []
-        XCTAssertTrue(taken, "the window never took \(name): toolbar labels \(labels), drawn with \(rendered), window appearance \(String(describing: window.appearance?.name)), effective \(window.effectiveAppearance.name.rawValue), app \(NSApp.effectiveAppearance.name.rawValue) / \(String(describing: NSApp.appearance?.name))")
+        XCTAssertTrue(taken, "the window never took \(name): toolbar labels \(labels), drawn with \(rendered.summary), window appearance \(String(describing: window.appearance?.name)), effective \(window.effectiveAppearance.name.rawValue), app \(NSApp.effectiveAppearance.name.rawValue) / \(String(describing: NSApp.appearance?.name))")
         window.contentView?.layoutSubtreeIfNeeded()
     }
 
@@ -190,12 +268,12 @@ final class MainWindowLiveSettingsTests: XCTestCase {
 
 /// What the main window's content last drew with, recorded from inside it.
 @MainActor
-private final class RenderedSettings: CustomStringConvertible {
+private final class RenderedSettings {
     var language: AppLanguage?
     var settingsColorScheme: AppearanceColorScheme?
     var colorScheme: ColorScheme?
 
-    var description: String {
+    var summary: String {
         "\(language?.rawValue ?? "nothing"), \(settingsColorScheme?.rawValue ?? "nothing"), \(String(describing: colorScheme))"
     }
 }
@@ -241,6 +319,13 @@ private struct TitleBarLayout {
         }
         return nil
     }
+}
+
+private final class LiveSettingsSpotifyTokens: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
+    func playbackAccessToken() async throws -> String { "live-settings-token" }
+    func refreshedPlaybackAccessToken() async throws -> String { "live-settings-token" }
+    func accessToken() async throws -> String { "live-settings-token" }
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "live-settings-token" }
 }
 
 private struct LiveSettingsMusicAuthorization: AppleMusicAuthorizing {
