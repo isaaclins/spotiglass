@@ -646,6 +646,15 @@ final class LocalizationCoverageTests: XCTestCase {
         )
         XCTAssertEqual(artistPin.localizedTitle(locale: locale), "Unbekannter Künstler")
         XCTAssertEqual(artistPin.localizedSubtitle(locale: locale), "Künstler")
+        // Opening a pin shows what the pin shows.
+        XCTAssertEqual(
+            PlaylistBrowserPinnedItemActivation.route(for: artistPin, previousSelection: nil),
+            .selectArtist(id: "a1", displayName: "Unbekannter Künstler")
+        )
+        guard case let .selectAlbum(_, _, albumSubtitle, _)? = PlaylistBrowserPinnedItemActivation.route(
+            for: pins[2], previousSelection: nil
+        ) else { return XCTFail("expected an album route") }
+        XCTAssertEqual(albumSubtitle, "Unbekannter Künstler")
         XCTAssertEqual(commaArtist.localizedSubtitle(locale: locale), "Tyler, The Creator")
         XCTAssertEqual(noArtist.localizedSubtitle(locale: locale), "")
         XCTAssertEqual(episode.name, "Unbekannte Episode")

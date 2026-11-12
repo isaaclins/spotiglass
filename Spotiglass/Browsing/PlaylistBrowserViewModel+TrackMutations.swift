@@ -343,8 +343,9 @@ extension PlaylistBrowserViewModel {
         else { return }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Compared with the name as sent, so a playlist without one can be named like its stand-in.
-        guard !trimmedName.isEmpty, trimmedName != previous.nameAsSent else { return }
+        // Compared with what the editor showed: confirming a nameless playlist's stand-in unchanged
+        // must not save the stand-in as its name (#547).
+        guard !trimmedName.isEmpty, trimmedName != previous.name else { return }
 
         let renamed = MusicPlaylistSummary(
             id: previous.id,

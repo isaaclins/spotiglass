@@ -937,6 +937,25 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.trackMutationToast, "Offline")
     }
 
+    /// The rename field starts with the stand-in a nameless playlist shows; confirming it unchanged
+    /// must not save the stand-in as its name (#547).
+    func testConfirmingANamelessPlaylistsStandInUnchangedRenamesNothing() async {
+        let playlist = MusicPlaylistSummary(
+            id: "nameless", name: "", ownerID: "u", ownerName: "Me",
+            imageURL: nil, trackCount: 0, snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+
+        await viewModel.renamePlaylist(id: playlist.id, name: playlist.name)
+
+        XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.nameAsSent, "")
+    }
+
     func testRenamePlaylistRejectsBlankNamesAndNonOwnedPlaylists() async {
         let playlist = MusicPlaylistSummary(
             id: "rename-me",
