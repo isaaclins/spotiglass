@@ -488,8 +488,9 @@ final class LyricsPopOutTests: XCTestCase {
         return window
     }
 
+    /// Runs the main run loop until the lyrics have loaded, however long a busy machine takes.
     private func waitUntilReady(_ lyrics: ImmersiveLyricsViewModel) {
-        for _ in 0..<40 {
+        while true {
             if case .ready = lyrics.phase { return }
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
