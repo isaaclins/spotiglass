@@ -343,8 +343,10 @@ struct CatalogSearchView: View {
                 content()
             }
         } else {
+            // A plain stack: a row here holds one page of at most 10 cards, which a lazy stack
+            // builds all of anyway, since it builds ahead of the visible edge (#473).
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
+                HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                     content()
                 }
                 .padding(.vertical, SpotiglassDesign.spacingXS)

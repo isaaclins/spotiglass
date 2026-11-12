@@ -182,6 +182,70 @@ final class WindowResizeCostTests: XCTestCase {
         XCTAssertEqual(offScreen(), [], "a resize built a row or card far outside the window")
     }
 
+    /// Search's track list was a plain stack too, so a page of results built every row on every
+    /// size the window took (#473).
+    func testSearchBuildsOnlyTheTrackRowsOnScreen() async throws {
+        try await assertSearchBuildsOnlyWhatIsOnScreen(
+            tracks: Self.homeTracks(prefix: "found", count: 10),
+            farOff: "TrackListRow:found-9"
+        )
+    }
+
+    /// Hosts Search on `tracks`, lays it out once, and checks `farOff` (a row below the window)
+    /// is built neither then nor during a resize.
+    private func assertSearchBuildsOnlyWhatIsOnScreen(
+        tracks: [MusicTrack],
+        farOff: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let browserVM = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        await browserVM.selectSidebar(.search)
+        let search = browserVM.catalogSearch
+        search.searchProvider = { _, offset, _ in
+            offset == 0
+                ? MusicSearchResults(tracks: tracks, artists: [], albums: [], playlists: [])
+                : MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
+        }
+        search.query = "found"
+        search.queryDidChange()
+        await search.waitForSearchCompletion()
+        XCTAssertEqual(search.visibleResults.tracks.count, tracks.count, file: file, line: line)
+
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
+            defaults: makeEphemeralDefaults()
+        )
+        let view = CatalogSearchView(
+            viewModel: browserVM,
+            searchViewModel: search,
+            playbackViewModel: playback,
+            queueViewModel: QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playback),
+            hasPlaybackDevice: false
+        )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewBodyTally.counts = [:]
+        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 600))
+        let window = try XCTUnwrap(controller.view.window, file: file, line: line)
+        // The hosted page lays itself out fully once its window takes a size, as a real one does.
+        resize(window, toWidth: 900, height: 600)
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?["TrackListRow:found-1"] != nil }),
+            "the results never came on screen", file: file, line: line
+        )
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertNil(ViewBodyTally.counts?[farOff], "Search built \(farOff) far outside the window", file: file, line: line)
+
+        for step in 0..<12 {
+            resize(window, toWidth: 900 - CGFloat(step) * 20, height: 600 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertNil(ViewBodyTally.counts?[farOff], "a resize built \(farOff) far outside the window", file: file, line: line)
+    }
+
     private func assertAnAnimatedResizeReRendersNothing(
         in window: NSWindow,
         extraViews: [String],
