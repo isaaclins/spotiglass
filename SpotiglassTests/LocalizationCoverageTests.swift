@@ -579,6 +579,18 @@ final class LocalizationCoverageTests: XCTestCase {
             )
         )
         XCTAssertEqual(PlaylistBrowserLibraryActions.playlistSummaryFromRow(named).name, "Night Drive")
+
+        // A playlist really named like the stand-in earlier builds saved reads as one, but a pin
+        // keeps the name it was sent with instead of saving a blank title.
+        let lookalike = MusicPlaylistSummary(
+            id: "p.6", name: "Untitled playlist", ownerID: "me", ownerName: "me",
+            imageURL: nil, trackCount: 2, snapshotID: "s"
+        )
+        XCTAssertEqual(PinnedItem.playlist(lookalike).title, "Untitled playlist")
+        XCTAssertEqual(
+            PinnedItem.playlist(PlaylistBrowserLibraryActions.playlistSummaryFromRow(PlaylistRowViewModel(lookalike))).title,
+            "Untitled playlist"
+        )
     }
 
     /// A search page with a nameless artist or album, a pin whose artist has no name, an artist

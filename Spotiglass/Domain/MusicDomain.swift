@@ -40,6 +40,13 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
         UnnamedMusicItem.isStandIn(storedName, kind: .playlist)
     }
 
+    /// The name exactly as the service sent it (or an earlier build saved it), for copies that
+    /// resolve it again when they render: a pin, a row rebuilt into a playlist. A real name that
+    /// reads like a stand-in is kept that way instead of being saved blank.
+    var nameAsSent: String {
+        storedName
+    }
+
     init(
         id: String,
         name: String,

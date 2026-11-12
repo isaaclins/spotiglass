@@ -99,8 +99,9 @@ extension PinnedItem {
         PinnedItem(
             id: id(forKind: .playlist, spotifyID: playlist.id),
             kind: .playlist,
-            // Blank when it has none, so the pin shows the stand-in in the app's language (#547).
-            title: playlist.isUnnamed ? "" : playlist.name,
+            // As the service sent it, so a pin without a name shows the stand-in in the app's
+            // language and a real name is kept (#547).
+            title: playlist.nameAsSent,
             subtitle: playlist.ownerName,
             artworkURL: playlist.imageURL,
             spotifyURI: "spotify:playlist:\(playlist.id)",
