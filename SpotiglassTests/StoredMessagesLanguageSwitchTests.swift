@@ -177,10 +177,18 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         browser.applyBreadcrumbForArtist(id: "unknown", displayName: nil, origin: .reset)
         let artistCrumb = try XCTUnwrap(browser.breadcrumbPath.last)
 
-        try switchToGerman()
+        // "Playlist" is the same word in German, so this one switches to Spanish.
+        try store.mutate { $0.appearance.language = .spanish }
+        let spanish = Locale(identifier: AppLanguage.spanish.rawValue)
 
-        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: playlistCrumb), inGerman("browser.breadcrumb.playlistFallback"))
-        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: artistCrumb), inGerman("browser.breadcrumb.artistFallback"))
+        XCTAssertEqual(
+            BrowserToolbarPresentation.localizedLabel(for: playlistCrumb),
+            SpotiglassL10n.string("browser.breadcrumb.playlistFallback", locale: spanish)
+        )
+        XCTAssertEqual(
+            BrowserToolbarPresentation.localizedLabel(for: artistCrumb),
+            SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: spanish)
+        )
     }
 
     /// The window title for a playlist that has loaded without a name, and for an artist or album
@@ -209,6 +217,42 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         )
         XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: artistCrumb), UnnamedMusicItem.artist.placeholder(locale: german))
         XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: albumCrumb), UnnamedMusicItem.album.placeholder(locale: german))
+    }
+
+    /// The page a yearless album pin opens says "Album" under the title, and the back button names a
+    /// nameless album or artist, in the language of the moment.
+    func testAnAlbumPagesLineAndTheBackButtonFollowALanguageSwitch() async throws {
+        let song = MusicTrack(
+            id: "t", name: "Song", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 60_000,
+            isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:], albumTracksHandler: { _, _, _ in [song] })
+        let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let pin = PinnedItem.album(MusicArtistAlbum(
+            id: "al", name: " ", imageURL: nil, releaseYear: nil, totalTracks: 1, group: .album, uri: "spotify:album:al"
+        ))
+        guard case let .selectAlbum(id, title, subtitle, artworkURL)? = PlaylistBrowserPinnedItemActivation.route(
+            for: pin, previousSelection: nil
+        ) else { return XCTFail("The pin did not open an album") }
+        await browser.selectAlbum(id: id, displayTitle: title, displaySubtitle: subtitle, artworkURL: artworkURL)
+        guard case let .loaded(.playlist(detail)) = browser.detailState else {
+            return XCTFail("The album page did not load: \(String(describing: browser.detailState))")
+        }
+        XCTAssertTrue(detail.playlist.ownerTracksLine(currentUserID: nil).hasPrefix("Album"))
+        let album = BrowserNavigationTarget.album(id: id, title: title, subtitle: subtitle, artworkURL: artworkURL)
+        XCTAssertEqual(browser.displayName(for: album), "Unknown album")
+        browser.backNavigationArtistNames["a"] = UnnamedMusicItem.artist.placeholder
+
+        // "Album" is the same word in German, so this one switches to Spanish.
+        try store.mutate { $0.appearance.language = .spanish }
+        let spanish = Locale(identifier: AppLanguage.spanish.rawValue)
+
+        XCTAssertTrue(
+            detail.playlist.ownerTracksLine(currentUserID: nil).hasPrefix(SpotiglassL10n.string("pin.album.default", locale: spanish)),
+            "The album page's line stayed in the old language"
+        )
+        XCTAssertEqual(browser.displayName(for: album), UnnamedMusicItem.album.placeholder(locale: spanish))
+        XCTAssertEqual(browser.displayName(for: .artist("a")), UnnamedMusicItem.artist.placeholder(locale: spanish))
     }
 
     /// Settings › Keyboard: a chord a menu item owns names that menu item, in the language of the

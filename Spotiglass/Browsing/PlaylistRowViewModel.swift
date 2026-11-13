@@ -63,8 +63,14 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     /// virtual Liked Songs row's fallback, which must be resolved at render
     /// time so an in-app language switch updates cached rows too.
     func localizedOwner(locale: Locale = SpotiglassL10n.locale) -> String {
-        // An album's line is its artists, kept as they read when it opened (#548).
-        if isAlbumDetail { return UnnamedMusicItem.displayArtistList(owner, locale: locale) }
+        if isAlbumDetail {
+            // An album's line is its artists, or "Album" for one opened without a line (a pin
+            // without a year), both in the language of the moment (#571).
+            if owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return SpotiglassL10n.string("pin.album.default", locale: locale)
+            }
+            return UnnamedMusicItem.displayArtistList(owner, locale: locale)
+        }
         guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
               owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return AppleMusicItemMapping.localizedOwnerName(owner, ownerID: ownerID, locale: locale) }

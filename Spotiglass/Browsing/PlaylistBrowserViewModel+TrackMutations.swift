@@ -182,7 +182,7 @@ extension PlaylistBrowserViewModel {
                 playlistName
             ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .addToPlaylist))
+            trackMutationToastText = Self.failureText(error, operation: .addToPlaylist)
         }
     }
 
@@ -222,8 +222,9 @@ extension PlaylistBrowserViewModel {
                     await refreshCurrentPlaylistMutationDetail(
                         for: [sourcePlaylistID, destinationPlaylistID]
                     )
+                    let service = MusicServiceSelection.current
                     trackMutationToastText = LocalizedText(Self.isScopeFailure(error)
-                        ? Self.describeFailure(error, operation: .moveBetweenPlaylists)
+                        ? Self.describeFailure(error, operation: .moveBetweenPlaylists, service: service)
                         : SpotiglassL10n.format(
                             "playlist.mutation.partialMove",
                             destinationName
@@ -246,7 +247,7 @@ extension PlaylistBrowserViewModel {
                 destinationName
             ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .moveBetweenPlaylists))
+            trackMutationToastText = Self.failureText(error, operation: .moveBetweenPlaylists)
         }
     }
 
@@ -272,7 +273,7 @@ extension PlaylistBrowserViewModel {
                 Int64(ids.count)
             ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .addToLikedSongs))
+            trackMutationToastText = Self.failureText(error, operation: .addToLikedSongs)
         }
     }
 
@@ -305,7 +306,7 @@ extension PlaylistBrowserViewModel {
                 Int64(ids.count)
             ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .removeFromLikedSongs))
+            trackMutationToastText = Self.failureText(error, operation: .removeFromLikedSongs)
         }
     }
 
@@ -314,7 +315,8 @@ extension PlaylistBrowserViewModel {
     /// sidebar so the user immediately sees it.
     func createPlaylistWithRows(name: String, rows: [TrackRowViewModel]) async {
         guard let userID = currentUserID, !userID.isEmpty else {
-            trackMutationToastText = LocalizedText(SpotiglassL10n.format("playlist.mutation.signInToCreate", MusicServiceSelection.current.displayName))
+            let service = MusicServiceSelection.current
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format("playlist.mutation.signInToCreate", service.displayName))
             return
         }
         guard await ensureEditAllowed(.createPlaylist) else { return }
@@ -330,7 +332,7 @@ extension PlaylistBrowserViewModel {
                     Int64(uris.count)
                 ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .createPlaylist))
+            trackMutationToastText = Self.failureText(error, operation: .createPlaylist)
         }
     }
 
@@ -370,7 +372,7 @@ extension PlaylistBrowserViewModel {
         } catch {
             // Only the name goes back: a track count that arrived meanwhile stays.
             applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .renamePlaylist))
+            trackMutationToastText = Self.failureText(error, operation: .renamePlaylist)
         }
     }
 
@@ -393,14 +395,25 @@ extension PlaylistBrowserViewModel {
         guard let editPermissions, let failure = await editPermissions.missingPermission(for: operation) else {
             return true
         }
-        trackMutationToastText = LocalizedText(Self.describeFailure(failure, operation: operation))
+        trackMutationToastText = Self.failureText(failure, operation: operation)
         return false
     }
 
     /// Converts a mutation failure into user copy without leaking Spotify's
     /// generic 403 reason phrase. The operation-specific variants name the
     /// capability and point at the existing reconnect control.
-    static func describeFailure(_ error: Error, operation: PlaylistMutationOperation = .generic) -> String {
+    /// The note for a failed edit, looked up when shown so it follows a language switch (#571).
+    /// The service is the one the edit failed on, even if another is picked while the note shows.
+    static func failureText(_ error: Error, operation: PlaylistMutationOperation = .generic) -> LocalizedText {
+        let service = MusicServiceSelection.current
+        return LocalizedText(describeFailure(error, operation: operation, service: service))
+    }
+
+    static func describeFailure(
+        _ error: Error,
+        operation: PlaylistMutationOperation = .generic,
+        service: MusicService = MusicServiceSelection.current
+    ) -> String {
         if let apiError = error as? SpotifyAPIError {
             switch apiError {
             case .insufficientScope, .forbidden:
@@ -419,8 +432,8 @@ extension PlaylistBrowserViewModel {
             return apiError.localizedDescription
         }
         // An Apple Music edit's failure reads as Apple Music's, never as Spotify's (#470).
-        return BrowsingDisplayError.appleMusic(for: error)?.message
-            ?? MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current)
+        return BrowsingDisplayError.appleMusic(for: error, service: service)?.message
+            ?? MusicServiceErrorText.userMessage(for: error, service: service)
     }
 
     private static func isScopeFailure(_ error: Error) -> Bool {

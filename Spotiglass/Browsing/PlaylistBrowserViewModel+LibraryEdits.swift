@@ -104,7 +104,7 @@ extension PlaylistBrowserViewModel {
                 playlistName
             ))
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .removeFromPlaylist))
+            trackMutationToastText = Self.failureText(error, operation: .removeFromPlaylist)
         }
     }
 
@@ -180,16 +180,18 @@ extension PlaylistBrowserViewModel {
             } else {
                 await showServiceOrder(playlistID: playlistID)
             }
+            let service = MusicServiceSelection.current
             trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.reorderPartlySaved",
-                Self.describeFailure(partial.underlying, operation: .reorderPlaylist)
+                Self.describeFailure(partial.underlying, operation: .reorderPlaylist, service: service)
             ))
         } catch {
             await putBack(shown, replacing: reordered, playlistID: playlistID)
+            let service = MusicServiceSelection.current
             trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.reorderFailed",
                 (error as? MusicPlaylistChangedElsewhere)?.localizedDescription
-                    ?? Self.describeFailure(error, operation: .reorderPlaylist)
+                    ?? Self.describeFailure(error, operation: .reorderPlaylist, service: service)
             ))
             // Apple Music's smart playlists can't be reordered, and nothing says so before
             // Music refuses: the playlist stops offering dragging after the first try.
@@ -294,7 +296,7 @@ extension PlaylistBrowserViewModel {
         do {
             try await api.deletePlaylist(playlistID: summary.id)
         } catch {
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .deletePlaylist))
+            trackMutationToastText = Self.failureText(error, operation: .deletePlaylist)
             return
         }
         removeSidebarPlaylist(id: summary.id)
@@ -399,7 +401,7 @@ extension PlaylistBrowserViewModel {
             ))
         } catch {
             savedAlbumStates[albumID] = isSaved
-            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .saveAlbum))
+            trackMutationToastText = Self.failureText(error, operation: .saveAlbum)
         }
     }
 

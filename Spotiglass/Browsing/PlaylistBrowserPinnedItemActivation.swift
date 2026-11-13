@@ -31,7 +31,9 @@ enum PlaylistBrowserPinnedItemActivation {
             return .selectAlbum(
                 id: spotifyID,
                 title: item.localizedTitle(),
-                subtitle: item.localizedSubtitle(),
+                // As saved: the album page says "Album" or names a nameless artist when it is
+                // shown, in the language of the moment (#571).
+                subtitle: item.subtitle,
                 artworkURL: item.artworkURL
             )
         case .likedSongs:
