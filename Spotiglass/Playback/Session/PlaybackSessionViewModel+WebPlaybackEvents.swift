@@ -109,7 +109,7 @@ extension PlaybackSessionViewModel {
             hasTransferredPlaybackToCurrentDevice = false
             clearPendingSkipCommand()
             sdkNextTracks = []
-            setConnectionState(.unavailable(SpotiglassL10n.string("error.playback.deviceLost.message")))
+            setConnectionState(.unavailable(LocalizedText(SpotiglassL10n.string("error.playback.deviceLost.message"))))
             playbackHostRecoveryTask?.cancel()
             playbackHostRecoveryTask = nil
             playbackHostRecoverySerial &+= 1

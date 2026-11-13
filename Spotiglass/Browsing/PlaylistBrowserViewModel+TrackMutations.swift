@@ -167,7 +167,7 @@ extension PlaylistBrowserViewModel {
     func addRowsToPlaylist(_ rows: [TrackRowViewModel], playlistID: String, playlistName: String) async {
         let uris = playableURIs(for: rows)
         guard !uris.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("playlist.mutation.noEligibleTracks"))
             return
         }
         guard !playlistID.isEmpty else { return }
@@ -176,13 +176,13 @@ extension PlaylistBrowserViewModel {
             try await api.addTracksToPlaylist(playlistID: playlistID, uris: uris)
             invalidateTracksCache(playlistID: playlistID)
             adjustSidebarTrackCountAfterEdit(playlistID: playlistID, by: uris.count)
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.addedToPlaylist",
                 Int64(uris.count),
                 playlistName
-            )
+            ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .addToPlaylist)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .addToPlaylist))
         }
     }
 
@@ -197,7 +197,7 @@ extension PlaylistBrowserViewModel {
         let sourceIsLikedSongs = sourcePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
         guard !uris.isEmpty,
               sourceIsLikedSongs || !removals.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("playlist.mutation.noEligibleTracks"))
             return
         }
         guard !destinationPlaylistID.isEmpty else { return }
@@ -222,12 +222,12 @@ extension PlaylistBrowserViewModel {
                     await refreshCurrentPlaylistMutationDetail(
                         for: [sourcePlaylistID, destinationPlaylistID]
                     )
-                    trackMutationToast = Self.isScopeFailure(error)
+                    trackMutationToastText = LocalizedText(Self.isScopeFailure(error)
                         ? Self.describeFailure(error, operation: .moveBetweenPlaylists)
                         : SpotiglassL10n.format(
                             "playlist.mutation.partialMove",
                             destinationName
-                        )
+                        ))
                     return
                 }
                 invalidateTracksCache(playlistID: sourcePlaylistID)
@@ -240,20 +240,20 @@ extension PlaylistBrowserViewModel {
             await refreshCurrentPlaylistMutationDetail(
                 for: [sourcePlaylistID, destinationPlaylistID]
             )
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.movedToPlaylist",
                 Int64(uris.count),
                 destinationName
-            )
+            ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .moveBetweenPlaylists)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .moveBetweenPlaylists))
         }
     }
 
     func favoriteRows(_ rows: [TrackRowViewModel]) async {
         let ids = catalogTrackIDs(for: rows)
         guard !ids.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("playlist.mutation.noEligibleTracks"))
             return
         }
         guard await ensureEditAllowed(.addToLikedSongs) else { return }
@@ -267,12 +267,12 @@ extension PlaylistBrowserViewModel {
             savedAlbumStates = [:]
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.addedToLikedSongs",
                 Int64(ids.count)
-            )
+            ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .addToLikedSongs)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .addToLikedSongs))
         }
     }
 
@@ -281,7 +281,7 @@ extension PlaylistBrowserViewModel {
     func unfavoriteRows(_ rows: [TrackRowViewModel], confirmed: Bool = false) async {
         let ids = catalogTrackIDs(for: rows)
         guard !ids.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("playlist.mutation.noEligibleTracks"))
             return
         }
         if !confirmed, supportedLibraryEdits.contains(.confirmLibraryRemoval) {
@@ -300,12 +300,12 @@ extension PlaylistBrowserViewModel {
             invalidateLikedSongsCache()
             recountPlaylistTracksAfterLibraryRemoval()
             await refreshLikedSongsDetailAfterMutation()
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.removedFromLikedSongs",
                 Int64(ids.count)
-            )
+            ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .removeFromLikedSongs)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .removeFromLikedSongs))
         }
     }
 
@@ -314,7 +314,7 @@ extension PlaylistBrowserViewModel {
     /// sidebar so the user immediately sees it.
     func createPlaylistWithRows(name: String, rows: [TrackRowViewModel]) async {
         guard let userID = currentUserID, !userID.isEmpty else {
-            trackMutationToast = SpotiglassL10n.format("playlist.mutation.signInToCreate", MusicServiceSelection.current.displayName)
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format("playlist.mutation.signInToCreate", MusicServiceSelection.current.displayName))
             return
         }
         guard await ensureEditAllowed(.createPlaylist) else { return }
@@ -322,15 +322,15 @@ extension PlaylistBrowserViewModel {
             let uris = playableURIs(for: rows)
             let created = try await api.createPlaylist(userID: userID, name: name, isPublic: false, trackURIs: uris)
             insertSidebarPlaylist(created, refreshedTrackCount: uris.count)
-            trackMutationToast = uris.isEmpty
+            trackMutationToastText = LocalizedText(uris.isEmpty
                 ? SpotiglassL10n.format("playlist.mutation.createdPlaylist", created.name)
                 : SpotiglassL10n.format(
                     "playlist.mutation.createdPlaylistWithTracks",
                     created.name,
                     Int64(uris.count)
-                )
+                ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .createPlaylist)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .createPlaylist))
         }
     }
 
@@ -370,7 +370,7 @@ extension PlaylistBrowserViewModel {
         } catch {
             // Only the name goes back: a track count that arrived meanwhile stays.
             applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.nameAsSent))
-            trackMutationToast = Self.describeFailure(error, operation: .renamePlaylist)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .renamePlaylist))
         }
     }
 
@@ -393,7 +393,7 @@ extension PlaylistBrowserViewModel {
         guard let editPermissions, let failure = await editPermissions.missingPermission(for: operation) else {
             return true
         }
-        trackMutationToast = Self.describeFailure(failure, operation: operation)
+        trackMutationToastText = LocalizedText(Self.describeFailure(failure, operation: operation))
         return false
     }
 

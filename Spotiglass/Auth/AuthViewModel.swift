@@ -92,7 +92,7 @@ final class AuthViewModel: ObservableObject {
                 await clearSignOutData()
             }
         } catch {
-            state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+            state = .failed(Self.displayError(for: error))
             return
         }
         state = .signingIn
@@ -166,7 +166,7 @@ final class AuthViewModel: ObservableObject {
                 return
             }
             signInRetryCooldownUntil = now().addingTimeInterval(2)
-            state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+            state = .failed(Self.displayError(for: error))
         }
     }
 
@@ -184,7 +184,7 @@ final class AuthViewModel: ObservableObject {
             guard generation == authTransitionGeneration else { return }
             state = .signedOut
         } catch {
-            state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+            state = .failed(Self.displayError(for: error))
         }
     }
 
@@ -305,7 +305,7 @@ final class AuthViewModel: ObservableObject {
             await clearSignOutData()
             guard generation == authTransitionGeneration else { return }
         }
-        state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+        state = .failed(Self.displayError(for: error))
     }
 
     private func clearSignOutData() async {
@@ -354,7 +354,7 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    private func displayMessage(for error: Error) -> String {
+    private static func displayError(for error: Error) -> AuthDisplayError {
         // The sentence stays free of OAuth codes and socket steps, but they must
         // not be dropped either: the log is where a bug report picks them up.
         // Every auth failure routes through here, so this is the one place that
@@ -363,6 +363,12 @@ final class AuthViewModel: ObservableObject {
            let details = callbackError.diagnosticDetails {
             SpotiglassLog.error(.auth, details)
         }
+        // The error itself is kept, not its sentence: the sentence is looked up each time it
+        // is shown, so it follows a language switch (#571).
+        return AuthDisplayError(message: displayMessage(for: error))
+    }
+
+    private static func displayMessage(for error: Error) -> String {
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
         }

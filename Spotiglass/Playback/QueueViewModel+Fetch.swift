@@ -161,7 +161,7 @@ extension QueueViewModel {
         case .paused(.none):
             "paused-empty"
         case let .unavailable(message):
-            "unavailable:\(message)"
+            "unavailable:\(message.string)"
         case let .error(error):
             "error:\(error.title)"
         }

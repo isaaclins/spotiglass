@@ -1018,7 +1018,7 @@ struct PlaybackControlsView: View {
                 SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
             )
         case let .unavailable(message):
-            (SpotiglassL10n.string("playback.controls.state.unavailable.title"), message)
+            (SpotiglassL10n.string("playback.controls.state.unavailable.title"), message.string)
         case let .error(error):
             (error.title, error.message)
         }

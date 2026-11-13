@@ -84,7 +84,7 @@ extension PlaylistBrowserViewModel {
     func removeRowsFromPlaylist(_ rows: [TrackRowViewModel], playlistID: String, playlistName: String) async {
         let removals = playlistTrackRemovals(for: rows)
         guard !removals.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("playlist.mutation.noEligibleTracks"))
             return
         }
         let count = removals.reduce(0) { $0 + $1.positions.count }
@@ -98,13 +98,13 @@ extension PlaylistBrowserViewModel {
             selectedDetailTrackIDs = []
             adjustSidebarTrackCountAfterEdit(playlistID: playlistID, by: -count)
             await refreshCurrentPlaylistMutationDetail(for: [playlistID])
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.removedFromPlaylist",
                 Int64(count),
                 playlistName
-            )
+            ))
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .removeFromPlaylist)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .removeFromPlaylist))
         }
     }
 
@@ -180,17 +180,17 @@ extension PlaylistBrowserViewModel {
             } else {
                 await showServiceOrder(playlistID: playlistID)
             }
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.reorderPartlySaved",
                 Self.describeFailure(partial.underlying, operation: .reorderPlaylist)
-            )
+            ))
         } catch {
             await putBack(shown, replacing: reordered, playlistID: playlistID)
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.reorderFailed",
                 (error as? MusicPlaylistChangedElsewhere)?.localizedDescription
                     ?? Self.describeFailure(error, operation: .reorderPlaylist)
-            )
+            ))
             // Apple Music's smart playlists can't be reordered, and nothing says so before
             // Music refuses: the playlist stops offering dragging after the first try.
             if error as? AppleMusicLibraryEditError == .notEditable {
@@ -294,7 +294,7 @@ extension PlaylistBrowserViewModel {
         do {
             try await api.deletePlaylist(playlistID: summary.id)
         } catch {
-            trackMutationToast = Self.describeFailure(error, operation: .deletePlaylist)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .deletePlaylist))
             return
         }
         removeSidebarPlaylist(id: summary.id)
@@ -302,7 +302,7 @@ extension PlaylistBrowserViewModel {
             await selectSidebar(.home)
         }
         forgetDeletedPlaylist(id: summary.id)
-        trackMutationToast = SpotiglassL10n.format("playlist.mutation.deletedPlaylist", summary.name)
+        trackMutationToastText = LocalizedText(SpotiglassL10n.format("playlist.mutation.deletedPlaylist", summary.name))
     }
 
     /// Keeps the sidebar's "N tracks" in step with an edit, instead of the count the playlist
@@ -393,13 +393,13 @@ extension PlaylistBrowserViewModel {
             invalidateLikedSongsCache()
             if isSaved { recountPlaylistTracksAfterLibraryRemoval() }
             await refreshLikedSongsDetailAfterMutation()
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 isSaved ? "playlist.mutation.removedAlbum" : "playlist.mutation.addedAlbum",
                 albumName
-            )
+            ))
         } catch {
             savedAlbumStates[albumID] = isSaved
-            trackMutationToast = Self.describeFailure(error, operation: .saveAlbum)
+            trackMutationToastText = LocalizedText(Self.describeFailure(error, operation: .saveAlbum))
         }
     }
 

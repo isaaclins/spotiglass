@@ -1219,7 +1219,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         guard case let .unavailable(message) = viewModel.connectionState else {
             return XCTFail("Expected unavailable")
         }
-        XCTAssertTrue(message.contains("no longer available"))
+        XCTAssertTrue(message.string.contains("no longer available"))
     }
 
     func testStartReconnectsFromErrorAndUnavailableStates() async {

@@ -418,6 +418,46 @@ final class EqualizerHALPluginTests: XCTestCase {
         }
     }
 
+    /// Settings › Equalizer shows why the EQ isn't running. The pane sits in the same window as
+    /// the language picker, and the reason stayed in the old language after a switch (#571).
+    @MainActor
+    func testTheRouteFailureFollowsALanguageSwitch() throws {
+        let languageStore = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = languageStore
+        defer { SpotiglassL10n.settingsStore = nil }
+        try languageStore.mutate { $0.appearance.language = .english }
+        let originalID = AudioObjectID(41)
+        let virtualID = AudioObjectID(99)
+        let uid = "OriginalOutputUID"
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceUID: { $0 == originalID ? uid : nil },
+            defaultOutputDeviceIDProvider: { originalID },
+            virtualDeviceIDProvider: { virtualID },
+            defaultOutputSetter: { _ in },
+            routerStatusURL: makeTempDirectory().appendingPathComponent("router.status"),
+            routerStatusReader: {
+                .failed(targetUID: uid, reasonCode: 2)
+            },
+            routerReadinessTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+        try controller.install()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+        XCTAssertThrowsError(try engine.start())
+        XCTAssertEqual(engine.lastError, SpotiglassL10n.string("eq.error.routerTargetOpenFailed"))
+
+        try languageStore.mutate { $0.appearance.language = .german }
+
+        XCTAssertEqual(
+            engine.lastError,
+            SpotiglassL10n.string("eq.error.routerTargetOpenFailed", locale: Locale(identifier: "de")),
+            "The equalizer's reason stayed in the old language"
+        )
+    }
+
     @MainActor
     func testSelectingHardwareOutputWhileEQIsEnabledKeepsVirtualOutputAsDefault() async throws {
         let originalID = AudioObjectID(41)

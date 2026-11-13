@@ -25,7 +25,7 @@ extension PlaylistBrowserViewModel {
     ) async {
         guard !Task.isCancelled else { return }
         guard let seed = row.spotifyTrackForPinning() else {
-            trackMutationToast = SpotiglassL10n.string("library.continuation.unavailable")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("library.continuation.unavailable"))
             return
         }
         let generation = libraryContinuationGeneration
@@ -42,7 +42,7 @@ extension PlaylistBrowserViewModel {
             limit: LibraryContinuationPolicy.queueLength
         )
         guard !continuation.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("library.continuation.empty")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("library.continuation.empty"))
             return
         }
 
@@ -53,25 +53,25 @@ extension PlaylistBrowserViewModel {
             // QueueViewModel normally publishes its own detailed playback error.
             // Keep a localized browser message as a visible fallback for queue
             // implementations that cannot provide one.
-            trackMutationToast = SpotiglassL10n.string("library.continuation.queueFailed")
+            trackMutationToastText = LocalizedText(SpotiglassL10n.string("library.continuation.queueFailed"))
             return
         }
         if result.enqueued < result.requested {
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "library.continuation.partial",
                 Int64(result.enqueued),
                 Int64(result.requested)
-            )
+            ))
         } else if continuation.count < LibraryContinuationPolicy.minimumUsefulLength {
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "library.continuation.short",
                 Int64(continuation.count)
-            )
+            ))
         } else {
-            trackMutationToast = SpotiglassL10n.format(
+            trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "library.continuation.added",
                 Int64(result.enqueued)
-            )
+            ))
         }
     }
 

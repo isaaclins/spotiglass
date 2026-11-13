@@ -19,7 +19,8 @@ struct CommandPaletteSettingsView: View {
     @State private var pendingConflictByCommand: [String: PendingHotkeyConflict] = [:]
     /// A failed capture still ends recording, but keeps its localized reason on
     /// the row so an unsupported key or a menu-owned chord is never silent.
-    @State private var captureErrorByCommand: [String: String] = [:]
+    /// Looked up when shown, so a reason on screen follows a language switch (#571).
+    @State private var captureErrorByCommand: [String: LocalizedText] = [:]
     /// Typed into the field over the list, so a command is found by name
     /// instead of by scrolling (#541).
     @State private var searchText = ""
@@ -146,7 +147,7 @@ struct CommandPaletteSettingsView: View {
             }
 
             if let captureError = captureErrorByCommand[spec.commandID] {
-                Label(captureError, systemImage: "exclamationmark.triangle.fill")
+                Label(captureError.string, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -173,9 +174,10 @@ struct CommandPaletteSettingsView: View {
                             )
                             pendingConflictByCommand[spec.commandID] = nil
                         } catch {
-                            keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                            let source = keymapStore.fileURL.path
+                            keymapStore.lastErrorText = CommandPaletteKeymapErrorPresenter.text(
                                 for: error,
-                                source: keymapStore.fileURL.path,
+                                source: source,
                                 operation: "replace shortcut"
                             )
                         }

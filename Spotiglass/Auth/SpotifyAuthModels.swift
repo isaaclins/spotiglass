@@ -222,7 +222,13 @@ struct AuthenticatedSession: Equatable {
 
 struct AuthDisplayError: Error, Equatable, Identifiable {
     let id = UUID()
-    let message: String
+    /// Looked up when shown, so a sign-in error on screen follows a language switch (#571).
+    private let messageText: LocalizedText
+    var message: String { messageText.string }
+
+    init(message: @autoclosure @escaping () -> String) {
+        self.messageText = LocalizedText(message())
+    }
 
     static func == (lhs: AuthDisplayError, rhs: AuthDisplayError) -> Bool {
         lhs.message == rhs.message

@@ -7,7 +7,8 @@ enum PlaybackConnectionState: Equatable {
     case transferring(deviceID: String)
     case playing(PlaybackNowPlaying)
     case paused(PlaybackNowPlaying?)
-    case unavailable(String)
+    /// Looked up when shown, so the line follows a language switch (#571).
+    case unavailable(LocalizedText)
     case error(PlaybackDisplayError)
 }
 

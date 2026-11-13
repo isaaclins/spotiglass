@@ -328,11 +328,28 @@ enum KeymapConflictError: LocalizedError, Equatable {
 }
 
 /// Converts keymap failures into stable, localized copy while retaining the
-/// original error in the settings log for diagnostics.
+/// original error in the settings log for diagnostics. The copy is looked up each time it is
+/// shown, so a message on screen follows a language switch (#571); the log entry is written once.
 enum CommandPaletteKeymapErrorPresenter {
-    static func message(for error: Error, source: String, operation: String) -> String {
+    static func text(for error: Error, source: @autoclosure @escaping () -> String, operation: String) -> LocalizedText {
         log(error, operation: operation)
+        return LocalizedText(message(for: error, source: source()))
+    }
 
+    static func recoveredDefaultsText(
+        for error: Error,
+        source: @autoclosure @escaping () -> String,
+        operation: String
+    ) -> LocalizedText {
+        log(error, operation: operation)
+        return LocalizedText(recoveredDefaultsMessage(for: error, source: source()))
+    }
+
+    static func settingsReloadFailureText(source: String) -> LocalizedText {
+        LocalizedText(SpotiglassL10n.format("keymap.error.reloadFailed", source))
+    }
+
+    private static func message(for error: Error, source: String) -> String {
         if let conflict = error as? KeymapConflictError {
             return conflict.errorDescription ?? SpotiglassL10n.format("keymap.error.updateFailed", source)
         }
@@ -346,8 +363,7 @@ enum CommandPaletteKeymapErrorPresenter {
         return SpotiglassL10n.format("keymap.error.updateFailed", source)
     }
 
-    static func recoveredDefaultsMessage(for error: Error, source: String, operation: String) -> String {
-        log(error, operation: operation)
+    private static func recoveredDefaultsMessage(for error: Error, source: String) -> String {
         let detail: String
         if let validation = error as? KeymapValidationError {
             detail = validation.errorDescription ?? SpotiglassL10n.format("keymap.error.invalidValue", source)
@@ -357,10 +373,6 @@ enum CommandPaletteKeymapErrorPresenter {
             detail = SpotiglassL10n.format("keymap.error.invalidValue", source)
         }
         return SpotiglassL10n.format("keymap.error.invalidStored", source, detail)
-    }
-
-    static func settingsReloadFailureMessage(source: String) -> String {
-        SpotiglassL10n.format("keymap.error.reloadFailed", source)
     }
 
     private static func decodingMessage(_ error: DecodingError, source: String) -> String {

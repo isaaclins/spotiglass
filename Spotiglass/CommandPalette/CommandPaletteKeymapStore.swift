@@ -12,7 +12,9 @@ import Foundation
 final class CommandPaletteKeymapStore: ObservableObject {
     @Published private(set) var bindings: [CommandShortcut: [CommandPaletteKeyBinding]] = [:]
     @Published var editorText: String = ""
-    @Published var lastError: String?
+    /// Looked up when shown, so a message on screen follows a language switch (#571).
+    @Published var lastErrorText: LocalizedText?
+    var lastError: String? { lastErrorText?.string }
 
     let settingsStore: SpotiglassSettingsStore
 
@@ -24,7 +26,7 @@ final class CommandPaletteKeymapStore: ObservableObject {
         self.settingsStore = settingsStore
         applyFromStore(settingsStore.settings.keybinds)
         if settingsStore.lastError != nil {
-            lastError = CommandPaletteKeymapErrorPresenter.settingsReloadFailureMessage(source: fileURL.path)
+            lastErrorText = CommandPaletteKeymapErrorPresenter.settingsReloadFailureText(source: fileURL.path)
         }
         settingsCancellable = settingsStore.$settings
             .removeDuplicates { $0.keybinds == $1.keybinds }
@@ -121,7 +123,7 @@ final class CommandPaletteKeymapStore: ObservableObject {
             )
         }
         try applyNormalizedPersisting(list)
-        lastError = nil
+        lastErrorText = nil
     }
 
     func clearBinding(commandID: String) throws {
@@ -133,7 +135,7 @@ final class CommandPaletteKeymapStore: ObservableObject {
         // this command everywhere" operation exposed by the one-row settings UI.
         list.removeAll { $0.command == commandID }
         try applyNormalizedPersisting(list)
-        lastError = nil
+        lastErrorText = nil
     }
 
     private func decodedBindingsFromEditor() throws -> [CommandPaletteKeyBinding] {
@@ -202,9 +204,9 @@ final class CommandPaletteKeymapStore: ObservableObject {
         do {
             let parsed = try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(editorText.utf8))
             try applyNormalizedPersisting(parsed.bindings)
-            lastError = nil
+            lastErrorText = nil
         } catch {
-            lastError = CommandPaletteKeymapErrorPresenter.message(
+            lastErrorText = CommandPaletteKeymapErrorPresenter.text(
                 for: error,
                 source: SpotiglassL10n.string("palette.settings.advanced"),
                 operation: "apply"
@@ -218,18 +220,19 @@ final class CommandPaletteKeymapStore: ObservableObject {
         if settingsStore.lastError != nil {
             // SpotiglassSettingsStore logs the underlying decode or I/O error. Do
             // not forward its raw description into the command-palette UI.
-            lastError = CommandPaletteKeymapErrorPresenter.settingsReloadFailureMessage(source: fileURL.path)
+            lastErrorText = CommandPaletteKeymapErrorPresenter.settingsReloadFailureText(source: fileURL.path)
         }
     }
 
     func resetToDefaults() {
         do {
             try applyNormalizedPersisting(SpotiglassSettingsStore.defaultKeybinds())
-            lastError = nil
+            lastErrorText = nil
         } catch {
-            lastError = CommandPaletteKeymapErrorPresenter.message(
+            let source = fileURL.path
+            lastErrorText = CommandPaletteKeymapErrorPresenter.text(
                 for: error,
-                source: fileURL.path,
+                source: source,
                 operation: "reset"
             )
         }
@@ -243,15 +246,16 @@ final class CommandPaletteKeymapStore: ObservableObject {
         do {
             try indexCurrent(keybinds)
             editorText = Self.editorTextRepresentation(keybinds)
-            lastError = nil
+            lastErrorText = nil
         } catch {
             // Fall back to defaults so the app never runs without a usable keymap.
             let fallback = SpotiglassSettingsStore.defaultKeybinds()
             (try? indexCurrent(fallback)) ?? ()
             editorText = Self.editorTextRepresentation(fallback)
-            lastError = CommandPaletteKeymapErrorPresenter.recoveredDefaultsMessage(
+            let source = fileURL.path
+            lastErrorText = CommandPaletteKeymapErrorPresenter.recoveredDefaultsText(
                 for: error,
-                source: fileURL.path,
+                source: source,
                 operation: "load"
             )
         }
