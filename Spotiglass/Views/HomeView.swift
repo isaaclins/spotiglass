@@ -110,7 +110,7 @@ struct HomeView: View {
                     text: SpotiglassL10n.string("home.section.reconnect")
                 ))
             case let .failed(message):
-                HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message))
+                HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message.string))
             }
         }
     }
@@ -139,7 +139,7 @@ struct HomeView: View {
                     text: SpotiglassL10n.string("home.section.reconnect")
                 ))
             case let .failed(message):
-                HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message))
+                HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message.string))
             }
         }
     }

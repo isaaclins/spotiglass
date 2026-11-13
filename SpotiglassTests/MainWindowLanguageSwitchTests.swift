@@ -143,6 +143,176 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(offenders, [], "Keyed on the language, so a switch rebuilds it and loses its state")
     }
 
+    /// A queue add refused during its rate-limit cooldown says when to try again. That part
+    /// was built when the error was made, so it stayed English inside a German sentence.
+    func testAQueueRateLimitErrorFollowsALanguageSwitch() async throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let api = MockPlaybackAPI()
+        api.addToQueueErrors = [SpotifyAPIError.rateLimited(retryAfter: 30)]
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
+            playbackSession: playback,
+            enqueueMinimumRetryDelay: .seconds(0)
+        )
+        await queue.addToQueue(uri: "spotify:track:rate")
+        // The second add hits the cooldown, whose message names the wait.
+        await queue.addToQueue(uri: "spotify:track:rate")
+        // The wait counts down, so compare the sentence around it and the language of the wait.
+        let english = Locale(identifier: AppLanguage.english.rawValue)
+        let englishTemplate = SpotiglassL10n.string("error.queue.rateLimited.message", locale: english)
+        let englishPrefix = String(englishTemplate.prefix { $0 != "%" })
+        let englishMessage = try XCTUnwrap(queue.lastError?.message)
+        XCTAssertTrue(englishMessage.hasPrefix(englishPrefix))
+        let englishWait = String(englishMessage.dropFirst(englishPrefix.count))
+        XCTAssertFalse(englishWait.isEmpty)
+
+        try store.mutate { $0.appearance.language = .german }
+        let german = Locale(identifier: AppLanguage.german.rawValue)
+        let germanTemplate = SpotiglassL10n.string("error.queue.rateLimited.message", locale: german)
+        let germanMessage = try XCTUnwrap(queue.lastError?.message)
+        XCTAssertTrue(germanMessage.hasPrefix(String(germanTemplate.prefix { $0 != "%" })))
+        XCTAssertFalse(
+            germanMessage.hasSuffix(englishWait),
+            "The queue's retry clause stayed in the old language: \(germanMessage)"
+        )
+    }
+
+    /// The palette builds its rows with their names when it opens. Left open across a switch,
+    /// it showed the old language's names under headings in the new one.
+    func testAnOpenPaletteFollowsALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let viewModel = CommandPaletteViewModel()
+        viewModel.staticItemsProvider = {
+            [
+                CommandPaletteItem(
+                    id: CommandPaletteCommandID.togglePlayback,
+                    title: SpotiglassL10n.string("browser.home"),
+                    subtitle: nil,
+                    iconSystemName: "play",
+                    section: .commands,
+                    keywords: []
+                ) {},
+                CommandPaletteItem(
+                    id: CommandPaletteCommandID.nextTrack,
+                    title: SpotiglassL10n.string("browser.likedSongs.title"),
+                    subtitle: nil,
+                    iconSystemName: "forward",
+                    section: .commands,
+                    keywords: []
+                ) {}
+            ]
+        }
+        viewModel.show()
+        let controller = ViewTestHost.host(
+            CommandPaletteView(viewModel: viewModel).environmentObject(store),
+            size: CGSize(width: 800, height: 600)
+        )
+        func titles() -> [String] { viewModel.sections.flatMap { $0.items.map(\.title) } }
+        func expected(_ language: String) -> [String] {
+            ["browser.home", "browser.likedSongs.title"].map {
+                SpotiglassL10n.string($0, locale: Locale(identifier: language))
+            }
+        }
+        XCTAssertEqual(titles(), expected("en"))
+        viewModel.selectedIndex = 1
+
+        try store.mutate { $0.appearance.language = .german }
+        controller.view.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertEqual(titles(), expected("de"), "The open palette kept the old language's names")
+        XCTAssertEqual(viewModel.selectedIndex, 1, "A switch moved the highlight off its row")
+    }
+
+    /// Lyrics that failed to load say why under "Try again". The view keeps its state across a
+    /// switch now, so the reason has to follow it: it stayed English under a German button.
+    func testFailedLyricsFollowALanguageSwitch() async throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let lyrics = ImmersiveLyricsViewModel { _ in .instrumental }
+        await lyrics.load(track: PlaybackNowPlaying(
+            name: "Pod", artists: ["Host"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:episode:abc"
+        ))
+        guard case let .failed(message) = lyrics.phase else { return XCTFail("Expected failed lyrics") }
+
+        try store.mutate { $0.appearance.language = .german }
+        XCTAssertEqual(
+            message.string,
+            SpotiglassL10n.string("lyrics.error.musicOnly", locale: Locale(identifier: "de")),
+            "The lyrics error stayed in the old language"
+        )
+    }
+
+    /// A Home section that failed to load says why. The browser keeps it across a switch now.
+    func testAFailedHomeSectionFollowsALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let failedRequest: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(
+            for: SpotifyAPIError.server(statusCode: 503, message: nil, details: nil)
+        )
+        guard case let .failed(message) = failedRequest else { return XCTFail("Expected a failed section") }
+        let english = message.string
+
+        try store.mutate { $0.appearance.language = .german }
+        XCTAssertNotEqual(message.string, english, "The Home section's error stayed in the old language")
+        XCTAssertEqual(message.string, SpotiglassL10n.string("error.spotify.serverProblem", locale: Locale(identifier: "de")))
+    }
+
+    /// A queued song whose artist has no name shows the stand-in, copied into the queue in
+    /// the language of the moment.
+    func testAQueueRowsNamelessArtistFollowsALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let item = QueueItem(
+            name: "Song",
+            subtitle: UnnamedMusicItem.artist.placeholder,
+            albumArtURL: nil,
+            durationMilliseconds: 60_000,
+            uri: "spotify:track:q"
+        )
+        let row = TrackRowViewModel(queueItem: item)
+
+        try store.mutate { $0.appearance.language = .german }
+        let german = UnnamedMusicItem.artist.placeholder(locale: Locale(identifier: "de"))
+        XCTAssertEqual(item.subtitleInAppLanguage, german)
+        XCTAssertEqual(row.subtitle, german)
+    }
+
+    /// Track lists compare their rows on every refresh. Text that knows what it is made from
+    /// compares that instead of looking itself up: a lookup per row and side made comparing an
+    /// unchanged 10,000-song list cost tens of milliseconds on the main thread.
+    func testRowsCompareWithoutLookingTheirTextUp() {
+        var lookups = 0
+        func counted(_ text: String) -> String {
+            lookups += 1
+            return text
+        }
+        let left = LocalizedText(counted("Explicit"), comparedBy: "browser.trackBadge.explicit")
+        let right = LocalizedText(counted("Explicit"), comparedBy: "browser.trackBadge.explicit")
+        XCTAssertEqual(left, right)
+        XCTAssertEqual(lookups, 0, "Comparing looked the text up")
+        XCTAssertNotEqual(left, LocalizedText(counted("Explicit"), comparedBy: "browser.trackBadge.unavailable"))
+        XCTAssertEqual(lookups, 0)
+
+        let track = MusicTrack(
+            id: "t", name: "Song", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 60_000,
+            isExplicit: true, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t"
+        )
+        let item = MusicPlaylistTrackItem(id: "t", content: .track(track))
+        XCTAssertEqual(TrackRowViewModel(item, listPosition: 1), TrackRowViewModel(item, listPosition: 1))
+    }
+
     /// Other settings changes (theme, lyrics size) don't redraw text that only depends on the
     /// language.
     func testOtherSettingsChangesDoNotRedrawLanguageOnlyText() throws {

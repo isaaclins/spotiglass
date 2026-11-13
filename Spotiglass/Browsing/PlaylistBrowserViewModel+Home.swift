@@ -131,12 +131,14 @@ extension PlaylistBrowserViewModel {
             case .insufficientScope, .forbidden:
                 return .unavailable
             default:
-                return .failed(apiError.userMessage)
+                return .failed(LocalizedText(apiError.userMessage))
             }
         }
         if let appleMusicError = BrowsingDisplayError.appleMusic(for: error) {
-            return .failed(appleMusicError.message)
+            return .failed(LocalizedText(appleMusicError.message))
         }
-        return .failed(MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current))
+        // The service it failed on, not the one selected when the section is shown.
+        let service = MusicServiceSelection.current
+        return .failed(LocalizedText(MusicServiceErrorText.userMessage(for: error, service: service)))
     }
 }

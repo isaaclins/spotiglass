@@ -72,7 +72,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
             if item.artistTapTargets.isEmpty {
-                Text(item.subtitle)
+                Text(item.subtitleInAppLanguage)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(2)
@@ -103,7 +103,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                 Button {
                     navigateToAlbum(
                         AlbumTapTarget(id: item.albumID, name: albumName),
-                        item.subtitle,
+                        item.subtitleInAppLanguage,
                         item.albumArtURL
                     )
                 } label: {

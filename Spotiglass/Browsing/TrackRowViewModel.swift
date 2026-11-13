@@ -55,55 +55,55 @@ struct TrackRowViewModel: Equatable, Identifiable {
         switch item.content {
         case let .track(track):
             self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
-            self.titleText = LocalizedText(track.name)
-            self.subtitleText = LocalizedText(track.artists.joined(separator: ", "))
+            self.titleText = LocalizedText(track.name, comparedBy: track.name)
+            self.subtitleText = LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
             self.artworkURL = track.albumArtworkURL
             self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
             self.durationMilliseconds = max(0, track.durationMilliseconds)
             self.badge = track.isPlayable == false
-                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"))
-                : (track.isExplicit ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.explicit")) : nil)
+                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"), comparedBy: "browser.trackBadge.unavailable")
+                : (track.isExplicit ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.explicit"), comparedBy: "browser.trackBadge.explicit") : nil)
             self.isUnavailable = track.isPlayable == false
             self.isExplicit = track.isExplicit
             self.playableURI = track.isPlayable == false ? nil : track.uri
             self.artistRefs = track.artistRefs
         case let .episode(episode):
             self.spotifyTrackID = nil
-            self.titleText = LocalizedText(episode.name)
-            self.subtitleText = episode.showName.map { name in LocalizedText(name) }
-                ?? LocalizedText(SpotiglassL10n.string("browser.trackBadge.podcastEpisode"))
+            self.titleText = LocalizedText(episode.name, comparedBy: episode.name)
+            self.subtitleText = episode.showName.map { name in LocalizedText(name, comparedBy: name) }
+                ?? LocalizedText(SpotiglassL10n.string("browser.trackBadge.podcastEpisode"), comparedBy: "browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
             self.durationText = TrackDuration.text(milliseconds: episode.durationMilliseconds)
             self.durationMilliseconds = max(0, episode.durationMilliseconds)
             self.badge = episode.isPlayable == false
-                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailableEpisode"))
-                : LocalizedText(SpotiglassL10n.string("browser.trackBadge.episode"))
+                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailableEpisode"), comparedBy: "browser.trackBadge.unavailableEpisode")
+                : LocalizedText(SpotiglassL10n.string("browser.trackBadge.episode"), comparedBy: "browser.trackBadge.episode")
             self.isUnavailable = episode.isPlayable == false
             self.isExplicit = false
             self.playableURI = episode.isPlayable == false ? nil : episode.uri
             self.artistRefs = []
         case let .localTrack(track):
             self.spotifyTrackID = nil
-            self.titleText = LocalizedText(track.name)
+            self.titleText = LocalizedText(track.name, comparedBy: track.name)
             self.subtitleText = track.artists.isEmpty
-                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.localTrack"))
-                : LocalizedText(track.artists.joined(separator: ", "))
+                ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.localTrack"), comparedBy: "browser.trackBadge.localTrack")
+                : LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
             self.artworkURL = nil
             self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
             self.durationMilliseconds = max(0, track.durationMilliseconds)
-            self.badge = LocalizedText(SpotiglassL10n.string("browser.trackBadge.local"))
+            self.badge = LocalizedText(SpotiglassL10n.string("browser.trackBadge.local"), comparedBy: "browser.trackBadge.local")
             self.isUnavailable = false
             self.isExplicit = false
             self.playableURI = nil
             self.artistRefs = []
         case let .unavailable(reason):
             self.spotifyTrackID = nil
-            self.titleText = LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailableItem"))
-            self.subtitleText = LocalizedText(Self.text(for: reason))
+            self.titleText = LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailableItem"), comparedBy: "browser.trackBadge.unavailableItem")
+            self.subtitleText = LocalizedText(Self.text(for: reason), comparedBy: reason)
             self.artworkURL = nil
             self.durationText = TrackDuration.unknownText
             self.durationMilliseconds = 0
-            self.badge = LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"))
+            self.badge = LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"), comparedBy: "browser.trackBadge.unavailable")
             self.isUnavailable = true
             self.isExplicit = false
             self.playableURI = nil
@@ -115,14 +115,14 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.listPosition = listPosition
         self.id = track.id
         self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
-        self.titleText = LocalizedText(track.name)
-        self.subtitleText = LocalizedText(track.artists.joined(separator: ", "))
+        self.titleText = LocalizedText(track.name, comparedBy: track.name)
+        self.subtitleText = LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
         self.artworkURL = track.albumArtworkURL
         self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
         self.durationMilliseconds = max(0, track.durationMilliseconds)
         self.badge = track.isPlayable == false
-            ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"))
-            : (track.isExplicit ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.explicit")) : nil)
+            ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.unavailable"), comparedBy: "browser.trackBadge.unavailable")
+            : (track.isExplicit ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.explicit"), comparedBy: "browser.trackBadge.explicit") : nil)
         self.isUnavailable = track.isPlayable == false
         self.isExplicit = track.isExplicit
         self.playableURI = track.isPlayable == false ? nil : track.uri
@@ -142,13 +142,13 @@ struct TrackRowViewModel: Equatable, Identifiable {
         } else {
             self.spotifyTrackID = nil
         }
-        self.titleText = LocalizedText(item.name)
-        self.subtitleText = LocalizedText(verbatim: item.subtitle)
+        self.titleText = LocalizedText(item.name, comparedBy: item.name)
+        self.subtitleText = LocalizedText(item.subtitleInAppLanguage, comparedBy: item.subtitle)
         self.artworkURL = item.albumArtURL
         self.durationText = TrackDuration.text(milliseconds: item.durationMilliseconds)
         self.durationMilliseconds = max(0, item.durationMilliseconds)
         self.badge = uri?.hasPrefix("spotify:episode:") == true
-            ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.episode"))
+            ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.episode"), comparedBy: "browser.trackBadge.episode")
             : nil
         self.isUnavailable = uri == nil
         self.isExplicit = false

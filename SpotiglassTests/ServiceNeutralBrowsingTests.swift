@@ -36,7 +36,7 @@ final class ServiceNeutralBrowsingTests: XCTestCase {
             let home: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(for: error)
             XCTAssertEqual(
                 home,
-                .failed(BrowsingDisplayError.appleMusic(for: error)?.message ?? ""),
+                .failed(LocalizedText(BrowsingDisplayError.appleMusic(for: error)?.message ?? "")),
                 "\(error)"
             )
         }

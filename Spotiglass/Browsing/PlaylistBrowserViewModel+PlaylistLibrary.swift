@@ -58,7 +58,7 @@ extension PlaylistBrowserViewModel {
             invalidateLibraryContinuationCache()
             if playlists.isEmpty {
                 playlistsByID = [:]
-                playlistState = .empty(LocalizedText(SpotiglassL10n.format("browser.empty.noPlaylists", MusicServiceSelection.current.displayName)))
+                playlistState = .empty(LocalizedText.noPlaylists(on: MusicServiceSelection.current))
                 if case let .playlist(id) = sidebarSelection,
                    knownPlaylistSummariesByID[id] != nil {
                     return
@@ -369,5 +369,13 @@ extension PlaylistBrowserViewModel {
         case let .staleCache(_, displayError):
             playlistState = .staleCache(patched, displayError)
         }
+    }
+}
+
+extension LocalizedText {
+    /// "No playlists on <service>", naming the service whose library came back empty rather than
+    /// whichever is selected when it is shown, in the language of the moment (#548).
+    static func noPlaylists(on service: MusicService) -> LocalizedText {
+        LocalizedText(SpotiglassL10n.format("browser.empty.noPlaylists", service.displayName))
     }
 }

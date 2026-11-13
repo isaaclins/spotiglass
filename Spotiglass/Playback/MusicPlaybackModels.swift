@@ -244,6 +244,7 @@ struct QueueItem: Identifiable, Equatable {
     /// The name it was queued with; ``name`` is what to show. A stand-in copied from the
     /// track follows the language like the track's own (#547).
     private let storedName: String
+    /// The artists as queued, joined with ", ". Show ``subtitleInAppLanguage``.
     let subtitle: String
     let albumArtURL: URL?
     /// Album title when known (tracks from Web API or merged SDK projection).
@@ -273,6 +274,12 @@ struct QueueItem: Identifiable, Equatable {
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
         self.artistTapTargets = artistTapTargets
+    }
+
+    /// ``subtitle`` with each artist stand-in in the app's current language, like a pin's
+    /// subtitle: a nameless artist queued in English reads German after a switch (#548).
+    var subtitleInAppLanguage: String {
+        UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
     }
 }
 

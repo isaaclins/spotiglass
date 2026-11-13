@@ -27,7 +27,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                     .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.lyricsStatusMinHeight, alignment: .center)
             case let .failed(message):
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-                    Text(message)
+                    Text(message.string)
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.9))
                     if let track = currentTrack {

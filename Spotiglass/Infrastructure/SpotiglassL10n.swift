@@ -57,16 +57,30 @@ private struct SpotiglassLanguageEnvironment: ViewModifier {
 /// Text a model keeps for later, such as an empty-state message, an error or a badge. It is
 /// looked up again each time it is read, so it follows a language switch like text a view
 /// resolves itself (#548). Pass the lookup itself, not a string resolved earlier.
+///
+/// Comparing two of them resolves both, unless both were given what they are made from
+/// (``init(_:comparedBy:)``): long lists compare their rows on every refresh, and a lookup per
+/// row and side cost a 10,000-song list tens of milliseconds there.
 struct LocalizedText: Equatable, ExpressibleByStringLiteral {
     private let resolve: () -> String
+    private let source: AnyHashable?
 
     init(_ resolve: @autoclosure @escaping () -> String) {
         self.resolve = resolve
+        self.source = nil
+    }
+
+    /// Text that is the same in every language whenever `source` is the same: a localization
+    /// key, or a name as the row was built with it. Equal sources compare equal without a lookup.
+    init(_ resolve: @autoclosure @escaping () -> String, comparedBy source: AnyHashable) {
+        self.resolve = resolve
+        self.source = source
     }
 
     /// Fixed text that is not translated, such as a song title.
     init(verbatim value: String) {
         self.resolve = { value }
+        self.source = value
     }
 
     init(stringLiteral value: String) {
@@ -76,9 +90,16 @@ struct LocalizedText: Equatable, ExpressibleByStringLiteral {
     var string: String { resolve() }
 
     static func == (lhs: LocalizedText, rhs: LocalizedText) -> Bool {
-        lhs.string == rhs.string
+        if let left = lhs.source, let right = rhs.source {
+            return left == right
+        }
+        return lhs.string == rhs.string
     }
 }
+
+/// The closures only read values captured when the text was made and look strings up, which
+/// works on any thread (``SpotiglassL10n/locale``), so errors that keep one stay `Sendable`.
+extension LocalizedText: @unchecked Sendable {}
 
 /// The app language as an observable value. SwiftUI records a read of ``locale`` made while
 /// a body runs, so views that resolve strings with ``SpotiglassL10n/string(_:)`` follow a
@@ -188,7 +209,9 @@ enum SpotiglassL10n {
     }
 
     /// `text` in the current app language when it is one of the app's own sentences, resolved
-    /// earlier in any supported language; any other text comes back unchanged. For sentences an
+    /// earlier in any supported language; any other text comes back unchanged. Only pass whole
+    /// sentences: a short label such as "Play" or "Titel" belongs to several keys whose
+    /// translations differ, so it could come back as the wrong one. For sentences an
     /// error carries as text, such as a failed request's "Network unavailable": shown again
     /// after a language switch, they follow it like every other string (#548).
     static func inAppLanguage(_ text: String) -> String {
@@ -202,7 +225,7 @@ enum SpotiglassL10n {
         var keys: [String: String] = [:]
         for language in AppLanguage.allCases {
             let locale = Locale(identifier: language.rawValue)
-            for bundle in localizationBundles(for: locale) {
+            for bundle in appLocalizationBundles(for: locale) {
                 guard let path = bundle.path(forResource: "Localizable", ofType: "strings"),
                       let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
                       let table = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)
@@ -216,6 +239,22 @@ enum SpotiglassL10n {
         }
         return keys
     }()
+
+    /// Only the app's own strings: system frameworks bring their own tables, which aren't sentences
+    /// this app shows, and searching every loaded framework made the first lookup take ~0.1 s.
+    private static func appLocalizationBundles(for locale: Locale) -> [Bundle] {
+        var bundles: [Bundle] = []
+        for owner in [Bundle.main, Bundle(for: SpotiglassSettingsStore.self)] {
+            for name in [locale.identifier, locale.language.languageCode?.identifier].compactMap({ $0 }) {
+                if let path = owner.path(forResource: name, ofType: "lproj"),
+                   let bundle = Bundle(path: path),
+                   !bundles.contains(where: { $0.bundleURL == bundle.bundleURL }) {
+                    bundles.append(bundle)
+                }
+            }
+        }
+        return bundles
+    }
 
     private static func keyForResolvedText(_ text: String) -> String? {
         keysByResolvedText[text]

@@ -137,7 +137,8 @@ enum HomeSectionState<Value: Equatable>: Equatable {
     case loading
     case loaded(Value)
     case unavailable
-    case failed(String)
+    /// Looked up when shown, so a failed section follows a language switch (#548).
+    case failed(LocalizedText)
 
     var value: Value? {
         if case let .loaded(value) = self { return value }

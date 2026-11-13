@@ -344,7 +344,7 @@ extension PlaylistBrowserViewModel {
             break
         case .loaded:
             playlistState = remaining.isEmpty
-                ? .empty(LocalizedText(SpotiglassL10n.format("browser.empty.noPlaylists", MusicServiceSelection.current.displayName)))
+                ? .empty(LocalizedText.noPlaylists(on: MusicServiceSelection.current))
                 : .loaded(remaining)
         case .refreshing:
             playlistState = .refreshing(remaining)

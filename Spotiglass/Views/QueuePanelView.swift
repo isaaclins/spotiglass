@@ -282,7 +282,7 @@ private struct QueueRowView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            String(format: SpotiglassL10n.string("queue.item.accessibility"), item.name, item.subtitle)
+            String(format: SpotiglassL10n.string("queue.item.accessibility"), item.name, item.subtitleInAppLanguage)
         )
         .accessibilityValue(item.durationLabel)
     }
@@ -290,7 +290,7 @@ private struct QueueRowView: View {
     @ViewBuilder
     private var subtitleLine: some View {
         if item.artistTapTargets.isEmpty {
-            Text(item.subtitle)
+            Text(item.subtitleInAppLanguage)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

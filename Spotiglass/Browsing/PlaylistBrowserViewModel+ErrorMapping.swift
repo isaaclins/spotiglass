@@ -102,9 +102,11 @@ extension PlaylistBrowserViewModel {
             return appleMusicError
         }
 
+        // The service it failed on, not the one selected when the error is shown.
+        let service = MusicServiceSelection.current
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.browsing.generic.title"),
-            message: MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current),
+            message: MusicServiceErrorText.userMessage(for: error, service: service),
             canRetry: true
         )
     }

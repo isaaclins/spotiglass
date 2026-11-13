@@ -192,6 +192,17 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// Rebuilds what the panel lists after the service's abilities changed (Play/Pause, Lyrics)
     /// without moving the highlight off a row that is still there.
+    /// The rows keep the names they were built with: build them again in the new language. The
+    /// lists of commands keep the highlight on its row; search results are asked for again.
+    func languageDidChange() {
+        guard isPresented else { return }
+        if showsSuggestions || currentScope == .commands {
+            refreshListedCommands()
+        } else {
+            refresh()
+        }
+    }
+
     func refreshListedCommands() {
         guard isPresented else { return }
         if showsSuggestions {
