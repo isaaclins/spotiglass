@@ -178,14 +178,14 @@ extension PlaylistBrowserViewModel {
                     )
                 ]
             case let .playlist(id):
-                let name = (playlistsByID[id] ?? knownPlaylistSummariesByID[id])?.name
+                let summary = playlistsByID[id] ?? knownPlaylistSummariesByID[id]
                 breadcrumbPath = [
                     BrowserBreadcrumb(
                         id: UUID(),
-                        label: name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback"),
+                        label: summary?.name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback"),
                         systemImage: "music.note.list",
                         kind: .playlist(id: id),
-                        fallbackKey: name == nil ? "browser.breadcrumb.playlistFallback" : nil
+                        fallbackKey: Self.playlistCrumbFallbackKey(for: summary)
                     )
                 ]
             case .pinnedItem:
@@ -299,6 +299,14 @@ extension PlaylistBrowserViewModel {
             return remembered
         }
         return nil
+    }
+
+    /// "Playlist" before the playlist is known, and "Untitled Playlist" for one that loaded
+    /// without a name: both are the app's words, so they read in the current language. The
+    /// stand-in can't be told from Music's own "Untitled Playlist" by its text, so it is marked (#571).
+    static func playlistCrumbFallbackKey(for summary: MusicPlaylistSummary?) -> String? {
+        guard let summary else { return "browser.breadcrumb.playlistFallback" }
+        return summary.isUnnamed ? UnnamedMusicItem.playlist.key : nil
     }
 
     func refineLastBreadcrumbArtistLabelIfNeeded(artistID: String, resolvedName: String) {

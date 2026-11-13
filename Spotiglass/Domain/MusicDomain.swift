@@ -637,7 +637,8 @@ enum UnnamedMusicItem: CaseIterable {
     case album
     case playlist
 
-    private var key: String {
+    /// The stand-in's localization key, for a place that marks a stand-in instead of keeping its text.
+    var key: String {
         switch self {
         case .track: "music.unnamed.track"
         case .episode: "music.unnamed.episode"

@@ -23,8 +23,8 @@ final class CommandPaletteShortcutCoverageTests: XCTestCase {
             SpotiglassL10n.format("keymap.conflict.command", "palette.open")
         )
         XCTAssertEqual(
-            KeymapConflictError.reservedByMenuItem(menuItemTitle: "Shuffle").errorDescription,
-            SpotiglassL10n.format("keymap.conflict.menuItem", "Shuffle")
+            KeymapConflictError.reservedByMenuItem(menuTitleKey: "menu.playback.seekBackward").errorDescription,
+            SpotiglassL10n.format("keymap.conflict.menuItem", SpotiglassL10n.string("menu.playback.seekBackward"))
         )
     }
 

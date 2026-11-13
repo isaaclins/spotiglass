@@ -438,7 +438,13 @@ extension PlaylistBrowserViewModel {
         // The window title is the breadcrumb trail; it kept the old name (#395).
         breadcrumbPath = breadcrumbPath.map { crumb in
             guard crumb.kind == .playlist(id: playlist.id), crumb.label != playlist.name else { return crumb }
-            return BrowserBreadcrumb(id: crumb.id, label: playlist.name, systemImage: crumb.systemImage, kind: crumb.kind)
+            return BrowserBreadcrumb(
+                id: crumb.id,
+                label: playlist.name,
+                systemImage: crumb.systemImage,
+                kind: crumb.kind,
+                fallbackKey: Self.playlistCrumbFallbackKey(for: playlist)
+            )
         }
 
         if let rows = playlistState.currentValue {

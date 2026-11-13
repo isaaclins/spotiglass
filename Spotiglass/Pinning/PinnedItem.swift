@@ -142,7 +142,9 @@ extension PinnedItem {
             id: id(forKind: .album, spotifyID: album.id),
             kind: .album,
             title: album.name,
-            subtitle: album.releaseYear ?? SpotiglassL10n.string("pin.album.default"),
+            // Without a year the pin saves no subtitle and says "Album" when shown, so the word
+            // follows a language switch (#571).
+            subtitle: album.releaseYear ?? "",
             artworkURL: album.imageURL,
             spotifyURI: album.uri,
             isStale: false
@@ -207,7 +209,12 @@ extension PinnedItem {
         // The label and the artist names were saved in the language the item was pinned in (#547).
         case .artist:
             return Self.relabelled(subtitle, key: "browser.palette.subtitle.artist", locale: locale) ?? subtitle
-        case .album, .track:
+        case .album:
+            if subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return SpotiglassL10n.string("pin.album.default", locale: locale)
+            }
+            return UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
+        case .track:
             return UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
         case .likedSongs:
             break

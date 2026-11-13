@@ -314,15 +314,16 @@ struct CommandShortcut: Hashable {
 enum KeymapConflictError: LocalizedError, Equatable {
     case conflict(existingCommandID: String)
     /// The chord belongs to a menu item that claims it outside the keymap, so
-    /// binding it here would shadow a menu item that keeps advertising it (#129).
-    case reservedByMenuItem(menuItemTitle: String)
+    /// binding it here would shadow a menu item that keeps advertising it (#129). It keeps the
+    /// menu title's key, so the name in the message follows a language switch (#571).
+    case reservedByMenuItem(menuTitleKey: String)
 
     var errorDescription: String? {
         switch self {
         case let .conflict(id):
             SpotiglassL10n.format("keymap.conflict.command", id)
-        case let .reservedByMenuItem(title):
-            SpotiglassL10n.format("keymap.conflict.menuItem", title)
+        case let .reservedByMenuItem(titleKey):
+            SpotiglassL10n.format("keymap.conflict.menuItem", SpotiglassL10n.string(titleKey))
         }
     }
 }

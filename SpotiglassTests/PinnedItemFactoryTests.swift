@@ -62,7 +62,9 @@ final class PinnedItemFactoryTests: XCTestCase {
             uri: "spotify:album:al2"
         )
         let p2 = PinnedItem.album(noYear)
-        XCTAssertEqual(p2.subtitle, "Album")
+        // Saved without a subtitle; "Album" is looked up when shown (#571).
+        XCTAssertEqual(p2.subtitle, "")
+        XCTAssertEqual(p2.localizedSubtitle(locale: Locale(identifier: "en")), "Album")
     }
 
     func testSpotifyAlbumFactoryJoinsArtistsForSubtitle() {

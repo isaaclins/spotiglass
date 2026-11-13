@@ -183,6 +183,68 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: artistCrumb), inGerman("browser.breadcrumb.artistFallback"))
     }
 
+    /// The window title for a playlist that has loaded without a name, and for an artist or album
+    /// opened from a row that named it with the stand-in.
+    func testANamelessItemsTitleFollowsALanguageSwitch() throws {
+        let browser = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [], trackResults: [:]), cache: MockBrowsingCache())
+        browser.playlistsByID["blank"] = MusicPlaylistSummary(
+            id: "blank", name: " ", ownerID: "me", ownerName: "Me", imageURL: nil, trackCount: 0, snapshotID: "s"
+        )
+        browser.applyBreadcrumbForSidebar(.playlist("blank"), origin: .reset)
+        let playlistCrumb = try XCTUnwrap(browser.breadcrumbPath.last)
+        XCTAssertEqual(playlistCrumb.label, "Untitled Playlist")
+        browser.applyBreadcrumbForArtist(id: "a", displayName: UnnamedMusicItem.artist.placeholder, origin: .reset)
+        let artistCrumb = try XCTUnwrap(browser.breadcrumbPath.last)
+        browser.applyBreadcrumbForAlbum(
+            id: "al", title: UnnamedMusicItem.album.placeholder, subtitle: "", artworkURL: nil, origin: .reset
+        )
+        let albumCrumb = try XCTUnwrap(browser.breadcrumbPath.last)
+
+        try switchToGerman()
+
+        XCTAssertEqual(
+            BrowserToolbarPresentation.localizedLabel(for: playlistCrumb),
+            UnnamedMusicItem.playlist.placeholder(locale: german),
+            "A nameless playlist's title stayed in the old language"
+        )
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: artistCrumb), UnnamedMusicItem.artist.placeholder(locale: german))
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: albumCrumb), UnnamedMusicItem.album.placeholder(locale: german))
+    }
+
+    /// Settings › Keyboard: a chord a menu item owns names that menu item, in the language of the
+    /// moment.
+    func testAMenuOwnedChordsMessageFollowsALanguageSwitch() throws {
+        let keymap = CommandPaletteKeymapStore(settingsStore: store)
+        let chord = try CommandShortcut(keystroke: "cmd-left")
+        var shown: LocalizedText?
+        XCTAssertThrowsError(
+            try keymap.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: chord, replaceConflicting: false)
+        ) { error in
+            shown = CommandPaletteKeymapErrorPresenter.text(for: error, source: "keymap", operation: "test")
+        }
+        let message = try XCTUnwrap(shown)
+        XCTAssertTrue(message.string.contains("Seek Backward"))
+
+        try switchToGerman()
+
+        XCTAssertTrue(
+            message.string.contains(inGerman("menu.playback.seekBackward")),
+            "The menu item in \(message.string) stayed in the old language"
+        )
+    }
+
+    /// An album pinned from an artist page without a release year says "Album" under its name.
+    func testAnAlbumPinWithoutAYearFollowsALanguageSwitch() throws {
+        let pin = PinnedItem.album(MusicArtistAlbum(
+            id: "al", name: "Record", imageURL: nil, releaseYear: nil, totalTracks: 1, group: .album, uri: "spotify:album:al"
+        ))
+        XCTAssertEqual(pin.localizedSubtitle(), "Album")
+        // "Album" is the same word in German, so this one switches to Spanish.
+        try store.mutate { $0.appearance.language = .spanish }
+
+        XCTAssertEqual(pin.localizedSubtitle(), SpotiglassL10n.string("pin.album.default", locale: Locale(identifier: AppLanguage.spanish.rawValue)))
+    }
+
     /// Stand-ins kept with a queued episode and a Home card.
     func testStoredStandInsFollowALanguageSwitch() throws {
         let episode = QueueItem.from(episode: MusicEpisode(

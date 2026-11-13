@@ -70,7 +70,7 @@ final class SidebarShortcutTests: XCTestCase {
             guard let keystroke = other.defaultKeystroke else { continue }
             XCTAssertNotEqual(try CommandShortcut(keystroke: keystroke), commandS, "\(other.commandID) also defaults to ⌘S")
         }
-        XCTAssertNil(CommandPaletteReservedShortcuts.reservingMenuItem(for: commandS), "a menu item hardcodes ⌘S")
+        XCTAssertNil(CommandPaletteReservedShortcuts.reservingMenuTitleKey(for: commandS), "a menu item hardcodes ⌘S")
 
         let store = CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
         XCTAssertEqual(
