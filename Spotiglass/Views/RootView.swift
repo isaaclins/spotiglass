@@ -270,6 +270,8 @@ struct RootView: View {
     @ObservedObject private var serviceStore: MusicServiceStore
     /// Apple Music permission state, shared app-wide with the menu bar and Settings.
     @ObservedObject private var appleMusicSession: AppleMusicSession
+    /// Where Apple Music's library and catalog are read from: MusicKit, or a stand-in in tests.
+    private let appleMusicCatalog: () -> any MusicBrowsingProvider
     @Environment(\.openSettings) private var openSettingsAction
     @Environment(\.openWindow) private var openWindowAction
 
@@ -294,6 +296,7 @@ struct RootView: View {
             storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
         ))
         _appleMusicSession = ObservedObject(wrappedValue: AppleMusicSession())
+        appleMusicCatalog = { AppleMusicBrowsingProvider() }
     }
 
     init(
@@ -302,7 +305,8 @@ struct RootView: View {
         playbackHosts: SpotiglassPlaybackHosts,
         serviceStore: MusicServiceStore,
         appleMusicSession: AppleMusicSession,
-        recentSearches: CommandPaletteRecentSearches = .inMemory()
+        recentSearches: CommandPaletteRecentSearches = .inMemory(),
+        appleMusicCatalog: @escaping () -> any MusicBrowsingProvider = { AppleMusicBrowsingProvider() }
     ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
@@ -313,6 +317,7 @@ struct RootView: View {
         self.playbackHosts = playbackHosts
         _serviceStore = ObservedObject(wrappedValue: serviceStore)
         _appleMusicSession = ObservedObject(wrappedValue: appleMusicSession)
+        self.appleMusicCatalog = appleMusicCatalog
     }
 
     private static func hosts(spotify: SpotiglassPlaybackHost) -> SpotiglassPlaybackHosts {
@@ -595,8 +600,9 @@ struct RootView: View {
                 playbackHost: playbackHosts.appleMusic,
                 commandPaletteManager: commandPaletteManager,
                 viewModel: sceneHost.browserViewModel(for: .appleMusic) {
-                    AppleMusicBrowserRoot.makeViewModel()
+                    AppleMusicBrowserRoot.makeViewModel(api: appleMusicCatalog())
                 },
+                catalog: appleMusicCatalog,
                 isAdding: serviceStore.pendingAddition == .appleMusic,
                 prepareForReset: authLossPreparationAction,
                 rewireScene: { wireSceneCallbacks() },

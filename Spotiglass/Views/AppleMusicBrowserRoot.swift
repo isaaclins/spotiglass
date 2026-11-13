@@ -21,6 +21,8 @@ struct AppleMusicBrowserRoot: View {
     let commandPaletteManager: CommandPaletteManager
     /// Kept by the scene while Spotify is on screen, so switching back returns to the same place.
     let viewModel: PlaylistBrowserViewModel
+    /// Where the library's search, artists and albums are read from (MusicKit unless a test says so).
+    var catalog: () -> any MusicBrowsingProvider = { AppleMusicBrowsingProvider() }
     /// Apple Music is being added ("Add a service…" or the welcome screen): ask for access at once.
     var isAdding = false
     /// Clears every window's browser state. Access is app-wide, so losing it affects all windows.
@@ -96,7 +98,7 @@ struct AppleMusicBrowserRoot: View {
         PlaylistBrowserView(
             viewModel: viewModel,
             playbackHost: playbackHost,
-            catalogProvider: AppleMusicBrowsingProvider(),
+            catalogProvider: catalog(),
             commandPaletteManager: commandPaletteManager,
             // No Disconnect: access is a system permission, turned off in System Settings,
             // and signing out of Apple Music lives in Settings › Account (#373).
@@ -168,8 +170,8 @@ struct AppleMusicBrowserRoot: View {
     /// session lives, so a stored copy would go blank. Track lists are kept in memory instead, so
     /// reopening a playlist shows it at once and refreshes it quietly (#442). Spotify's own cache
     /// is never shared with this browser.
-    static func makeViewModel() -> PlaylistBrowserViewModel {
-        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(), cache: MemoryBrowsingCache())
+    static func makeViewModel(api: any MusicBrowsingProvider) -> PlaylistBrowserViewModel {
+        PlaylistBrowserViewModel(api: api, cache: MemoryBrowsingCache())
     }
 }
 

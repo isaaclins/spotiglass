@@ -108,11 +108,13 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         let rendered = RenderedSettings()
         let window = try await hostMainWindow(settings: settings, services: services, rendered: rendered)
         let started = try XCTUnwrap(rendered.colorScheme)
+        let before = try XCTUnwrap(TitleBarLayout(window), "the library's split view never appeared")
 
         for scheme in [started == .dark ? ColorScheme.light : .dark, started] {
             NSApp.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
             try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: "macOS in \(scheme)")
             XCTAssertEqual(rendered.colorScheme, scheme, "the content didn't follow macOS to \(scheme)")
+            try assertWindow(window, kept: before, switchingTo: "macOS in \(scheme)")
         }
     }
 
@@ -140,25 +142,31 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             try settings.mutate(change)
             try waitUntilTaken(settings.settings.appearance, by: window, rendered: rendered, name: name)
 
-            let after = try XCTUnwrap(TitleBarLayout(window), "no split view after switching to \(name)")
-            XCTAssertTrue(after.splitView === before.splitView, "switching to \(name) replaced the window's split view")
-            for (index, item) in after.items.enumerated() where !before.items.contains(where: { $0 === item }) {
-                XCTFail("switching to \(name) replaced toolbar item \(index) (\(item.itemIdentifier.rawValue), \(item.label))")
-            }
-            XCTAssertTrue(
-                after.sidebarSeparator?.splitView === after.splitView,
-                "after switching to \(name) the toolbar's sidebar divider doesn't follow the window's split view"
-            )
-            XCTAssertEqual(
-                after.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
-                "after switching to \(name) the sidebar moved up under the window buttons"
-            )
+            try assertWindow(window, kept: before, switchingTo: name)
         }
         return before
     }
 
+    /// The window still has the split view and toolbar items it had, the toolbar's divider follows
+    /// the split view, and the sidebar keeps its inset below the window buttons.
+    private func assertWindow(_ window: NSWindow, kept before: TitleBarLayout, switchingTo name: String) throws {
+        let after = try XCTUnwrap(TitleBarLayout(window), "no split view after switching to \(name)")
+        XCTAssertTrue(after.splitView === before.splitView, "switching to \(name) replaced the window's split view")
+        for (index, item) in after.items.enumerated() where !before.items.contains(where: { $0 === item }) {
+            XCTFail("switching to \(name) replaced toolbar item \(index) (\(item.itemIdentifier.rawValue), \(item.label))")
+        }
+        XCTAssertTrue(
+            after.sidebarSeparator?.splitView === after.splitView,
+            "after switching to \(name) the toolbar's sidebar divider doesn't follow the window's split view"
+        )
+        XCTAssertEqual(
+            after.sidebarTopInset, before.sidebarTopInset, accuracy: 0.5,
+            "after switching to \(name) the sidebar moved up under the window buttons"
+        )
+    }
+
     /// The main window's content, set up as the window scene sets it up, with Apple Music's
-    /// library on screen (it needs no sign-in and no network here).
+    /// library on screen from a stand-in source (no sign-in, no MusicKit, no network).
     private func hostMainWindow(
         settings: SpotiglassSettingsStore,
         services: MusicServiceStore,
@@ -171,6 +179,8 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         )
         let session = AppleMusicSession(authorization: LiveSettingsMusicAuthorization())
         await session.refresh()
+        // A stand-in library, so the test never reads the Mac's own Apple Music library.
+        let appleMusic = Self.standInLibrary()
         let spotifyHost = SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
             accessToken: "test", refreshedAccessToken: "test-refresh"
         ))
@@ -179,7 +189,8 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             sceneRegistry: SpotiglassSceneRegistry(),
             playbackHosts: .forTests(spotify: spotifyHost),
             serviceStore: services,
-            appleMusicSession: session
+            appleMusicSession: session,
+            appleMusicCatalog: { appleMusic }
         )
         .background(RenderedSettingsProbe(rendered: rendered))
         .environmentObject(auth)
@@ -204,13 +215,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         let tokens = LiveSettingsSpotifyTokens()
         var libraries: [MusicService: AnyView] = [:]
         for service in [MusicService.spotify, .appleMusic] {
-            let api = MockBrowsingAPI(
-                playlistResults: [.success([
-                    PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
-                    PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Deep Focus"),
-                ])],
-                trackResults: [:]
-            )
+            let api = Self.standInLibrary()
             let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
             await browser.load()
             libraries[service] = AnyView(PlaylistBrowserView(
@@ -242,6 +247,17 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             .environmentObject(LyricsOverlayController())
             .spotiglassLiveSettings(settings)
         return (try showLikeTheMainWindow(content, settings: settings, rendered: rendered), services)
+    }
+
+    /// Two playlists and the account's profile, read from memory.
+    private static func standInLibrary() -> MockBrowsingAPI {
+        MockBrowsingAPI(
+            playlistResults: [.success([
+                PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Night Drive"),
+                PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Deep Focus"),
+            ])],
+            trackResults: [:]
+        )
     }
 
     /// Hosts `content` in a window shaped like the main window and waits until it has drawn.
