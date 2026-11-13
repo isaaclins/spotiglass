@@ -396,9 +396,10 @@ extension PlaylistBrowserViewModel {
             invalidateLikedSongsCache()
             if isSaved { recountPlaylistTracksAfterLibraryRemoval() }
             await refreshLikedSongsDetailAfterMutation()
+            // A nameless album's stand-in is said in the language the note is read in (#571).
             trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 isSaved ? "playlist.mutation.removedAlbum" : "playlist.mutation.addedAlbum",
-                albumName
+                UnnamedMusicItem.displayName(albumName, kind: .album)
             ))
         } catch {
             savedAlbumStates[albumID] = isSaved

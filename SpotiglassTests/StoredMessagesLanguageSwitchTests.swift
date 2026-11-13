@@ -217,6 +217,24 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         )
     }
 
+    /// The note after saving an album without a name to the library.
+    func testAnAlbumNoteNamesANamelessAlbumInTheNewLanguage() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let browser = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
+        await browser.loadSavedAlbumState(for: "al")
+        // The album page's title, as the page shows it in English.
+        await browser.toggleAlbumInLibrary(albumID: "al", albumName: UnnamedMusicItem.album.placeholder)
+        XCTAssertNotNil(browser.trackMutationToast)
+
+        try switchToGerman()
+
+        XCTAssertEqual(
+            browser.trackMutationToast,
+            String(format: inGerman("playlist.mutation.addedAlbum"), UnnamedMusicItem.album.placeholder(locale: german)),
+            "The album's stand-in in the note stayed in the old language"
+        )
+    }
+
     /// The window title for a playlist that has loaded without a name, and for an artist or album
     /// opened from a row that named it with the stand-in.
     func testANamelessItemsTitleFollowsALanguageSwitch() throws {
