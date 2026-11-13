@@ -363,14 +363,65 @@ final class LyricsPopOutTests: XCTestCase {
         // A token refresh keeps the session: the music plays on.
         states.send(.refreshing(session))
         states.send(.signedIn(session))
-        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertNil(hosts.spotifyStop, "a token refresh started a stop of Spotify's player")
         XCTAssertTrue(spotify.playbackViewModel.connectionState.hasReadyDevice)
 
         states.send(.signedOut)
-        while spotify.playbackViewModel.connectionState != .disconnected {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        let stop = try XCTUnwrap(hosts.spotifyStop, "signing out started no stop")
+        await stop.value
         XCTAssertEqual(spotify.playbackViewModel.connectionState, .disconnected)
+    }
+
+    /// Signing out twice while the first stop is still telling the page to disconnect, then
+    /// signing in again: the second stop must not wait behind the first and land on the new
+    /// session once that one is ready.
+    func testAStopHeldUpBySlowDisconnectDoesNotCutOffTheNextSession() async throws {
+        let (spotify, commander) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        let session = AuthenticatedSession(
+            accessToken: "token",
+            tokenType: "Bearer",
+            scope: "streaming",
+            expiresAt: Date(timeIntervalSinceNow: 3_600)
+        )
+        let states = CurrentValueSubject<AppConnectionState, Never>(.signedIn(session))
+        hosts.followSpotifySession(states)
+        let firstDisconnectSent = AsyncSignal()
+        let releaseFirstDisconnect = AsyncSignal()
+        let disconnects = LockedCounter()
+        commander.onGenerationSend = { command, _ in
+            guard command == .disconnect, disconnects.increment() == 1 else { return }
+            firstDisconnectSent.signal()
+            await releaseFirstDisconnect.wait()
+        }
+
+        states.send(.signedOut)
+        let firstStop = try XCTUnwrap(hosts.spotifyStop)
+        guard await firstDisconnectSent.wait(timeout: .seconds(mustHappenTimeout)) else {
+            releaseFirstDisconnect.signal()
+            return XCTFail("signing out never told the page to disconnect")
+        }
+
+        states.send(.signedIn(session))
+        states.send(.signedOut)
+        let secondStop = try XCTUnwrap(hosts.spotifyStop)
+        let secondStopped = AsyncSignal()
+        Task { await secondStop.value; secondStopped.signal() }
+        // The time limit only bounds how long a broken build takes to fail.
+        guard await secondStopped.wait(timeout: .seconds(mustHappenTimeout)) else {
+            releaseFirstDisconnect.signal()
+            return XCTFail("the second stop waited for the first one's disconnect to finish")
+        }
+
+        states.send(.signedIn(session))
+        let player = spotify.playbackViewModel
+        player.setConnectionState(.ready(deviceID: "new-session"))
+
+        releaseFirstDisconnect.signal()
+        await firstStop.value
+        XCTAssertEqual(player.connectionState, .ready(deviceID: "new-session"), "an old sign-out's stop cut off the new session")
     }
 
     // MARK: The window
@@ -901,3 +952,11 @@ final class LyricsPopOutTests: XCTestCase {
     }
 }
 
+
+/// Counts calls that may come from any thread.
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    /// Adds one and returns the new count.
+    func increment() -> Int { lock.withLock { count += 1; return count } }
+}

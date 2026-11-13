@@ -509,15 +509,17 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         library: [Album] = [],
         pinned: [Album] = [],
         searchFails: Bool = false,
-        lookUp: @escaping @Sendable (PinnedItemKind, [String]) async throws -> [String: String] = { _, _ in [:] },
+        lookUp: @escaping @Sendable (PinnedItemKind, [String]) throws -> [String: String] = { _, _ in [:] },
         songReferences: AppleMusicSongReferenceRegistry = AppleMusicSongReferenceRegistry()
     ) -> AppleMusicPinAliases {
         struct Offline: Error {}
         return AppleMusicPinAliases(
             registry: registry,
-            lookUp: lookUp,
-            albums: { ids in pinned.filter { ids.contains($0.id.rawValue) } },
-            searchAlbums: { _ in
+            // Every stand-in answers on the main actor, like the store and the resolver, so all
+            // the work a pin starts is main-actor steps that `settle()` can run to the end.
+            lookUp: { @MainActor kind, ids in try lookUp(kind, ids) },
+            albums: { @MainActor ids in pinned.filter { ids.contains($0.id.rawValue) } },
+            searchAlbums: { @MainActor _ in
                 if searchFails { throw Offline() }
                 return AppleMusicAlbumSearch(catalog: catalog, library: library)
             },
@@ -532,9 +534,16 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         }
     }
 
-    /// Lets queued lookups and searches finish when nothing is expected to change.
+    /// Runs every lookup, search and merge the store has queued to its end, for checks that
+    /// nothing changed. The store, the resolver and the stand-in library all run on the main
+    /// actor, so that work is a chain of main-actor steps; each pass runs one more step of it,
+    /// however busy the machine, and the chain is far shorter than the passes.
     private func settle() async {
-        try? await Task.sleep(for: .milliseconds(150))
+        for _ in 0..<20 {
+            await withCheckedContinuation { done in
+                DispatchQueue.main.async { done.resume() }
+            }
+        }
     }
 
     func testAlbumPinnedFromArtistPageAndFromSearchIsOnePin() async throws {
@@ -649,18 +658,22 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         cache.saved[account] = [homePin("1225217998", title: "Migration 487e"), savedPin("9177095676878600744", title: "Migration 487e")]
         let catalog = try catalogAlbum(id: "1225217998", title: "Migration 487e")
         let loaded = [catalog, try libraryAlbum(persistentID: "9177095676878600744", title: "Migration 487e")]
+        let launchLookup = MockCallHold()
         let store = PinnedItemsStore(cache: cache, aliases: AppleMusicPinAliases(
             registry: AppleMusicPinAliasRegistry(), lookUp: { _, _ in [:] },
             albums: { ids in
-                try await Task.sleep(for: .milliseconds(50))
+                await launchLookup.pass()
                 return loaded.filter { ids.contains($0.id.rawValue) }
             },
             searchAlbums: { _ in AppleMusicAlbumSearch(catalog: [catalog], library: loaded.filter { $0.id != catalog.id }) },
             songReferences: AppleMusicSongReferenceRegistry()
         ))
         store.bind(userID: account)
-        // A pin right after launch, while the launch lookup still runs.
+        let didStartLookup = await launchLookup.entered.wait(timeout: .seconds(mustHappenTimeout))
+        XCTAssertTrue(didStartLookup, "binding should look up the pinned albums")
+        // A pin while the launch lookup still runs.
         XCTAssertTrue(store.pin(.likedSongs(ownerDisplay: "You", artworkURL: nil), at: 0))
+        launchLookup.release()
         await waitUntil { store.items.count == 2 }
 
         XCTAssertEqual(store.items.map(\.id), [PinnedItem.likedSongsID, "album:1225217998"])
@@ -966,13 +979,13 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         let asked = LockedFlag()
         let store = PinnedItemsStore(cache: cache, aliases: AppleMusicPinAliases(
             registry: AppleMusicPinAliasRegistry(),
-            lookUp: { _, _ in asked.set(); return ["x": "y"] },
-            albums: { _ in asked.set(); return [] },
-            searchAlbums: { _ in asked.set(); return AppleMusicAlbumSearch(catalog: [], library: []) },
+            lookUp: { @MainActor _, _ in asked.set(); return ["x": "y"] },
+            albums: { @MainActor _ in asked.set(); return [] },
+            searchAlbums: { @MainActor _ in asked.set(); return AppleMusicAlbumSearch(catalog: [], library: []) },
             songReferences: AppleMusicSongReferenceRegistry()
         ))
         store.bind(userID: "spotify-user")
-        try? await Task.sleep(for: .milliseconds(100))
+        await settle()
 
         XCTAssertEqual(store.items, pins)
         XCTAssertEqual(cache.saved["spotify-user"], pins)

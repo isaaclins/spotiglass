@@ -257,7 +257,9 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let manager = CommandPaletteManager(keymapStore: keymap)
         manager.isSignedIn = true
         var switched: [MusicService] = []
-        manager.switchService = { switched.append($0) }
+        let switchesRan = expectation(description: "both switches ran")
+        switchesRan.expectedFulfillmentCount = 2
+        manager.switchService = { switched.append($0); switchesRan.fulfill() }
 
         let controlTwo = keyDown(keyCode: 19, characters: "2", modifiers: [.control], windowNumber: window.windowNumber)
         let controlOne = keyDown(keyCode: 18, characters: "1", modifiers: [.control], windowNumber: window.windowNumber)
@@ -269,9 +271,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.switchableServices = [.appleMusic]
         XCTAssertTrue(manager.handleKeyEvent(controlOne))
 
-        let drained = expectation(description: "switches ran")
-        DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: mustHappenTimeout)
+        wait(for: [switchesRan], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.spotify, .appleMusic])
     }
 

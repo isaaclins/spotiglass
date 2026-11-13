@@ -158,7 +158,6 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
                 "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])]
             ]
         )
-        api.playlistTracksDelayOnInvocation = 400_000_000
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB], playlistListCacheAge: 20_000)
         let viewModel = PlaylistBrowserViewModel(
             api: api,
@@ -172,14 +171,22 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
+        // From here reads are held until the test lets them go, or until their task is cancelled.
+        let readsHeld = AsyncSignal()
+        api.playlistTracksHold = readsHeld
         let fetchBStarted = AsyncSignal()
         api.onPlaylistTracksInvocation = { playlistID in
             if playlistID == "b" { fetchBStarted.signal() }
+            // Reading A again would be a bug the assertions catch; don't let it hang the test.
+            if playlistID == "a" { readsHeld.signal() }
         }
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
-        // the first playlist switch should start fetching playlist B
-        await fetchBStarted.wait()
-        await viewModel.selectPlaylist(id: "a")
+        guard await waitFor(fetchBStarted, "the first playlist switch fetching playlist B") else { return readsHeld.signal() }
+        guard await finishes("switching back to A waited for B's held read", elseRelease: readsHeld.signal, {
+            await viewModel.selectPlaylist(id: "a")
+        }) else { return }
+        // B's read is let go only now: if the switch back to A didn't cancel it, it finishes.
+        readsHeld.signal()
         await firstSwitch.value
 
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1, "Cancelled in-flight fetch for B should not complete.")
@@ -325,18 +332,20 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let current = tracks + [PlaylistBrowsingTestFixtures.track(id: "added")]
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(current)]])
         api.lastReadTracksByID = ["big": tracks]
-        api.playlistTracksDelayOnInvocation = 200_000_000
+        let readHeld = AsyncSignal()
+        let readStarted = AsyncSignal()
+        api.playlistTracksHold = readHeld
         let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
-        var shownWhileReading: [String] = []
-        api.onPlaylistTracksInvocation = { _ in
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(100))
-                shownWhileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
-            }
-        }
+        api.onPlaylistTracksInvocation = { _ in readStarted.signal() }
 
-        await viewModel.selectPlaylist(id: "big")
+        let opening = Task { await viewModel.selectPlaylist(id: "big") }
+        guard await waitFor(readStarted, "the read of the playlist") else { return readHeld.signal() }
+        // The read is held: whatever shows now came from the earlier read.
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count == tracks.count }
+        let shownWhileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
+        readHeld.signal()
+        await opening.value
 
         XCTAssertEqual(shownWhileReading, tracks.map(\.id), "the earlier songs, before the read finished")
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), current.map(\.id))
@@ -382,17 +391,26 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testOpeningAPlaylistFromHomeReadsItOnce() async {
         let (playlist, tracks) = bigPlaylist(count: 796)
         let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
-        api.playlistTracksDelayOnInvocation = 50_000_000
+        let firstReadStarted = AsyncSignal()
+        let readsHeld = AsyncSignal()
+        api.playlistTracksHold = readsHeld
         let reads = ReadCounter()
-        api.onPlaylistTracksInvocation = { _ in reads.increment() }
+        api.onPlaylistTracksInvocation = { _ in
+            reads.increment()
+            // A second read is the bug under test: let it run so the count shows it.
+            if reads.count == 1 { firstReadStarted.signal() } else { readsHeld.signal() }
+        }
         let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
         await viewModel.load()
 
         let opening = Task { await viewModel.selectSidebar(.playlist("big")) }
-        // The first read is under way (MusicKit's read doesn't stop when its task is cancelled).
-        while reads.count == 0 { await Task.yield() }
+        // The first read is under way and held until the sidebar has reported back.
+        guard await waitFor(firstReadStarted, "the first read") else { return readsHeld.signal() }
         // What the sidebar's selection change does.
-        await viewModel.selectSidebar(.playlist("big"))
+        guard await finishes("the sidebar's report waited for the held first read", elseRelease: readsHeld.signal, {
+            await viewModel.selectSidebar(.playlist("big"))
+        }) else { return }
+        readsHeld.signal()
         await opening.value
 
         XCTAssertEqual(reads.count, 1)
@@ -416,12 +434,15 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             uri: "spotify:track:alb-track-1"
         )
         let albumReads = ReadCounter()
+        let albumHeld = AsyncSignal()
         let api = MockBrowsingAPI(
             playlistResults: [.success([playlist])],
             trackResults: ["big": [.success(tracks), .success(tracks)]],
             albumTracksHandler: { _, _, _ in
                 albumReads.increment()
-                try await Task.sleep(for: .milliseconds(200))
+                // Still loading until the playlist was opened over it.
+                await albumHeld.wait()
+                try Task.checkCancellation()
                 return [albumTrack]
             }
         )
@@ -432,8 +453,11 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let album = Task {
             await viewModel.selectAlbum(id: "album-123", displayTitle: "Album Name", displaySubtitle: "Artist Name", artworkURL: nil)
         }
-        while albumReads.count == 0 { await Task.yield() }
-        await viewModel.selectPlaylist(id: "big")
+        await waitUntil { albumReads.count > 0 }
+        guard await finishes("opening the playlist waited for the held album read", elseRelease: albumHeld.signal, {
+            await viewModel.selectPlaylist(id: "big")
+        }) else { return }
+        albumHeld.signal()
         await album.value
 
         guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
@@ -511,9 +535,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         let whileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
         api.finishReading()
         await opening.value
@@ -532,9 +554,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
@@ -557,22 +577,25 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
         let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
-        api.profileDelayAfterRead = 400_000_000
+        let ownerHeld = AsyncSignal()
+        api.profileHoldAfterRead = ownerHeld
         let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledBrowsingCache())
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         api.finishReading()
-        try? await Task.sleep(for: .milliseconds(100))
+        guard await waitFor(api.profileAskedAfterRead, "the owner lookup after the read") else { return ownerHeld.signal() }
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count, 200, "the rows wait for the owner")
 
-        let played = await viewModel.detailForPlayback(firstPage)
+        let started = viewModel.playbackRequestGeneration
+        let playing = Task { await viewModel.detailForPlayback(firstPage) }
+        await waitForPlay(after: started, on: viewModel)
+        ownerHeld.signal()
+        let played = await playing.value
         await opening.value
 
         XCTAssertEqual(played?.tracks.map(\.id), all.map(\.id))
@@ -627,17 +650,15 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         let started = viewModel.playbackRequestGeneration
         let earlier = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         let newer = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started + 1, on: viewModel)
+        await waitForPlay(after: started + 1, on: viewModel)
         api.finishReading()
 
         let earlierResult = await earlier.value
@@ -655,17 +676,17 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         // Leaving Liked Songs before the read finishes.
-        await viewModel.selectSidebar(nil)
+        guard await finishes("leaving Liked Songs waited for the held read", elseRelease: api.finishReading, {
+            await viewModel.selectSidebar(nil)
+        }) else { return }
         api.finishReading()
 
         let result = await waiting.value
@@ -683,16 +704,14 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         let commands = ReadCounter()
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage, playbackCommands: { UInt64(commands.count) }) }
-        await Self.waitForPlay(after: started, on: viewModel)
+        await waitForPlay(after: started, on: viewModel)
         commands.increment() // A pinned track starts playing meanwhile.
         api.finishReading()
 
@@ -711,16 +730,16 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
         let opening = Task { await viewModel.selectSidebar(.likedSongs) }
         await api.waitUntilRestIsBeingRead()
-        while PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        await waitUntil { PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count >= 200 }
         guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
             return XCTFail("Expected the first page, got \(viewModel.detailState)")
         }
         let started = viewModel.playbackRequestGeneration
         let waiting = Task { await viewModel.detailForPlayback(firstPage) }
-        await Self.waitForPlay(after: started, on: viewModel)
-        await viewModel.selectSidebar(nil)
+        await waitForPlay(after: started, on: viewModel)
+        guard await finishes("leaving Liked Songs waited for the held read", elseRelease: api.finishReading, {
+            await viewModel.selectSidebar(nil)
+        }) else { return }
         api.finishReading()
 
         let result = await waiting.value
@@ -762,8 +781,47 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
 
     /// Waits until a play asked for after `generation` has started, i.e. has read its request
     /// number and its baseline of playback commands, however late a busy machine runs its task.
-    private static func waitForPlay(after generation: Int, on viewModel: PlaylistBrowserViewModel) async {
-        while viewModel.playbackRequestGeneration <= generation { await Task.yield() }
+    /// A play that never starts fails the test; the caller then lets its held read go.
+    private func waitForPlay(
+        after generation: Int,
+        on viewModel: PlaylistBrowserViewModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        await waitUntil({ viewModel.playbackRequestGeneration > generation }, file: file, line: line)
+    }
+}
+
+extension PlaylistBrowserTracksFetchingTests {
+    /// Waits for something the view model does on a later turn of the main actor. It yields
+    /// instead of sleeping, so it ends the moment the condition holds on any machine; the
+    /// deadline only stops a broken run.
+    func waitUntil(
+        _ condition: () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let deadline = ContinuousClock.now + .seconds(mustHappenTimeout)
+        while !condition() {
+            guard ContinuousClock.now < deadline else {
+                return XCTFail("the view model never got there", file: file, line: line)
+            }
+            await Task.yield()
+        }
+    }
+
+    /// Waits for `signal`, or fails once `limit` passes. The limit only bounds how long a broken
+    /// build takes to fail; on a working one the signal ends the wait.
+    func waitFor(
+        _ signal: AsyncSignal,
+        _ what: String,
+        limit: Duration = .seconds(mustHappenTimeout),
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async -> Bool {
+        let fired = await signal.wait(timeout: limit)
+        if !fired { XCTFail("\(what) never happened", file: file, line: line) }
+        return fired
     }
 }
 
@@ -784,8 +842,10 @@ private final class FirstPageSavedTracksAPI: MusicBrowsingProvider, @unchecked S
     private var isReadFinished = false
     /// The rest of the read fails instead of answering.
     var restFails = false
-    /// How long the owner lookup takes once the read has finished.
-    var profileDelayAfterRead: UInt64 = 0
+    /// Holds the owner lookup that comes after the read until the signal fires.
+    var profileHoldAfterRead: AsyncSignal?
+    /// Fires when the owner is asked for after the read.
+    let profileAskedAfterRead = AsyncSignal()
     private let lock = NSLock()
 
     init(firstPage: [MusicPlaylistTrackItem], all: [MusicPlaylistTrackItem]) {
@@ -844,9 +904,9 @@ private final class FirstPageSavedTracksAPI: MusicBrowsingProvider, @unchecked S
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { [] }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] { [] }
     func currentUserProfile() async throws -> MusicUserProfile {
-        let delay = lock.withLock { isReadFinished ? profileDelayAfterRead : 0 }
-        if delay > 0 {
-            await Task.detached { try? await Task.sleep(nanoseconds: delay) }.value
+        if let hold = lock.withLock({ isReadFinished ? profileHoldAfterRead : nil }) {
+            profileAskedAfterRead.signal()
+            await Task.detached { await hold.wait() }.value
         }
         return MusicUserProfile(id: "u", displayName: nil, country: "CH")
     }

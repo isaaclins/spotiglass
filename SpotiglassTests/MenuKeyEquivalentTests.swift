@@ -98,19 +98,24 @@ final class MenuKeyEquivalentTests: XCTestCase {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         var shuffled = 0
         var repeated = 0
-        manager.toggleShuffle = { shuffled += 1 }
-        manager.cycleRepeat = { repeated += 1 }
+        // The closures end the wait themselves, so it ends because they ran.
+        let shuffleRan = expectation(description: "the shuffle closure ran")
+        let repeatRan = expectation(description: "the repeat closure ran")
+        manager.toggleShuffle = {
+            shuffled += 1
+            shuffleRan.fulfill()
+        }
+        manager.cycleRepeat = {
+            repeated += 1
+            repeatRan.fulfill()
+        }
         manager.playbackTransportMutationPrerequisite = { true }
         manager.repeatMutationPrerequisite = { true }
 
         manager.execute(commandID: CommandPaletteCommandID.toggleShuffle)
         manager.execute(commandID: CommandPaletteCommandID.cycleRepeat)
 
-        let expectation = expectation(description: "playback closures ran")
-        Task { @MainActor in
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: mustHappenTimeout)
+        wait(for: [shuffleRan, repeatRan], timeout: mustHappenTimeout)
 
         XCTAssertEqual(shuffled, 1)
         XCTAssertEqual(repeated, 1)

@@ -21,12 +21,6 @@ final class MusicServiceStoreTests: XCTestCase {
         return CommandPaletteKeymapStore(fileURL: url)
     }
 
-    private func drainMainQueue() {
-        let drained = expectation(description: "main queue drained")
-        DispatchQueue.main.async { drained.fulfill() }
-        wait(for: [drained], timeout: mustHappenTimeout)
-    }
-
     private func makeDefaults() -> UserDefaults {
         let name = "MusicServiceStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -295,7 +289,8 @@ final class MusicServiceStoreTests: XCTestCase {
     func testPaletteOffersOnlyTheOtherAddedService() {
         let manager = CommandPaletteManager()
         var switched: [MusicService] = []
-        manager.switchService = { switched.append($0) }
+        let switchRan = expectation(description: "the switch ran")
+        manager.switchService = { switched.append($0); switchRan.fulfill() }
         manager.switchableServices = [.appleMusic]
 
         let ids = Set(manager.viewModel.staticItemsProvider().map(\.id))
@@ -305,7 +300,7 @@ final class MusicServiceStoreTests: XCTestCase {
         manager.execute(commandID: CommandPaletteCommandID.switchToSpotify)
         manager.execute(commandID: CommandPaletteCommandID.switchToAppleMusic)
         XCTAssertEqual(switched, [], "the switch waits until the palette has closed")
-        drainMainQueue()
+        wait(for: [switchRan], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.appleMusic])
 
         manager.switchableServices = []
@@ -318,12 +313,13 @@ final class MusicServiceStoreTests: XCTestCase {
     func testDetachKeepsSwitching() {
         let manager = CommandPaletteManager()
         var switched: [MusicService] = []
-        manager.switchService = { switched.append($0) }
+        let switchRan = expectation(description: "the switch ran")
+        manager.switchService = { switched.append($0); switchRan.fulfill() }
         manager.switchableServices = [.spotify]
 
         manager.detach()
         manager.execute(commandID: CommandPaletteCommandID.switchToSpotify)
-        drainMainQueue()
+        wait(for: [switchRan], timeout: mustHappenTimeout)
 
         XCTAssertEqual(switched, [.spotify])
     }
@@ -331,7 +327,8 @@ final class MusicServiceStoreTests: XCTestCase {
     func testControlTwoSwitchesThroughTheKeymap() throws {
         let manager = CommandPaletteManager(keymapStore: makeKeymapStore())
         var switched: [MusicService] = []
-        manager.switchService = { switched.append($0) }
+        let switchRan = expectation(description: "the switch ran")
+        manager.switchService = { switched.append($0); switchRan.fulfill() }
         let event = try XCTUnwrap(NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -351,7 +348,7 @@ final class MusicServiceStoreTests: XCTestCase {
 
         manager.switchableServices = [.spotify]
         XCTAssertTrue(manager.handleKeyEvent(event))
-        drainMainQueue()
+        wait(for: [switchRan], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.spotify])
     }
 
@@ -378,10 +375,11 @@ final class MusicServiceStoreTests: XCTestCase {
             storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .spotify)
         )
         var switched: [MusicService] = []
+        let ran = expectation(description: "menu action runs after the menu closes")
         let switcher = MusicServiceSwitcher(
             store: store,
             keymapStore: makeKeymapStore(),
-            switchTo: { switched.append($0) },
+            switchTo: { switched.append($0); ran.fulfill() },
             add: { _ in XCTFail("nothing left to add") }
         )
         let anchor = MusicServiceMenuAnchor()
@@ -399,8 +397,6 @@ final class MusicServiceStoreTests: XCTestCase {
 
         let item = menu.items[0]
         _ = (item.target as? NSObject)?.perform(item.action, with: item)
-        let ran = expectation(description: "menu action runs after the menu closes")
-        DispatchQueue.main.async { ran.fulfill() }
         wait(for: [ran], timeout: mustHappenTimeout)
         XCTAssertEqual(switched, [.appleMusic])
     }
@@ -410,11 +406,12 @@ final class MusicServiceStoreTests: XCTestCase {
             storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
         )
         var added: [MusicService] = []
+        let ran = expectation(description: "add runs")
         let switcher = MusicServiceSwitcher(
             store: store,
             keymapStore: makeKeymapStore(),
             switchTo: { _ in },
-            add: { added.append($0) }
+            add: { added.append($0); ran.fulfill() }
         )
         let anchor = MusicServiceMenuAnchor()
         let menu = anchor.makeMenu(items: switcher.menuItems())
@@ -423,8 +420,6 @@ final class MusicServiceStoreTests: XCTestCase {
         XCTAssertEqual(addItem.title, SpotiglassL10n.string("switcher.addService"))
 
         _ = (addItem.target as? NSObject)?.perform(addItem.action, with: addItem)
-        let ran = expectation(description: "add runs")
-        DispatchQueue.main.async { ran.fulfill() }
         wait(for: [ran], timeout: mustHappenTimeout)
         XCTAssertEqual(added, [.appleMusic])
         XCTAssertNil(MusicServiceMenuItem.separator.title)

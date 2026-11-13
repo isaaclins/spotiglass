@@ -94,13 +94,13 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var playlistTracksInvocationCountByID: [String: Int] = [:]
         var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
         var lastReadHolds: [String: LastReadHold] = [:]
+        var playlistTracksHold: AsyncSignal?
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
         var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
         var saveTracksCalls: [[String]] = []
         var removeSavedTracksCalls: [[String]] = []
         var savedTrackStatusesCalls: [[String]] = []
-        var playlistTracksDelayOnInvocation: UInt64?
         var onPlaylistTracksInvocation: ((String) -> Void)?
         var onCurrentUserPlaylistsInvocation: (() async -> Void)?
         var recentlyPlayedHandler: ((Int) async throws -> [MusicTrack])?
@@ -150,10 +150,6 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     var saveTracksCalls: [[String]] { locked { $0.saveTracksCalls } }
     var removeSavedTracksCalls: [[String]] { locked { $0.removeSavedTracksCalls } }
     var savedTrackStatusesCalls: [[String]] { locked { $0.savedTrackStatusesCalls } }
-    var playlistTracksDelayOnInvocation: UInt64? {
-        get { locked { $0.playlistTracksDelayOnInvocation } }
-        set { locked { $0.playlistTracksDelayOnInvocation = newValue } }
-    }
     var onPlaylistTracksInvocation: ((String) -> Void)? {
         get { locked { $0.onPlaylistTracksInvocation } }
         set { locked { $0.onPlaylistTracksInvocation = newValue } }
@@ -257,10 +253,12 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        let (onInvocation, delay) = locked { ($0.onPlaylistTracksInvocation, $0.playlistTracksDelayOnInvocation) }
+        let (onInvocation, hold) = locked { ($0.onPlaylistTracksInvocation, $0.playlistTracksHold) }
         onInvocation?(playlistID)
-        if let delay {
-            try await Task.sleep(nanoseconds: delay)
+        if let hold {
+            // A held read ends early when its task is cancelled, like a network read.
+            await hold.wait()
+            try Task.checkCancellation()
         }
         let result = locked { state -> Result<[MusicPlaylistTrackItem], Error>? in
             state.playlistTracksInvocationCountByID[playlistID, default: 0] += 1
@@ -276,6 +274,12 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] {
         get { locked { $0.lastReadTracksByID } }
         set { locked { $0.lastReadTracksByID = newValue } }
+    }
+
+    /// Holds `playlistTracks` until the signal fires, after `onPlaylistTracksInvocation` ran.
+    var playlistTracksHold: AsyncSignal? {
+        get { locked { $0.playlistTracksHold } }
+        set { locked { $0.playlistTracksHold = newValue } }
     }
 
     /// Holds `lastReadPlaylistTracks` for a playlist ID: it signals `entered`, then answers only

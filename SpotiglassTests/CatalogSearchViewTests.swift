@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import XCTest
 @testable import Spotiglass
@@ -320,24 +321,35 @@ final class CatalogSearchViewTests: XCTestCase {
 
     // MARK: - Palette handoff
 
-    func testPaletteShowAllResultsRowSetsQueryAndScopeOnSearchViewModel() async {
+    /// The palette's "Show all results" row, wired the way the browser wires it, hands its query
+    /// and scope to the Search page, opens that page and closes the lyrics over it.
+    func testPaletteShowAllResultsRowSetsQueryAndScopeOnSearchViewModel() async throws {
         let browserViewModel = makeBrowserViewModel()
         let searchViewModel = browserViewModel.catalogSearch
-        searchViewModel.searchProvider = { _, _, _ in
-            MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
-        }
-
-        let palette = CommandPaletteViewModel()
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        )
+        let manager = CommandPaletteManager()
+        var lyricsShown = true
+        PlaylistBrowserCommandPaletteConfiguration.apply(
+            to: manager,
+            dependencies: .init(
+                viewModel: browserViewModel,
+                playbackViewModel: playback,
+                queueViewModel: QueueViewModel(provider: playback.provider, playbackSession: playback),
+                commandPaletteManager: manager,
+                pinnedStore: PinnedItemsStore(cache: InMemoryPinnedItemsCache()),
+                catalogProvider: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                signOut: {},
+                syncUnifiedRefreshRouting: {},
+                isPlaybackAvailable: true,
+                canDisconnect: true
+            ),
+            queueVisible: .constant(false),
+            lyricsPresented: Binding(get: { lyricsShown }, set: { lyricsShown = $0 })
+        )
+        let palette = manager.viewModel
         palette.searchProvider = { _, _ in CommandPaletteSearchResults() }
-        let sidebarSelectionFinished = AsyncSignal()
-        // Mirrors PlaylistBrowserCommandPaletteConfiguration's wiring.
-        palette.showAllResults = { query, category in
-            searchViewModel.applyHandoff(query: query, paletteCategory: category)
-            Task { @MainActor in
-                await browserViewModel.selectSidebar(.search)
-                sidebarSelectionFinished.signal()
-            }
-        }
 
         palette.show()
         palette.query = "daft punk"
@@ -345,17 +357,23 @@ final class CatalogSearchViewTests: XCTestCase {
         palette.refresh()
         await palette.waitForSearchCompletion()
 
-        let showAllRow = try? XCTUnwrap(palette.visibleItems.last)
-        XCTAssertEqual(showAllRow?.id, "palette.showAllResults")
+        let showAllRow = try XCTUnwrap(palette.visibleItems.last)
+        XCTAssertEqual(showAllRow.id, "palette.showAllResults")
         XCTAssertEqual(palette.sections.last?.section, .showAll)
 
-        await showAllRow?.action()
-        // Catalog handoff should finish sidebar selection
-        await sidebarSelectionFinished.wait()
+        // The page opens on a later turn of the main actor: wait for the selection to change.
+        let searchOpened = expectation(description: "the Search page opened")
+        let opening = browserViewModel.$sidebarSelection
+            .first { $0 == .search }
+            .sink { _ in searchOpened.fulfill() }
+        await showAllRow.action()
+        await fulfillment(of: [searchOpened], timeout: mustHappenTimeout)
+        opening.cancel()
 
         XCTAssertEqual(searchViewModel.query, "daft punk")
         XCTAssertEqual(searchViewModel.category, .artists)
         XCTAssertEqual(browserViewModel.sidebarSelection, .search)
+        XCTAssertFalse(lyricsShown, "the Search page opened under the lyrics")
     }
 
     func testPaletteShowAllResultsRowIsAbsentInCommandScope() async {

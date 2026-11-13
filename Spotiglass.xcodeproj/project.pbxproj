@@ -365,6 +365,9 @@
 		TST0000000000000000000120 /* SpotiglassLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010120 /* SpotiglassLogTests.swift */; };
 		TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010121 /* EqualizerHALPluginTests.swift */; };
 		TST0000000000000000000122 /* EqualizerABRMSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010122 /* EqualizerABRMSTests.swift */; };
+		TSTEQDRIVERC0000000000B1 /* SpotiglassEQDSP.c in Sources */ = {isa = PBXBuildFile; fileRef = TSTEQDRIVERC0000000000F1 /* SpotiglassEQDSP.c */; };
+		TSTEQDRIVERC0000000000B2 /* EQCoefficientReader.c in Sources */ = {isa = PBXBuildFile; fileRef = TSTEQDRIVERC0000000000F2 /* EQCoefficientReader.c */; };
+		TSTEQDRIVERC0000000000B3 /* EQDriverTestShim.c in Sources */ = {isa = PBXBuildFile; fileRef = TSTEQDRIVERC0000000000F3 /* EQDriverTestShim.c */; };
 		TST00000000000000000002 /* PlaylistBrowsingTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000052 /* PlaylistBrowsingTestFixtures.swift */; };
 		TST00000000000000000003 /* CommandPaletteTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000053 /* CommandPaletteTestSupport.swift */; };
 		TST00000000000000000004 /* SpotifyAPIClientTestHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000054 /* SpotifyAPIClientTestHTTP.swift */; };
@@ -892,6 +895,9 @@
 		TST0000000000000000010120 /* SpotiglassLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassLogTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010121 /* EqualizerHALPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerHALPluginTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010122 /* EqualizerABRMSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerABRMSTests.swift; sourceTree = "<group>"; };
+		TSTEQDRIVERC0000000000F1 /* SpotiglassEQDSP.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = SpotiglassEQDSP.c; path = SpotiglassEQDriver/SpotiglassEQDSP.c; sourceTree = SOURCE_ROOT; };
+		TSTEQDRIVERC0000000000F2 /* EQCoefficientReader.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = EQCoefficientReader.c; path = SpotiglassEQDriver/EQCoefficientReader.c; sourceTree = SOURCE_ROOT; };
+		TSTEQDRIVERC0000000000F3 /* EQDriverTestShim.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = EQDriverTestShim.c; path = SpotiglassTests/EQDriverC/EQDriverTestShim.c; sourceTree = SOURCE_ROOT; };
 		EQPOLICY000000000000002 /* EqualizerDriverInstallPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerDriverInstallPolicy.swift; sourceTree = "<group>"; };
 		EQCLIENT000000000000002 /* EqualizerPrivilegedHelperClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPrivilegedHelperClient.swift; sourceTree = "<group>"; };
 		EQIDENTITY000000000002 /* EqualizerPrivilegedHelperIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPrivilegedHelperIdentity.swift; sourceTree = "<group>"; };
@@ -1170,6 +1176,9 @@
 				TST000000000000000001010D /* SettingsWindowChromeTests.swift */,
 				F07B276904C45D5C8DAD1670 /* ShelfScrollBehaviorTests.swift */,
 				TST0000000000000000010122 /* EqualizerABRMSTests.swift */,
+				TSTEQDRIVERC0000000000F1 /* SpotiglassEQDSP.c */,
+				TSTEQDRIVERC0000000000F2 /* EQCoefficientReader.c */,
+				TSTEQDRIVERC0000000000F3 /* EQDriverTestShim.c */,
 				EQPOLICYTEST0000000000002 /* EqualizerDriverInstallPolicyTests.swift */,
 				TST0000000000000000010121 /* EqualizerHALPluginTests.swift */,
 				EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */,
@@ -2008,6 +2017,9 @@
 				TST000000000000000000010D /* SettingsWindowChromeTests.swift in Sources */,
 				293E0B8E4EDD4E4E87C7C61F /* ShelfScrollBehaviorTests.swift in Sources */,
 				TST0000000000000000000122 /* EqualizerABRMSTests.swift in Sources */,
+				TSTEQDRIVERC0000000000B1 /* SpotiglassEQDSP.c in Sources */,
+				TSTEQDRIVERC0000000000B2 /* EQCoefficientReader.c in Sources */,
+				TSTEQDRIVERC0000000000B3 /* EQDriverTestShim.c in Sources */,
 				EQPOLICYTEST0000000000001 /* EqualizerDriverInstallPolicyTests.swift in Sources */,
 				TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */,
 				EFT000000000000000000001 /* EqualizerForwardingTargetTests.swift in Sources */,
@@ -2397,6 +2409,7 @@
 				MARKETING_VERSION = 0.8.41;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
 			};
@@ -2419,6 +2432,7 @@
 				MARKETING_VERSION = 0.8.41;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
 			};

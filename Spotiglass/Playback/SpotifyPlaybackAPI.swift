@@ -150,11 +150,16 @@ extension SpotifyPlaybackControlling {
 /// Coalesces concurrent `GET /v1/me/player` calls into one in-flight URLSession task.
 private actor PlayerSnapshotFetchCoalescer {
     private var inFlight: Task<MusicPlaybackSnapshot?, Error>?
+    /// How many callers joined a fetch already under way, so tests can tell a caller has
+    /// joined before they let the fetch finish (`SpotiglassTests` only).
+    // periphery:ignore
+    private(set) var joinedCallers = 0
 
     func fetch(
         _ operation: @Sendable @escaping () async throws -> MusicPlaybackSnapshot?
     ) async throws -> MusicPlaybackSnapshot? {
         if let inFlight {
+            joinedCallers += 1
             return try await inFlight.value
         }
         let task = Task { try await operation() }
@@ -271,6 +276,12 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             URLQueryItem(name: "device_id", value: deviceID)
         ]
         try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
+    }
+
+    /// How many `fetchPlayerSnapshot` callers joined one already under way (`SpotiglassTests` only).
+    // periphery:ignore
+    func joinedPlayerSnapshotCallers() async -> Int {
+        await playerSnapshotFetchCoalescer.joinedCallers
     }
 
     func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot? {

@@ -108,10 +108,15 @@ final class CrossServicePlaybackTests: XCTestCase {
 
         services.send([.appleMusic, .spotify])
         services.send([.appleMusic])
-        try await Task.sleep(for: .milliseconds(100))
 
+        XCTAssertNil(hosts.appleMusicStop, "adding or keeping Apple Music started a stop of its player")
         XCTAssertFalse(player.commands.contains("stop"))
         XCTAssertTrue(PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: appleMusic.connectionState))
+
+        // Removing it is what stops it.
+        services.send([.spotify])
+        await hosts.appleMusicStop?.value
+        XCTAssertTrue(player.commands.contains("stop"))
     }
 
     /// Signing out while a play is still looking up its songs: when the lookup returns, the
@@ -401,7 +406,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         player.advance(by: 1)
         appleMusic.setConnectionState(.paused(piranguera))
         XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar shows Piranguera")
-        try await Task.sleep(for: .milliseconds(100))
+        await ViewTestHost.renderPendingUpdates()
         XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed when Piranguera paused")
         XCTAssertEqual(looked, ["Piranguera"], "the paused lyrics went to another song")
         lyricsOverlay.presentedBinding {}.wrappedValue = false
@@ -475,7 +480,10 @@ final class CrossServicePlaybackTests: XCTestCase {
                 continue
             }
             XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too, \(label)")
-            try await Task.sleep(for: .milliseconds(200))
+            // The lyrics take up the wait for Spotify's song: the same step closes them when no
+            // song is coming.
+            try await waitUntil { lyricsOverlay.lyricsModel?.phase == .loading }
+            await ViewTestHost.renderPendingUpdates()
             XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way, \(label)")
             XCTAssertEqual(lyricsOverlay.lyricsModel?.phase, .loading, "the lyrics wait for the song, like the bar, \(label)")
             XCTAssertTrue(manager.isLyricsToggleAllowed, "Hide Lyrics doesn't work while the lyrics wait, \(label)")

@@ -631,17 +631,29 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testFetchPlayerSnapshotCoalescesConcurrentCallers() async throws {
-        let http = CountingDelayHTTPClient(
-            delayNanoseconds: 100_000_000,
-            json: #"{"shuffle_state":false,"repeat_state":"off","is_playing":false}"#
+        let held = MockCallHold()
+        let http = CountingHeldHTTPClient(
+            hold: held,
+            json: #"{"shuffle_state":true,"repeat_state":"off","is_playing":true}"#
         )
         let api = SpotifyPlaybackAPI(tokenProvider: StaticPlaybackTokenProvider(token: "t"), httpClient: http)
 
-        async let first = api.fetchPlayerSnapshot()
-        async let second = api.fetchPlayerSnapshot()
-        _ = try await (first, second)
+        let first = Task { try await api.fetchPlayerSnapshot() }
+        let didStartFetch = await held.entered.wait(timeout: .seconds(mustHappenTimeout))
+        XCTAssertTrue(didStartFetch, "the first caller should start the GET")
+        let second = Task { try await api.fetchPlayerSnapshot() }
+        // Until the second caller joined the GET under way, or sent its own (which releases the hold).
+        let deadline = ContinuousClock.now + .seconds(mustHappenTimeout)
+        while await api.joinedPlayerSnapshotCallers() == 0, http.requestsStarted < 2, ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        held.release()
+        let (firstSnapshot, secondSnapshot) = try await (first.value, second.value)
 
         XCTAssertEqual(http.requestsStarted, 1, "Concurrent fetchPlayerSnapshot calls must share one GET /v1/me/player.")
+        let shared = try XCTUnwrap(firstSnapshot, "the first caller got no snapshot")
+        XCTAssertTrue(shared.isPlaying)
+        XCTAssertEqual(secondSnapshot, shared, "the caller that joined must get the same snapshot")
     }
 
     func testFetchPlayerSnapshotPropagatesNonRetryableURLError() async {
@@ -696,22 +708,22 @@ private final class AlwaysFailHTTPClient: HTTPClient, @unchecked Sendable {
     }
 }
 
-private final class CountingDelayHTTPClient: HTTPClient, @unchecked Sendable {
-    private let delayNanoseconds: UInt64
+/// Counts requests and holds the first one until the test releases it.
+private final class CountingHeldHTTPClient: HTTPClient, @unchecked Sendable {
+    private let hold: MockCallHold
     private let json: String
     private let lock = NSLock()
-    private(set) var requestsStarted = 0
+    private var started = 0
+    var requestsStarted: Int { lock.withLock { started } }
 
-    init(delayNanoseconds: UInt64, json: String) {
-        self.delayNanoseconds = delayNanoseconds
+    init(hold: MockCallHold, json: String) {
+        self.hold = hold
         self.json = json
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        lock.lock()
-        requestsStarted += 1
-        lock.unlock()
-        try await Task.sleep(nanoseconds: delayNanoseconds)
+        lock.withLock { started += 1 }
+        await hold.pass()
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
         return (Data(json.utf8), response)
     }

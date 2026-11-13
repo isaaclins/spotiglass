@@ -58,14 +58,22 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
     func testReadyAndConcurrentSyncCallersShareOneInitialTransportFetch() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.fetchPlayerSnapshotDelayNanoseconds = 100_000_000
+        let initialFetch = MockCallHold()
+        playbackAPI.fetchPlayerSnapshotHold = initialFetch
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
+        let initialSync = viewModel.transportSyncSchedulerTask
 
-        async let firstSync: Void = viewModel.syncTransportFromSpotify()
-        async let secondSync: Void = viewModel.syncTransportFromSpotify()
-        _ = await (firstSync, secondSync)
+        let didStartInitialFetch = await initialFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
+        XCTAssertTrue(didStartInitialFetch, "ready should start the initial transport read")
+        // Each caller runs at once up to where it waits, so both are waiting before the read ends.
+        let firstSync = Task.immediate { await viewModel.syncTransportFromSpotify() }
+        let secondSync = Task.immediate { await viewModel.syncTransportFromSpotify() }
+        initialFetch.release()
+        await firstSync.value
+        await secondSync.value
+        await initialSync?.value
 
         XCTAssertEqual(
             playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,

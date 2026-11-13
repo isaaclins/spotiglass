@@ -277,7 +277,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testRefreshConnectDevicesCoalescesConcurrentRequests() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.fetchAvailableDevicesDelayNanoseconds = 80_000_000
+        let firstFetch = MockCallHold()
+        playbackAPI.fetchAvailableDevicesHold = firstFetch
         playbackAPI.availableDevices = [
             MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
@@ -286,10 +287,14 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             connectDevicesFreshnessWindow: .seconds(0)
         )
 
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await viewModel.refreshConnectDevices() }
-            group.addTask { await viewModel.refreshConnectDevices() }
-        }
+        let firstRefresh = Task { await viewModel.refreshConnectDevices() }
+        let didStartFirstFetch = await firstFetch.entered.wait(timeout: .seconds(mustHappenTimeout))
+        XCTAssertTrue(didStartFirstFetch, "the first devices request should be in flight before the second caller")
+        // Runs at once up to where it waits, so it is waiting on the first request before that ends.
+        let secondRefresh = Task.immediate { await viewModel.refreshConnectDevices() }
+        firstFetch.release()
+        await firstRefresh.value
+        await secondRefresh.value
 
         let refreshCalls = playbackAPI.actions.filter { $0 == "fetchAvailableDevices" }
         XCTAssertEqual(refreshCalls.count, 1, "Concurrent refresh callers should share one in-flight devices request.")

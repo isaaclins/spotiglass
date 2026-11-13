@@ -1,0 +1,6 @@
+// The HAL driver's C code (SpotiglassEQDriver/), compiled into the test target so the
+// equalizer tests run the code the driver ships instead of a copy of it.
+module SpotiglassEQDriverC {
+    header "EQDriverTestShim.h"
+    export *
+}
