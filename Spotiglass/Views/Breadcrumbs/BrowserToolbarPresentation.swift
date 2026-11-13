@@ -15,28 +15,19 @@ enum BrowserToolbarPresentation {
         case .likedSongs:
             return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
         case .playlist, .artist, .album:
-            return localizedName(breadcrumb.label, of: breadcrumb.kind, locale: locale)
-        }
-    }
-
-    /// A crumb keeps the name it was opened with. A nameless item's stand-in and the "Playlist"
-    /// and "Artist" fallbacks are the app's words, so they read in the current language (#548).
-    static func localizedName(_ label: String, of kind: BrowserBreadcrumb.Kind, locale: Locale) -> String {
-        switch kind {
-        case .playlist:
-            if SpotiglassL10n.isText(label, ofKey: "browser.breadcrumb.playlistFallback") {
-                return SpotiglassL10n.string("browser.breadcrumb.playlistFallback", locale: locale)
+            // The app's own fallback reads in the current language; a name the service sent is
+            // kept, except a nameless item's stand-in ("Unknown album"), which is the app's (#548).
+            if let key = breadcrumb.fallbackKey {
+                return SpotiglassL10n.string(key, locale: locale)
             }
-            return UnnamedMusicItem.displayName(label, kind: .playlist, locale: locale)
-        case .artist:
-            if SpotiglassL10n.isText(label, ofKey: "browser.breadcrumb.artistFallback") {
-                return SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
+            switch breadcrumb.kind {
+            case .playlist:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .playlist, locale: locale)
+            case .artist:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .artist, locale: locale)
+            default:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .album, locale: locale)
             }
-            return UnnamedMusicItem.displayName(label, kind: .artist, locale: locale)
-        case .album:
-            return UnnamedMusicItem.displayName(label, kind: .album, locale: locale)
-        case .search, .likedSongs:
-            return label
         }
     }
 

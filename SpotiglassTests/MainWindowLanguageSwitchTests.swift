@@ -76,6 +76,10 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             id: "alb", name: "Awake", imageURL: nil, releaseYear: "2014",
             totalTracks: 10, group: .album, uri: "spotify:album:alb"
         ))
+        let namelessAlbumRow = ArtistAlbumRowViewModel(MusicArtistAlbum(
+            id: "nameless", name: "", imageURL: nil, releaseYear: nil,
+            totalTracks: 10, group: .album, uri: "spotify:album:nameless"
+        ))
         let emptyState = BrowsingLoadState<BrowsingDetailContent>.empty(
             LocalizedText(SpotiglassL10n.string("browser.empty.signInToBrowse"))
         )
@@ -105,6 +109,8 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(unavailableRow.badgeText, SpotiglassL10n.string("browser.trackBadge.unavailable", locale: german))
         XCTAssertEqual(unavailableRow.subtitle, SpotiglassL10n.string("browser.unavailableReason.track", locale: german))
         XCTAssertEqual(albumRow.trackCountText, "10 Titel")
+        XCTAssertEqual(albumRow.title, "Awake")
+        XCTAssertEqual(namelessAlbumRow.title, UnnamedMusicItem.album.placeholder(locale: german))
         XCTAssertEqual(namelessRow.title, UnnamedMusicItem.track.placeholder(locale: german))
         XCTAssertEqual(namelessRow.subtitle, UnnamedMusicItem.artist.placeholder(locale: german))
         XCTAssertEqual(networkError.message, SpotiglassL10n.string("error.spotify.unexpectedShape", locale: german))
@@ -454,6 +460,12 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             isPlayable: true, uri: "spotify:episode:s"
         ))
         XCTAssertEqual(realShow.subtitleInAppLanguage, "Podcast")
+        // An episode's subtitle is its show's name, even one that reads like an artist stand-in.
+        let oddShow = QueueItem.from(episode: MusicEpisode(
+            id: "o", name: "Episode", showName: "Unknown artist", artworkURL: nil, durationMilliseconds: 60_000,
+            isPlayable: true, uri: "spotify:episode:o"
+        ))
+        XCTAssertEqual(oddShow.subtitleInAppLanguage, "Unknown artist")
     }
 
     /// A name that reads like a key is still a name: rows compare what their text is made from,
@@ -508,7 +520,7 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         )
         let artist = BrowserBreadcrumb(
             id: UUID(), label: SpotiglassL10n.string("browser.breadcrumb.artistFallback"),
-            systemImage: "person", kind: .artist(id: "r")
+            systemImage: "person", kind: .artist(id: "r"), fallbackKey: "browser.breadcrumb.artistFallback"
         )
         let named = BrowserBreadcrumb(id: UUID(), label: "Awake", systemImage: "opticaldisc",
             kind: .album(id: "b", title: "Awake", subtitle: "", artworkURL: nil))
@@ -521,6 +533,15 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: german)
         )
         XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: named), "Awake")
+
+        // A real playlist called "Playlist" and a real artist called "Künstler" keep their
+        // names: only the app's own fallback reads in the current language.
+        try store.mutate { $0.appearance.language = .spanish }
+        let realPlaylist = BrowserBreadcrumb(id: UUID(), label: "Playlist", systemImage: "music.note.list", kind: .playlist(id: "p"))
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: realPlaylist), "Playlist")
+        try store.mutate { $0.appearance.language = .english }
+        let realArtist = BrowserBreadcrumb(id: UUID(), label: "Künstler", systemImage: "person", kind: .artist(id: "k"))
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: realArtist), "Künstler")
     }
 
     /// Home links an artist under a card by matching its name to the service's ID. A nameless

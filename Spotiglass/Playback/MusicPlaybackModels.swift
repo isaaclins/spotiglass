@@ -291,6 +291,8 @@ struct QueueItem: Identifiable, Equatable {
         if subtitleIsEpisodeFallback {
             return SpotiglassL10n.string("playback.queue.episodeFallback")
         }
+        // An episode's subtitle is its show's name, which is never a stand-in.
+        if uri?.contains(":episode:") == true { return subtitle }
         return UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
     }
 }

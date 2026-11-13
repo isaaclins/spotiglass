@@ -2,7 +2,9 @@ import Foundation
 
 struct ArtistAlbumRowViewModel: Equatable, Identifiable {
     let id: String
-    let title: String
+    /// A nameless album's stand-in is looked up when shown, so it follows a switch (#548).
+    private let titleText: LocalizedText
+    var title: String { titleText.string }
     let artworkURL: URL?
     let yearText: String?
     /// Worked out when shown, so the row follows a language switch (#548).
@@ -18,7 +20,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
 
     init(_ album: MusicArtistAlbum) {
         id = album.id
-        title = album.name
+        titleText = .musicName(album.name, kind: .album)
         artworkURL = album.imageURL
         yearText = album.releaseYear
         totalTrackCount = max(0, album.totalTracks)

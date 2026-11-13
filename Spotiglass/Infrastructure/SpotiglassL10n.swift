@@ -224,12 +224,6 @@ enum SpotiglassL10n {
         string(key)
     }
 
-    /// Whether `text` is `key`'s text in one of the app's languages: a word the app stored
-    /// earlier, which should read in the current language now.
-    static func isText(_ text: String, ofKey key: String) -> Bool {
-        AppLanguage.allCases.contains { string(key, locale: Locale(identifier: $0.rawValue)) == text }
-    }
-
     /// `text` in the current app language when it is one of the app's own sentences, resolved
     /// earlier in any supported language; any other text comes back unchanged. Only pass whole
     /// sentences: a short label such as "Play" or "Titel" belongs to several keys whose
