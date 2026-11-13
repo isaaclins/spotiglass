@@ -160,7 +160,7 @@ struct LibraryRemovalConfirmation: ViewModifier {
     private var title: String {
         switch viewModel.pendingLibraryRemoval {
         case let .album(_, name):
-            SpotiglassL10n.format("libraryRemoval.confirm.album.title", name)
+            SpotiglassL10n.format("libraryRemoval.confirm.album.title", UnnamedMusicItem.displayName(name, kind: .album))
         case .songs, nil:
             SpotiglassL10n.string("libraryRemoval.confirm.songs.title")
         }

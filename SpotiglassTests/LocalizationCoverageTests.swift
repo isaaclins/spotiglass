@@ -654,7 +654,11 @@ final class LocalizationCoverageTests: XCTestCase {
         guard case let .selectAlbum(_, _, albumSubtitle, _)? = PlaylistBrowserPinnedItemActivation.route(
             for: pins[2], previousSelection: nil
         ) else { return XCTFail("expected an album route") }
-        XCTAssertEqual(albumSubtitle, "Unbekannter Künstler")
+        // The route hands the line on as saved; the album page says it in the language of the moment (#571).
+        let albumHeader = PlaylistRowViewModel(
+            albumDisplayName: "Album", artistsDisplay: albumSubtitle, totalTrackCount: 1, artworkURL: nil, albumID: "al1"
+        )
+        XCTAssertEqual(albumHeader.localizedOwner(locale: locale), "Unbekannter Künstler")
         XCTAssertEqual(commaArtist.localizedSubtitle(locale: locale), "Tyler, The Creator")
         XCTAssertEqual(noArtist.localizedSubtitle(locale: locale), "")
         XCTAssertEqual(episode.name, "Unbekannte Episode")

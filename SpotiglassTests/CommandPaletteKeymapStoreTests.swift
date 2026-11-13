@@ -95,9 +95,7 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
             ) { error in
                 XCTAssertEqual(
                     error as? KeymapConflictError,
-                    .reservedByMenuItem(
-                        menuItemTitle: SpotiglassL10n.string(reservation.menuTitleKey)
-                    )
+                    .reservedByMenuItem(menuTitleKey: reservation.menuTitleKey)
                 )
             }
             XCTAssertEqual(
@@ -123,7 +121,7 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
     /// the keymap now (#131).
     func testCommandKIsNotReservedBecauseThePaletteItemFollowsTheKeymap() throws {
         let commandK = try CommandShortcut(keystroke: "cmd-k")
-        XCTAssertNil(CommandPaletteReservedShortcuts.reservingMenuItem(for: commandK))
+        XCTAssertNil(CommandPaletteReservedShortcuts.reservingMenuTitleKey(for: commandK))
 
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settingsStore = SpotiglassSettingsStore(fileURL: url)

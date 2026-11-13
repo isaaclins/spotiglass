@@ -11,7 +11,7 @@ struct HotkeyRecorderField: NSViewRepresentable {
     var onCaptureConflict: (CommandShortcut, String) -> Void
     /// Invoked when a key event cannot be recorded and a reason should be shown
     /// next to the field instead of leaving the user with no feedback.
-    var onCaptureFailure: (String) -> Void = { _ in }
+    var onCaptureFailure: (LocalizedText) -> Void = { _ in }
     /// Invoked after a successful apply or clear from this field.
     var onApplied: () -> Void
     /// The chord the row reports a conflict for. The field shows it in place of
@@ -188,8 +188,8 @@ struct HotkeyRecorderField: NSViewRepresentable {
             guard let shortcut = CommandShortcut(recordingKeyDown: event),
                   (try? shortcut.canonicalToken()) != nil
             else {
-                let message = SpotiglassL10n.string("palette.settings.recordingUnsupported")
-                parent.keymapStore.lastError = message
+                let message = LocalizedText(SpotiglassL10n.string("palette.settings.recordingUnsupported"))
+                parent.keymapStore.lastErrorText = message
                 parent.onCaptureFailure(message)
                 return
             }
@@ -209,22 +209,24 @@ struct HotkeyRecorderField: NSViewRepresentable {
                     parent.onCaptureConflict(shortcut, otherID)
                 case .reservedByMenuItem:
                     // Like an unusable key: say why on the row, keep recording.
-                    let message = CommandPaletteKeymapErrorPresenter.message(
+                    let source = parent.keymapStore.fileURL.path
+                    let message = CommandPaletteKeymapErrorPresenter.text(
                         for: conflict,
-                        source: parent.keymapStore.fileURL.path,
+                        source: source,
                         operation: "record shortcut"
                     )
-                    parent.keymapStore.lastError = message
+                    parent.keymapStore.lastErrorText = message
                     parent.onCaptureFailure(message)
                 }
             } catch {
                 view.finishRecordingAndResign()
-                let message = CommandPaletteKeymapErrorPresenter.message(
+                let source = parent.keymapStore.fileURL.path
+                let message = CommandPaletteKeymapErrorPresenter.text(
                     for: error,
-                    source: parent.keymapStore.fileURL.path,
+                    source: source,
                     operation: "record shortcut"
                 )
-                parent.keymapStore.lastError = message
+                parent.keymapStore.lastErrorText = message
                 parent.onCaptureFailure(message)
             }
         }
@@ -235,12 +237,13 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 try parent.keymapStore.clearBinding(commandID: parent.commandID)
                 parent.onApplied()
             } catch {
-                let message = CommandPaletteKeymapErrorPresenter.message(
+                let source = parent.keymapStore.fileURL.path
+                let message = CommandPaletteKeymapErrorPresenter.text(
                     for: error,
-                    source: parent.keymapStore.fileURL.path,
+                    source: source,
                     operation: "clear shortcut"
                 )
-                parent.keymapStore.lastError = message
+                parent.keymapStore.lastErrorText = message
                 parent.onCaptureFailure(message)
             }
         }

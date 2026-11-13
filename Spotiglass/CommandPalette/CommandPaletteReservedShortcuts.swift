@@ -37,14 +37,15 @@ enum CommandPaletteReservedShortcuts {
         ),
     ]
 
-    /// The menu item that already owns this chord, named for a person to read.
+    /// The localization key of the menu item that already owns this chord, so its name is looked
+    /// up when shown and follows a language switch (#571).
     /// `nil` when the chord is free, or when it already belongs to `commandID` itself.
-    static func reservingMenuItem(for shortcut: CommandShortcut, bindingCommand commandID: String? = nil) -> String? {
+    static func reservingMenuTitleKey(for shortcut: CommandShortcut, bindingCommand commandID: String? = nil) -> String? {
         for reservation in all {
             if let owner = reservation.commandID, owner == commandID { continue }
             guard let reserved = try? CommandShortcut(keystroke: reservation.keystroke) else { continue }
             if reserved == shortcut {
-                return SpotiglassL10n.string(reservation.menuTitleKey)
+                return reservation.menuTitleKey
             }
         }
         return nil

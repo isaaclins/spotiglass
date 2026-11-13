@@ -28,8 +28,9 @@ import Foundation
 enum EqualizerRouteState: Equatable {
     case disabled
     case starting(targetUID: String?)
-    case live(targetUID: String, errorMessage: String?)
-    case failed(message: String?, isEngaged: Bool)
+    /// The messages are looked up when shown, so they follow a language switch (#571).
+    case live(targetUID: String, errorMessage: LocalizedText?)
+    case failed(message: LocalizedText?, isEngaged: Bool)
 
     var isLive: Bool {
         if case .live = self { return true }
@@ -62,8 +63,8 @@ enum EqualizerRouteState: Equatable {
 
     var errorMessage: String? {
         switch self {
-        case let .live(_, errorMessage): return errorMessage
-        case let .failed(message, _): return message
+        case let .live(_, errorMessage): return errorMessage?.string
+        case let .failed(message, _): return message?.string
         case .disabled, .starting: return nil
         }
     }
@@ -218,7 +219,7 @@ final class AudioEqualizerEngine: ObservableObject {
             recordFailure(error)
             requiresBackgroundApproval = Self.isBackgroundApprovalFailure(error)
             routeState = .failed(
-                message: userFacingErrorMessage(for: error),
+                message: userFacingErrorText(for: error),
                 isEngaged: false
             )
             throw error
@@ -245,16 +246,16 @@ final class AudioEqualizerEngine: ObservableObject {
             case let .live(targetUID, _):
                 routeState = .live(
                     targetUID: targetUID,
-                    errorMessage: userFacingErrorMessage(for: error)
+                    errorMessage: userFacingErrorText(for: error)
                 )
             case let .failed(_, isEngaged):
                 routeState = .failed(
-                    message: userFacingErrorMessage(for: error),
+                    message: userFacingErrorText(for: error),
                     isEngaged: isEngaged
                 )
             default:
                 routeState = .failed(
-                    message: userFacingErrorMessage(for: error),
+                    message: userFacingErrorText(for: error),
                     isEngaged: false
                 )
             }
@@ -309,7 +310,7 @@ final class AudioEqualizerEngine: ObservableObject {
         } catch {
             recordFailure(error)
             routeState = .failed(
-                message: userFacingErrorMessage(for: error),
+                message: userFacingErrorText(for: error),
                 isEngaged: true
             )
         }
@@ -329,7 +330,7 @@ final class AudioEqualizerEngine: ObservableObject {
         } catch {
             recordFailure(error)
             routeState = .failed(
-                message: userFacingErrorMessage(for: error),
+                message: userFacingErrorText(for: error),
                 isEngaged: true
             )
         }
@@ -366,11 +367,13 @@ final class AudioEqualizerEngine: ObservableObject {
         return false
     }
 
-    private func userFacingErrorMessage(for error: Error) -> String? {
+    /// The error is kept, not its sentence, so the line follows a language switch (#571).
+    private func userFacingErrorText(for error: Error) -> LocalizedText? {
         if let pluginError = error as? EqualizerHALPluginError {
-            return pluginError.userFacingDescription
+            guard pluginError.userFacingDescription != nil else { return nil }
+            return LocalizedText(pluginError.userFacingDescription ?? "")
         }
-        return error.localizedDescription
+        return LocalizedText(error.localizedDescription)
     }
 
     private func recordFailure(_ error: Error) {

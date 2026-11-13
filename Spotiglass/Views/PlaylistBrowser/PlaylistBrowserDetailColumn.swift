@@ -195,7 +195,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                             .task(id: toast) {
                                 try? await Task.sleep(nanoseconds: 2_400_000_000)
                                 if viewModel.trackMutationToast == toast {
-                                    viewModel.trackMutationToast = nil
+                                    viewModel.trackMutationToastText = nil
                                 }
                             }
                     }

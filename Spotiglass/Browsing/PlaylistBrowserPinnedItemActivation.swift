@@ -31,7 +31,9 @@ enum PlaylistBrowserPinnedItemActivation {
             return .selectAlbum(
                 id: spotifyID,
                 title: item.localizedTitle(),
-                subtitle: item.localizedSubtitle(),
+                // As saved, or the marker for "Album": the album page says it when it is shown, in
+                // the language of the moment, and names a nameless artist the same way (#571).
+                subtitle: item.subtitleKey == AlbumLine.yearlessKey ? AlbumLine.yearlessMarker : item.subtitle,
                 artworkURL: item.artworkURL
             )
         case .likedSongs:
