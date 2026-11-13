@@ -221,7 +221,7 @@ struct ArtistTapTarget: Equatable, Identifiable {
 
     /// ``name`` with a stand-in for a nameless artist in the app's current language (#548).
     var nameInAppLanguage: String {
-        UnnamedMusicItem.displayArtistList(name, locale: SpotiglassL10n.locale)
+        UnnamedMusicItem.displayName(name, kind: .artist, locale: SpotiglassL10n.locale)
     }
 
     var stableID: String {
@@ -258,6 +258,8 @@ struct QueueItem: Identifiable, Equatable {
     let durationMilliseconds: Int
     let uri: String?
     let artistTapTargets: [ArtistTapTarget]
+    /// An episode without a show: ``subtitle`` is the app's "Podcast", not a show's name.
+    private let subtitleIsEpisodeFallback: Bool
 
     init(
         id: String? = nil,
@@ -268,7 +270,8 @@ struct QueueItem: Identifiable, Equatable {
         albumID: String? = nil,
         durationMilliseconds: Int,
         uri: String?,
-        artistTapTargets: [ArtistTapTarget] = []
+        artistTapTargets: [ArtistTapTarget] = [],
+        subtitleIsEpisodeFallback: Bool = false
     ) {
         self.id = id ?? UUID().uuidString
         self.storedName = name
@@ -278,23 +281,17 @@ struct QueueItem: Identifiable, Equatable {
         self.albumID = albumID
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
+        self.subtitleIsEpisodeFallback = subtitleIsEpisodeFallback
         self.artistTapTargets = artistTapTargets
     }
 
     /// ``subtitle`` with each artist stand-in in the app's current language, like a pin's
     /// subtitle: a nameless artist queued in English reads German after a switch (#548).
     var subtitleInAppLanguage: String {
-        if uri?.hasPrefix("spotify:episode:") == true, Self.isEpisodeFallback(subtitle) {
+        if subtitleIsEpisodeFallback {
             return SpotiglassL10n.string("playback.queue.episodeFallback")
         }
         return UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
-    }
-
-    /// The subtitle an episode without a show gets, in any of the app's languages.
-    private static func isEpisodeFallback(_ subtitle: String) -> Bool {
-        AppLanguage.allCases.contains {
-            SpotiglassL10n.string("playback.queue.episodeFallback", locale: Locale(identifier: $0.rawValue)) == subtitle
-        }
     }
 }
 
@@ -330,7 +327,8 @@ extension QueueItem {
             subtitle: episode.showName ?? SpotiglassL10n.string("playback.queue.episodeFallback"),
             albumArtURL: episode.artworkURL,
             durationMilliseconds: episode.durationMilliseconds,
-            uri: episode.uri
+            uri: episode.uri,
+            subtitleIsEpisodeFallback: episode.showName == nil
         )
     }
 

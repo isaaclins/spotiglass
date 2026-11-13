@@ -130,7 +130,12 @@ enum HomeArtistCredit: Equatable {
         // instead of dropping out of the line.
         var unmatched = refs
         return names.map { name in
-            guard let index = unmatched.firstIndex(where: { $0.name == name }) else { return .name(name) }
+            // A nameless artist's stand-in was taken in the language of the moment; the ref's
+            // follows the app's, so after a switch they match as stand-ins, not as text (#548).
+            guard let index = unmatched.firstIndex(where: {
+                $0.name == name
+                    || (UnnamedMusicItem.isStandIn($0.name, kind: .artist) && UnnamedMusicItem.isStandIn(name, kind: .artist))
+            }) else { return .name(name) }
             return .link(unmatched.remove(at: index))
         }
     }

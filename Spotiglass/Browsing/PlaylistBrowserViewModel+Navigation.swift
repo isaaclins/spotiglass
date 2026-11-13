@@ -103,13 +103,14 @@ extension PlaylistBrowserViewModel {
             return SpotiglassL10n.string("browser.home", locale: locale)
         case let .artist(id):
             if let crumb = breadcrumbPath.last(where: { $0.kind == .artist(id: id) }) {
-                return crumb.label
+                return BrowserToolbarPresentation.localizedName(crumb.label, of: crumb.kind, locale: locale)
             }
-            return cachedArtistSnapshots[id]?.snapshot.artistDetail.name
-                ?? backNavigationArtistNames[id]
-                ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
+            if let name = cachedArtistSnapshots[id]?.snapshot.artistDetail.name ?? backNavigationArtistNames[id] {
+                return UnnamedMusicItem.displayName(name, kind: .artist, locale: locale)
+            }
+            return SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
         case let .album(_, title, _, _):
-            return title
+            return UnnamedMusicItem.displayName(title, kind: .album, locale: locale)
         }
     }
 

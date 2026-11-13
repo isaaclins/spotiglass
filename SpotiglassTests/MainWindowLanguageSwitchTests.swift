@@ -311,6 +311,20 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         )
         let item = MusicPlaylistTrackItem(id: "t", content: .track(track))
         XCTAssertEqual(TrackRowViewModel(item, listPosition: 1), TrackRowViewModel(item, listPosition: 1))
+
+        // A refresh that finds a long list unchanged compares every row: no string lookups.
+        let items = (0..<2_000).map { index in
+            MusicPlaylistTrackItem(id: "t\(index)", content: .track(MusicTrack(
+                id: "t\(index)", name: "Song \(index)", artists: ["A", "B"], albumArtworkURL: nil,
+                durationMilliseconds: 60_000, isExplicit: index.isMultiple(of: 2), isPlayable: index % 7 != 0,
+                linkedFromID: nil, uri: "spotify:track:t\(index)"
+            )))
+        }
+        let shown = TrackRowViewModel.numberedPlaylistRows(items)
+        let reloaded = TrackRowViewModel.numberedPlaylistRows(items)
+        SpotiglassL10n.lookups.withLock { $0 = 0 }
+        XCTAssertEqual(shown, reloaded)
+        XCTAssertEqual(SpotiglassL10n.lookups.withLock { $0 }, 0, "Comparing an unchanged list looked strings up")
     }
 
     /// Palette search results are built by the service search in the language of the moment.
@@ -351,6 +365,19 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(searches, 2, "The open search was not asked for again")
         XCTAssertEqual(viewModel.visibleItems.first { $0.id == highlighted }?.subtitle, german)
         XCTAssertEqual(viewModel.visibleItems[viewModel.selectedIndex].id, highlighted, "A switch moved the highlight")
+
+        // Moving down while the results are on their way again keeps the row moved to.
+        try store.mutate { $0.appearance.language = .spanish }
+        viewModel.languageDidChange()
+        viewModel.moveSelection(delta: 1)
+        let movedTo = viewModel.visibleItems[viewModel.selectedIndex].id
+        XCTAssertNotEqual(movedTo, highlighted)
+        await viewModel.waitForSearchCompletion()
+        XCTAssertEqual(
+            viewModel.visibleItems[viewModel.selectedIndex].id,
+            movedTo,
+            "The highlight jumped back when the results came in"
+        )
     }
 
     /// A rate-limited palette search says why it waits. A switch during the wait cleared that
@@ -421,6 +448,12 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             queuedEpisode.subtitleInAppLanguage,
             SpotiglassL10n.string("playback.queue.episodeFallback", locale: spanish)
         )
+        // A show that is really called "Podcast" keeps its name.
+        let realShow = QueueItem.from(episode: MusicEpisode(
+            id: "s", name: "Episode", showName: "Podcast", artworkURL: nil, durationMilliseconds: 60_000,
+            isPlayable: true, uri: "spotify:episode:s"
+        ))
+        XCTAssertEqual(realShow.subtitleInAppLanguage, "Podcast")
     }
 
     /// A name that reads like a key is still a name: rows compare what their text is made from,
@@ -439,6 +472,70 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
             ))), listPosition: 1)
         }
         XCTAssertNotEqual(row(showName: nil), row(showName: key))
+    }
+
+    /// Search keeps its results across a switch. An Apple Music library playlist's owner is the
+    /// app's "You", which stayed in the old language there, and an album page's artist line kept
+    /// "Unknown artist".
+    func testSearchOwnersAndAlbumHeadersFollowALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let playlist = MusicPlaylistSummary(
+            id: "p", name: "Mine", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+            ownerName: SpotiglassL10n.string("appleMusic.library.owner"), imageURL: nil, trackCount: 3, snapshotID: "s"
+        )
+        let header = PlaylistRowViewModel(
+            albumDisplayName: "Awake", artistsDisplay: UnnamedMusicItem.artist.placeholder,
+            totalTrackCount: 10, artworkURL: nil, albumID: "alb"
+        )
+
+        try store.mutate { $0.appearance.language = .german }
+        let german = Locale(identifier: "de")
+        XCTAssertEqual(playlist.ownerNameInAppLanguage, SpotiglassL10n.string("appleMusic.library.owner", locale: german))
+        XCTAssertEqual(header.localizedOwner(), UnnamedMusicItem.artist.placeholder(locale: german))
+    }
+
+    /// The window title and the back button name the page by the label it was opened with. A
+    /// nameless album's stand-in and the "Artist" fallback are the app's words.
+    func testToolbarNamesFollowALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let album = BrowserBreadcrumb(
+            id: UUID(), label: UnnamedMusicItem.album.placeholder, systemImage: "opticaldisc",
+            kind: .album(id: "a", title: UnnamedMusicItem.album.placeholder, subtitle: "", artworkURL: nil)
+        )
+        let artist = BrowserBreadcrumb(
+            id: UUID(), label: SpotiglassL10n.string("browser.breadcrumb.artistFallback"),
+            systemImage: "person", kind: .artist(id: "r")
+        )
+        let named = BrowserBreadcrumb(id: UUID(), label: "Awake", systemImage: "opticaldisc",
+            kind: .album(id: "b", title: "Awake", subtitle: "", artworkURL: nil))
+
+        try store.mutate { $0.appearance.language = .german }
+        let german = Locale(identifier: "de")
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: album), UnnamedMusicItem.album.placeholder(locale: german))
+        XCTAssertEqual(
+            BrowserToolbarPresentation.localizedLabel(for: artist),
+            SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: german)
+        )
+        XCTAssertEqual(BrowserToolbarPresentation.localizedLabel(for: named), "Awake")
+    }
+
+    /// Home links an artist under a card by matching its name to the service's ID. A nameless
+    /// artist's stand-in on the card was taken before a switch and the ID's after it, so the
+    /// link turned into plain text.
+    func testHomeArtistLinksSurviveALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let names = [UnnamedMusicItem.artist.placeholder, "B"]
+        let refs = [MusicArtistRef(id: "a", name: "")]
+
+        try store.mutate { $0.appearance.language = .german }
+        let credits = HomeArtistCredit.credits(names: names, refs: refs)
+        guard case .link = credits.first else { return XCTFail("The nameless artist lost its link: \(credits)") }
     }
 
     /// Other settings changes (theme, lyrics size) don't redraw text that only depends on the

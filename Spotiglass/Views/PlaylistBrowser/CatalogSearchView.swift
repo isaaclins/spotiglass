@@ -320,7 +320,7 @@ struct CatalogSearchView: View {
             cardLayout(isFocused: searchViewModel.category == .playlists) {
                 ForEach(playlists) { playlist in
                     HomeMediaCardView(
-                        card: HomeMediaCard(playlist: playlist, subtitle: playlist.ownerName),
+                        card: HomeMediaCard(playlist: playlist, subtitle: playlist.ownerNameInAppLanguage),
                         browserViewModel: viewModel,
                         openArtist: openArtist
                     ) {

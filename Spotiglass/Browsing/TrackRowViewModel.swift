@@ -55,8 +55,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         switch item.content {
         case let .track(track):
             self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
-            self.titleText = LocalizedText(track.name, comparedBy: track.name)
-            self.subtitleText = LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
+            self.titleText = .musicName(track.name, kind: .track)
+            self.subtitleText = .musicNames(track.artists, kind: .artist)
             self.artworkURL = track.albumArtworkURL
             self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
             self.durationMilliseconds = max(0, track.durationMilliseconds)
@@ -69,8 +69,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.artistRefs = track.artistRefs
         case let .episode(episode):
             self.spotifyTrackID = nil
-            self.titleText = LocalizedText(episode.name, comparedBy: episode.name)
-            self.subtitleText = episode.showName.map { name in LocalizedText(name, comparedBy: name) }
+            self.titleText = .musicName(episode.name, kind: .episode)
+            self.subtitleText = episode.showName.map { name in LocalizedText(verbatim: name) }
                 ?? LocalizedText(SpotiglassL10n.string("browser.trackBadge.podcastEpisode"), comparedByKey: "browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
             self.durationText = TrackDuration.text(milliseconds: episode.durationMilliseconds)
@@ -84,10 +84,10 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.artistRefs = []
         case let .localTrack(track):
             self.spotifyTrackID = nil
-            self.titleText = LocalizedText(track.name, comparedBy: track.name)
+            self.titleText = .musicName(track.name, kind: .track)
             self.subtitleText = track.artists.isEmpty
                 ? LocalizedText(SpotiglassL10n.string("browser.trackBadge.localTrack"), comparedByKey: "browser.trackBadge.localTrack")
-                : LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
+                : .musicNames(track.artists, kind: .artist)
             self.artworkURL = nil
             self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
             self.durationMilliseconds = max(0, track.durationMilliseconds)
@@ -115,8 +115,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.listPosition = listPosition
         self.id = track.id
         self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
-        self.titleText = LocalizedText(track.name, comparedBy: track.name)
-        self.subtitleText = LocalizedText(track.artists.joined(separator: ", "), comparedBy: track.artists)
+        self.titleText = .musicName(track.name, kind: .track)
+        self.subtitleText = .musicNames(track.artists, kind: .artist)
         self.artworkURL = track.albumArtworkURL
         self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
         self.durationMilliseconds = max(0, track.durationMilliseconds)
@@ -142,7 +142,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
         } else {
             self.spotifyTrackID = nil
         }
-        self.titleText = LocalizedText(item.name, comparedBy: item.name)
+        self.titleText = .musicName(item.name, kind: .track)
         self.subtitleText = LocalizedText(item.subtitleInAppLanguage, comparedBy: item.subtitle)
         self.artworkURL = item.albumArtURL
         self.durationText = TrackDuration.text(milliseconds: item.durationMilliseconds)

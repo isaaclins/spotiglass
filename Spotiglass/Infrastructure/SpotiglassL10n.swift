@@ -168,6 +168,8 @@ enum SpotiglassL10n {
     /// spent most of its layout time here (#442).
     private static let localizationBundles = OSAllocatedUnfairLock<[String: [Bundle]]>(initialState: [:])
     #if DEBUG
+    /// How many strings were looked up, for tests.
+    static let lookups = OSAllocatedUnfairLock<Int>(initialState: 0)
     /// How often the bundles were looked for, for tests.
     static let localizationBundleSearches = OSAllocatedUnfairLock<Int>(initialState: 0)
     #endif
@@ -202,6 +204,9 @@ enum SpotiglassL10n {
     /// overload after reading `spotiglassLocale` from the environment; model
     /// and service code can continue to use the current-store overload above.
     static func string(_ key: String, locale: Locale) -> String {
+        #if DEBUG
+        lookups.withLock { $0 += 1 }
+        #endif
         let localizationBundle = bundle(for: locale, key: key)
         let value = localizationBundle.localizedString(forKey: key, value: key, table: nil)
         #if DEBUG
@@ -217,6 +222,12 @@ enum SpotiglassL10n {
     /// palette key-lookup fix.
     static func string(forKey key: String) -> String {
         string(key)
+    }
+
+    /// Whether `text` is `key`'s text in one of the app's languages: a word the app stored
+    /// earlier, which should read in the current language now.
+    static func isText(_ text: String, ofKey key: String) -> Bool {
+        AppLanguage.allCases.contains { string(key, locale: Locale(identifier: $0.rawValue)) == text }
     }
 
     /// `text` in the current app language when it is one of the app's own sentences, resolved

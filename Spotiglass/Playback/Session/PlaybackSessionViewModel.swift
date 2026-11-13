@@ -172,12 +172,16 @@ final class PlaybackSessionViewModel: ObservableObject {
         guard !helps else { return state }
         // Without a connection to restore, an error whose only fix was Reconnect means the
         // player isn't ready yet; its own text would point at a Reconnect that isn't there.
-        let message = action == .reconnect
-            ? SpotiglassL10n.string("error.playback.deviceUnavailable.notReady")
-            : error.message
         // The fix it offered was for a connection or a device this player doesn't have: the
         // player is still there, so the failure was momentary.
-        return .error(PlaybackDisplayError(title: error.title, message: message, recoveryAction: nil, isMomentary: true))
+        return .error(PlaybackDisplayError(
+            title: error.title,
+            message: action == .reconnect
+                ? SpotiglassL10n.string("error.playback.deviceUnavailable.notReady")
+                : error.message,
+            recoveryAction: nil,
+            isMomentary: true
+        ))
     }
 
     /// Whether the in-app player has its own volume. The transport bar hides its volume

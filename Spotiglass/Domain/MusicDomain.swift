@@ -38,6 +38,12 @@ struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
         UnnamedMusicItem.displayName(storedName, kind: .playlist)
     }
 
+    /// ``ownerName`` as the sidebar shows it: an Apple Music library playlist's owner is "You"
+    /// in the app's current language, not in the one the result was loaded in (#548).
+    var ownerNameInAppLanguage: String {
+        AppleMusicItemMapping.localizedOwnerName(ownerName, ownerID: ownerID, locale: SpotiglassL10n.locale)
+    }
+
     /// True when ``name`` is the stand-in, which rows and pins resolve again when they render.
     var isUnnamed: Bool {
         UnnamedMusicItem.isStandIn(storedName, kind: .playlist)
@@ -599,6 +605,24 @@ struct MusicLocalTrack: Codable, Equatable {
         case storedName = "name"
         case storedArtists = "artists"
         case durationMilliseconds, uri
+    }
+}
+
+extension LocalizedText {
+    /// A name as a model showed it: fixed text, unless it is a stand-in ("Unknown track"),
+    /// which is looked up again when shown. Real names cost nothing to read or compare.
+    static func musicName(_ shown: String, kind: UnnamedMusicItem) -> LocalizedText {
+        guard UnnamedMusicItem.isStandIn(shown, kind: kind) else { return LocalizedText(verbatim: shown) }
+        return LocalizedText(UnnamedMusicItem.displayName(shown, kind: kind), comparedBy: shown)
+    }
+
+    /// Names joined with ", ", each stand-in among them looked up again when shown.
+    static func musicNames(_ shown: [String], kind: UnnamedMusicItem) -> LocalizedText {
+        let joined = shown.joined(separator: ", ")
+        guard shown.contains(where: { UnnamedMusicItem.isStandIn($0, kind: kind) }) else {
+            return LocalizedText(verbatim: joined)
+        }
+        return LocalizedText(UnnamedMusicItem.displayNames(shown, kind: kind).joined(separator: ", "), comparedBy: joined)
     }
 }
 

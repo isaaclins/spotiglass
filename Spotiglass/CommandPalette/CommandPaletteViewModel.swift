@@ -193,8 +193,6 @@ final class CommandPaletteViewModel: ObservableObject {
         selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
     }
 
-    /// Rebuilds what the panel lists after the service's abilities changed (Play/Pause, Lyrics)
-    /// without moving the highlight off a row that is still there.
     /// The rows keep the names they were built with: build them again in the new language. The
     /// lists of commands keep the highlight on its row; search results are asked for again.
     func languageDidChange() {
@@ -218,6 +216,8 @@ final class CommandPaletteViewModel: ObservableObject {
     /// The row to highlight again when results are rebuilt after a language switch, by ID.
     private var selectionToKeep: String?
 
+    /// Rebuilds what the panel lists after the service's abilities changed (Play/Pause, Lyrics)
+    /// without moving the highlight off a row that is still there.
     func refreshListedCommands() {
         guard isPresented else { return }
         if showsSuggestions {
@@ -368,6 +368,10 @@ final class CommandPaletteViewModel: ObservableObject {
         let count = visibleItems.count
         guard count > 0 else { return }
         selectedIndex = min(max(0, selectedIndex + delta), count - 1)
+        // Moving while results are on their way again keeps the row moved to.
+        if selectionToKeep != nil {
+            selectionToKeep = visibleItems[selectedIndex].id
+        }
     }
 
     /// Cycles the Spotify search category (footer segments). No-op in command scope.
@@ -507,6 +511,8 @@ final class CommandPaletteViewModel: ObservableObject {
             cachedResultsQuery = query
             lastSuccessfulSongSearchQuery = dedupeQuery
             renderSectionsFromCache(trimmed: query)
+            // The results are back: the highlight is the reader's again.
+            selectionToKeep = nil
             isLoading = false
         } catch is CancellationError {
             isLoading = false
