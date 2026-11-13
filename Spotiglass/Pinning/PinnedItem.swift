@@ -33,6 +33,10 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
     /// catalog ID, and either one names this pin (#487). `nil` until they were looked up, so
     /// Spotify pins and pins saved before #487 decode unchanged.
     var aliasIDs: [String]?
+    /// Set when ``subtitle`` is the app's own word rather than something the service sent ("Album"
+    /// for an album pinned without a year), so it reads in the current language (#571). `nil` for
+    /// pins saved before, which keep the word they saved.
+    var subtitleKey: String?
 
     init(
         id: String,
@@ -45,7 +49,8 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
         playlistOwnerID: String? = nil,
         playlistTrackCount: Int? = nil,
         playlistSnapshotID: String? = nil,
-        aliasIDs: [String]? = nil
+        aliasIDs: [String]? = nil,
+        subtitleKey: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -58,6 +63,7 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
         self.playlistTrackCount = playlistTrackCount
         self.playlistSnapshotID = playlistSnapshotID
         self.aliasIDs = aliasIDs
+        self.subtitleKey = subtitleKey
     }
 
     /// ID for the Liked Songs virtual row. Stable across processes / accounts;
@@ -142,12 +148,13 @@ extension PinnedItem {
             id: id(forKind: .album, spotifyID: album.id),
             kind: .album,
             title: album.name,
-            // Without a year the pin saves no subtitle and says "Album" when shown, so the word
-            // follows a language switch (#571).
+            // Without a year the pin says "Album", looked up when shown so the word follows a
+            // language switch (#571).
             subtitle: album.releaseYear ?? "",
             artworkURL: album.imageURL,
             spotifyURI: album.uri,
-            isStale: false
+            isStale: false,
+            subtitleKey: album.releaseYear == nil ? AlbumLine.yearlessKey : nil
         )
     }
 
@@ -210,8 +217,8 @@ extension PinnedItem {
         case .artist:
             return Self.relabelled(subtitle, key: "browser.palette.subtitle.artist", locale: locale) ?? subtitle
         case .album:
-            if subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return SpotiglassL10n.string("pin.album.default", locale: locale)
+            if let subtitleKey {
+                return SpotiglassL10n.string(subtitleKey, locale: locale)
             }
             return UnnamedMusicItem.displayArtistList(subtitle, locale: locale)
         case .track:

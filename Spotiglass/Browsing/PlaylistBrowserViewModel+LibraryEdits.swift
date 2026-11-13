@@ -98,10 +98,11 @@ extension PlaylistBrowserViewModel {
             selectedDetailTrackIDs = []
             adjustSidebarTrackCountAfterEdit(playlistID: playlistID, by: -count)
             await refreshCurrentPlaylistMutationDetail(for: [playlistID])
+            let name = shownPlaylistName(playlistID: playlistID, given: playlistName)
             trackMutationToastText = LocalizedText(SpotiglassL10n.format(
                 "playlist.mutation.removedFromPlaylist",
                 Int64(count),
-                playlistName
+                name.string
             ))
         } catch {
             trackMutationToastText = Self.failureText(error, operation: .removeFromPlaylist)

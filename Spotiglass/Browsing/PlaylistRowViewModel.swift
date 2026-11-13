@@ -63,14 +63,9 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     /// virtual Liked Songs row's fallback, which must be resolved at render
     /// time so an in-app language switch updates cached rows too.
     func localizedOwner(locale: Locale = SpotiglassL10n.locale) -> String {
-        if isAlbumDetail {
-            // An album's line is its artists, or "Album" for one opened without a line (a pin
-            // without a year), both in the language of the moment (#571).
-            if owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return SpotiglassL10n.string("pin.album.default", locale: locale)
-            }
-            return UnnamedMusicItem.displayArtistList(owner, locale: locale)
-        }
+        // An album's line is its artists, or "Album" for a pin without a year, in the language of
+        // the moment (#571).
+        if isAlbumDetail { return AlbumLine.shown(owner, locale: locale) }
         guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
               owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return AppleMusicItemMapping.localizedOwnerName(owner, ownerID: ownerID, locale: locale) }
@@ -167,4 +162,19 @@ enum BrowsingDetailContent: Equatable {
     /// Catalog search surface marker. Results live on ``CatalogSearchViewModel``,
     /// so like ``home`` this payload is only a routing token.
     case search
+}
+
+/// The line under an album page's title is its artists, as text. When it is the app's own word
+/// ("Album" for an album pinned without a year) it travels as ``yearlessMarker`` instead and is
+/// looked up when shown, so it follows a language switch (#571). The marker is never saved, and
+/// no artist is called that, so a blank line or an artist called "Album" keep meaning what they did.
+enum AlbumLine {
+    static let yearlessKey = "pin.album.default"
+    static let yearlessMarker = "\u{E000}" + yearlessKey
+
+    static func shown(_ line: String, locale: Locale = SpotiglassL10n.locale) -> String {
+        line == yearlessMarker
+            ? SpotiglassL10n.string(yearlessKey, locale: locale)
+            : UnnamedMusicItem.displayArtistList(line, locale: locale)
+    }
 }

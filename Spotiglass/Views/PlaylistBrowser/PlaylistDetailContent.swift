@@ -7,15 +7,19 @@ enum PlaylistDetailHeaderPinning {
             return .likedSongs(ownerDisplay: playlist.owner, artworkURL: playlist.artworkURL)
         }
         if playlist.isAlbumDetail {
-            return .album(
+            // The "Album" marker isn't an artist: the pin keeps the word as its own (#571).
+            let yearless = playlist.owner == AlbumLine.yearlessMarker
+            var pin = PinnedItem.album(
                 MusicAlbum(
                     id: playlist.id,
                     name: playlist.title,
-                    artists: playlist.owner.isEmpty ? [] : [playlist.owner],
+                    artists: playlist.owner.isEmpty || yearless ? [] : [playlist.owner],
                     imageURL: playlist.artworkURL,
                     uri: "spotify:album:\(playlist.id)"
                 )
             )
+            if yearless { pin.subtitleKey = AlbumLine.yearlessKey }
+            return pin
         }
         return .playlist(
             MusicPlaylistSummary(

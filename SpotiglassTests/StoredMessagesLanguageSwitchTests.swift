@@ -169,6 +169,32 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         )
     }
 
+    /// The note names a playlist without a name with the stand-in, in the language it is read in.
+    func testATrackEditNoteNamesANamelessPlaylistInTheNewLanguage() async throws {
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let browser = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let nameless = MusicPlaylistSummary(
+            id: "p", name: "", ownerID: "me", ownerName: "Me", imageURL: nil, trackCount: 0, snapshotID: "s"
+        )
+        browser.playlistsByID["p"] = nameless
+        let track = MusicTrack(
+            id: "t", name: "Song", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 60_000,
+            isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t"
+        )
+        // The menu shows the playlist's name as it reads now, and hands that over.
+        await browser.addRowsToPlaylist(
+            [TrackRowViewModel(topTrack: track, listPosition: 1)], playlistID: "p", playlistName: nameless.name
+        )
+
+        try switchToGerman()
+
+        XCTAssertEqual(
+            browser.trackMutationToast,
+            String(format: inGerman("playlist.mutation.addedToPlaylist"), Int64(1), UnnamedMusicItem.playlist.placeholder(locale: german)),
+            "The playlist's stand-in in the note stayed in the old language"
+        )
+    }
+
     /// The window title names a playlist or artist whose name isn't known yet with a stand-in.
     func testATitleStandInFollowsALanguageSwitch() throws {
         let browser = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [], trackResults: [:]), cache: MockBrowsingCache())
@@ -239,6 +265,9 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
             return XCTFail("The album page did not load: \(String(describing: browser.detailState))")
         }
         XCTAssertTrue(detail.playlist.ownerTracksLine(currentUserID: nil).hasPrefix("Album"))
+        // A blank line (an album opened from a nameless artist's page) doesn't turn into "Album".
+        let blankLine = PlaylistRowViewModel(albumDisplayName: "Record", artistsDisplay: "", totalTrackCount: 1, artworkURL: nil, albumID: "al2")
+        XCTAssertEqual(blankLine.localizedOwner(), "")
         let album = BrowserNavigationTarget.album(id: id, title: title, subtitle: subtitle, artworkURL: artworkURL)
         XCTAssertEqual(browser.displayName(for: album), "Unknown album")
         browser.backNavigationArtistNames["a"] = UnnamedMusicItem.artist.placeholder
@@ -295,10 +324,13 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
             id: "al", name: "Record", imageURL: nil, releaseYear: nil, totalTracks: 1, group: .album, uri: "spotify:album:al"
         ))
         XCTAssertEqual(pin.localizedSubtitle(), "Album")
+        // An album pinned without any artists isn't one without a year: it stays blank.
+        let noArtists = PinnedItem.album(MusicAlbum(id: "al2", name: "Record", artists: [], imageURL: nil, uri: "spotify:album:al2"))
         // "Album" is the same word in German, so this one switches to Spanish.
         try store.mutate { $0.appearance.language = .spanish }
 
         XCTAssertEqual(pin.localizedSubtitle(), SpotiglassL10n.string("pin.album.default", locale: Locale(identifier: AppLanguage.spanish.rawValue)))
+        XCTAssertEqual(noArtists.localizedSubtitle(), "")
     }
 
     /// Stand-ins kept with a queued episode and a Home card.
