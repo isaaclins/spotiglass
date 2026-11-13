@@ -276,6 +276,9 @@ struct ArtistDetailContent: View {
 
                 // Keep the shelf discoverable and scroll it like the Home shelf:
                 // a swipe settles on whole release cards (#232), a wheel moves freely (#475).
+                // A plain stack, unlike Home's shelf: a release title can take two lines, and a
+                // lazy stack sizes the shelf to the cards built so far, so a later two-line
+                // title would lose its second line.
                 ScrollView(.horizontal, showsIndicators: true) {
                     HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                         ForEach(albums) { album in

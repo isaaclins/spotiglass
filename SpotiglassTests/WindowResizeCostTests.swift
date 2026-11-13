@@ -34,12 +34,22 @@ final class WindowResizeCostTests: XCTestCase {
             ])],
             trackResults: ["p1": [.success(tracks)]]
         )
+        // Home as a Spotify account fills it: 20 top tracks and a shelf of recently played
+        // albums, most of both off screen. Empty sections hid what a full Home costs (#473).
+        api.topTracksHandler = { _, _ in Self.homeTracks(prefix: "top", count: Self.topTrackCount) }
+        api.recentlyPlayedHandler = { _ in Self.homeTracks(prefix: "recent", count: Self.recentAlbumCount) }
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         // As the browser's own `.task` loads it, so the hosted view doesn't load it again.
         await browserVM.loadIfNeeded()
         switch page {
         case .home:
-            browserVM.sidebarSelection = .home
+            await browserVM.selectSidebar(.home)
+            guard case let .loaded(top) = browserVM.homeTopTracks, case let .loaded(recent) = browserVM.homeRecentlyPlayed else {
+                XCTFail("Home's sections didn't load: \(browserVM.homeTopTracks), \(browserVM.homeRecentlyPlayed)")
+                throw CancellationError()
+            }
+            XCTAssertEqual(top.count, Self.topTrackCount)
+            XCTAssertEqual(recent.count, Self.recentAlbumCount)
         case .bigPlaylist:
             await browserVM.selectPlaylist(id: "p1")
             XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, tracks.count)
@@ -81,20 +91,47 @@ final class WindowResizeCostTests: XCTestCase {
         window.setContentSize(NSSize(width: 1_450, height: 900))
 
         // What is on screen before the resize, so the test can't pass on an empty window.
-        let onScreen: [(String, (String) -> Bool)] = [
+        // Built one statement at a time: as one expression the compiler gives up on it (CI, Xcode 26).
+        typealias Expectation = (message: String, matches: (String) -> Bool)
+        var onScreen: [Expectation] = [
             ("the live player bar isn't on screen", { $0 == "PlaybackControlsView" }),
             ("the sidebar doesn't list the playlist p1", { $0 == "PlaylistListRow:p1" }),
             ("the sidebar doesn't list the playlist p2", { $0 == "PlaylistListRow:p2" }),
-            page == .home
-                ? ("Home isn't on screen", { $0 == "HomeView" })
-                : ("no song rows on screen", { $0.hasPrefix("TrackListRow:") }),
         ]
+        if page == .home {
+            onScreen.append(("Home isn't on screen", { $0 == "HomeView" }))
+            onScreen.append(("no recently played album on screen", { $0 == "HomeMediaCardView:recent-album-0" }))
+        } else {
+            onScreen.append(("no song rows on screen", { $0.hasPrefix("TrackListRow:") }))
+        }
         let missing = { onScreen.filter { _, matches in !(ViewBodyTally.counts ?? [:]).keys.contains(where: matches) } }
         _ = AppKitTestSupport.pumpRunLoop(until: { missing().isEmpty })
         for (message, _) in missing() {
             XCTFail(message)
         }
         return window
+    }
+
+    private static let topTrackCount = 20
+    private static let recentAlbumCount = 30
+
+    /// Songs from `count` different albums, so each one is its own recently played card.
+    nonisolated private static func homeTracks(prefix: String, count: Int) -> [MusicTrack] {
+        (0..<count).map { index in
+            MusicTrack(
+                id: "\(prefix)-\(index)",
+                name: "Song \(index)",
+                artists: ["Artist \(index)"],
+                albumArtworkURL: nil,
+                albumName: "Album \(index)",
+                albumID: "\(prefix)-album-\(index)",
+                durationMilliseconds: 200_000,
+                isExplicit: false,
+                isPlayable: true,
+                linkedFromID: nil,
+                uri: "spotify:track:\(prefix)-\(index)"
+            )
+        }
     }
 
     /// One step of a window manager's animated resize: the new size, then the frame AppKit saves.
@@ -113,12 +150,127 @@ final class WindowResizeCostTests: XCTestCase {
 
     func testAnAnimatedResizeFromCodeDoesNotReRenderHome() async throws {
         let window = try await hostBrowser(on: .home)
-        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["HomeView"])
+        // Growing back brings rows and cards into Home's lazy stacks again, which builds them;
+        // while the window only shrinks nothing new comes into view, so nothing may run.
+        assertAnAnimatedResizeReRendersNothing(in: window, extraViews: ["HomeView"], rowsMayReturnWhileGrowing: true)
+    }
+
+    /// Home's top tracks and its recently played shelf were plain stacks, which build and lay out
+    /// every row and card on every size the window takes, on screen or not, so a full Home cost
+    /// each resize step about twice what its content costs now (#473). Only what can be seen may
+    /// be built, before and during a resize.
+    func testHomeBuildsOnlyTheRowsAndCardsOnScreen() async throws {
+        let window = try await hostBrowser(on: .home)
+        // Home's sections load after it appears; wait for the first top track as well.
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?["TrackListRow:top-0"] != nil }),
+            "the top tracks never came on screen"
+        )
+        let offScreen = { () -> [String] in
+            (ViewBodyTally.counts ?? [:]).keys.filter {
+                $0 == "TrackListRow:top-\(Self.topTrackCount - 1)"
+                    || $0 == "HomeMediaCardView:recent-album-\(Self.recentAlbumCount - 1)"
+            }.sorted()
+        }
+        XCTAssertEqual(offScreen(), [], "Home built a row or card far outside the window")
+
+        ViewBodyTally.counts = [:]
+        for step in 0..<12 {
+            resize(window, toWidth: 1_450 - CGFloat(step) * 30, height: 900 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertEqual(offScreen(), [], "a resize built a row or card far outside the window")
+
+        // Back to full size. A window growing taller makes the lazy stack place the rows within
+        // about a window's height below the visible ones, which on Home reaches all 20 top
+        // tracks, so only the shelf's far card can be held to "never built" here.
+        for step in (0..<12).reversed() {
+            resize(window, toWidth: 1_450 - CGFloat(step) * 30, height: 900 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        let farCard = "HomeMediaCardView:recent-album-\(Self.recentAlbumCount - 1)"
+        XCTAssertNil(ViewBodyTally.counts?[farCard], "growing the window built \(farCard) far outside it")
+    }
+
+    /// Search's track list and its card rows were plain stacks too, so a page of results built
+    /// every row and card on every size the window took (#473).
+    func testSearchBuildsOnlyTheTrackRowsOnScreen() async throws {
+        try await assertSearchBuildsOnlyWhatIsOnScreen(
+            tracks: Self.homeTracks(prefix: "found", count: 10), albums: [],
+            farOff: "TrackListRow:found-9"
+        )
+    }
+
+    /// Back on All after a category pill, a row of cards holds every page that pill fetched.
+    func testSearchBuildsOnlyTheAlbumCardsOnScreen() async throws {
+        let albums = (0..<30).map { index in
+            MusicAlbum(id: "found-album-\(index)", name: "Album \(index)", artists: ["Artist \(index)"], imageURL: nil, uri: "spotify:album:found-album-\(index)")
+        }
+        try await assertSearchBuildsOnlyWhatIsOnScreen(tracks: [], albums: albums, farOff: "HomeMediaCardView:found-album-29")
+    }
+
+    /// Hosts Search on results, lays it out once, and checks `farOff` (a row below the window or
+    /// a card past its right edge) is built neither then nor during a resize.
+    private func assertSearchBuildsOnlyWhatIsOnScreen(
+        tracks: [MusicTrack],
+        albums: [MusicAlbum],
+        farOff: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let browserVM = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        await browserVM.selectSidebar(.search)
+        let search = browserVM.catalogSearch
+        search.searchProvider = { _, offset, _ in
+            offset == 0
+                ? MusicSearchResults(tracks: tracks, artists: [], albums: albums, playlists: [])
+                : MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
+        }
+        search.query = "found"
+        search.queryDidChange()
+        await search.waitForSearchCompletion()
+        XCTAssertEqual(search.visibleResults.tracks.count, tracks.count, file: file, line: line)
+        XCTAssertEqual(search.visibleResults.albums.count, albums.count, file: file, line: line)
+
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
+            defaults: makeEphemeralDefaults()
+        )
+        let view = CatalogSearchView(
+            viewModel: browserVM,
+            searchViewModel: search,
+            playbackViewModel: playback,
+            queueViewModel: QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playback),
+            hasPlaybackDevice: false
+        )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewBodyTally.counts = [:]
+        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 600))
+        let window = try XCTUnwrap(controller.view.window, file: file, line: line)
+        // The hosted page lays itself out fully once its window takes a size, as a real one does.
+        resize(window, toWidth: 900, height: 600)
+        let second = tracks.isEmpty ? "HomeMediaCardView:found-album-1" : "TrackListRow:found-1"
+        XCTAssertTrue(
+            AppKitTestSupport.pumpRunLoop(until: { ViewBodyTally.counts?[second] != nil }),
+            "the results never came on screen", file: file, line: line
+        )
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertNil(ViewBodyTally.counts?[farOff], "Search built \(farOff) far outside the window", file: file, line: line)
+
+        for step in 0..<12 {
+            resize(window, toWidth: 900 - CGFloat(step) * 20, height: 600 - CGFloat(step) * 10)
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertNil(ViewBodyTally.counts?[farOff], "a resize built \(farOff) far outside the window", file: file, line: line)
     }
 
     private func assertAnAnimatedResizeReRendersNothing(
         in window: NSWindow,
         extraViews: [String],
+        rowsMayReturnWhileGrowing: Bool = false,
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
@@ -132,6 +284,7 @@ final class WindowResizeCostTests: XCTestCase {
         let content = window.contentView!
         let wideLimit = Self.sidebarMaximumThickness(in: content)
         ViewBodyTally.counts = [:]
+        var countsWhileShrinking: [String: Int] = [:]
         for (step, width) in (widths + widths.reversed()).enumerated() {
             resize(window, toWidth: width, height: 900 - CGFloat(step % steps) * 10)
             if step == steps - 1 {
@@ -146,6 +299,8 @@ final class WindowResizeCostTests: XCTestCase {
                 } else {
                     XCTFail("no sidebar split item", file: file, line: line)
                 }
+                // After the wait, so what the last shrinking step does once it settles counts too.
+                countsWhileShrinking = ViewBodyTally.counts ?? [:]
             }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
@@ -165,8 +320,20 @@ final class WindowResizeCostTests: XCTestCase {
                 file: file, line: line
             )
         }
-        let rows = counts.keys.filter { $0.hasPrefix("TrackListRow:") || $0.hasPrefix("PlaylistListRow:") }
+        let rows = (rowsMayReturnWhileGrowing ? countsWhileShrinking : counts).keys.filter { name in
+            ["TrackListRow:", "PlaylistListRow:", "HomeMediaCardView:"].contains(where: name.hasPrefix)
+        }
         XCTAssertTrue(rows.isEmpty, "rows re-rendered while resizing: \(rows.sorted().prefix(5))", file: file, line: line)
+        if rowsMayReturnWhileGrowing {
+            // How often a row coming into view is built is up to SwiftUI (on CI one card was built
+            // twice). The shelf's first card stays on screen the whole time, so a growing half that
+            // re-renders rows and cards shows on it: it may not run in either half.
+            let alwaysOnScreen = counts.keys.filter { $0 == "HomeMediaCardView:recent-album-0" }
+            XCTAssertTrue(alwaysOnScreen.isEmpty, "rows on screen the whole time re-rendered: \(alwaysOnScreen.sorted())", file: file, line: line)
+            // The sidebar's rows never leave the window, so none may run in either half.
+            let sidebarRows = counts.keys.filter { $0.hasPrefix("PlaylistListRow:") }
+            XCTAssertTrue(sidebarRows.isEmpty, "sidebar rows re-rendered while resizing: \(sidebarRows.sorted().prefix(5))", file: file, line: line)
+        }
     }
 
     /// Waits until a whole 0.1 s passes with no counted body running, so a load or player update

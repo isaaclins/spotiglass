@@ -225,7 +225,7 @@ struct CatalogSearchView: View {
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
+        LazyVStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
             let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
@@ -343,8 +343,11 @@ struct CatalogSearchView: View {
                 content()
             }
         } else {
+            // Lazy: back on All after a category pill, a row shows every page that pill
+            // fetched (30 cards and more), and a plain stack laid them all out on every size
+            // the window took (#473). The cards are one line each, so the row keeps one height.
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
+                LazyHStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                     content()
                 }
                 .padding(.vertical, SpotiglassDesign.spacingXS)
