@@ -181,13 +181,28 @@ struct PlaybackProgressAnchor: Equatable {
 
 struct PlaybackDisplayError: Error, Equatable, Identifiable {
     let id = UUID()
-    let title: String
-    let message: String
+    /// Looked up when shown, so an error on screen follows a language switch (#548).
+    private let titleText: LocalizedText
+    private let messageText: LocalizedText
+    var title: String { titleText.string }
+    var message: String { messageText.string }
     let recoveryAction: PlaybackRecoveryAction?
     /// One command failed and the player itself is fine: a player with no connection to
     /// restore goes back to what it plays after a moment (#430). Missing access or a missing
     /// subscription is not momentary: that message stays until it's fixed.
     var isMomentary = false
+
+    init(
+        title: @autoclosure @escaping () -> String,
+        message: @autoclosure @escaping () -> String,
+        recoveryAction: PlaybackRecoveryAction?,
+        isMomentary: Bool = false
+    ) {
+        self.titleText = LocalizedText(title())
+        self.messageText = LocalizedText(message())
+        self.recoveryAction = recoveryAction
+        self.isMomentary = isMomentary
+    }
 
     static func == (lhs: PlaybackDisplayError, rhs: PlaybackDisplayError) -> Bool {
         lhs.title == rhs.title && lhs.message == rhs.message && lhs.recoveryAction == rhs.recoveryAction
@@ -203,6 +218,11 @@ enum PlaybackRecoveryAction: Equatable {
 struct ArtistTapTarget: Equatable, Identifiable {
     let id: String?
     let name: String
+
+    /// ``name`` with a stand-in for a nameless artist in the app's current language (#548).
+    var nameInAppLanguage: String {
+        UnnamedMusicItem.displayName(name, kind: .artist, locale: SpotiglassL10n.locale)
+    }
 
     var stableID: String {
         if let id { return "artist-id:\(id)" }
@@ -229,6 +249,7 @@ struct QueueItem: Identifiable, Equatable {
     /// The name it was queued with; ``name`` is what to show. A stand-in copied from the
     /// track follows the language like the track's own (#547).
     private let storedName: String
+    /// The artists as queued, joined with ", ". Show ``subtitleInAppLanguage``.
     let subtitle: String
     let albumArtURL: URL?
     /// Album title when known (tracks from Web API or merged SDK projection).
@@ -237,6 +258,8 @@ struct QueueItem: Identifiable, Equatable {
     let durationMilliseconds: Int
     let uri: String?
     let artistTapTargets: [ArtistTapTarget]
+    /// An episode without a show: ``subtitle`` is the app's "Podcast", not a show's name.
+    private let subtitleIsEpisodeFallback: Bool
 
     init(
         id: String? = nil,
@@ -247,7 +270,8 @@ struct QueueItem: Identifiable, Equatable {
         albumID: String? = nil,
         durationMilliseconds: Int,
         uri: String?,
-        artistTapTargets: [ArtistTapTarget] = []
+        artistTapTargets: [ArtistTapTarget] = [],
+        subtitleIsEpisodeFallback: Bool = false
     ) {
         self.id = id ?? UUID().uuidString
         self.storedName = name
@@ -257,7 +281,19 @@ struct QueueItem: Identifiable, Equatable {
         self.albumID = albumID
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
+        self.subtitleIsEpisodeFallback = subtitleIsEpisodeFallback
         self.artistTapTargets = artistTapTargets
+    }
+
+    /// ``subtitle`` with each artist stand-in in the app's current language, like a pin's
+    /// subtitle: a nameless artist queued in English reads German after a switch (#548).
+    var subtitleInAppLanguage: String {
+        if subtitleIsEpisodeFallback {
+            return SpotiglassL10n.string("playback.queue.episodeFallback")
+        }
+        // An episode's subtitle is its show's name, which is never a stand-in.
+        if uri?.contains(":episode:") == true { return subtitle }
+        return UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
     }
 }
 
@@ -293,7 +329,8 @@ extension QueueItem {
             subtitle: episode.showName ?? SpotiglassL10n.string("playback.queue.episodeFallback"),
             albumArtURL: episode.artworkURL,
             durationMilliseconds: episode.durationMilliseconds,
-            uri: episode.uri
+            uri: episode.uri,
+            subtitleIsEpisodeFallback: episode.showName == nil
         )
     }
 

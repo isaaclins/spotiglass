@@ -12,10 +12,19 @@ struct HomeMediaCard: Equatable, Identifiable {
     }
 
     let id: String
-    let title: String
-    let subtitle: String
+    /// Looked up when shown: a recently-played card keeps "Unknown album" or "Unknown artist"
+    /// for a nameless one, which follows a language switch like the rest of Home (#548).
+    private let titleText: LocalizedText
+    private let subtitleText: LocalizedText
+    var title: String { titleText.string }
+    var subtitle: String { subtitleText.string }
     let artworkURL: URL?
-    let destination: Destination
+    private let builtDestination: Destination
+    /// Where a tap goes. An album opens with the card's title and artists as they read now.
+    var destination: Destination {
+        guard case let .album(id, _, _, artworkURL) = builtDestination else { return builtDestination }
+        return .album(id: id, title: title, subtitle: subtitle, artworkURL: artworkURL)
+    }
     /// The artists in `subtitle`, as the service named them.
     let artistNames: [String]
     /// The artists in `subtitle` the service gave an ID for, each a link (#478).
@@ -25,8 +34,8 @@ struct HomeMediaCard: Equatable, Identifiable {
 
     init(
         id: String,
-        title: String,
-        subtitle: String,
+        title: @autoclosure @escaping () -> String,
+        subtitle: @autoclosure @escaping () -> String,
         artworkURL: URL?,
         destination: Destination,
         artistNames: [String] = [],
@@ -34,10 +43,10 @@ struct HomeMediaCard: Equatable, Identifiable {
         menuTarget: CollectionMenuTarget? = nil
     ) {
         self.id = id
-        self.title = title
-        self.subtitle = subtitle
+        self.titleText = LocalizedText(title())
+        self.subtitleText = LocalizedText(subtitle())
         self.artworkURL = artworkURL
-        self.destination = destination
+        self.builtDestination = destination
         self.artistNames = artistNames
         self.artistRefs = artistRefs
         self.menuTarget = menuTarget
@@ -49,14 +58,13 @@ struct HomeMediaCard: Equatable, Identifiable {
         guard let albumID = track.albumID else { return nil }
         // An album without a name is called one in the app's language, not after the track (#547).
         let albumName = track.albumName ?? ""
-        let title = UnnamedMusicItem.displayName(albumName, kind: .album)
-        let subtitle = track.artists.joined(separator: ", ")
         self.init(
             id: albumID,
-            title: title,
-            subtitle: subtitle,
+            title: UnnamedMusicItem.displayName(albumName, kind: .album),
+            subtitle: track.artists.joined(separator: ", "),
             artworkURL: track.albumArtworkURL,
-            destination: .album(id: albumID, title: title, subtitle: subtitle, artworkURL: track.albumArtworkURL),
+            // The card's own title and artists replace these when it is tapped.
+            destination: .album(id: albumID, title: "", subtitle: "", artworkURL: track.albumArtworkURL),
             artistNames: track.artists,
             artistRefs: track.artistRefs,
             menuTarget: .pinnable(.album(MusicAlbum(
@@ -122,7 +130,12 @@ enum HomeArtistCredit: Equatable {
         // instead of dropping out of the line.
         var unmatched = refs
         return names.map { name in
-            guard let index = unmatched.firstIndex(where: { $0.name == name }) else { return .name(name) }
+            // A nameless artist's stand-in was taken in the language of the moment; the ref's
+            // follows the app's, so after a switch they match as stand-ins, not as text (#548).
+            guard let index = unmatched.firstIndex(where: {
+                $0.name == name
+                    || (UnnamedMusicItem.isStandIn($0.name, kind: .artist) && UnnamedMusicItem.isStandIn(name, kind: .artist))
+            }) else { return .name(name) }
             return .link(unmatched.remove(at: index))
         }
     }
@@ -137,7 +150,8 @@ enum HomeSectionState<Value: Equatable>: Equatable {
     case loading
     case loaded(Value)
     case unavailable
-    case failed(String)
+    /// Looked up when shown, so a failed section follows a language switch (#548).
+    case failed(LocalizedText)
 
     var value: Value? {
         if case let .loaded(value) = self { return value }

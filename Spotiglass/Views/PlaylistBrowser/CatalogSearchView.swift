@@ -148,7 +148,8 @@ struct CatalogSearchView: View {
             ProgressView(SpotiglassL10n.string("search.state.searching"))
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .empty(message):
+        case let .empty(text):
+            let message = text.string
             EmptyStateView(
                 title: SpotiglassL10n.string("search.empty.title"),
                 // The initial state carries no message, which rendered the pane
@@ -319,7 +320,7 @@ struct CatalogSearchView: View {
             cardLayout(isFocused: searchViewModel.category == .playlists) {
                 ForEach(playlists) { playlist in
                     HomeMediaCardView(
-                        card: HomeMediaCard(playlist: playlist, subtitle: playlist.ownerName),
+                        card: HomeMediaCard(playlist: playlist, subtitle: playlist.ownerNameInAppLanguage),
                         browserViewModel: viewModel,
                         openArtist: openArtist
                     ) {

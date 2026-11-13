@@ -103,13 +103,14 @@ extension PlaylistBrowserViewModel {
             return SpotiglassL10n.string("browser.home", locale: locale)
         case let .artist(id):
             if let crumb = breadcrumbPath.last(where: { $0.kind == .artist(id: id) }) {
-                return crumb.label
+                return BrowserToolbarPresentation.localizedLabel(for: crumb, locale: locale)
             }
-            return cachedArtistSnapshots[id]?.snapshot.artistDetail.name
-                ?? backNavigationArtistNames[id]
-                ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
+            if let name = cachedArtistSnapshots[id]?.snapshot.artistDetail.name ?? backNavigationArtistNames[id] {
+                return UnnamedMusicItem.displayName(name, kind: .artist, locale: locale)
+            }
+            return SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
         case let .album(_, title, _, _):
-            return title
+            return UnnamedMusicItem.displayName(title, kind: .album, locale: locale)
         }
     }
 
@@ -177,14 +178,14 @@ extension PlaylistBrowserViewModel {
                     )
                 ]
             case let .playlist(id):
-                let title = (playlistsByID[id] ?? knownPlaylistSummariesByID[id])?.name
-                    ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback")
+                let name = (playlistsByID[id] ?? knownPlaylistSummariesByID[id])?.name
                 breadcrumbPath = [
                     BrowserBreadcrumb(
                         id: UUID(),
-                        label: title,
+                        label: name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback"),
                         systemImage: "music.note.list",
-                        kind: .playlist(id: id)
+                        kind: .playlist(id: id),
+                        fallbackKey: name == nil ? "browser.breadcrumb.playlistFallback" : nil
                     )
                 ]
             case .pinnedItem:
@@ -198,23 +199,25 @@ extension PlaylistBrowserViewModel {
         case .backStackReplay:
             return
         case .reset:
-            let label = resolvedArtistLabel(id: id, displayName: displayName)
+            let name = resolvedArtistLabel(id: id, displayName: displayName)
             breadcrumbPath = [
                 BrowserBreadcrumb(
                     id: UUID(),
-                    label: label,
+                    label: name ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback"),
                     systemImage: "person.wave.2",
-                    kind: .artist(id: id)
+                    kind: .artist(id: id),
+                    fallbackKey: name == nil ? "browser.breadcrumb.artistFallback" : nil
                 )
             ]
         case .extend:
-            let label = resolvedArtistLabel(id: id, displayName: displayName)
+            let name = resolvedArtistLabel(id: id, displayName: displayName)
             appendOrTrimBreadcrumb(
                 BrowserBreadcrumb(
                     id: UUID(),
-                    label: label,
+                    label: name ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback"),
                     systemImage: "person.wave.2",
-                    kind: .artist(id: id)
+                    kind: .artist(id: id),
+                    fallbackKey: name == nil ? "browser.breadcrumb.artistFallback" : nil
                 )
             )
         }
@@ -281,7 +284,8 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func resolvedArtistLabel(id: String, displayName: String?) -> String {
+    /// The artist's name as far as it is known, or `nil` when the crumb has to say "Artist".
+    private func resolvedArtistLabel(id: String, displayName: String?) -> String? {
         if let displayName {
             let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
@@ -294,7 +298,7 @@ extension PlaylistBrowserViewModel {
         if let remembered = backNavigationArtistNames[id] {
             return remembered
         }
-        return SpotiglassL10n.string("browser.breadcrumb.artistFallback")
+        return nil
     }
 
     func refineLastBreadcrumbArtistLabelIfNeeded(artistID: String, resolvedName: String) {
@@ -302,7 +306,7 @@ extension PlaylistBrowserViewModel {
         guard let idx = breadcrumbPath.indices.last,
               case let .artist(aid) = breadcrumbPath[idx].kind,
               aid == artistID,
-              breadcrumbPath[idx].label != resolvedName else { return }
+              breadcrumbPath[idx].label != resolvedName || breadcrumbPath[idx].fallbackKey != nil else { return }
         let old = breadcrumbPath[idx]
         breadcrumbPath[idx] = BrowserBreadcrumb(
             id: old.id,

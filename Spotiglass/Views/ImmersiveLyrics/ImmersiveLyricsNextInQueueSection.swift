@@ -72,7 +72,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
             if item.artistTapTargets.isEmpty {
-                Text(item.subtitle)
+                Text(item.subtitleInAppLanguage)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.5))
                     .lineLimit(2)
@@ -87,13 +87,13 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                         Button {
                             navigateToArtist(target)
                         } label: {
-                            Text(target.name)
+                            Text(target.nameInAppLanguage)
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.5))
                                 .lineLimit(2)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openArtist"), target.name))
+                        .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openArtist"), target.nameInAppLanguage))
                     }
                     Spacer(minLength: 0)
                 }
@@ -103,7 +103,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                 Button {
                     navigateToAlbum(
                         AlbumTapTarget(id: item.albumID, name: albumName),
-                        item.subtitle,
+                        item.subtitleInAppLanguage,
                         item.albumArtURL
                     )
                 } label: {

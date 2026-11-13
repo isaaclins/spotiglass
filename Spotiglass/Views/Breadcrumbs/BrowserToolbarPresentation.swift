@@ -15,7 +15,19 @@ enum BrowserToolbarPresentation {
         case .likedSongs:
             return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
         case .playlist, .artist, .album:
-            return breadcrumb.label
+            // The app's own fallback reads in the current language; a name the service sent is
+            // kept, except a nameless item's stand-in ("Unknown album"), which is the app's (#548).
+            if let key = breadcrumb.fallbackKey {
+                return SpotiglassL10n.string(key, locale: locale)
+            }
+            switch breadcrumb.kind {
+            case .playlist:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .playlist, locale: locale)
+            case .artist:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .artist, locale: locale)
+            default:
+                return UnnamedMusicItem.displayName(breadcrumb.label, kind: .album, locale: locale)
+            }
         }
     }
 

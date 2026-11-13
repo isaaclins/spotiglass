@@ -129,7 +129,7 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
         let state: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(
             for: MusicTokenRequestError.userNotSignedIn
         )
-        XCTAssertEqual(state, .failed(SpotiglassL10n.string("appleMusic.error.signIn.message")))
+        XCTAssertEqual(state, .failed(LocalizedText(SpotiglassL10n.string("appleMusic.error.signIn.message"))))
 
         // Spotify's Home mapping is untouched.
         let spotify: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(

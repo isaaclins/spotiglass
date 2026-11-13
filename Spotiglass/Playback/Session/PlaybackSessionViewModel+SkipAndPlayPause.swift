@@ -283,18 +283,22 @@ extension PlaybackSessionViewModel {
         shouldPause: Bool
     ) -> PlaybackDisplayError {
         let playbackError = MusicPlaybackError.from(error)
-        let reason: String
+        let keepsServiceMessage: Bool
         switch (playbackError?.service, playbackError?.reason) {
         case (.appleMusic?, _), (.spotify?, .rateLimited?):
-            reason = displayError.message
+            keepsServiceMessage = true
         default:
-            reason = service == .appleMusic
-                ? SpotiglassL10n.string("error.playback.appleMusic.failed")
-                : SpotiglassL10n.string("error.playback.spotify.failed")
+            keepsServiceMessage = false
         }
+        let isAppleMusic = service == .appleMusic
         return PlaybackDisplayError(
             title: SpotiglassL10n.string(shouldPause ? "playback.refused.pause" : "playback.refused.play"),
-            message: reason,
+            // Looked up when shown, so it follows a language switch (#548).
+            message: keepsServiceMessage
+                ? displayError.message
+                : isAppleMusic
+                    ? SpotiglassL10n.string("error.playback.appleMusic.failed")
+                    : SpotiglassL10n.string("error.playback.spotify.failed"),
             recoveryAction: nil
         )
     }

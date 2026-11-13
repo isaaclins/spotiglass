@@ -101,10 +101,12 @@ extension QueueViewModel {
         }
         if let blockedUntil = enqueueRateLimitUntil[key], blockedUntil > clock.now {
             let remaining = clock.now.duration(to: blockedUntil).timeInterval
-            let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: remaining)
             lastError = BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.rateLimited.title"),
-                message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
+                message: String(
+                    format: SpotiglassL10n.string("error.queue.rateLimited.message"),
+                    SpotifyRateLimitDisplay.retryAfterClause(seconds: remaining)
+                ),
                 canRetry: true,
                 diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: remaining)
             )

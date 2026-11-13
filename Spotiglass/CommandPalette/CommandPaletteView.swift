@@ -89,6 +89,11 @@ struct CommandPaletteView: View {
                 scheduleSearchFieldFocus()
             }
         }
+        // The rows keep the names they were built with; build them again so an open palette
+        // follows a language switch (#548).
+        .onChange(of: settingsStore.settings.appearance.language) {
+            viewModel.languageDidChange()
+        }
     }
 
     /// SwiftUI on macOS often ignores immediate `@FocusState` updates in `onAppear`; deferring fixes typing-at-open.

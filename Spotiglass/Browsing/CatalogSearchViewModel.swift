@@ -171,8 +171,9 @@ final class CatalogSearchViewModel: ObservableObject {
            cachedPageCount >= pageCount(for: newCategory) {
             searchGeneration += 1
             isLoadingMore = false
+            let query = trimmedQuery
             state = cachedResults.isEmpty
-                ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmedQuery))
+                ? .empty(LocalizedText(SpotiglassL10n.format("search.empty.noResults", query)))
                 : .loaded(cachedResults)
             return
         }
@@ -240,7 +241,7 @@ final class CatalogSearchViewModel: ObservableObject {
             updatePagingState(from: page, offset: offset)
             cachedResults = merged
             state = merged.isEmpty
-                ? .empty(SpotiglassL10n.format("search.empty.noResults", queryToLoad))
+                ? .empty(LocalizedText(SpotiglassL10n.format("search.empty.noResults", queryToLoad)))
                 : .loaded(merged)
         } catch is CancellationError {
             return
@@ -266,19 +267,19 @@ final class CatalogSearchViewModel: ObservableObject {
         let trimmed = trimmedQuery
         guard !trimmed.isEmpty else {
             resetCache()
-            state = .empty(SpotiglassL10n.string("search.empty.prompt"))
+            state = .empty(LocalizedText(SpotiglassL10n.string("search.empty.prompt")))
             return
         }
         guard trimmed.count >= Self.minimumQueryCharacters else {
             resetCache()
-            state = .empty(SpotiglassL10n.string("search.empty.keepTyping"))
+            state = .empty(LocalizedText(SpotiglassL10n.string("search.empty.keepTyping")))
             return
         }
         if forceRefresh {
             resetCache()
         } else if cachedQuery == trimmed, let cachedResults, cachedPageCount >= pageCount(for: category) {
             state = cachedResults.isEmpty
-                ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmed))
+                ? .empty(LocalizedText(SpotiglassL10n.format("search.empty.noResults", trimmed)))
                 : .loaded(cachedResults)
             return
         }
@@ -352,7 +353,7 @@ final class CatalogSearchViewModel: ObservableObject {
             cachedNextOffsets = nextOffsets
             cachedResults = merged
             state = merged.isEmpty
-                ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmed))
+                ? .empty(LocalizedText(SpotiglassL10n.format("search.empty.noResults", trimmed)))
                 : .loaded(merged)
         } catch is CancellationError {
             return

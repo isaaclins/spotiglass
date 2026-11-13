@@ -32,6 +32,10 @@ struct BrowserBreadcrumb: Equatable, Identifiable {
     let label: String
     let systemImage: String
     let kind: Kind
+    /// Set when ``label`` is the app's own fallback ("Playlist", "Artist") rather than a name
+    /// the service sent, so it reads in the current language and a real playlist called
+    /// "Playlist" keeps its name (#548).
+    var fallbackKey: String?
 }
 
 enum BrowserNavigationOrigin {

@@ -37,10 +37,9 @@ extension PlaylistBrowserViewModel {
                     diagnosticDetails: serverDiagnostics(message, details)
                 )
             case let .rateLimited(retryAfter):
-                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.browsing.rateLimited.title"),
-                    message: String(format: SpotiglassL10n.string("error.browsing.rateLimited.message"), clause),
+                    message: String(format: SpotiglassL10n.string("error.browsing.rateLimited.message"), SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)),
                     canRetry: true,
                     diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
                 )
@@ -53,9 +52,12 @@ extension PlaylistBrowserViewModel {
             case let .network(message):
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string(
-                        SpotifyAPIError.isUnusableAnswerMessage(message) ? "error.browsing.generic.title" : "error.browsing.network.title"
+                        SpotifyAPIError.isUnusableAnswerMessage(SpotiglassL10n.inAppLanguage(message))
+                            ? "error.browsing.generic.title"
+                            : "error.browsing.network.title"
                     ),
-                    message: message,
+                    // Resolved when the request failed; shown in the language the app has now (#548).
+                    message: SpotiglassL10n.inAppLanguage(message),
                     canRetry: true
                 )
             case .decoding:
@@ -100,9 +102,11 @@ extension PlaylistBrowserViewModel {
             return appleMusicError
         }
 
+        // The service it failed on, not the one selected when the error is shown.
+        let service = MusicServiceSelection.current
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.browsing.generic.title"),
-            message: MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current),
+            message: MusicServiceErrorText.userMessage(for: error, service: service),
             canRetry: true
         )
     }

@@ -22,7 +22,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// The signed-in account's user ID on the current service. It hides the owner label on the
     /// account's own playlists and decides which playlists it may edit.
     @Published internal(set) var currentUserID: String?
-    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty(SpotiglassL10n.string("browser.empty.pickSomething"))
+    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty(LocalizedText(SpotiglassL10n.string("browser.empty.pickSomething")))
     /// Track IDs selected in the currently visible playlist table. Bound to the
     /// `List` selection, so the table owns click, shift and command behavior and
     /// this stays the value the context-menu actions read. Empty means "no
@@ -313,8 +313,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
         homeTopTrackData = []
-        playlistState = .empty(SpotiglassL10n.string("browser.empty.connectToBrowse"))
-        detailState = .empty(SpotiglassL10n.string("browser.empty.signInToBrowse"))
+        playlistState = .empty(LocalizedText(SpotiglassL10n.string("browser.empty.connectToBrowse")))
+        detailState = .empty(LocalizedText(SpotiglassL10n.string("browser.empty.signInToBrowse")))
     }
 }
 

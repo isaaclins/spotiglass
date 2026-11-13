@@ -218,7 +218,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         guard case .empty(let message) = viewModel.detailState else {
             return XCTFail("Expected empty liked songs, got \(viewModel.detailState)")
         }
-        XCTAssertTrue(message.contains("no liked songs"))
+        XCTAssertTrue(message.string.contains("no liked songs"))
     }
 
     func testLikedSongsRevalidationFailureWithoutCacheShowsError() async {

@@ -39,7 +39,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         case idle
         case loading
         case ready(FetchedLyrics)
-        case failed(String)
+        /// Looked up when shown, so an open lyrics view follows a language switch (#548).
+        case failed(LocalizedText)
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -84,7 +85,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         guard isCurrentLoad(generation) else { return }
 
         guard let tid = track.lyricsTrackKey else {
-            phase = .failed(SpotiglassL10n.string("lyrics.error.musicOnly"))
+            phase = .failed(LocalizedText(SpotiglassL10n.string("lyrics.error.musicOnly")))
             return
         }
 
@@ -113,14 +114,14 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         } catch let failure as LrcLibClient.Failure {
             guard isCurrentLoad(generation) else { return }
             registerFailureBackoff(trackId: tid, failure: failure)
-            phase = .failed(failure.userFacingMessage)
+            phase = .failed(LocalizedText(failure.userFacingMessage))
         } catch {
             guard isCurrentLoad(generation) else { return }
             registerFailureBackoff(trackId: tid, failure: nil)
             // localizedDescription here is an URLError or decoding dump, which
             // is not a sentence for a reader waiting on lyrics (#157).
             SpotiglassLog.error(.api, "lyrics fetch failed: \(error)")
-            phase = .failed(SpotiglassL10n.string("lyrics.error.http"))
+            phase = .failed(LocalizedText(SpotiglassL10n.string("lyrics.error.http")))
         }
     }
 
@@ -211,21 +212,24 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         try? diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
     }
 
-    private func cooldownMessage(trackId: String) -> String {
+    /// The wait is taken now; the sentence around it is looked up when shown.
+    private func cooldownMessage(trackId: String) -> LocalizedText {
         if let metadata = Self.backoffMetadata[trackId] {
             switch metadata.failureClass {
             case .noLyrics:
-                return LrcLibClient.Failure.noLyrics.userFacingMessage
+                return LocalizedText(LrcLibClient.Failure.noLyrics.userFacingMessage)
             case .decoding:
-                return LrcLibClient.Failure.decoding.userFacingMessage
+                return LocalizedText(LrcLibClient.Failure.decoding.userFacingMessage)
             case .rateLimited:
-                let retryAfter = max(0, metadata.nextEligibleFetchAt.timeIntervalSinceNow)
-                return LrcLibClient.Failure.rateLimited(retryAfter: retryAfter).userFacingMessage
+                let failure = LrcLibClient.Failure.rateLimited(
+                    retryAfter: max(0, metadata.nextEligibleFetchAt.timeIntervalSinceNow)
+                )
+                return LocalizedText(failure.userFacingMessage)
             case .transient, .permanent:
-                return SpotiglassL10n.string("lyrics.error.unavailable")
+                return LocalizedText(SpotiglassL10n.string("lyrics.error.unavailable"))
             }
         }
-        return LrcLibClient.Failure.noLyrics.userFacingMessage
+        return LocalizedText(LrcLibClient.Failure.noLyrics.userFacingMessage)
     }
 
     private func registerFailureBackoff(trackId: String, failure: LrcLibClient.Failure?) {
