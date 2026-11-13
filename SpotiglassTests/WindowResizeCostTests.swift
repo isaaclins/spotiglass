@@ -137,10 +137,15 @@ final class WindowResizeCostTests: XCTestCase {
             if step == steps - 1 {
                 // At the narrowest step the browser must have taken the new width: its sidebar
                 // limit follows the committed width, so a resize that never reached it can't pass.
-                AppKitTestSupport.pumpRunLoop(for: 0.15)
-                let narrowLimit = Self.sidebarMaximumThickness(in: content)
-                XCTAssertNotNil(wideLimit, "no sidebar split item", file: file, line: line)
-                XCTAssertLessThan(narrowLimit ?? .infinity, (wideLimit ?? 0) - 100, "the resize never reached the browser", file: file, line: line)
+                // However late a busy Mac commits it (#535).
+                if let wideLimit {
+                    let narrowed = AppKitTestSupport.pumpRunLoop(until: {
+                        (Self.sidebarMaximumThickness(in: content) ?? .infinity) < wideLimit - 100
+                    })
+                    XCTAssertTrue(narrowed, "the resize never reached the browser", file: file, line: line)
+                } else {
+                    XCTFail("no sidebar split item", file: file, line: line)
+                }
             }
         }
         AppKitTestSupport.pumpRunLoop(for: 0.3)
@@ -166,13 +171,16 @@ final class WindowResizeCostTests: XCTestCase {
 
     /// Waits until a whole 0.1 s passes with no counted body running, so a load or player update
     /// that lands late on a busy Mac can't be taken for a re-render the resize caused. A browser
-    /// that never stops re-rendering runs into the per-test time limit.
+    /// that never stops re-rendering fails at ``mustHappenTimeout``: a synchronous loop on the main
+    /// thread would keep the per-test limit from stopping it (#535).
     private func waitUntilNothingRenders() {
-        while true {
+        let deadline = Date().addingTimeInterval(mustHappenTimeout)
+        while Date() < deadline {
             ViewBodyTally.counts = [:]
             AppKitTestSupport.pumpRunLoop(for: 0.1)
             if ViewBodyTally.counts?.isEmpty ?? true { return }
         }
+        XCTFail("the browser kept re-rendering before the resize: \(ViewBodyTally.counts ?? [:])")
     }
 
     /// Opening the queue narrows how far the sidebar can be dragged, so a drag can't push the

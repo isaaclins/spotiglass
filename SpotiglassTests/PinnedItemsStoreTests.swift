@@ -527,11 +527,14 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         )
     }
 
-    /// Waits until `condition` holds, however long a busy machine takes (#503).
-    private func waitUntil(_ condition: () -> Bool) async {
-        while !condition() {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+    /// Waits until `condition` holds, checking it each time `store`'s pins change.
+    private func waitForPins(
+        _ store: PinnedItemsStore,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async {
+        await waitUntil("the pins", changes: store.objectWillChange, file: file, line: line, condition)
     }
 
     /// Runs every lookup, search and merge the store has queued to its end, for checks that
@@ -557,7 +560,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         XCTAssertTrue(store.pin(.album(card)))
         let searchHit = AppleMusicItemMapping.album(saved)
 
-        await waitUntil { store.isPinned(spotifyID: searchHit.id, kind: .album) }
+        await waitForPins(store) { store.isPinned(spotifyID: searchHit.id, kind: .album) }
         XCTAssertTrue(store.isPinned(spotifyID: searchHit.id, kind: .album), "the saved copy shows as pinned")
         XCTAssertFalse(store.pin(.album(searchHit)), "pinning the saved copy adds nothing")
         XCTAssertEqual(store.items.map(\.id), ["album:1225217151"])
@@ -583,10 +586,10 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         )
         store.bind(userID: account)
         XCTAssertTrue(store.pin(homePin("1225217152", title: "Migration 487b")))
-        await waitUntil { store.items.first?.aliasIDs != nil }
+        await waitForPins(store) { store.items.first?.aliasIDs != nil }
 
         let searchHit = AppleMusicItemMapping.album(saved)
-        await waitUntil { store.isPinned(spotifyID: searchHit.id, kind: .album) }
+        await waitForPins(store) { store.isPinned(spotifyID: searchHit.id, kind: .album) }
         XCTAssertTrue(store.isPinned(spotifyID: searchHit.id, kind: .album))
         XCTAssertFalse(store.pin(.album(searchHit)))
         store.unpin(id: PinnedItem.id(forKind: .album, spotifyID: searchHit.id))
@@ -606,7 +609,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
 
         XCTAssertTrue(store.pin(.album(AppleMusicItemMapping.artistAlbum(explicit))))
         let searchHit = AppleMusicItemMapping.album(saved)
-        await waitUntil { store.isPinned(spotifyID: searchHit.id, kind: .album) }
+        await waitForPins(store) { store.isPinned(spotifyID: searchHit.id, kind: .album) }
         XCTAssertTrue(store.isPinned(spotifyID: searchHit.id, kind: .album), "the saved copy is the explicit release")
         XCTAssertFalse(store.isPinned(spotifyID: "1225217154", kind: .album), "the clean release is another album")
         XCTAssertTrue(store.pin(.album(AppleMusicItemMapping.artistAlbum(clean))))
@@ -644,7 +647,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         ))
 
         store.bind(userID: account)
-        await waitUntil { store.items.count == 2 }
+        await waitForPins(store) { store.items.count == 2 }
 
         XCTAssertEqual(store.items.map(\.id), ["album:1225217999", "playlist:p.Other"])
         XCTAssertEqual(cache.saved[account]?.map(\.id), ["album:1225217999", "playlist:p.Other"], "the merge is saved")
@@ -674,7 +677,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         // A pin while the launch lookup still runs.
         XCTAssertTrue(store.pin(.likedSongs(ownerDisplay: "You", artworkURL: nil), at: 0))
         launchLookup.release()
-        await waitUntil { store.items.count == 2 }
+        await waitForPins(store) { store.items.count == 2 }
 
         XCTAssertEqual(store.items.map(\.id), [PinnedItem.likedSongsID, "album:1225217998"])
     }
@@ -691,7 +694,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             registry: AppleMusicPinAliasRegistry(), catalog: [first, second], library: [saved], pinned: [first, saved]
         ))
         store.bind(userID: account)
-        await waitUntil { store.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(store) { store.items.allSatisfy { $0.aliasIDs != nil } }
 
         XCTAssertEqual(store.items.map(\.id), ["album:1225217181", "album:9177095676878600745"])
         XCTAssertEqual(cache.saved[account]?.count, 2, "neither pin is deleted")
@@ -743,7 +746,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         let loaded = [try catalogAlbum(id: "1225217171", title: "Live 487h"), try catalogAlbum(id: "1225217172", title: "Live 487h")]
         let store = PinnedItemsStore(cache: cache, aliases: aliases(registry: AppleMusicPinAliasRegistry(), catalog: loaded, pinned: loaded))
         store.bind(userID: account)
-        await waitUntil { store.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(store) { store.items.allSatisfy { $0.aliasIDs != nil } }
 
         XCTAssertEqual(store.items.map(\.id), ["album:1225217171", "album:1225217172"])
         XCTAssertEqual(cache.saved[account]?.count, 2, "neither pin is deleted")
@@ -763,7 +766,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             registry: AppleMusicPinAliasRegistry(), catalog: [catalog], library: library, pinned: [catalog, saved]
         ))
         store.bind(userID: account)
-        await waitUntil { store.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(store) { store.items.allSatisfy { $0.aliasIDs != nil } }
         return (store, cache)
     }
 
@@ -797,7 +800,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             registry: AppleMusicPinAliasRegistry(), catalog: [otherRelease], library: [saved], pinned: [pinnedRelease, saved]
         ))
         store.bind(userID: account)
-        await waitUntil { store.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(store) { store.items.allSatisfy { $0.aliasIDs != nil } }
 
         XCTAssertEqual(store.items.map(\.id), ["album:1225219002", "album:9177095676878609001"])
         XCTAssertEqual(store.items.map(\.aliasIDs), [[], []], "no pair is saved")
@@ -816,7 +819,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             registry: AppleMusicPinAliasRegistry(), catalog: [pinnedRelease], library: [saved], pinned: [pinnedRelease, saved]
         ))
         store.bind(userID: account)
-        await waitUntil { store.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(store) { store.items.allSatisfy { $0.aliasIDs != nil } }
 
         XCTAssertEqual(store.items.map(\.id), ["album:1225219102", "album:9177095676878609101"], "neither pin is deleted")
     }
@@ -839,7 +842,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         registry.register(kind: .track, itemID: "-4954366973876942251") { nil }
         // The playlist's other rows ask whether they're pinned.
         XCTAssertFalse(store.isPinned(id: "track:-4954366973876942252"))
-        await waitUntil { store.items.count == 1 }
+        await waitForPins(store) { store.items.count == 1 }
 
         XCTAssertEqual(store.items.map(\.id), ["track:1600513004"], "the first pin keeps its place")
         XCTAssertEqual(cache.saved[account]?.count, 1, "the merge is saved")
@@ -853,7 +856,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
         for index in 0..<400 where !store.isPinned(id: "track:\(1_300_000_000 + index)") {
             store.pin(songPin(String(1_300_000_000 + index)))
         }
-        await waitUntil { resolver.lookedUp == 400 }
+        await waitForPins(store) { resolver.lookedUp == 400 }
 
         XCTAssertEqual(store.items.count, 400)
         XCTAssertEqual(resolver.lookups, 1)
@@ -936,7 +939,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             }
         ))
         online.bind(userID: account)
-        await waitUntil { online.items.allSatisfy { $0.aliasIDs != nil } }
+        await waitForPins(online) { online.items.allSatisfy { $0.aliasIDs != nil } }
         XCTAssertEqual(online.items.map(\.aliasIDs), [["track:i.Saved487"], []], "a lookup that found nothing counts as checked")
         XCTAssertEqual(asked.value, 1)
     }
@@ -952,7 +955,7 @@ final class PinnedItemsAppleMusicIdentityTests: XCTestCase {
             registry: AppleMusicPinAliasRegistry(), catalog: [catalog], library: [saved], pinned: [catalog, saved]
         ))
         store.bind(userID: account)
-        await waitUntil { store.items.count == 1 }
+        await waitForPins(store) { store.items.count == 1 }
         XCTAssertEqual(store.items.first?.isStale, false, "the saved copy still opens")
     }
 

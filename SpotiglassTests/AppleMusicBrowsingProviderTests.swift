@@ -1,3 +1,4 @@
+import Combine
 import MusicKit
 import XCTest
 @testable import Spotiglass
@@ -742,8 +743,8 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         await viewModel.refreshPlaylists()
 
         let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
-        while !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
-            await Task.yield()
+        await waitUntil("the playlist's songs asked for", changes: source.changes) {
+            source.calls.contains { $0.hasPrefix("playlistTracks(p.1") }
         }
         countGate.open()
         await viewModel.playlistTrackCountTask?.value
@@ -781,8 +782,8 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.playlistTracksGate = tracksGate
         await viewModel.refreshPlaylists()
         let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
-        while !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
-            await Task.yield()
+        await waitUntil("the playlist's songs asked for", changes: source.changes) {
+            source.calls.contains { $0.hasPrefix("playlistTracks(p.1") }
         }
         countGate.open()
         await viewModel.playlistTrackCountTask?.value
@@ -1704,6 +1705,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     private let lock = NSLock()
     private var recordedCalls: [String] = []
     var calls: [String] { lock.withLock { recordedCalls } }
+    /// Sends after each call is recorded: what tests wait on.
+    let changes = TestChanges()
 
     var playlists: [Playlist] = []
     var playlistTracksByID: [String: [Track]] = [:]
@@ -1726,6 +1729,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
     private func record(_ call: String) {
         lock.withLock { recordedCalls.append(call) }
+        changes.send()
     }
 
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {

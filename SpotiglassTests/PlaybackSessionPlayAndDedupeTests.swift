@@ -185,8 +185,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(viewModel.pendingVolumeMutation).target, 0.64, accuracy: 0.000_001)
 
         releaseFetch.signal()
-        while viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent != 20 {
-            await Task.yield()
+        // Applying the read makes the transport known, which the session publishes.
+        await waitUntil("the held read applied", changes: viewModel.objectWillChange) {
+            viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent == 20
         }
         XCTAssertEqual(viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent, 20)
         XCTAssertEqual(viewModel.playbackVolume, 0.64, accuracy: 0.000_001)

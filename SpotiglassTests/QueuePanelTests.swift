@@ -833,6 +833,8 @@ final class QueuePanelTests: XCTestCase {
         let clock = ManualPlaybackClock()
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()), clock: clock, postShuffleSyncDelay: .seconds(10))
         playback.handle(.ready(deviceID: "device-1"))
+        // Shuffle waits for the player's state, which the ready event reads in the background (#535).
+        await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, clock: clock)
 
         let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
@@ -844,6 +846,7 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.toggleShuffle()
 
+        XCTAssertEqual(api.setShuffleAttempts, 1, "the shuffle was never tried")
         XCTAssertEqual(queue.upcomingItems.map(\.id), original)
         XCTAssertFalse(playback.shuffleEnabled)
     }
@@ -1334,6 +1337,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         var addToQueueHold: MockCallHold?
         var addToQueueErrors: [Error?] = []
         var concurrentFetchDetected = false
+        var setShuffleAttempts = 0
         var maxConcurrentFetches = 0
         var currentConcurrentFetches = 0
         var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
@@ -1345,6 +1349,8 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     var actions: [String] { locked { $0.actions } }
     var concurrentFetchDetected: Bool { locked { $0.concurrentFetchDetected } }
     var maxConcurrentFetches: Int { locked { $0.maxConcurrentFetches } }
+    /// Every shuffle write that reached the player, including the ones it refused.
+    var setShuffleAttempts: Int { locked { $0.setShuffleAttempts } }
     var queueResponse: MusicPlaybackQueue {
         get { locked { $0.queueResponse } }
         set { locked { $0.queueResponse = newValue } }
@@ -1461,6 +1467,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {
+        locked { $0.setShuffleAttempts += 1 }
         if let setShuffleError { throw setShuffleError }
         locked { state in
             state.actions.append("setShuffle:\(deviceID):\(enabled)")

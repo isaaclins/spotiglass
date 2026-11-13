@@ -573,11 +573,10 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         defer { close(other) }
         // The cancel handler runs on the main queue; it has run once the watcher's number no
         // longer refers to the settings file. On main that close hit `other`, which had taken it.
-        let deadline = Date().addingTimeInterval(10)
-        while Self.descriptor(watcher, isOpenOn: url) || (other == watcher && fcntl(other, F_GETFD) != -1),
-              Date() < deadline {
-            AppKitTestSupport.pumpRunLoop(for: 0.01)
-        }
+        // However late a busy machine runs it (#535).
+        _ = AppKitTestSupport.pumpRunLoop(until: {
+            !Self.descriptor(watcher, isOpenOn: url) && !(other == watcher && fcntl(other, F_GETFD) != -1)
+        })
 
         XCTAssertFalse(Self.descriptor(watcher, isOpenOn: url), "the released store left its watcher's descriptor open")
         XCTAssertNotEqual(fcntl(other, F_GETFD), -1, "the released store closed descriptor \(other), which it no longer owned")

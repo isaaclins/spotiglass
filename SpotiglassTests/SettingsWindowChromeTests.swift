@@ -47,13 +47,15 @@ final class SettingsWindowChromeTests: XCTestCase {
 
     /// The probe applies the titlebar in a `DispatchQueue.main.async` block. A run-loop pump
     /// can't run that block when the test itself runs inside one on the main queue (it did on
-    /// CI, #466); suspending lets the main queue go on, so the test waits for the block itself.
+    /// CI, #466); suspending lets the main queue go on. The main queue runs its blocks in order,
+    /// so once a block queued after the probe's has run, the probe's has too, however busy the
+    /// machine is (#535).
     func testProbeViewConfiguresItsWindowOnceAttached() async throws {
         let window = makeWindow()
         window.contentView?.addSubview(UnifiedTitlebarProbeView())
 
-        while window.toolbar == nil {
-            try await Task.sleep(for: .milliseconds(20))
+        await withCheckedContinuation { queuedAfterTheProbe in
+            DispatchQueue.main.async { queuedAfterTheProbe.resume() }
         }
 
         XCTAssertEqual(window.toolbar?.identifier, UnifiedTitlebarProbeView.toolbarIdentifier)

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import XCTest
 @testable import Spotiglass
@@ -60,6 +61,9 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
         return commandsStorage
     }
 
+    /// Sends after each command is recorded: what tests wait on.
+    let changes = TestChanges()
+
     /// Runs after each command is recorded — lets tests await a specific command
     /// deterministically instead of sleeping for "long enough".
     var onSend: ((PlaybackBridgeCommand) async -> Void)?
@@ -97,6 +101,7 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
         stateLock.lock()
         commandsStorage.append(SentCommand(command: command, payload: payload))
         stateLock.unlock()
+        changes.send()
     }
 
     private func owns(generation: PlaybackHostGeneration) -> Bool {
@@ -234,14 +239,56 @@ func finishes(
 /// description instead of a bare timeout (#503).
 let mustHappenTimeout: TimeInterval = 100
 
+/// What a fake (or a model) sends whenever something a test may wait for changes: a command
+/// it records, a lookup that starts waiting, a call. Safe to send from any thread.
+typealias TestChanges = PassthroughSubject<Void, Never>
+
+/// ``mustHappenTimeout`` for ``waitUntil(_:changes:deadline:file:line:_:)``: no time window, only
+/// a bound under the 120 s per-test limit so an event that never comes fails with what was awaited.
+let testWaitDeadline: Duration = .seconds(mustHappenTimeout)
+
+/// Waits until `condition` holds, checking it again each time `changes` sends, however late
+/// that is on a busy machine (#535). A fixed number of turns or a short sleep budget gave up
+/// there and then asserted on something that simply hadn't happened yet.
+///
+/// `changes` may send before the change lands (`objectWillChange`): the check runs on the
+/// main actor after the sender's turn, when the new value is in.
+@MainActor
+func waitUntil<Changes: Publisher>(
+    _ what: @autoclosure () -> String,
+    changes: Changes,
+    deadline: Duration = testWaitDeadline,
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ condition: () -> Bool
+) async where Changes.Failure == Never {
+    if condition() { return }
+    let (ticks, tick) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+    let watch = changes.sink { _ in tick.yield() }
+    let timer = Task {
+        try? await Task.sleep(for: deadline)
+        tick.finish()
+    }
+    defer {
+        watch.cancel()
+        timer.cancel()
+    }
+    // A change that landed between the first check and the subscription.
+    if condition() { return }
+    for await _ in ticks where condition() { return }
+    XCTFail("Waited \(deadline) for \(what())", file: file, line: line)
+}
+
 private final class MockPlaybackActionRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedActions: [String] = []
+    let changes = TestChanges()
 
     func append(_ action: String) {
         lock.lock()
-        defer { lock.unlock() }
         recordedActions.append(action)
+        lock.unlock()
+        changes.send()
     }
 
     func snapshot() -> [String] {
@@ -297,6 +344,8 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     private let stateLock = NSLock()
     private var state = State()
     var actions: [String] { actionRecorder.snapshot() }
+    /// Sends after each action is recorded: what tests wait on.
+    var changes: TestChanges { actionRecorder.changes }
     var lastPlayedURIQueue: [String]? { locked { $0.lastPlayedURIQueue } }
     var lastPlayedOffsetURI: String? { locked { $0.lastPlayedOffsetURI } }
     /// Runs at the top of every `play*` call, with the

@@ -223,21 +223,12 @@ final class AccountSettingsViewTests: XCTestCase {
 
         ViewTestHost.assertFindLocalizedText("settings.account.appleMusic.status.notAdded", in: view)
         try view.inspect().find(button: SpotiglassL10n.string("settings.account.appleMusic.add")).tap()
-        try await waitUntil { store.isAdded(.appleMusic) }
+        await waitUntil("Apple Music added", changes: store.objectWillChange) { store.isAdded(.appleMusic) }
 
         XCTAssertEqual(authorization.requests, 1, "Access is asked from Settings itself")
         XCTAssertTrue(store.isAdded(.appleMusic))
         XCTAssertNil(store.pendingAddition)
         XCTAssertEqual(store.active, .spotify)
-    }
-
-    /// Waits for the async work a tap starts, however long a busy machine takes, instead of a
-    /// fixed delay that a slow CI runner can outlast.
-    private func waitUntil(_ done: () -> Bool) async throws {
-        while !done() {
-            AppKitTestSupport.pumpRunLoop(for: 0.02)
-            try await Task.sleep(for: .milliseconds(30))
-        }
     }
 
     /// Refusing access adds nothing and says it was refused.
@@ -255,7 +246,7 @@ final class AccountSettingsViewTests: XCTestCase {
         ViewTestHost.host(view)
 
         try view.inspect().find(button: SpotiglassL10n.string("settings.account.appleMusic.add")).tap()
-        try await waitUntil { session.state == .denied }
+        await waitUntil("access refused", changes: session.$state) { session.state == .denied }
         AppKitTestSupport.pumpRunLoop(for: 0.1)
 
         XCTAssertEqual(store.services, [.spotify])

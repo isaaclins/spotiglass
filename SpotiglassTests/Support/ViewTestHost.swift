@@ -24,7 +24,11 @@ enum AppKitTestSupport {
     /// Runs the main run loop until `condition` holds: for something an app timer does, so the
     /// test waits for it however late a busy machine fires it, instead of for a fixed time
     /// (#510). Returns whether it held before `timeout`.
-    static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = 10) -> Bool {
+    ///
+    /// The default timeout is no time window: it only sits under the 120 s per-test limit, which
+    /// can't stop a synchronous loop on the main thread, so a condition that never holds fails
+    /// here instead of hanging the whole run (#535).
+    static func pumpRunLoop(until condition: () -> Bool, timeout: TimeInterval = mustHappenTimeout) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() {
             guard Date() < deadline else { return false }
@@ -248,24 +252,25 @@ enum ViewTestHost {
     /// Finds copy from ``Localizable.xcstrings`` (unit tests host in the test bundle, not `.main`).
     /// Waits for it however long a busy machine takes to lay the view out; text that never shows
     /// runs into the per-test time limit.
-    static func assertFindLocalizedText<V: View>(_ key: String, in view: V) {
+    static func assertFindLocalizedText<V: View>(
+        _ key: String,
+        in view: V,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let candidates = [localizedString(key), key]
-        while true {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-            for candidate in candidates where (try? view.inspect().find(text: candidate)) != nil {
-                return
-            }
-        }
+        let found = AppKitTestSupport.pumpRunLoop(until: {
+            candidates.contains { (try? view.inspect().find(text: $0)) != nil }
+        })
+        XCTAssertTrue(found, "no text for \(key) (\(candidates))", file: file, line: line)
     }
 
     /// ViewInspector can miss text until SwiftUI finishes laying out the hosted window, so this
     /// waits for it however long a busy machine takes; text that never shows runs into the
     /// per-test time limit.
-    static func assertFindText<V: View>(_ text: String, in view: V) {
-        while true {
-            AppKitTestSupport.pumpRunLoop(for: 0.05)
-            if (try? view.inspect().find(text: text)) != nil { return }
-        }
+    static func assertFindText<V: View>(_ text: String, in view: V, file: StaticString = #filePath, line: UInt = #line) {
+        let found = AppKitTestSupport.pumpRunLoop(until: { (try? view.inspect().find(text: text)) != nil })
+        XCTAssertTrue(found, "no text \"\(text)\"", file: file, line: line)
     }
 
     static func makeSettingsStore() throws -> SpotiglassSettingsStore {
@@ -315,10 +320,11 @@ extension AppKitTestSupport {
         return value
     }
 
-    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop. The
-    /// 10 s deadline only guards against a hang; a passing read returns as soon as it holds.
+    /// Reads the tree until `done` holds: SwiftUI publishes it on a later turn of the run loop,
+    /// however late that is on a busy machine (#535). The deadline only stops a tree that never
+    /// settles: the per-test limit can't stop a synchronous loop on the main thread.
     static func settledAccessibilityElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
-        let deadline = Date().addingTimeInterval(10)
+        let deadline = Date().addingTimeInterval(mustHappenTimeout)
         var elements = try voiceOverReachableElements(in: window)
         while !done(elements), Date() < deadline {
             pumpRunLoop(for: 0.02)

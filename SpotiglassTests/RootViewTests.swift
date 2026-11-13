@@ -127,16 +127,14 @@ final class RootViewTests: XCTestCase {
         ))
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
         ViewTestHost.host(root)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+        // SwiftUI applies each change on a later pass of the run loop, however late (#535).
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { playbackHost.playbackViewModel.refusesNewPlayback }))
 
         services.activate(.spotify)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertFalse(playbackHost.playbackViewModel.refusesNewPlayback)
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { !playbackHost.playbackViewModel.refusesNewPlayback }))
 
         services.activate(.appleMusic)
-        AppKitTestSupport.pumpRunLoop(for: 0.1)
-        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+        XCTAssertTrue(AppKitTestSupport.pumpRunLoop(until: { playbackHost.playbackViewModel.refusesNewPlayback }))
     }
 
     /// Spotify's sign-in screen after its session lapsed, with Apple Music added too: Disconnect
@@ -659,11 +657,10 @@ final class RootViewToolbarLayoutTests: XCTestCase {
         (window.toolbar?.items.count ?? 0) > 1
     }
 
-    /// Runs the main run loop until `done` holds. The limit only stops a broken run; a passing run
-    /// returns as soon as the screen has switched.
-    private func settle(until done: () -> Bool, limit: Duration = .seconds(10)) async throws {
-        let deadline = ContinuousClock.now + limit
-        while !done(), ContinuousClock.now < deadline {
+    /// Runs the main run loop until `done` holds, however long a busy machine takes (#535). A
+    /// switch that never comes runs into the per-test limit.
+    private func settle(until done: () -> Bool) async throws {
+        while !done() {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
             try await Task.sleep(for: .milliseconds(10))
         }
