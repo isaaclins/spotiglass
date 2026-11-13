@@ -391,7 +391,7 @@ final class ScrubberTickCostTests: XCTestCase {
             },
             evaluatedWith: nil
         )
-        wait(for: [ticked], timeout: 30)
+        wait(for: [ticked], timeout: mustHappenTimeout)
     }
 
     func testTheTrackIsNeverHitOrReadByVoiceOver() {
