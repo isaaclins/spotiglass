@@ -20,7 +20,9 @@ final class CommandPaletteViewModel: ObservableObject {
     /// Sections in display order. Only sections with non-empty items are emitted.
     @Published private(set) var sections: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
     @Published private(set) var isLoading = false
-    @Published private(set) var errorText: String?
+    /// Looked up when shown, so the reason a search failed follows a language switch (#548).
+    @Published private var error: LocalizedText?
+    var errorText: String? { error?.string }
     @Published var selectedIndex = 0
     /// Bulk playlist-track prefetch progress, mirrored from the host browser
     /// view-model. This is scene state rather than presentation state, so it
@@ -116,6 +118,7 @@ final class CommandPaletteViewModel: ObservableObject {
     }
 
     func show() {
+        selectionToKeep = nil
         if !isPresented {
             restoreFocus = rememberFocus()
         }
@@ -124,7 +127,7 @@ final class CommandPaletteViewModel: ObservableObject {
         searchCategoryFilter = availableSearchCategories.first ?? .all
         selectedIndex = 0
         sections = idleSections()
-        errorText = nil
+        error = nil
         isLoading = false
         lastSuccessfulSongSearchQuery = nil
         cachedResults = nil
@@ -185,7 +188,7 @@ final class CommandPaletteViewModel: ObservableObject {
         let previous = keepingSelection && visibleItems.indices.contains(selectedIndex)
             ? visibleItems[selectedIndex].id : nil
         sections = idleSections(prefix: prefix)
-        errorText = nil
+        error = nil
         isLoading = false
         selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
     }
@@ -198,10 +201,22 @@ final class CommandPaletteViewModel: ObservableObject {
         guard isPresented else { return }
         if showsSuggestions || currentScope == .commands {
             refreshListedCommands()
-        } else {
-            refresh()
+            return
         }
+        selectionToKeep = visibleItems.indices.contains(selectedIndex) ? visibleItems[selectedIndex].id : nil
+        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if Date() < rateLimitCooldownUntil {
+            // Searching waits out the limit: rebuild what is local, and the error stays.
+            renderInstantLocalResults(trimmed: trimmed)
+            return
+        }
+        // The same query again: ask the service once more rather than reusing its rows.
+        lastSuccessfulSongSearchQuery = nil
+        refresh()
     }
+
+    /// The row to highlight again when results are rebuilt after a language switch, by ID.
+    private var selectionToKeep: String?
 
     func refreshListedCommands() {
         guard isPresented else { return }
@@ -236,7 +251,7 @@ final class CommandPaletteViewModel: ObservableObject {
                 }
                 .map(\.item)
         }
-        errorText = nil
+        error = nil
         isLoading = false
         sections = filtered.isEmpty ? [] : [(.commands, filtered)]
         selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
@@ -267,7 +282,7 @@ final class CommandPaletteViewModel: ObservableObject {
         searchCategoryFilter = .all
         selectedIndex = 0
         sections = []
-        errorText = nil
+        error = nil
         isLoading = false
         lastSuccessfulSongSearchQuery = nil
         cachedResults = nil
@@ -290,6 +305,7 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// Call from the search field’s `.onChange` so legacy `@` stripping does not schedule a duplicate refresh.
     func queryDidChangeFromTextField() {
+        selectionToKeep = nil
         if suppressLegacyPrefixQueryRefresh {
             suppressLegacyPrefixQueryRefresh = false
             return
@@ -309,7 +325,7 @@ final class CommandPaletteViewModel: ObservableObject {
             // blank while the debounced catalog fetch is in flight.
             renderInstantLocalResults(trimmed: trimmed)
             isLoading = true
-            errorText = nil
+            error = nil
         }
         searchTask = Task { [weak self] in
             guard let self else { return }
@@ -327,6 +343,7 @@ final class CommandPaletteViewModel: ObservableObject {
     /// This is what makes the footer pills (and Tab) switch instantly instead of re-querying.
     func selectCategory(_ category: CommandPaletteSearchCategory) {
         guard CommandPaletteScope.parse(query).scope != .commands else { return }
+        selectionToKeep = nil
         searchCategoryFilter = category
         let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty,
@@ -477,7 +494,7 @@ final class CommandPaletteViewModel: ObservableObject {
         }
 
         isLoading = true
-        errorText = nil
+        error = nil
         do {
             try await Task.sleep(for: .milliseconds(200))
             try Task.checkCancellation()
@@ -501,18 +518,21 @@ final class CommandPaletteViewModel: ObservableObject {
                 lastSuccessfulSongSearchQuery = nil
                 // Keep any instant local matches visible; only the catalog half failed.
                 isLoading = false
-                errorText = error.userMessage
+                self.error = LocalizedText(error.userMessage)
             default:
                 lastSuccessfulSongSearchQuery = nil
                 isLoading = false
-                errorText = error.userMessage
+                self.error = LocalizedText(error.userMessage)
             }
         } catch {
             lastSuccessfulSongSearchQuery = nil
             isLoading = false
             // Apple Music's search failures read as calm sentences, like the Search view's (#397).
-            errorText = BrowsingDisplayError.appleMusic(for: error)?.message
-                ?? MusicServiceErrorText.userMessage(for: error, service: MusicServiceSelection.current)
+            let service = MusicServiceSelection.current
+            self.error = LocalizedText(
+                BrowsingDisplayError.appleMusic(for: error)?.message
+                    ?? MusicServiceErrorText.userMessage(for: error, service: service)
+            )
         }
     }
 
@@ -540,7 +560,11 @@ final class CommandPaletteViewModel: ObservableObject {
             built.append((.showAll, [row]))
         }
         sections = built
-        selectedIndex = 0
+        if let keep = selectionToKeep, let index = visibleItems.firstIndex(where: { $0.id == keep }) {
+            selectedIndex = index
+        } else {
+            selectedIndex = 0
+        }
     }
 
     /// Trailing "Show all results for <query>" row that dismisses the palette and

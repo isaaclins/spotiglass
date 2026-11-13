@@ -187,19 +187,19 @@ struct HomeCardArtistCredits: View {
             Button {
                 openArtist(artist)
             } label: {
-                Text(artist.name)
+                Text(UnnamedMusicItem.displayName(artist.name, kind: .artist))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             .buttonStyle(.spotiglassTextLink)
-            .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
+            .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", UnnamedMusicItem.displayName(artist.name, kind: .artist)))
         case let .name(name):
             // A name without an ID next to linked ones opens the card, like the
             // line does when it has no links at all. VoiceOver reads it in the
             // card's own label.
             Button(action: openCard) {
-                Text(name)
+                Text(UnnamedMusicItem.displayName(name, kind: .artist))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

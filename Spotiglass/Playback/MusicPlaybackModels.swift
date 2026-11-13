@@ -219,6 +219,11 @@ struct ArtistTapTarget: Equatable, Identifiable {
     let id: String?
     let name: String
 
+    /// ``name`` with a stand-in for a nameless artist in the app's current language (#548).
+    var nameInAppLanguage: String {
+        UnnamedMusicItem.displayArtistList(name, locale: SpotiglassL10n.locale)
+    }
+
     var stableID: String {
         if let id { return "artist-id:\(id)" }
         let normalized = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
@@ -279,7 +284,17 @@ struct QueueItem: Identifiable, Equatable {
     /// ``subtitle`` with each artist stand-in in the app's current language, like a pin's
     /// subtitle: a nameless artist queued in English reads German after a switch (#548).
     var subtitleInAppLanguage: String {
-        UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
+        if uri?.hasPrefix("spotify:episode:") == true, Self.isEpisodeFallback(subtitle) {
+            return SpotiglassL10n.string("playback.queue.episodeFallback")
+        }
+        return UnnamedMusicItem.displayArtistList(subtitle, locale: SpotiglassL10n.locale)
+    }
+
+    /// The subtitle an episode without a show gets, in any of the app's languages.
+    private static func isEpisodeFallback(_ subtitle: String) -> Bool {
+        AppLanguage.allCases.contains {
+            SpotiglassL10n.string("playback.queue.episodeFallback", locale: Locale(identifier: $0.rawValue)) == subtitle
+        }
     }
 }
 

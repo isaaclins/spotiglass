@@ -313,6 +313,134 @@ final class MainWindowLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(TrackRowViewModel(item, listPosition: 1), TrackRowViewModel(item, listPosition: 1))
     }
 
+    /// Palette search results are built by the service search in the language of the moment.
+    /// Left open across a switch they kept it, and asking again the same way reused them and
+    /// moved the highlight to the first row.
+    func testOpenPaletteSearchResultsFollowALanguageSwitch() async throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let viewModel = CommandPaletteViewModel()
+        var searches = 0
+        viewModel.searchProvider = { _, _ in
+            searches += 1
+            var results = CommandPaletteSearchResults()
+            results.tracks = ["a", "b", "c"].map { id in
+                CommandPaletteItem(
+                    id: "track-\(id)",
+                    title: "Song \(id)",
+                    subtitle: SpotiglassL10n.string("browser.likedSongs.title"),
+                    iconSystemName: "music.note",
+                    section: .tracks,
+                    keywords: []
+                ) {}
+            }
+            return results
+        }
+        viewModel.show()
+        viewModel.query = "song"
+        viewModel.refresh()
+        await viewModel.waitForSearchCompletion()
+        viewModel.selectedIndex = 1
+        let highlighted = viewModel.visibleItems[1].id
+
+        try store.mutate { $0.appearance.language = .german }
+        viewModel.languageDidChange()
+        await viewModel.waitForSearchCompletion()
+        let german = SpotiglassL10n.string("browser.likedSongs.title", locale: Locale(identifier: "de"))
+        XCTAssertEqual(searches, 2, "The open search was not asked for again")
+        XCTAssertEqual(viewModel.visibleItems.first { $0.id == highlighted }?.subtitle, german)
+        XCTAssertEqual(viewModel.visibleItems[viewModel.selectedIndex].id, highlighted, "A switch moved the highlight")
+    }
+
+    /// A rate-limited palette search says why it waits. A switch during the wait cleared that
+    /// while searching stayed blocked.
+    func testAPaletteRateLimitErrorSurvivesALanguageSwitch() async throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchProvider = { _, _ in throw SpotifyAPIError.rateLimited(retryAfter: 600) }
+        viewModel.show()
+        viewModel.query = "song"
+        viewModel.refresh()
+        await viewModel.waitForSearchCompletion()
+        let english = try XCTUnwrap(viewModel.errorText)
+
+        try store.mutate { $0.appearance.language = .german }
+        viewModel.languageDidChange()
+        await viewModel.waitForSearchCompletion()
+        let german = try XCTUnwrap(viewModel.errorText, "The switch hid the rate-limit error")
+        XCTAssertNotEqual(german, english, "The palette's error stayed in the old language")
+    }
+
+    /// Recently-played cards on Home keep the names they were built with; a nameless album
+    /// or artist read "Unknown album" / "Unknown artist" in the old language.
+    func testRecentlyPlayedCardsFollowALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let track = MusicTrack(
+            id: "t", name: "Song", artists: [""], albumArtworkURL: nil, albumName: nil, albumID: "alb",
+            durationMilliseconds: 60_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:t"
+        )
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: track))
+
+        try store.mutate { $0.appearance.language = .german }
+        let german = Locale(identifier: "de")
+        XCTAssertEqual(card.title, UnnamedMusicItem.album.placeholder(locale: german))
+        XCTAssertEqual(card.subtitle, UnnamedMusicItem.artist.placeholder(locale: german))
+        guard case let .album(_, title, _, _) = card.destination else { return XCTFail("Expected an album card") }
+        XCTAssertEqual(title, UnnamedMusicItem.album.placeholder(locale: german), "The album opened under the old name")
+    }
+
+    /// The queue shows a song's artists as links, made from the names it was queued with, and
+    /// an episode without a show as "Podcast" in the language it was queued in.
+    func testQueueArtistLinksAndEpisodeFallbackFollowALanguageSwitch() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        SpotiglassL10n.settingsStore = store
+        try store.mutate { $0.appearance.language = .english }
+        let track = MusicTrack(
+            id: "t", name: "Song", artists: [""], artistRefs: [MusicArtistRef(id: "a", name: "")],
+            albumArtworkURL: nil, durationMilliseconds: 60_000, isExplicit: false, isPlayable: true,
+            linkedFromID: nil, uri: "spotify:track:t"
+        )
+        let queuedTrack = QueueItem.from(track: track)
+        let queuedEpisode = QueueItem.from(episode: MusicEpisode(
+            id: "e", name: "Episode", showName: nil, artworkURL: nil, durationMilliseconds: 60_000,
+            isPlayable: true, uri: "spotify:episode:e"
+        ))
+
+        try store.mutate { $0.appearance.language = .spanish }
+        let spanish = Locale(identifier: "es")
+        XCTAssertEqual(
+            queuedTrack.artistTapTargets.map(\.nameInAppLanguage),
+            [UnnamedMusicItem.artist.placeholder(locale: spanish)]
+        )
+        XCTAssertEqual(
+            queuedEpisode.subtitleInAppLanguage,
+            SpotiglassL10n.string("playback.queue.episodeFallback", locale: spanish)
+        )
+    }
+
+    /// A name that reads like a key is still a name: rows compare what their text is made from,
+    /// and an episode whose show is literally called a key must not compare equal to one
+    /// without a show.
+    func testANameThatReadsLikeAKeyIsNotThatKey() {
+        let key = "browser.trackBadge.podcastEpisode"
+        XCTAssertNotEqual(
+            LocalizedText(SpotiglassL10n.string(key), comparedByKey: key),
+            LocalizedText(key, comparedBy: key)
+        )
+        func row(showName: String?) -> TrackRowViewModel {
+            TrackRowViewModel(MusicPlaylistTrackItem(id: "e", content: .episode(MusicEpisode(
+                id: "e", name: "Episode", showName: showName, artworkURL: nil, durationMilliseconds: 60_000,
+                isPlayable: true, uri: "spotify:episode:e"
+            ))), listPosition: 1)
+        }
+        XCTAssertNotEqual(row(showName: nil), row(showName: key))
+    }
+
     /// Other settings changes (theme, lyrics size) don't redraw text that only depends on the
     /// language.
     func testOtherSettingsChangesDoNotRedrawLanguageOnlyText() throws {

@@ -77,6 +77,17 @@ struct LocalizedText: Equatable, ExpressibleByStringLiteral {
         self.source = source
     }
 
+    /// A key's text: equal keys compare equal without a lookup. Keys are kept apart from names,
+    /// so a name that reads like a key never compares equal to it.
+    init(_ resolve: @autoclosure @escaping () -> String, comparedByKey key: String) {
+        self.resolve = resolve
+        self.source = AnyHashable(Key(name: key))
+    }
+
+    private struct Key: Hashable {
+        let name: String
+    }
+
     /// Fixed text that is not translated, such as a song title.
     init(verbatim value: String) {
         self.resolve = { value }

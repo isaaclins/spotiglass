@@ -305,14 +305,14 @@ private struct QueueRowView: View {
                     Button {
                         openArtist(target)
                     } label: {
-                        Text(target.name)
+                        Text(target.nameInAppLanguage)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     .buttonStyle(.spotiglassTextLink)
                     .accessibilityLabel(
-                        String(format: SpotiglassL10n.string("queue.openArtist"), target.name)
+                        String(format: SpotiglassL10n.string("queue.openArtist"), target.nameInAppLanguage)
                     )
                 }
                 Spacer(minLength: 0)

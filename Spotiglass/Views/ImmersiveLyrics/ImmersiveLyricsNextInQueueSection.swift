@@ -87,13 +87,13 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                         Button {
                             navigateToArtist(target)
                         } label: {
-                            Text(target.name)
+                            Text(target.nameInAppLanguage)
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.5))
                                 .lineLimit(2)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openArtist"), target.name))
+                        .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openArtist"), target.nameInAppLanguage))
                     }
                     Spacer(minLength: 0)
                 }
