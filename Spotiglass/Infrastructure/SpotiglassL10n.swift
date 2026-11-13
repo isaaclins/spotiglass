@@ -81,11 +81,11 @@ struct LocalizedText: Equatable, ExpressibleByStringLiteral {
     /// so a name that reads like a key never compares equal to it.
     init(_ resolve: @autoclosure @escaping () -> String, comparedByKey key: String) {
         self.resolve = resolve
-        self.source = AnyHashable(Key(name: key))
+        self.source = AnyHashable(Source.key(key))
     }
 
-    private struct Key: Hashable {
-        let name: String
+    private enum Source: Hashable {
+        case key(String)
     }
 
     /// Fixed text that is not translated, such as a song title.
