@@ -166,7 +166,8 @@ final class MainWindowLiveSettingsTests: XCTestCase {
     }
 
     /// The main window's content, set up as the window scene sets it up, with Apple Music's
-    /// library on screen from a stand-in source (no sign-in, no MusicKit, no network).
+    /// library on screen from a stand-in source and stand-in players (no sign-in, no MusicKit,
+    /// no network).
     private func hostMainWindow(
         settings: SpotiglassSettingsStore,
         services: MusicServiceStore,
@@ -181,13 +182,11 @@ final class MainWindowLiveSettingsTests: XCTestCase {
         await session.refresh()
         // A stand-in library, so the test never reads the Mac's own Apple Music library.
         let appleMusic = Self.standInLibrary()
-        let spotifyHost = SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
-            accessToken: "test", refreshedAccessToken: "test-refresh"
-        ))
+        let spotifyHost = Self.standInPlayer()
         let root = RootView(
             keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
             sceneRegistry: SpotiglassSceneRegistry(),
-            playbackHosts: .forTests(spotify: spotifyHost),
+            playbackHosts: SpotiglassPlaybackHosts(spotify: spotifyHost) { Self.standInPlayer() },
             serviceStore: services,
             appleMusicSession: session,
             appleMusicCatalog: { appleMusic }
@@ -203,7 +202,8 @@ final class MainWindowLiveSettingsTests: XCTestCase {
 
     /// Spotify's library as the main window shows it to a signed-in account, and Apple Music's
     /// next to it, switched by the sidebar's service switcher. Both read from a stand-in API, the
-    /// account's profile included, so nothing reaches Spotify or Apple Music.
+    /// account's profile included, and play on stand-in players, so nothing reaches Spotify or
+    /// Apple Music.
     private func hostSignedInLibraries(
         settings: SpotiglassSettingsStore,
         rendered: RenderedSettings
@@ -212,7 +212,6 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             services: [.spotify, .appleMusic], active: .spotify
         ))
         let palette = CommandPaletteManager()
-        let tokens = LiveSettingsSpotifyTokens()
         var libraries: [MusicService: AnyView] = [:]
         for service in [MusicService.spotify, .appleMusic] {
             let api = Self.standInLibrary()
@@ -220,7 +219,7 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             await browser.load()
             libraries[service] = AnyView(PlaylistBrowserView(
                 viewModel: browser,
-                playbackHost: SpotiglassPlaybackHost(tokenProvider: tokens),
+                playbackHost: Self.standInPlayer(),
                 catalogProvider: api,
                 commandPaletteManager: palette,
                 signOut: {},
@@ -247,6 +246,13 @@ final class MainWindowLiveSettingsTests: XCTestCase {
             .environmentObject(LyricsOverlayController())
             .spotiglassLiveSettings(settings)
         return (try showLikeTheMainWindow(content, settings: settings, rendered: rendered), services)
+    }
+
+    /// A player on stand-ins: no Web Playback SDK page, no MusicKit player, no requests.
+    private static func standInPlayer() -> SpotiglassPlaybackHost {
+        SpotiglassPlaybackHost(provider: SpotifyPlaybackProvider(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()
+        ))
     }
 
     /// Two playlists and the account's profile, read from memory.
@@ -377,13 +383,6 @@ private struct TitleBarLayout {
         }
         return nil
     }
-}
-
-private final class LiveSettingsSpotifyTokens: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
-    func playbackAccessToken() async throws -> String { "live-settings-token" }
-    func refreshedPlaybackAccessToken() async throws -> String { "live-settings-token" }
-    func accessToken() async throws -> String { "live-settings-token" }
-    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "live-settings-token" }
 }
 
 private struct LiveSettingsMusicAuthorization: AppleMusicAuthorizing {
