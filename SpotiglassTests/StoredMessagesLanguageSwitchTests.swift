@@ -255,6 +255,18 @@ final class StoredMessagesLanguageSwitchTests: XCTestCase {
         XCTAssertEqual(browser.displayName(for: .artist("a")), UnnamedMusicItem.artist.placeholder(locale: spanish))
     }
 
+    /// An album without a name on an artist page.
+    func testANamelessAlbumOnAnArtistPageFollowsALanguageSwitch() throws {
+        let card = ArtistAlbumRowViewModel(MusicArtistAlbum(
+            id: "al", name: "", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:al"
+        ))
+        XCTAssertEqual(card.title, UnnamedMusicItem.album.placeholder(locale: Locale(identifier: "en")))
+
+        try switchToGerman()
+
+        XCTAssertEqual(card.title, UnnamedMusicItem.album.placeholder(locale: german), "The album card stayed in the old language")
+    }
+
     /// Settings › Keyboard: a chord a menu item owns names that menu item, in the language of the
     /// moment.
     func testAMenuOwnedChordsMessageFollowsALanguageSwitch() throws {
