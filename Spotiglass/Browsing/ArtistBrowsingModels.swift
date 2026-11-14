@@ -17,6 +17,8 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
     /// ``trackCountText`` to recover it (#159).
     let totalTrackCount: Int
     let uri: String
+    /// Shows the Explicit label songs carry (#580).
+    let isExplicit: Bool
 
     init(_ album: MusicArtistAlbum) {
         id = album.id
@@ -26,6 +28,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
         totalTrackCount = max(0, album.totalTracks)
         totalTracks = album.totalTracks
         uri = album.uri
+        isExplicit = album.isExplicit
     }
 }
 
@@ -71,7 +74,8 @@ extension ArtistAlbumRowViewModel {
             releaseYear: yearText,
             totalTracks: totalTrackCount,
             group: group,
-            uri: uri
+            uri: uri,
+            isExplicit: isExplicit
         )
     }
 

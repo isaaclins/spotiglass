@@ -209,7 +209,8 @@ enum AppleMusicItemMapping {
             releaseYear: album.releaseDate.map { String(Calendar(identifier: .gregorian).component(.year, from: $0)) },
             totalTracks: album.trackCount,
             group: group,
-            uri: uri(kind: "album", id: album.id)
+            uri: uri(kind: "album", id: album.id),
+            isExplicit: album.contentRating == .explicit
         )
     }
 

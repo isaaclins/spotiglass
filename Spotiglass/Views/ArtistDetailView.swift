@@ -331,6 +331,7 @@ struct ArtistDetailContent: View {
     /// track count as three or four separate fragments (#111).
     private func albumAccessibilityLabel(_ album: ArtistAlbumRowViewModel, pinned: Bool) -> String {
         var parts = [album.title]
+        if album.isExplicit { parts.append(SpotiglassL10n.string("browser.trackBadge.explicit")) }
         if let year = album.yearText { parts.append(year) }
         parts.append(album.trackCountText)
         if pinned { parts.append(SpotiglassL10n.string("browser.pinned")) }
@@ -352,10 +353,20 @@ struct ArtistDetailContent: View {
                 .lineLimit(2)
                 .frame(width: SpotiglassDesign.Layout.cardWidth, alignment: .leading)
 
-            if let year = album.yearText {
-                Text(year)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if album.isExplicit || album.yearText != nil {
+                HStack(spacing: SpotiglassDesign.spacingXS) {
+                    if album.isExplicit {
+                        Text(SpotiglassL10n.string("browser.trackBadge.explicit"))
+                            .font(.caption2.weight(.medium))
+                            .padding(SpotiglassDesign.Layout.badgeInsets)
+                            .background(.secondary.opacity(0.15), in: Capsule())
+                    }
+                    if let year = album.yearText {
+                        Text(year)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Text(album.trackCountText)

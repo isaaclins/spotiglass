@@ -131,6 +131,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// lookups carry on, so the next read of the list has them. Tests replace it.
     var ratingsDeadline: @Sendable () async -> Void = { try? await Task.sleep(for: AppleMusicBrowsingProvider.ratingsWait) }
     static let ratingsWait: Duration = .seconds(2)
+    /// Whether this Mac only allows clean music, read on every artist page so a change of the
+    /// setting shows the next time one opens. Tests replace it.
+    var explicitMusicBlocked: @Sendable () -> Bool = { AppleMusicContentRestrictions.isExplicitMusicBlocked() }
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
@@ -507,7 +510,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             releaseYear: album.releaseYear,
             totalTracks: count,
             group: album.group,
-            uri: album.uri
+            uri: album.uri,
+            isExplicit: album.isExplicit
         )
     }
 
@@ -524,7 +528,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             )
             await artistAlbumsCache.store(all, forArtistID: id)
         }
-        return all.filter { groups.isEmpty || groups.contains($0.group) }
+        return AppleMusicAlbumEditions.oneEach(all, explicitBlocked: explicitMusicBlocked())
+            .filter { groups.isEmpty || groups.contains($0.group) }
     }
 
     // MARK: - Search
@@ -722,6 +727,43 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
 /// A few artists' album lists, kept for a short while so paging an artist page doesn't walk
 /// MusicKit's album batches again for every page. Bounded in count and age.
+/// Apple lists the clean and the explicit edition of an album as two albums with their own
+/// catalog IDs, and the same cover, name, year and track count (#580). The Music app shows one:
+/// the explicit edition, or the clean one when this Mac only allows clean music. Editions that
+/// differ in anything shown (a deluxe or live album, a remaster's year) stay apart.
+enum AppleMusicAlbumEditions {
+    /// The albums in their order, each clean and explicit pair as one: in the place of the
+    /// edition listed first, the one this Mac would play.
+    static func oneEach(_ albums: [MusicArtistAlbum], explicitBlocked: Bool) -> [MusicArtistAlbum] {
+        /// What a tile shows: two editions alike in all of it look like the same album twice.
+        func key(_ album: MusicArtistAlbum) -> [String?] {
+            [album.name, album.releaseYear, String(album.totalTracks), album.group.rawValue]
+        }
+        var pairs: [[String?]: (clean: Int?, explicit: Int?)] = [:]
+        for (index, album) in albums.enumerated() {
+            var pair = pairs[key(album)] ?? (nil, nil)
+            if album.isExplicit {
+                if pair.explicit == nil { pair.explicit = index }
+            } else if pair.clean == nil {
+                pair.clean = index
+            }
+            pairs[key(album)] = pair
+        }
+        var dropped: Set<Int> = []
+        var replacement: [Int: Int] = [:]
+        for pair in pairs.values {
+            guard let clean = pair.clean, let explicit = pair.explicit else { continue }
+            let kept = explicitBlocked ? clean : explicit
+            let shownAt = min(clean, explicit)
+            replacement[shownAt] = kept
+            dropped.insert(max(clean, explicit))
+        }
+        return albums.indices.compactMap { index in
+            dropped.contains(index) ? nil : albums[replacement[index] ?? index]
+        }
+    }
+}
+
 actor AppleMusicArtistAlbumsCache {
     static let maxArtists = 8
     static let maxAge: TimeInterval = 10 * 60

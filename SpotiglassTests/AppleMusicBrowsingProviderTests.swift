@@ -1032,6 +1032,50 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(albums.value.map(\.totalTracks), [1, 2, 12, 4, 5, 6])
     }
 
+    /// Taylor Swift's "folklore" as Apple lists it: a clean (1524793738) and an explicit
+    /// (1524801260) edition with the same cover, name, year and track count, which the artist
+    /// page showed as two identical tiles (#580). One tile, the edition this Mac plays, with the
+    /// Explicit label when it is the explicit one; the deluxe edition is a different album.
+    func testAnAlbumsCleanAndExplicitEditionsShowAsOneTile() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["159260351"] = try AppleMusicFixtures.artist(id: "159260351", name: "Taylor Swift")
+        source.extraAlbumsByArtistID["159260351"] = [
+            try AppleMusicFixtures.album(id: "1524793738", title: "folklore", trackCount: 16, rating: "clean", releaseDate: "2020-07-24"),
+            try AppleMusicFixtures.album(id: "1528112358", title: "folklore (deluxe version)", trackCount: 17, rating: "explicit", releaseDate: "2020-08-18"),
+            try AppleMusicFixtures.album(id: "1524801260", title: "folklore", trackCount: 16, rating: "explicit", releaseDate: "2020-07-24"),
+            try AppleMusicFixtures.album(id: "1540314609", title: "evermore", trackCount: 15, releaseDate: "2020-12-11"),
+        ]
+
+        var allowed = AppleMusicBrowsingProvider(source: source)
+        allowed.explicitMusicBlocked = { false }
+        let albums = try await allowed.artistAlbumsCached(id: "159260351", includeGroups: [], limit: 50, cacheMode: .allowStale).value
+        XCTAssertEqual(albums.map(\.id), ["1524801260", "1528112358", "1540314609"])
+        XCTAssertEqual(albums.map(\.isExplicit), [true, true, false])
+        XCTAssertEqual(ArtistAlbumRowViewModel(albums[0]).isExplicit, true, "the tile carries the Explicit label")
+
+        var cleanOnly = AppleMusicBrowsingProvider(source: source)
+        cleanOnly.explicitMusicBlocked = { true }
+        let clean = try await cleanOnly.artistAlbumsPage(
+            id: "159260351", includeGroups: [.album], limit: 50, offset: 0, nextURL: nil, cacheMode: .bypassCache
+        ).items
+        XCTAssertEqual(clean.map(\.id), ["1524793738", "1528112358", "1540314609"])
+        XCTAssertEqual(clean.first?.isExplicit, false)
+    }
+
+    /// A pinned album saved before albums knew their rating still opens, as not explicit.
+    func testAnAlbumPinnedBeforeRatingsDecodes() throws {
+        let json = #"{"id":"1524801260","name":"folklore","totalTracks":16,"group":"album","uri":"applemusic:album:1524801260"}"#
+        let album = try JSONDecoder().decode(MusicArtistAlbum.self, from: Data(json.utf8))
+        XCTAssertFalse(album.isExplicit)
+        let roundTrip = try JSONDecoder().decode(
+            MusicArtistAlbum.self,
+            from: JSONEncoder().encode(ArtistAlbumRowViewModel(MusicArtistAlbum(
+                id: "1", name: "folklore", imageURL: nil, releaseYear: "2020", totalTracks: 16, group: .album, uri: "u", isExplicit: true
+            )).spotifyArtistAlbum(group: .album))
+        )
+        XCTAssertTrue(roundTrip.isExplicit, "a pin keeps the label")
+    }
+
     func testArtistDetailAlbumsArePagedAndFilteredByGroup() async throws {
         let source = MockAppleMusicSource()
         source.artistsByID["5201"] = try AppleMusicFixtures.artist(id: "5201", name: "Bonobo", albums: [
