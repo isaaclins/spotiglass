@@ -2634,11 +2634,36 @@ final class AppleMusicCatalogPagesTests: XCTestCase {
         XCTAssertEqual(albums.map(\.id.rawValue), (0..<120).map { "\(1_440_000_000 + $0)" })
     }
 
-    /// A playlist may hold the same song twice on purpose; its tracks keep every entry.
-    func testAPlaylistKeepsASongItHoldsTwice() {
-        XCTAssertFalse(AppleMusicCatalogRelationship(kind: "playlists", id: "pl.1", name: "tracks").dropsRepeats)
-        XCTAssertTrue(AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums").dropsRepeats)
-        XCTAssertTrue(AppleMusicCatalogRelationship(kind: "albums", id: "1440000000", name: "tracks").dropsRepeats)
+    /// A playlist may hold the same song twice on purpose; reading its tracks page by page keeps
+    /// every entry, also when the second one is on a later page.
+    func testAPlaylistKeepsASongItHoldsTwice() async throws {
+        func songs(_ ids: [Int], next: String?) throws -> Data {
+            var object: [String: Any] = ["data": ids.map { index in
+                [
+                    "id": "\(1_500_000_000 + index)",
+                    "type": "songs",
+                    "attributes": ["name": "Song \(index)", "artistName": "Taylor Swift",
+                                   "durationInMillis": 200_000] as [String: Any],
+                ] as [String: Any]
+            }]
+            if let next { object["next"] = next }
+            return try JSONSerialization.data(withJSONObject: object)
+        }
+        let next = "/v1/catalog/ch/playlists/pl.1/tracks?offset=100"
+        let first = try songs(Array(0..<100), next: next)
+        let second = try songs([7, 100, 7], next: nil)
+        var requests = 0
+        let tracks = try await AppleMusicCatalogPages.collect(
+            try JSONDecoder().decode(MusicItemCollection<Track>.self, from: try songs(Array(0..<25), next: next)),
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "playlists", id: "pl.1", name: "tracks"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return requests == 1 ? first : second
+            }
+        )
+        XCTAssertEqual(tracks.map(\.id.rawValue), (Array(0..<100) + [7, 100, 7]).map { "\(1_500_000_000 + $0)" })
     }
 
     /// A later page that fails is an error the artist page can show, not the end of the app.
