@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.42] - 2026-11-14
+
+### Fixed
+
+- Messages already on screen, like the device-lost line and sign-in errors, now switch language along with the rest of the app.
+- The sidebar stays below the window buttons when you change the language while the app is open.
+- Changing the language no longer sends you back to Home.
+- Apple Music previews show the right copies when several edits to the same song come in quickly.
+- Retry after a failed Spotify command runs that command again.
+- You can reorder tracks in a playlist by dragging them.
+- Items without a name show their placeholder in German and Spanish too.
+- Connect Playback is no longer offered for Apple Music.
+- The bar above Home is empty now instead of saying Spotiglass.
+- Screenshot mode no longer changes your saved Spotify settings.
+- Unavailable playlist rows explain why in German and Spanish.
+- The song info and the headphones button are centred in the player bar.
+- Keyboard settings work like Raycast's, and the Disconnect Spotify row is gone.
+
 ## [0.8.41] - 2026-11-11
 
 ### Fixed
