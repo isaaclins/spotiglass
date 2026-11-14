@@ -2495,6 +2495,8 @@ final class MusicKitContentSourceLiveTests: XCTestCase {
         let albums = try await source.albums(of: artist, limit: AppleMusicBrowsingProvider.maxArtistAlbums)
 
         XCTAssertGreaterThan(albums.count, firstBatch.count)
+        // Apple's pages have repeated albums for this artist before (#568: 188 albums, 144
+        // different); the app drops the repeats, so the page lists each album once.
         XCTAssertEqual(Set(albums.map(\.id)).count, albums.count)
     }
 }
@@ -2597,6 +2599,71 @@ final class AppleMusicCatalogPagesTests: XCTestCase {
         )
         XCTAssertEqual(requests, 0)
         XCTAssertEqual(albums.count, 12)
+    }
+
+    /// Apple's second page repeating 44 albums of the first, as the live catalog answered once for
+    /// this artist (#568: 188 albums, 144 different). Each album is listed once, and reading
+    /// goes on until every album the artist has is there.
+    func testAlbumsRepeatedAcrossPagesAreListedOnce() async throws {
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(56..<144, next: "/v1/catalog/ch/artists/159260351/albums?offset=188")
+        let third = try page(144..<188, next: nil)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.collect(
+            try JSONDecoder().decode(MusicItemCollection<Album>.self, from: try page(0..<25, next: nextPath)),
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return [first, second, third][requests - 1]
+            }
+        )
+        XCTAssertEqual(albums.map(\.id.rawValue), (0..<188).map { "\(1_440_000_000 + $0)" })
+    }
+
+    /// Repeats only count once toward the limit, so a limit still gets that many albums.
+    func testRepeatsDoNotUseUpTheLimit() async throws {
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(50..<150, next: nil)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 120, dropsRepeats: true) { _ in
+            requests += 1
+            return requests == 1 ? first : second
+        }
+        XCTAssertEqual(albums.map(\.id.rawValue), (0..<120).map { "\(1_440_000_000 + $0)" })
+    }
+
+    /// A playlist may hold the same song twice on purpose; reading its tracks page by page keeps
+    /// every entry, also when the second one is on a later page.
+    func testAPlaylistKeepsASongItHoldsTwice() async throws {
+        func songs(_ ids: [Int], next: String?) throws -> Data {
+            var object: [String: Any] = ["data": ids.map { index in
+                [
+                    "id": "\(1_500_000_000 + index)",
+                    "type": "songs",
+                    "attributes": ["name": "Song \(index)", "artistName": "Taylor Swift",
+                                   "durationInMillis": 200_000] as [String: Any],
+                ] as [String: Any]
+            }]
+            if let next { object["next"] = next }
+            return try JSONSerialization.data(withJSONObject: object)
+        }
+        let next = "/v1/catalog/ch/playlists/pl.1/tracks?offset=100"
+        let first = try songs(Array(0..<100), next: next)
+        let second = try songs([7, 100, 7], next: nil)
+        var requests = 0
+        let tracks = try await AppleMusicCatalogPages.collect(
+            try JSONDecoder().decode(MusicItemCollection<Track>.self, from: try songs(Array(0..<25), next: next)),
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "playlists", id: "pl.1", name: "tracks"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return requests == 1 ? first : second
+            }
+        )
+        XCTAssertEqual(tracks.map(\.id.rawValue), (Array(0..<100) + [7, 100, 7]).map { "\(1_500_000_000 + $0)" })
     }
 
     /// A later page that fails is an error the artist page can show, not the end of the app.

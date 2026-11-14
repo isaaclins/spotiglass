@@ -362,6 +362,10 @@ struct AppleMusicCatalogRelationship: Equatable {
         "/v1/catalog/\(storefront)/\(kind)/\(AppleMusicCloudRequests.pathComponent(id))/\(name)"
             + "?limit=\(AppleMusicCatalogPages.pageSize)"
     }
+
+    /// Whether an item the API sends again is dropped. Apple's pages of an artist's albums have
+    /// repeated albums (#568); a playlist may hold the same song twice on purpose.
+    var dropsRepeats: Bool { kind != "playlists" }
 }
 
 /// Reads a catalog relationship from the Apple Music API page by page, following each page's
@@ -391,7 +395,7 @@ enum AppleMusicCatalogPages {
             return Array((firstBatch ?? []).prefix(limit))
         }
         let path = relationship.path(storefront: try await storefront())
-        return try await items(Item.self, from: path, limit: limit, fetch: fetch)
+        return try await items(Item.self, from: path, limit: limit, dropsRepeats: relationship.dropsRepeats, fetch: fetch)
     }
 
     /// One API page. Its error stays MusicKit's or the network's, so a failed read shows as
@@ -412,9 +416,11 @@ enum AppleMusicCatalogPages {
         _ type: Item.Type,
         from firstPath: String,
         limit: Int,
+        dropsRepeats: Bool = false,
         fetch: (String) async throws -> Data
     ) async throws -> [Item] {
         var items: [Item] = []
+        var seenIDs: Set<MusicItemID> = []
         var seenPaths: Set<String> = []
         var next: String? = firstPath
         while let path = next, items.count < limit, seenPaths.insert(path).inserted {
@@ -422,7 +428,7 @@ enum AppleMusicCatalogPages {
             let data = try await fetch(path)
             let page = try JSONDecoder().decode(MusicItemCollection<Item>.self, from: data)
             guard !page.isEmpty else { break }
-            items.append(contentsOf: page)
+            items.append(contentsOf: dropsRepeats ? page.filter { seenIDs.insert($0.id).inserted } : Array(page))
             next = try JSONDecoder().decode(Next.self, from: data).next.map(withPageSize)
         }
         return Array(items.prefix(limit))
