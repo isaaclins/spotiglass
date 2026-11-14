@@ -3,26 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.42</title>
-            <pubDate>Sat, 14 Nov 2026 22:47:45 +0100</pubDate>
-            <sparkle:version>53</sparkle:version>
-            <sparkle:shortVersionString>0.8.42</sparkle:shortVersionString>
+            <title>0.8.43</title>
+            <pubDate>Sun, 15 Nov 2026 00:37:59 +0100</pubDate>
+            <sparkle:version>54</sparkle:version>
+            <sparkle:shortVersionString>0.8.43</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Messages already on screen, like the device-lost line and sign-in errors, now switch language along with the rest of the app.
-• The sidebar stays below the window buttons when you change the language while the app is open.
-• Changing the language no longer sends you back to Home.
-• Apple Music previews show the right copies when several edits to the same song come in quickly.
-• Retry after a failed Spotify command runs that command again.
-• You can reorder tracks in a playlist by dragging them.
-• Items without a name show their placeholder in German and Spanish too.
-• Connect Playback is no longer offered for Apple Music.
-• The bar above Home is empty now instead of saying Spotiglass.
-• Screenshot mode no longer changes your saved Spotify settings.
-• Unavailable playlist rows explain why in German and Spanish.
-• The song info and the headphones button are centred in the player bar.
-• Keyboard settings work like Raycast's, and the Disconnect Spotify row is gone.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music artist pages list each album once, even when Apple repeats it on their page.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.42/Spotiglass-0.8.42.zip" length="14026455" type="application/octet-stream" sparkle:edSignature="BkENNTahHHFH0r5iltlXyBY8cUPcyo+CUPybuEA/64kxrMRBuJkKM1g61DxdFqTknFkkucQaVDH5B56K08CpDA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.43/Spotiglass-0.8.43.zip" length="14029695" type="application/octet-stream" sparkle:edSignature="z3LILWULQhY9Ed9lUBUoSV1gMwkBW5GZSyDu6KC4vS/fIrzqDxoEIKpHac60HYvy/tZJXmGGq74ux7pabEBSBA=="/>
         </item>
     </channel>
 </rss>

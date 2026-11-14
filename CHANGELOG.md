@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.43] - 2026-11-15
+
+### Fixed
+
+- Apple Music artist pages list each album once, even when Apple repeats it on their page.
+
 ## [0.8.42] - 2026-11-14
 
 ### Fixed
