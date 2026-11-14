@@ -2495,6 +2495,8 @@ final class MusicKitContentSourceLiveTests: XCTestCase {
         let albums = try await source.albums(of: artist, limit: AppleMusicBrowsingProvider.maxArtistAlbums)
 
         XCTAssertGreaterThan(albums.count, firstBatch.count)
+        // Apple's pages have repeated albums for this artist before (#568: 188 albums, 144
+        // different); the app drops the repeats, so the page lists each album once.
         XCTAssertEqual(Set(albums.map(\.id)).count, albums.count)
     }
 }
@@ -2597,6 +2599,46 @@ final class AppleMusicCatalogPagesTests: XCTestCase {
         )
         XCTAssertEqual(requests, 0)
         XCTAssertEqual(albums.count, 12)
+    }
+
+    /// Apple's second page repeating 44 albums of the first, as the live catalog answered once for
+    /// this artist (#568: 188 albums, 144 different). Each album is listed once, and reading
+    /// goes on until every album the artist has is there.
+    func testAlbumsRepeatedAcrossPagesAreListedOnce() async throws {
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(56..<144, next: "/v1/catalog/ch/artists/159260351/albums?offset=188")
+        let third = try page(144..<188, next: nil)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.collect(
+            try JSONDecoder().decode(MusicItemCollection<Album>.self, from: try page(0..<25, next: nextPath)),
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return [first, second, third][requests - 1]
+            }
+        )
+        XCTAssertEqual(albums.map(\.id.rawValue), (0..<188).map { "\(1_440_000_000 + $0)" })
+    }
+
+    /// Repeats only count once toward the limit, so a limit still gets that many albums.
+    func testRepeatsDoNotUseUpTheLimit() async throws {
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(50..<150, next: nil)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 120, dropsRepeats: true) { _ in
+            requests += 1
+            return requests == 1 ? first : second
+        }
+        XCTAssertEqual(albums.map(\.id.rawValue), (0..<120).map { "\(1_440_000_000 + $0)" })
+    }
+
+    /// A playlist may hold the same song twice on purpose; its tracks keep every entry.
+    func testAPlaylistKeepsASongItHoldsTwice() {
+        XCTAssertFalse(AppleMusicCatalogRelationship(kind: "playlists", id: "pl.1", name: "tracks").dropsRepeats)
+        XCTAssertTrue(AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums").dropsRepeats)
+        XCTAssertTrue(AppleMusicCatalogRelationship(kind: "albums", id: "1440000000", name: "tracks").dropsRepeats)
     }
 
     /// A later page that fails is an error the artist page can show, not the end of the app.
