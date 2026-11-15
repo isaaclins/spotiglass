@@ -759,34 +759,33 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 /// the explicit edition, or the clean one when this Mac only allows clean music. Editions that
 /// differ in anything shown (a deluxe or live album, a remaster's year) stay apart.
 enum AppleMusicAlbumEditions {
-    /// The albums in their order, each clean and explicit pair as one: in the place of the
-    /// edition listed first, the one this Mac would play.
+    /// The albums in their order, the clean and explicit editions of an album as one: in the
+    /// place of the edition listed first, the one this Mac would play. When Apple lists an
+    /// edition more than once under other IDs, every one of the other rating goes, so a
+    /// clean-only Mac never keeps an explicit tile next to a clean one.
     static func oneEach(_ albums: [MusicArtistAlbum], explicitBlocked: Bool) -> [MusicArtistAlbum] {
         /// What a tile shows: two editions alike in all of it look like the same album twice.
         func key(_ album: MusicArtistAlbum) -> [String?] {
             [album.name, album.releaseYear, String(album.totalTracks), album.group.rawValue]
         }
-        var pairs: [[String?]: (clean: Int?, explicit: Int?)] = [:]
+        var groups: [[String?]: [Int]] = [:]
         for (index, album) in albums.enumerated() {
-            var pair = pairs[key(album)] ?? (nil, nil)
-            if album.isExplicit {
-                if pair.explicit == nil { pair.explicit = index }
-            } else if pair.clean == nil {
-                pair.clean = index
-            }
-            pairs[key(album)] = pair
+            groups[key(album), default: []].append(index)
         }
         var dropped: Set<Int> = []
         var replacement: [Int: Int] = [:]
-        for pair in pairs.values {
-            guard let clean = pair.clean, let explicit = pair.explicit else { continue }
-            let kept = explicitBlocked ? clean : explicit
-            let shownAt = min(clean, explicit)
-            replacement[shownAt] = kept
-            dropped.insert(max(clean, explicit))
+        for indices in groups.values {
+            let kept = indices.filter { albums[$0].isExplicit != explicitBlocked }
+            guard let firstKept = kept.first, kept.count < indices.count, let first = indices.first else { continue }
+            dropped.formUnion(Set(indices).subtracting(kept))
+            if first != firstKept {
+                replacement[first] = firstKept
+                dropped.insert(firstKept)
+            }
         }
         return albums.indices.compactMap { index in
-            dropped.contains(index) ? nil : albums[replacement[index] ?? index]
+            if let kept = replacement[index] { return albums[kept] }
+            return dropped.contains(index) ? nil : albums[index]
         }
     }
 }

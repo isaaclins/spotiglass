@@ -1062,6 +1062,27 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(clean.first?.isExplicit, false)
     }
 
+    /// Apple can list an edition more than once under other IDs. Every edition of the other
+    /// rating goes: the pairing used to remove one of them, so a clean-only Mac kept an explicit
+    /// folklore next to the clean ones.
+    func testEveryEditionOfTheOtherRatingGoesWhenOneIsListedTwice() {
+        func folklore(_ id: String, explicit: Bool) -> MusicArtistAlbum {
+            MusicArtistAlbum(
+                id: id, name: "folklore", imageURL: nil, releaseYear: "2020", totalTracks: 16,
+                group: .album, uri: "applemusic:album:\(id)", isExplicit: explicit
+            )
+        }
+        let evermore = MusicArtistAlbum(
+            id: "e", name: "evermore", imageURL: nil, releaseYear: "2020", totalTracks: 15, group: .album, uri: "applemusic:album:e"
+        )
+        let albums = [
+            folklore("c1", explicit: false), evermore, folklore("c2", explicit: false),
+            folklore("x1", explicit: true), folklore("x2", explicit: true),
+        ]
+        XCTAssertEqual(AppleMusicAlbumEditions.oneEach(albums, explicitBlocked: false).map(\.id), ["x1", "e", "x2"])
+        XCTAssertEqual(AppleMusicAlbumEditions.oneEach(albums, explicitBlocked: true).map(\.id), ["c1", "e", "c2"])
+    }
+
     /// The same pair saved in the library, on a library artist page: MusicKit gives saved albums
     /// no rating on macOS (#512), so both read as clean and stood side by side, with no label on
     /// the explicit one. Each names its catalog release, whose rating is looked up once.
