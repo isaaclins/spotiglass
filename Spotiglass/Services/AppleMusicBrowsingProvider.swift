@@ -437,14 +437,25 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: offset == 0 && nextURL == nil)
         var start = min(max(0, offset), albums.count)
         // The list may have been loaded again since the page before (it expired or another
-        // artist took its place in the cache) and pair editions that list didn't, so offsets no
-        // longer line up: go on after the last album that page showed, wherever it is now (#580).
-        if let after = Self.continuationAlbumID(nextURL), let index = albums.firstIndex(where: { $0.id == after }) {
-            start = index + 1
+        // artist took its place in the cache) and pair editions differently, so offsets no longer
+        // line up: go on after the last album that page showed, wherever it is now, or after the
+        // edition it was paired into. Another edition of that album, now apart, isn't shown
+        // again (#580).
+        let previous = Self.continuationAlbum(nextURL)
+        if let previous {
+            if let index = albums.firstIndex(where: { $0.id == previous.id })
+                ?? albums.firstIndex(where: { AppleMusicAlbumEditions.key($0) == previous.edition }) {
+                start = index + 1
+            }
         }
         let end = min(start + max(1, limit), albums.count)
-        let next = end < albums.count ? Self.continuationURL(offset: end, after: albums[end - 1].id) : nil
-        return MusicArtistAlbumsPage(items: Array(albums[start..<end]), next: next)
+        let next = end < albums.count
+            ? Self.continuationURL(offset: end, after: albums[end - 1].id, edition: AppleMusicAlbumEditions.key(albums[end - 1]))
+            : nil
+        let items = albums[start..<end].filter { album in
+            previous.map { AppleMusicAlbumEditions.key(album) != $0.edition } ?? true
+        }
+        return MusicArtistAlbumsPage(items: items, next: next)
     }
 
     func artistTopTracks(id: String, market: String?, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] {
@@ -753,19 +764,26 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
     /// An opaque continuation in the `offset` shape the Search view already reads.
     /// `after` names the item the page before ended with, for lists that can change between
-    /// two pages (an artist's albums, #580).
-    static func continuationURL(offset: Int, after itemID: String? = nil) -> URL? {
+    /// two pages (an artist's albums, #580),
+    /// and `edition` which album it is an edition of (``AppleMusicAlbumEditions/key(_:)``).
+    static func continuationURL(offset: Int, after itemID: String? = nil, edition: String? = nil) -> URL? {
         var components = URLComponents()
         components.scheme = AppleMusicItemMapping.uriScheme
         components.host = "page"
         components.queryItems = [URLQueryItem(name: "offset", value: String(offset))]
             + (itemID.map { [URLQueryItem(name: "after", value: $0)] } ?? [])
+            + (edition.map { [URLQueryItem(name: "edition", value: $0)] } ?? [])
         return components.url
     }
 
-    static func continuationAlbumID(_ url: URL?) -> String? {
-        guard let url, url.scheme == AppleMusicItemMapping.uriScheme, url.host == "page" else { return nil }
-        return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "after" }?.value
+    /// The album the page before ended with, from ``continuationURL(offset:after:edition:)``.
+    static func continuationAlbum(_ url: URL?) -> (id: String, edition: String)? {
+        guard let url, url.scheme == AppleMusicItemMapping.uriScheme, url.host == "page",
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let id = items.first(where: { $0.name == "after" })?.value,
+              let edition = items.first(where: { $0.name == "edition" })?.value
+        else { return nil }
+        return (id, edition)
     }
 
     /// Library items first, then the catalog items the library does not already show.
@@ -815,16 +833,17 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 /// the explicit edition, or the clean one when this Mac only allows clean music. Editions that
 /// differ in anything shown (a deluxe or live album, a remaster's year) stay apart.
 enum AppleMusicAlbumEditions {
+    /// What a tile shows: two editions alike in all of it look like the same album twice.
+    static func key(_ album: MusicArtistAlbum) -> String {
+        [album.name, album.releaseYear ?? "", String(album.totalTracks), album.group.rawValue].joined(separator: "\u{1F}")
+    }
+
     /// The albums in their order, the clean and explicit editions of an album as one: in the
     /// place of the edition listed first, the one this Mac would play. When Apple lists an
     /// edition more than once under other IDs, every one of the other rating goes, so a
     /// clean-only Mac never keeps an explicit tile next to a clean one.
     static func oneEach(_ albums: [MusicArtistAlbum], explicitBlocked: Bool) -> [MusicArtistAlbum] {
-        /// What a tile shows: two editions alike in all of it look like the same album twice.
-        func key(_ album: MusicArtistAlbum) -> [String?] {
-            [album.name, album.releaseYear, String(album.totalTracks), album.group.rawValue]
-        }
-        var groups: [[String?]: [Int]] = [:]
+        var groups: [String: [Int]] = [:]
         for (index, album) in albums.enumerated() {
             groups[key(album), default: []].append(index)
         }

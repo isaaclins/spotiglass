@@ -1262,6 +1262,87 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertNil(third.next)
     }
 
+    /// Albums 1 to `before`, the saved explicit and clean folklore, then albums up to `total`.
+    private static func savedFolkloreArtist(before: Int, total: Int) throws -> MockAppleMusicSource {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Taylor Swift")
+        func album(_ number: Int) throws -> Album {
+            try AppleMusicFixtures.album(id: "-60464317343898\(80000 + number)", title: "Album \(number)")
+        }
+        source.extraAlbumsByArtistID["-42"] = try (1...before).map(album) + [
+            try AppleMusicFixtures.album(
+                id: "-6046431734389870002", title: "folklore", trackCount: 16, releaseDate: "2020-07-24", catalogID: "1524801260"
+            ),
+            try AppleMusicFixtures.album(
+                id: "-6046431734389870001", title: "folklore", trackCount: 16, releaseDate: "2020-07-24", catalogID: "1524793738"
+            ),
+        ] + (try (before + 3...total).map(album))
+        source.catalogAlbumRatings = ["1524793738": false, "1524801260": true]
+        return source
+    }
+
+    /// The page before ended with the clean folklore, which the albums loaded again pair into
+    /// the explicit one: that album isn't in the list anymore, and the old offset was one too
+    /// far ("Album 21" was never shown). The next page goes on after the edition it was paired
+    /// into.
+    func testLoadMoreGoesOnAfterTheEditionTheLastAlbumShownWasPairedInto() async throws {
+        final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+        let clock = Clock()
+        let source = try Self.savedFolkloreArtist(before: 18, total: 24)
+        let (held, release) = AsyncStream<Void>.makeStream()
+        source.ratingLookupHold = { for await _ in held {} }
+        let (stored, storedSignal) = AsyncStream<Void>.makeStream()
+        var provider = AppleMusicBrowsingProvider(source: source, artistAlbumsCache: AppleMusicArtistAlbumsCache(now: { clock.now }))
+        provider.explicitMusicBlocked = { false }
+        provider.ratingsDeadline = {}
+        provider.lateAlbumRatingsStored = { storedSignal.yield() }
+
+        let first = try await provider.artistAlbumsPage(id: "-42", includeGroups: [], limit: 10, offset: 0, nextURL: nil, cacheMode: .bypassCache)
+        let second = try await provider.artistAlbumsPage(
+            id: "-42", includeGroups: [], limit: 10, offset: 10, nextURL: first.next, cacheMode: .bypassCache
+        )
+        XCTAssertEqual(second.items.last?.id, "-6046431734389870001", "the page ends with the clean folklore")
+        release.finish()
+        var signals = stored.makeAsyncIterator()
+        _ = await signals.next()
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicArtistAlbumsCache.maxAge + 1)
+        source.ratingLookupHold = nil
+        provider.ratingsDeadline = Self.neverEndingDeadline
+        let third = try await provider.artistAlbumsPage(
+            id: "-42", includeGroups: [], limit: 10, offset: 20, nextURL: second.next, cacheMode: .bypassCache
+        )
+        XCTAssertEqual(third.items.map(\.name), (21...24).map { "Album \($0)" })
+    }
+
+    /// The other way round: the first pages paired folklore and ended with it, and the albums
+    /// loaded again got their ratings late, so the clean folklore stands apart right after it.
+    /// It isn't shown as another, unlabelled folklore tile.
+    func testLoadMoreDoesNotShowAnotherEditionOfTheLastAlbumShown() async throws {
+        final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+        let clock = Clock()
+        let source = try Self.savedFolkloreArtist(before: 19, total: 25)
+        var provider = AppleMusicBrowsingProvider(source: source, artistAlbumsCache: AppleMusicArtistAlbumsCache(now: { clock.now }))
+        provider.explicitMusicBlocked = { false }
+        provider.ratingsDeadline = Self.neverEndingDeadline
+
+        let first = try await provider.artistAlbumsPage(id: "-42", includeGroups: [], limit: 10, offset: 0, nextURL: nil, cacheMode: .bypassCache)
+        let second = try await provider.artistAlbumsPage(
+            id: "-42", includeGroups: [], limit: 10, offset: 10, nextURL: first.next, cacheMode: .bypassCache
+        )
+        XCTAssertEqual(second.items.last?.id, "-6046431734389870002", "the page ends with the explicit folklore")
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicArtistAlbumsCache.maxAge + 1)
+        let (held, release) = AsyncStream<Void>.makeStream()
+        source.ratingLookupHold = { for await _ in held {} }
+        provider.ratingsDeadline = {}
+        let third = try await provider.artistAlbumsPage(
+            id: "-42", includeGroups: [], limit: 10, offset: 20, nextURL: second.next, cacheMode: .bypassCache
+        )
+        release.finish()
+        XCTAssertEqual(third.items.map(\.name), (22...25).map { "Album \($0)" })
+    }
+
     /// With an edition listed twice, the clean-only setting changes how many tiles there are:
     /// switching it between two pages started the next page one album too far. The pages of
     /// one session pair by the setting their first page read.
