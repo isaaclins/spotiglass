@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.43</title>
-            <pubDate>Sun, 15 Nov 2026 00:37:59 +0100</pubDate>
-            <sparkle:version>54</sparkle:version>
-            <sparkle:shortVersionString>0.8.43</sparkle:shortVersionString>
+            <title>0.8.44</title>
+            <pubDate>Sun, 15 Nov 2026 02:50:34 +0100</pubDate>
+            <sparkle:version>55</sparkle:version>
+            <sparkle:shortVersionString>0.8.44</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Apple Music artist pages list each album once, even when Apple repeats it on their page.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music artist pages no longer show the clean and explicit versions of an album as two identical tiles. Each edition now gets its own tile, and the explicit one is marked Explicit.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.43/Spotiglass-0.8.43.zip" length="14029695" type="application/octet-stream" sparkle:edSignature="z3LILWULQhY9Ed9lUBUoSV1gMwkBW5GZSyDu6KC4vS/fIrzqDxoEIKpHac60HYvy/tZJXmGGq74ux7pabEBSBA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.44/Spotiglass-0.8.44.zip" length="14086585" type="application/octet-stream" sparkle:edSignature="sf4CKq7tBR3j+mCW0w7xFpnWsv9Lqf/o2GMaew7xjDnQ1dx/6i03BGKrQHaz6xKRbAlWbHNMpMfLexv+cKIJAA=="/>
         </item>
     </channel>
 </rss>

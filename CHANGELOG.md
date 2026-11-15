@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.44] - 2026-11-15
+
+### Fixed
+
+- Apple Music artist pages no longer show the clean and explicit versions of an album as two identical tiles. Each edition now gets its own tile, and the explicit one is marked Explicit.
+
 ## [0.8.43] - 2026-11-15
 
 ### Fixed
