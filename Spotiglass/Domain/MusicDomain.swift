@@ -383,6 +383,9 @@ struct MusicArtistAlbum: Codable, Equatable, Identifiable {
     let totalTracks: Int
     let group: MusicArtistAlbumGroup
     let uri: String
+    /// The explicit edition of an album, for its Explicit label (#580). Albums saved before
+    /// this was kept read as not explicit.
+    let isExplicit: Bool
 
     var name: String {
         UnnamedMusicItem.displayName(storedName, kind: .album)
@@ -395,7 +398,8 @@ struct MusicArtistAlbum: Codable, Equatable, Identifiable {
         releaseYear: String?,
         totalTracks: Int,
         group: MusicArtistAlbumGroup,
-        uri: String
+        uri: String,
+        isExplicit: Bool = false
     ) {
         self.id = id
         self.storedName = name
@@ -404,12 +408,25 @@ struct MusicArtistAlbum: Codable, Equatable, Identifiable {
         self.totalTracks = totalTracks
         self.group = group
         self.uri = uri
+        self.isExplicit = isExplicit
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        storedName = try container.decode(String.self, forKey: .storedName)
+        imageURL = try container.decodeIfPresent(URL.self, forKey: .imageURL)
+        releaseYear = try container.decodeIfPresent(String.self, forKey: .releaseYear)
+        totalTracks = try container.decode(Int.self, forKey: .totalTracks)
+        group = try container.decode(MusicArtistAlbumGroup.self, forKey: .group)
+        uri = try container.decode(String.self, forKey: .uri)
+        isExplicit = try container.decodeIfPresent(Bool.self, forKey: .isExplicit) ?? false
     }
 
     private enum CodingKeys: String, CodingKey {
         case id
         case storedName = "name"
-        case imageURL, releaseYear, totalTracks, group, uri
+        case imageURL, releaseYear, totalTracks, group, uri, isExplicit
     }
 }
 

@@ -1447,6 +1447,7 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems { AppleMusicSearchItems() }
     func storefrontCountryCode() async throws -> String { "ch" }
     func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] { [:] }
+    func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool] { [:] }
 }
 
 // MARK: - #395: playlist edits that failed or were left half done

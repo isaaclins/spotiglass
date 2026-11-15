@@ -1,5 +1,6 @@
 import Foundation
 import MusicKit
+import os
 
 /// Browsing failures specific to Apple Music.
 enum AppleMusicBrowsingError: LocalizedError, Equatable {
@@ -131,6 +132,12 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// lookups carry on, so the next read of the list has them. Tests replace it.
     var ratingsDeadline: @Sendable () async -> Void = { try? await Task.sleep(for: AppleMusicBrowsingProvider.ratingsWait) }
     static let ratingsWait: Duration = .seconds(2)
+    /// Called once album ratings that came after their artist page was shown are kept for its
+    /// next read. Tests replace it.
+    var lateAlbumRatingsStored: @Sendable () -> Void = {}
+    /// Whether this Mac only allows clean music, read on every artist page so a change of the
+    /// setting shows the next time one opens. Tests replace it.
+    var explicitMusicBlocked: @Sendable () -> Bool = { AppleMusicContentRestrictions.isExplicitMusicBlocked() }
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
@@ -413,7 +420,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
-        let albums = try await artistAlbums(id: id, includeGroups: includeGroups)
+        let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: true)
         return MusicCachedResponse(value: Array(albums.prefix(limit)), isStale: false)
     }
 
@@ -427,11 +434,28 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         nextURL: URL?,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicArtistAlbumsPage {
-        let albums = try await artistAlbums(id: id, includeGroups: includeGroups)
-        let start = min(max(0, offset), albums.count)
+        let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: offset == 0 && nextURL == nil)
+        var start = min(max(0, offset), albums.count)
+        // The list may have been loaded again since the page before (it expired or another
+        // artist took its place in the cache) and pair editions differently, so offsets no longer
+        // line up: go on after the last album that page showed, wherever it is now, or after the
+        // edition it was paired into. Another edition of that album, now apart, isn't shown
+        // again (#580).
+        let previous = Self.continuationAlbum(nextURL)
+        if let previous {
+            if let index = albums.firstIndex(where: { $0.id == previous.id })
+                ?? albums.firstIndex(where: { AppleMusicAlbumEditions.key($0) == previous.edition }) {
+                start = index + 1
+            }
+        }
         let end = min(start + max(1, limit), albums.count)
-        let next = end < albums.count ? Self.continuationURL(offset: end) : nil
-        return MusicArtistAlbumsPage(items: Array(albums[start..<end]), next: next)
+        let next = end < albums.count
+            ? Self.continuationURL(offset: end, after: albums[end - 1].id, edition: AppleMusicAlbumEditions.key(albums[end - 1]))
+            : nil
+        let items = albums[start..<end].filter { album in
+            previous.map { AppleMusicAlbumEditions.key(album) != $0.edition } ?? true
+        }
+        return MusicArtistAlbumsPage(items: items, next: next)
     }
 
     func artistTopTracks(id: String, market: String?, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] {
@@ -507,24 +531,93 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             releaseYear: album.releaseYear,
             totalTracks: count,
             group: album.group,
-            uri: album.uri
+            uri: album.uri,
+            isExplicit: album.isExplicit
         )
     }
 
-    private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
+    /// The albums a page of the artist page is cut from. Pages go by offset into one list, so
+    /// the list a paging session reads is the one its first page saw (`startsPaging`): ratings
+    /// that came late and a change of the clean-only setting show from the next first page on,
+    /// and never shift the offsets of a session that is reading on (#580).
+    private func artistAlbums(
+        id: String,
+        includeGroups: [MusicArtistAlbumGroup],
+        startsPaging: Bool
+    ) async throws -> [MusicArtistAlbum] {
         let groups = Set(includeGroups)
         let all: [MusicArtistAlbum]
-        if let cached = await artistAlbumsCache.albums(forArtistID: id) {
-            all = cached
+        let explicitBlocked: Bool
+        if let cached = await artistAlbumsCache.list(
+            forArtistID: id, startsPaging: startsPaging, explicitBlocked: explicitMusicBlocked
+        ) {
+            (all, explicitBlocked) = cached
         } else {
             let artist = try await loadArtist(id: id)
+            let albums = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
+            let ratings = await savedAlbumRatings(albums)
             all = try await Self.libraryCounted(
-                source.albums(of: artist, limit: Self.maxArtistAlbums).map(AppleMusicItemMapping.artistAlbum),
+                albums.map { AppleMusicItemMapping.artistAlbum($0, catalogExplicit: ratings.known[$0.id.rawValue]) },
                 source: source
             )
-            await artistAlbumsCache.store(all, forArtistID: id)
+            explicitBlocked = explicitMusicBlocked()
+            await artistAlbumsCache.store(all, forArtistID: id, explicitBlocked: explicitBlocked)
+            if let late = ratings.late {
+                // Ratings that come after the page was shown label the albums kept for the next
+                // time it opens, so a slow catalog doesn't leave them unlabelled for the cache's
+                // lifetime.
+                let cache = artistAlbumsCache
+                let stored = lateAlbumRatingsStored
+                Task {
+                    await cache.relabel(artistID: id, explicitByAlbumID: await late.value)
+                    stored()
+                }
+            }
         }
-        return all.filter { groups.isEmpty || groups.contains($0.group) }
+        return AppleMusicAlbumEditions.oneEach(all, explicitBlocked: explicitBlocked)
+            .filter { groups.isEmpty || groups.contains($0.group) }
+    }
+
+    /// A saved album carries no rating on macOS (#512), so on a library artist page a saved
+    /// explicit album had no Explicit label and stood next to its clean copy as another album
+    /// (#580). It names its catalog release, whose rating is the real one: looked up for the
+    /// page's saved albums in batches the catalog accepts, by saved album ID. Like songs'
+    /// ratings the page waits at most ``ratingsDeadline``: `known` holds what came by then, and
+    /// `late`, when some batch was still asking, every rating once all have answered. An album
+    /// whose rating isn't known stays as MusicKit gives it.
+    private func savedAlbumRatings(
+        _ albums: [Album]
+    ) async -> (known: [String: Bool], late: Task<[String: Bool], Never>?) {
+        var releases: [String: String] = [:]
+        for album in albums where album.contentRating == nil && !MusicKitLibraryLookup.isCatalogID(album.id.rawValue) {
+            guard let catalogID = AppleMusicSongIdentity(encoding: album).catalogID,
+                  catalogID != album.id.rawValue, MusicKitLibraryLookup.isCatalogID(catalogID)
+            else { continue }
+            releases[album.id.rawValue] = catalogID
+        }
+        guard !releases.isEmpty else { return ([:], nil) }
+        let source = source
+        let batches = MusicKitLibraryLookup.batches(Array(Set(releases.values)).sorted())
+        let found = OSAllocatedUnfairLock<(ratings: [String: Bool], done: Bool)>(initialState: ([:], false))
+        let lookup = Task {
+            await withTaskGroup(of: Void.self) { group in
+                for batch in batches {
+                    group.addTask {
+                        guard let ratings = try? await source.catalogAlbumRatings(catalogIDs: batch) else { return }
+                        found.withLock { $0.ratings.merge(ratings) { first, _ in first } }
+                    }
+                }
+            }
+            found.withLock { $0.done = true }
+        }
+        await AppleMusicContentRatings.first(of: lookup, or: ratingsDeadline)
+        let (ratings, done) = found.withLock { ($0.ratings, $0.done) }
+        let late: Task<[String: Bool], Never>? = done ? nil : Task {
+            await lookup.value
+            let ratings = found.withLock { $0.ratings }
+            return releases.compactMapValues { ratings[$0] }
+        }
+        return (releases.compactMapValues { ratings[$0] }, late)
     }
 
     // MARK: - Search
@@ -670,12 +763,27 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     // MARK: - Helpers
 
     /// An opaque continuation in the `offset` shape the Search view already reads.
-    static func continuationURL(offset: Int) -> URL? {
+    /// `after` names the item the page before ended with, for lists that can change between
+    /// two pages (an artist's albums, #580),
+    /// and `edition` which album it is an edition of (``AppleMusicAlbumEditions/key(_:)``).
+    static func continuationURL(offset: Int, after itemID: String? = nil, edition: String? = nil) -> URL? {
         var components = URLComponents()
         components.scheme = AppleMusicItemMapping.uriScheme
         components.host = "page"
         components.queryItems = [URLQueryItem(name: "offset", value: String(offset))]
+            + (itemID.map { [URLQueryItem(name: "after", value: $0)] } ?? [])
+            + (edition.map { [URLQueryItem(name: "edition", value: $0)] } ?? [])
         return components.url
+    }
+
+    /// The album the page before ended with, from ``continuationURL(offset:after:edition:)``.
+    static func continuationAlbum(_ url: URL?) -> (id: String, edition: String)? {
+        guard let url, url.scheme == AppleMusicItemMapping.uriScheme, url.host == "page",
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let id = items.first(where: { $0.name == "after" })?.value,
+              let edition = items.first(where: { $0.name == "edition" })?.value
+        else { return nil }
+        return (id, edition)
     }
 
     /// Library items first, then the catalog items the library does not already show.
@@ -720,33 +828,116 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     }
 }
 
+/// Apple lists the clean and the explicit edition of an album as two albums with their own
+/// catalog IDs, and the same cover, name, year and track count (#580). The Music app shows one:
+/// the explicit edition, or the clean one when this Mac only allows clean music. Editions that
+/// differ in anything shown (a deluxe or live album, a remaster's year) stay apart.
+enum AppleMusicAlbumEditions {
+    /// What a tile shows: two editions alike in all of it look like the same album twice.
+    static func key(_ album: MusicArtistAlbum) -> String {
+        [album.name, album.releaseYear ?? "", String(album.totalTracks), album.group.rawValue].joined(separator: "\u{1F}")
+    }
+
+    /// The albums in their order, the clean and explicit editions of an album as one: in the
+    /// place of the edition listed first, the one this Mac would play. When Apple lists an
+    /// edition more than once under other IDs, every one of the other rating goes, so a
+    /// clean-only Mac never keeps an explicit tile next to a clean one.
+    static func oneEach(_ albums: [MusicArtistAlbum], explicitBlocked: Bool) -> [MusicArtistAlbum] {
+        var groups: [String: [Int]] = [:]
+        for (index, album) in albums.enumerated() {
+            groups[key(album), default: []].append(index)
+        }
+        var dropped: Set<Int> = []
+        var replacement: [Int: Int] = [:]
+        for indices in groups.values {
+            let kept = indices.filter { albums[$0].isExplicit != explicitBlocked }
+            guard let firstKept = kept.first, kept.count < indices.count, let first = indices.first else { continue }
+            dropped.formUnion(Set(indices).subtracting(kept))
+            if first != firstKept {
+                replacement[first] = firstKept
+                dropped.insert(firstKept)
+            }
+        }
+        return albums.indices.compactMap { index in
+            if let kept = replacement[index] { return albums[kept] }
+            return dropped.contains(index) ? nil : albums[index]
+        }
+    }
+}
+
 /// A few artists' album lists, kept for a short while so paging an artist page doesn't walk
 /// MusicKit's album batches again for every page. Bounded in count and age.
 actor AppleMusicArtistAlbumsCache {
     static let maxArtists = 8
     static let maxAge: TimeInterval = 10 * 60
 
-    private var entries: [String: (albums: [MusicArtistAlbum], storedAt: Date)] = [:]
+    private struct Entry {
+        var albums: [MusicArtistAlbum]
+        let storedAt: Date
+        /// The clean-only setting the artist's current paging session pairs editions by.
+        var explicitBlocked: Bool?
+        /// Ratings that came after the albums were stored, kept for the next first page.
+        var lateRatings: [String: Bool] = [:]
+    }
+
+    private var entries: [String: Entry] = [:]
     private let now: @Sendable () -> Date
 
     init(now: @escaping @Sendable () -> Date = Date.init) {
         self.now = now
     }
 
-    func albums(forArtistID id: String) -> [MusicArtistAlbum]? {
+    /// The albums and the clean-only setting a page is cut from. A first page (`startsPaging`)
+    /// takes in the ratings that came late and reads the setting again; the pages after it get
+    /// the same list, so their offsets still line up (#580).
+    func list(
+        forArtistID id: String,
+        startsPaging: Bool,
+        explicitBlocked: @Sendable () -> Bool
+    ) -> (albums: [MusicArtistAlbum], explicitBlocked: Bool)? {
+        guard var entry = entry(forArtistID: id) else { return nil }
+        if startsPaging || entry.explicitBlocked == nil {
+            entry.albums = Self.relabelled(entry.albums, entry.lateRatings)
+            entry.lateRatings = [:]
+            entry.explicitBlocked = explicitBlocked()
+            entries[id] = entry
+        }
+        return (entry.albums, entry.explicitBlocked ?? false)
+    }
+
+    /// Keeps ratings from a lookup that answered after the albums were stored (#580), for the
+    /// artist's next first page. An artist no longer kept stays out.
+    func relabel(artistID id: String, explicitByAlbumID: [String: Bool]) {
+        guard var entry = entries[id], !explicitByAlbumID.isEmpty else { return }
+        entry.lateRatings.merge(explicitByAlbumID) { _, new in new }
+        entries[id] = entry
+    }
+
+    func store(_ albums: [MusicArtistAlbum], forArtistID id: String, explicitBlocked: Bool? = nil) {
+        entries[id] = Entry(albums: albums, storedAt: now(), explicitBlocked: explicitBlocked)
+        while entries.count > Self.maxArtists,
+              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
+            entries[oldest] = nil
+        }
+    }
+
+    private func entry(forArtistID id: String) -> Entry? {
         guard let entry = entries[id] else { return nil }
         guard now().timeIntervalSince(entry.storedAt) < Self.maxAge else {
             entries[id] = nil
             return nil
         }
-        return entry.albums
+        return entry
     }
 
-    func store(_ albums: [MusicArtistAlbum], forArtistID id: String) {
-        entries[id] = (albums, now())
-        while entries.count > Self.maxArtists,
-              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
-            entries[oldest] = nil
+    private static func relabelled(_ albums: [MusicArtistAlbum], _ ratings: [String: Bool]) -> [MusicArtistAlbum] {
+        guard !ratings.isEmpty else { return albums }
+        return albums.map { album in
+            guard let explicit = ratings[album.id], explicit != album.isExplicit else { return album }
+            return MusicArtistAlbum(
+                id: album.id, name: album.name, imageURL: album.imageURL, releaseYear: album.releaseYear,
+                totalTracks: album.totalTracks, group: album.group, uri: album.uri, isExplicit: explicit
+            )
         }
     }
 }
