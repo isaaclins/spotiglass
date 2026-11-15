@@ -420,7 +420,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
-        let albums = try await artistAlbums(id: id, includeGroups: includeGroups)
+        let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: true)
         return MusicCachedResponse(value: Array(albums.prefix(limit)), isStale: false)
     }
 
@@ -434,7 +434,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         nextURL: URL?,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicArtistAlbumsPage {
-        let albums = try await artistAlbums(id: id, includeGroups: includeGroups)
+        let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: offset == 0 && nextURL == nil)
         let start = min(max(0, offset), albums.count)
         let end = min(start + max(1, limit), albums.count)
         let next = end < albums.count ? Self.continuationURL(offset: end) : nil
@@ -519,11 +519,22 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         )
     }
 
-    private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
+    /// The albums a page of the artist page is cut from. Pages go by offset into one list, so
+    /// the list a paging session reads is the one its first page saw (`startsPaging`): ratings
+    /// that came late and a change of the clean-only setting show from the next first page on,
+    /// and never shift the offsets of a session that is reading on (#580).
+    private func artistAlbums(
+        id: String,
+        includeGroups: [MusicArtistAlbumGroup],
+        startsPaging: Bool
+    ) async throws -> [MusicArtistAlbum] {
         let groups = Set(includeGroups)
         let all: [MusicArtistAlbum]
-        if let cached = await artistAlbumsCache.albums(forArtistID: id) {
-            all = cached
+        let explicitBlocked: Bool
+        if let cached = await artistAlbumsCache.list(
+            forArtistID: id, startsPaging: startsPaging, explicitBlocked: explicitMusicBlocked
+        ) {
+            (all, explicitBlocked) = cached
         } else {
             let artist = try await loadArtist(id: id)
             let albums = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
@@ -532,10 +543,12 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 albums.map { AppleMusicItemMapping.artistAlbum($0, catalogExplicit: ratings.known[$0.id.rawValue]) },
                 source: source
             )
-            await artistAlbumsCache.store(all, forArtistID: id)
+            explicitBlocked = explicitMusicBlocked()
+            await artistAlbumsCache.store(all, forArtistID: id, explicitBlocked: explicitBlocked)
             if let late = ratings.late {
-                // Ratings that come after the page was shown label the albums kept for its next
-                // read, so a slow catalog doesn't leave them unlabelled for the cache's lifetime.
+                // Ratings that come after the page was shown label the albums kept for the next
+                // time it opens, so a slow catalog doesn't leave them unlabelled for the cache's
+                // lifetime.
                 let cache = artistAlbumsCache
                 let stored = lateAlbumRatingsStored
                 Task {
@@ -544,7 +557,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 }
             }
         }
-        return AppleMusicAlbumEditions.oneEach(all, explicitBlocked: explicitMusicBlocked())
+        return AppleMusicAlbumEditions.oneEach(all, explicitBlocked: explicitBlocked)
             .filter { groups.isEmpty || groups.contains($0.group) }
     }
 
@@ -825,41 +838,73 @@ actor AppleMusicArtistAlbumsCache {
     static let maxArtists = 8
     static let maxAge: TimeInterval = 10 * 60
 
-    private var entries: [String: (albums: [MusicArtistAlbum], storedAt: Date)] = [:]
+    private struct Entry {
+        var albums: [MusicArtistAlbum]
+        let storedAt: Date
+        /// The clean-only setting the artist's current paging session pairs editions by.
+        var explicitBlocked: Bool?
+        /// Ratings that came after the albums were stored, kept for the next first page.
+        var lateRatings: [String: Bool] = [:]
+    }
+
+    private var entries: [String: Entry] = [:]
     private let now: @Sendable () -> Date
 
     init(now: @escaping @Sendable () -> Date = Date.init) {
         self.now = now
     }
 
-    func albums(forArtistID id: String) -> [MusicArtistAlbum]? {
+    /// The albums and the clean-only setting a page is cut from. A first page (`startsPaging`)
+    /// takes in the ratings that came late and reads the setting again; the pages after it get
+    /// the same list, so their offsets still line up (#580).
+    func list(
+        forArtistID id: String,
+        startsPaging: Bool,
+        explicitBlocked: @Sendable () -> Bool
+    ) -> (albums: [MusicArtistAlbum], explicitBlocked: Bool)? {
+        guard var entry = entry(forArtistID: id) else { return nil }
+        if startsPaging || entry.explicitBlocked == nil {
+            entry.albums = Self.relabelled(entry.albums, entry.lateRatings)
+            entry.lateRatings = [:]
+            entry.explicitBlocked = explicitBlocked()
+            entries[id] = entry
+        }
+        return (entry.albums, entry.explicitBlocked ?? false)
+    }
+
+    /// Keeps ratings from a lookup that answered after the albums were stored (#580), for the
+    /// artist's next first page. An artist no longer kept stays out.
+    func relabel(artistID id: String, explicitByAlbumID: [String: Bool]) {
+        guard var entry = entries[id], !explicitByAlbumID.isEmpty else { return }
+        entry.lateRatings.merge(explicitByAlbumID) { _, new in new }
+        entries[id] = entry
+    }
+
+    func store(_ albums: [MusicArtistAlbum], forArtistID id: String, explicitBlocked: Bool? = nil) {
+        entries[id] = Entry(albums: albums, storedAt: now(), explicitBlocked: explicitBlocked)
+        while entries.count > Self.maxArtists,
+              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
+            entries[oldest] = nil
+        }
+    }
+
+    private func entry(forArtistID id: String) -> Entry? {
         guard let entry = entries[id] else { return nil }
         guard now().timeIntervalSince(entry.storedAt) < Self.maxAge else {
             entries[id] = nil
             return nil
         }
-        return entry.albums
+        return entry
     }
 
-    /// Sets the rating of albums already kept, from a lookup that answered after they were
-    /// stored (#580). An artist no longer kept stays out.
-    func relabel(artistID id: String, explicitByAlbumID: [String: Bool]) {
-        guard var entry = entries[id], !explicitByAlbumID.isEmpty else { return }
-        entry.albums = entry.albums.map { album in
-            guard let explicit = explicitByAlbumID[album.id], explicit != album.isExplicit else { return album }
+    private static func relabelled(_ albums: [MusicArtistAlbum], _ ratings: [String: Bool]) -> [MusicArtistAlbum] {
+        guard !ratings.isEmpty else { return albums }
+        return albums.map { album in
+            guard let explicit = ratings[album.id], explicit != album.isExplicit else { return album }
             return MusicArtistAlbum(
                 id: album.id, name: album.name, imageURL: album.imageURL, releaseYear: album.releaseYear,
                 totalTracks: album.totalTracks, group: album.group, uri: album.uri, isExplicit: explicit
             )
-        }
-        entries[id] = entry
-    }
-
-    func store(_ albums: [MusicArtistAlbum], forArtistID id: String) {
-        entries[id] = (albums, now())
-        while entries.count > Self.maxArtists,
-              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
-            entries[oldest] = nil
         }
     }
 }
