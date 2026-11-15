@@ -1108,9 +1108,11 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(source.albumRatingLookups, [["1524793738", "1524801260"]], "one lookup, only for albums naming a release")
     }
 
-    /// A catalog that doesn't answer in time, or fails, doesn't hold the artist page: its saved
-    /// albums show as MusicKit gives them, as before.
-    func testAnArtistPageDoesNotWaitForASavedAlbumsRating() async throws {
+    /// A catalog that doesn't answer in time doesn't hold the artist page: its saved albums show
+    /// as MusicKit gives them. The rating that comes later labels them on the page's next read,
+    /// instead of the albums kept for paging staying unlabelled for ten minutes. A catalog that
+    /// fails leaves them as they are.
+    func testAnArtistPageDoesNotWaitForASavedAlbumsRatingAndUsesItLater() async throws {
         let source = MockAppleMusicSource()
         source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Taylor Swift")
         source.extraAlbumsByArtistID["-42"] = [
@@ -1121,18 +1123,42 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.catalogAlbumRatings = ["1524801260": true]
         let (held, release) = AsyncStream<Void>.makeStream()
         source.ratingLookupHold = { for await _ in held {} }
+        let (stored, storedSignal) = AsyncStream<Void>.makeStream()
 
         var provider = AppleMusicBrowsingProvider(source: source)
         provider.ratingsDeadline = {}
-        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .bypassCache).value
+        provider.lateAlbumRatingsStored = { storedSignal.yield() }
+        let first = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .allowStale).value
+        XCTAssertEqual(first.map(\.isExplicit), [false], "the page didn't wait for the catalog")
+
         release.finish()
-        XCTAssertEqual(albums.map(\.isExplicit), [false])
+        var signals = stored.makeAsyncIterator()
+        _ = await signals.next()
+        let next = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .allowStale).value
+        XCTAssertEqual(next.map(\.isExplicit), [true], "the late rating labels the kept albums")
+        XCTAssertEqual(source.albumRatingLookups.count, 1, "read from the kept albums, not looked up again")
 
         source.ratingLookupHold = nil
         source.catalogRatingsError = URLError(.notConnectedToInternet)
         let failed = try await AppleMusicBrowsingProvider(source: source)
             .artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .bypassCache).value
         XCTAssertEqual(failed.map(\.isExplicit), [false])
+    }
+
+    /// The catalog answers at most 100 albums per request. An artist with more saved releases
+    /// than that used to send them all at once, and the failed request left every one unrated.
+    func testSavedAlbumRatingsAreLookedUpInBatchesTheCatalogAccepts() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Prolific")
+        source.extraAlbumsByArtistID["-42"] = try (1...150).map {
+            try AppleMusicFixtures.album(id: "-60464317343898\(70000 + $0)", title: "Album \($0)", catalogID: "\(9_000_000 + $0)")
+        }
+        source.catalogAlbumRatings = ["9000150": true]
+
+        let albums = try await AppleMusicBrowsingProvider(source: source)
+            .artistAlbumsCached(id: "-42", includeGroups: [], limit: 200, cacheMode: .bypassCache).value
+        XCTAssertEqual(source.albumRatingLookups.map(\.count).sorted(), [50, 100])
+        XCTAssertEqual(albums.filter(\.isExplicit).map(\.name), ["Album 150"])
     }
 
     /// A pinned album saved before albums knew their rating still opens, as not explicit.
