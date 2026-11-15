@@ -1,5 +1,6 @@
 import Foundation
 import MusicKit
+import os
 
 /// Browsing failures specific to Apple Music.
 enum AppleMusicBrowsingError: LocalizedError, Equatable {
@@ -522,14 +523,42 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             all = cached
         } else {
             let artist = try await loadArtist(id: id)
+            let albums = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
+            let ratings = await savedAlbumRatings(albums)
             all = try await Self.libraryCounted(
-                source.albums(of: artist, limit: Self.maxArtistAlbums).map(AppleMusicItemMapping.artistAlbum),
+                albums.map { AppleMusicItemMapping.artistAlbum($0, catalogExplicit: ratings[$0.id.rawValue]) },
                 source: source
             )
             await artistAlbumsCache.store(all, forArtistID: id)
         }
         return AppleMusicAlbumEditions.oneEach(all, explicitBlocked: explicitMusicBlocked())
             .filter { groups.isEmpty || groups.contains($0.group) }
+    }
+
+    /// A saved album carries no rating on macOS (#512), so on a library artist page a saved
+    /// explicit album had no Explicit label and stood next to its clean copy as another album
+    /// (#580). It names its catalog release, whose rating is the real one: one lookup for the
+    /// page's saved albums, by saved album ID. Like songs' ratings it is given up after
+    /// ``ratingsDeadline``; an album whose rating isn't known then stays as MusicKit gives it.
+    private func savedAlbumRatings(_ albums: [Album]) async -> [String: Bool] {
+        var releases: [String: String] = [:]
+        for album in albums where album.contentRating == nil && !MusicKitLibraryLookup.isCatalogID(album.id.rawValue) {
+            guard let catalogID = AppleMusicSongIdentity(encoding: album).catalogID,
+                  catalogID != album.id.rawValue, MusicKitLibraryLookup.isCatalogID(catalogID)
+            else { continue }
+            releases[album.id.rawValue] = catalogID
+        }
+        guard !releases.isEmpty else { return [:] }
+        let source = source
+        let catalogIDs = Array(Set(releases.values)).sorted()
+        let found = OSAllocatedUnfairLock<[String: Bool]>(initialState: [:])
+        let lookup = Task {
+            guard let ratings = try? await source.catalogAlbumRatings(catalogIDs: catalogIDs) else { return }
+            found.withLock { $0 = ratings }
+        }
+        await AppleMusicContentRatings.first(of: lookup, or: ratingsDeadline)
+        let ratings = found.withLock { $0 }
+        return releases.compactMapValues { ratings[$0] }
     }
 
     // MARK: - Search

@@ -77,6 +77,8 @@ protocol AppleMusicContentSource: Sendable {
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems
     /// The catalog's rating of each of these catalog songs, `true` for explicit (#518).
     func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool]
+    /// The catalog's rating of each of these catalog albums, `true` for explicit (#580).
+    func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool]
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
     /// Two-letter storefront country code, e.g. `ch`.
     func storefrontCountryCode() async throws -> String
@@ -287,6 +289,14 @@ struct MusicKitContentSource: AppleMusicContentSource {
 
     static func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
         let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
+        return Dictionary(
+            try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        let request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
         return Dictionary(
             try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
             uniquingKeysWith: { first, _ in first }

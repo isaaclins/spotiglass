@@ -400,7 +400,7 @@ final class AppleMusicContentRatings: @unchecked Sendable {
     // MARK: - Deadline
 
     /// Waits for `work` or `deadline`, whichever ends first; `work` carries on either way.
-    private static func first(of work: Task<Void, Never>, or deadline: @escaping @Sendable () async -> Void) async {
+    static func first(of work: Task<Void, Never>, or deadline: @escaping @Sendable () async -> Void) async {
         let gate = Gate()
         // A read that is cancelled (another search keystroke, another list) stops waiting too.
         await withTaskCancellationHandler {

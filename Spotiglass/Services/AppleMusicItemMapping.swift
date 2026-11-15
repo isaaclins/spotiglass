@@ -192,7 +192,9 @@ enum AppleMusicItemMapping {
         )
     }
 
-    static func artistAlbum(_ album: Album) -> MusicArtistAlbum {
+    /// `catalogExplicit` is the rating of the catalog release a saved album names: MusicKit
+    /// gives saved albums none on macOS (#580).
+    static func artistAlbum(_ album: Album, catalogExplicit: Bool? = nil) -> MusicArtistAlbum {
         let group: MusicArtistAlbumGroup
         if album.isCompilation == true {
             group = .compilation
@@ -210,7 +212,7 @@ enum AppleMusicItemMapping {
             totalTracks: album.trackCount,
             group: group,
             uri: uri(kind: "album", id: album.id),
-            isExplicit: album.contentRating == .explicit
+            isExplicit: catalogExplicit ?? (album.contentRating == .explicit)
         )
     }
 

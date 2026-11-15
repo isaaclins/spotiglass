@@ -1062,6 +1062,58 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(clean.first?.isExplicit, false)
     }
 
+    /// The same pair saved in the library, on a library artist page: MusicKit gives saved albums
+    /// no rating on macOS (#512), so both read as clean and stood side by side, with no label on
+    /// the explicit one. Each names its catalog release, whose rating is looked up once.
+    func testSavedCleanAndExplicitEditionsShowAsOneTileWithTheLabel() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Taylor Swift")
+        source.extraAlbumsByArtistID["-42"] = [
+            try AppleMusicFixtures.album(
+                id: "-6046431734389870001", title: "folklore", trackCount: 16, releaseDate: "2020-07-24", catalogID: "1524793738"
+            ),
+            try AppleMusicFixtures.album(
+                id: "-6046431734389870002", title: "folklore", trackCount: 16, releaseDate: "2020-07-24", catalogID: "1524801260"
+            ),
+            try AppleMusicFixtures.album(id: "-6046431734389870003", title: "evermore", trackCount: 15, releaseDate: "2020-12-11"),
+        ]
+        source.catalogAlbumRatings = ["1524793738": false, "1524801260": true]
+
+        var provider = AppleMusicBrowsingProvider(source: source)
+        provider.explicitMusicBlocked = { false }
+        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .allowStale).value
+        XCTAssertEqual(albums.map(\.id), ["-6046431734389870002", "-6046431734389870003"])
+        XCTAssertEqual(albums.map(\.isExplicit), [true, false], "the saved explicit edition carries the label")
+        XCTAssertEqual(source.albumRatingLookups, [["1524793738", "1524801260"]], "one lookup, only for albums naming a release")
+    }
+
+    /// A catalog that doesn't answer in time, or fails, doesn't hold the artist page: its saved
+    /// albums show as MusicKit gives them, as before.
+    func testAnArtistPageDoesNotWaitForASavedAlbumsRating() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Taylor Swift")
+        source.extraAlbumsByArtistID["-42"] = [
+            try AppleMusicFixtures.album(
+                id: "-6046431734389870002", title: "folklore", trackCount: 16, releaseDate: "2020-07-24", catalogID: "1524801260"
+            ),
+        ]
+        source.catalogAlbumRatings = ["1524801260": true]
+        let (held, release) = AsyncStream<Void>.makeStream()
+        source.ratingLookupHold = { for await _ in held {} }
+
+        var provider = AppleMusicBrowsingProvider(source: source)
+        provider.ratingsDeadline = {}
+        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .bypassCache).value
+        release.finish()
+        XCTAssertEqual(albums.map(\.isExplicit), [false])
+
+        source.ratingLookupHold = nil
+        source.catalogRatingsError = URLError(.notConnectedToInternet)
+        let failed = try await AppleMusicBrowsingProvider(source: source)
+            .artistAlbumsCached(id: "-42", includeGroups: [], limit: 50, cacheMode: .bypassCache).value
+        XCTAssertEqual(failed.map(\.isExplicit), [false])
+    }
+
     /// A pinned album saved before albums knew their rating still opens, as not explicit.
     func testAnAlbumPinnedBeforeRatingsDecodes() throws {
         let json = #"{"id":"1524801260","name":"folklore","totalTracks":16,"group":"album","uri":"applemusic:album:1524801260"}"#
@@ -1900,6 +1952,18 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         if let ratingLookupHold { await ratingLookupHold() }
         if let catalogRatingsError { throw catalogRatingsError }
         return catalogRatings.filter { catalogIDs.contains($0.key) }
+    }
+
+    /// The catalog's ratings, `true` for explicit, by catalog album ID.
+    var catalogAlbumRatings: [String: Bool] = [:]
+    private var recordedAlbumRatingLookups: [[String]] = []
+    var albumRatingLookups: [[String]] { lock.withLock { recordedAlbumRatingLookups } }
+
+    func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool] {
+        lock.withLock { recordedAlbumRatingLookups.append(catalogIDs) }
+        if let ratingLookupHold { await ratingLookupHold() }
+        if let catalogRatingsError { throw catalogRatingsError }
+        return catalogAlbumRatings.filter { catalogIDs.contains($0.key) }
     }
 }
 
