@@ -725,8 +725,6 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     }
 }
 
-/// A few artists' album lists, kept for a short while so paging an artist page doesn't walk
-/// MusicKit's album batches again for every page. Bounded in count and age.
 /// Apple lists the clean and the explicit edition of an album as two albums with their own
 /// catalog IDs, and the same cover, name, year and track count (#580). The Music app shows one:
 /// the explicit edition, or the clean one when this Mac only allows clean music. Editions that
@@ -764,6 +762,8 @@ enum AppleMusicAlbumEditions {
     }
 }
 
+/// A few artists' album lists, kept for a short while so paging an artist page doesn't walk
+/// MusicKit's album batches again for every page. Bounded in count and age.
 actor AppleMusicArtistAlbumsCache {
     static let maxArtists = 8
     static let maxAge: TimeInterval = 10 * 60
