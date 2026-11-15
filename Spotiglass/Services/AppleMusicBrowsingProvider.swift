@@ -435,9 +435,15 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicArtistAlbumsPage {
         let albums = try await artistAlbums(id: id, includeGroups: includeGroups, startsPaging: offset == 0 && nextURL == nil)
-        let start = min(max(0, offset), albums.count)
+        var start = min(max(0, offset), albums.count)
+        // The list may have been loaded again since the page before (it expired or another
+        // artist took its place in the cache) and pair editions that list didn't, so offsets no
+        // longer line up: go on after the last album that page showed, wherever it is now (#580).
+        if let after = Self.continuationAlbumID(nextURL), let index = albums.firstIndex(where: { $0.id == after }) {
+            start = index + 1
+        }
         let end = min(start + max(1, limit), albums.count)
-        let next = end < albums.count ? Self.continuationURL(offset: end) : nil
+        let next = end < albums.count ? Self.continuationURL(offset: end, after: albums[end - 1].id) : nil
         return MusicArtistAlbumsPage(items: Array(albums[start..<end]), next: next)
     }
 
@@ -746,12 +752,20 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     // MARK: - Helpers
 
     /// An opaque continuation in the `offset` shape the Search view already reads.
-    static func continuationURL(offset: Int) -> URL? {
+    /// `after` names the item the page before ended with, for lists that can change between
+    /// two pages (an artist's albums, #580).
+    static func continuationURL(offset: Int, after itemID: String? = nil) -> URL? {
         var components = URLComponents()
         components.scheme = AppleMusicItemMapping.uriScheme
         components.host = "page"
         components.queryItems = [URLQueryItem(name: "offset", value: String(offset))]
+            + (itemID.map { [URLQueryItem(name: "after", value: $0)] } ?? [])
         return components.url
+    }
+
+    static func continuationAlbumID(_ url: URL?) -> String? {
+        guard let url, url.scheme == AppleMusicItemMapping.uriScheme, url.host == "page" else { return nil }
+        return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "after" }?.value
     }
 
     /// Library items first, then the catalog items the library does not already show.
