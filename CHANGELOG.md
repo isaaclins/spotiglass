@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.45] - 2026-11-16
+
+### Fixed
+
+- Sound now goes back to your normal output device when the equalizer isn't processing anything, instead of staying routed through it.
+
 ## [0.8.44] - 2026-11-15
 
 ### Fixed
