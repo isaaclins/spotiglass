@@ -459,9 +459,9 @@ private final class MacOSColorScheme: ObservableObject {
 }
 
 @_silgen_name("WaxCaptureLegacyLoginItems")
-private func captureLegacyLoginItems(_ source: UnsafePointer<CChar>) -> UnsafeMutableRawPointer?
+private func captureLegacyLoginItems(_: UnsafePointer<CChar>) -> UnsafeMutableRawPointer?
 @_silgen_name("WaxFinishLegacyLoginItems")
-private func finishLegacyLoginItems(_ snapshot: UnsafeMutableRawPointer?, _ destination: UnsafePointer<CChar>?)
+private func finishLegacyLoginItems(_: UnsafeMutableRawPointer?, _: UnsafePointer<CChar>?)
 
 /// A failed move/relaunch leaves the user's original login item untouched.
 private final class LegacyLoginItemSnapshot {
