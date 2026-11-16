@@ -39,4 +39,32 @@ final class AppBundleMigrationTests: XCTestCase {
         XCTAssertNil(try AppBundleMigration.moveLegacyBundle(at: URL(fileURLWithPath: "/Applications/My Player.app")))
         XCTAssertNil(try AppBundleMigration.moveLegacyBundle(at: URL(fileURLWithPath: "/private/AppTranslocation/test/Spotiglass.app")))
     }
+    func testRelaunchSuccessAndFailure() throws {
+        for succeeds in [true, false] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let source = root.appendingPathComponent("Spotiglass.app")
+            try Data("payload".utf8).write(to: source)
+            var registered: URL?
+            var finished = false
+            var messages: [String] = []
+            AppBundleMigration.migrate(source: source, register: { registered = $0 }, relaunch: { url, completion in
+                XCTAssertEqual(url, registered)
+                XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+                completion(succeeds)
+            }, finish: { finished = true }, log: { messages.append($0) })
+            XCTAssertEqual(finished, succeeds)
+            XCTAssertEqual(FileManager.default.fileExists(atPath: source.path), !succeeds)
+            XCTAssertEqual(messages.isEmpty, succeeds)
+        }
+    }
+
+    func testMigrationFailureDoesNotRelaunch() {
+        var messages: [String] = []
+        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/missing/Spotiglass.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { XCTFail() }, log: { messages.append($0) })
+        XCTAssertEqual(messages.count, 1)
+        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/Applications/Wax.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { XCTFail() }, log: { _ in XCTFail() })
+    }
+
 }

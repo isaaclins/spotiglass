@@ -316,7 +316,22 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
         if AppMetadata.isRunningUnitTests {
             NSApp.setActivationPolicy(.prohibited)
         } else {
-            AppBundleMigration.run()
+            guard Bundle.main.bundleIdentifier == "com.isaaclins.spotiglass" else { return }
+            AppBundleMigration.migrate(
+                source: Bundle.main.bundleURL,
+                register: { LSRegisterURL($0 as CFURL, true) },
+                relaunch: { destination, completion in
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.createsNewApplicationInstance = true
+                    configuration.arguments = Array(CommandLine.arguments.dropFirst())
+                    configuration.environment = ProcessInfo.processInfo.environment
+                    NSWorkspace.shared.openApplication(at: destination, configuration: configuration) { app, _ in
+                        completion(app != nil)
+                    }
+                },
+                finish: { exit(EXIT_SUCCESS) },
+                log: { SpotiglassLog.info(.persistence, $0) }
+            )
         }
     }
 
