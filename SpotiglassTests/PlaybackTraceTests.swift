@@ -79,6 +79,51 @@ final class PlaybackTraceTests: XCTestCase {
         XCTAssertTrue(reported[19]?.hasSuffix("(1.08x speed)") == true, reported[19] ?? "")
     }
 
+    func testAPositionThatStopsMovingWhilePlayingIsReportedOnceAndAgainWhenItMoves() {
+        var watch = PlaybackPositionWatch()
+        let start = ContinuousClock.now
+        var lines: [Int: String] = [:]
+        // Plays 0:10 to 0:13, then stays at 0:13 for a minute while the player says "playing".
+        for second in 0...70 {
+            let position = second <= 3 ? 10_000 + second * 1000 : (second < 63 ? 13_000 : 13_000 + (second - 62) * 1000)
+            if let line = watch.observe(positionMilliseconds: position, isPlaying: true, item: "a", at: start + .seconds(second)) {
+                lines[second] = line
+            }
+        }
+        XCTAssertEqual(lines.keys.sorted(), [4, 63], lines.values.joined(separator: "\n"))
+        XCTAssertEqual(lines[4], "position stuck at 0:13.0 while playing")
+        XCTAssertEqual(lines[63], "position moving again at 0:14.0 after 60.00 s stuck at 0:13.0")
+    }
+
+    func testRepeatOneStartingTheSongOverIsNoJump() {
+        var watch = PlaybackPositionWatch()
+        let start = ContinuousClock.now
+        XCTAssertNil(watch.observe(positionMilliseconds: 178_000, isPlaying: true, item: "a", durationMilliseconds: 180_000, at: start))
+        XCTAssertNil(watch.observe(positionMilliseconds: 179_000, isPlaying: true, item: "a", durationMilliseconds: 180_000, at: start + .seconds(1)))
+        XCTAssertNil(watch.observe(positionMilliseconds: 800, isPlaying: true, item: "a", durationMilliseconds: 180_000, at: start + .seconds(2)))
+        XCTAssertNil(watch.observe(positionMilliseconds: 1_800, isPlaying: true, item: "a", durationMilliseconds: 180_000, at: start + .seconds(3)))
+        // A jump back in the middle of the song still counts.
+        XCTAssertNotNil(watch.observe(positionMilliseconds: 100, isPlaying: true, item: "a", durationMilliseconds: 180_000, at: start + .seconds(30)))
+    }
+
+    func testACommandFromAShortcutMenuOrPaletteNamesItAndAnInternalCallKeepsTheCause() {
+        let trace = makeTrace()
+        trace.via("playback.togglePlayPause", file: "Spotiglass/CommandPaletteManager.swift", line: 704)
+        trace.request("play/pause (appleMusic)", file: "Spotiglass/PlaylistBrowserCommandPaletteConfiguration.swift", line: 72)
+        trace.request("play x (appleMusic)", file: "Spotiglass/PlaybackSessionViewModel+PlayCommands.swift", line: 141)
+        trace.command("pause")
+        let cause = "play/pause (appleMusic) from PlaylistBrowserCommandPaletteConfiguration.swift:72 via playback.togglePlayPause from CommandPaletteManager.swift:704"
+        XCTAssertEqual(lines[0], "request \(cause)")
+        XCTAssertTrue(lines[1].hasSuffix("(inside the app, after: \(cause))"), lines[1])
+        XCTAssertTrue(lines[2].contains("last request: \(cause),"), lines[2])
+        // A shortcut a while ago doesn't label a later click.
+        time += .seconds(2)
+        trace.via("playback.next", file: "Spotiglass/CommandPaletteManager.swift", line: 704)
+        time += .seconds(2)
+        trace.request("next (appleMusic)", file: "Spotiglass/PlaybackControlsView.swift", line: 611)
+        XCTAssertEqual(lines[3], "request next (appleMusic) from PlaybackControlsView.swift:611")
+    }
+
     func testPausesSeeksAndNewSongsStartOver() {
         var watch = PlaybackPositionWatch()
         let start = ContinuousClock.now
@@ -105,17 +150,24 @@ final class AudioOutputTraceTests: XCTestCase {
         XCTAssertTrue(lines[0].hasPrefix("default output "), lines[0])
         XCTAssertTrue(lines[0].contains("; outputs: "), lines[0])
         for device in MacAudioOutputHardware.enumerateOutputDevices() {
-            XCTAssertTrue(lines[0].contains("\(device.name) (\(device.id)) "), lines[0])
+            XCTAssertTrue(lines[0].contains("\(AudioOutputTrace.ownerlessName(device.name)) ("), lines[0])
+            XCTAssertTrue(lines[0].contains(", \(device.id)) "), lines[0])
         }
         if let id = MacAudioOutputHardware.defaultOutputDeviceID(),
            let rate = MacAudioOutputHardware.nominalSampleRate(deviceID: id) {
-            XCTAssertTrue(lines[0].contains("(\(id)) \(Int(rate)) Hz"), lines[0])
+            XCTAssertTrue(lines[0].contains(", \(id)) \(Int(rate)) Hz"), lines[0])
         }
 
         // An equalizer route change logs the path again, with why.
         trace.log(reason: "equalizer route off -> starting(target none)")
         XCTAssertEqual(lines.count, 2)
         XCTAssertTrue(lines[1].hasSuffix(" [equalizer route off -> starting(target none)]"), lines[1])
+    }
+
+    func testDeviceNamesLeaveTheOwnerOut() {
+        XCTAssertEqual(AudioOutputTrace.ownerlessName("Isaac\u{2019}s AirPods Max"), "AirPods Max")
+        XCTAssertEqual(AudioOutputTrace.ownerlessName("Someone's HomePod"), "HomePod")
+        XCTAssertEqual(AudioOutputTrace.ownerlessName("MacBook Pro Speakers"), "MacBook Pro Speakers")
     }
 
     func testTheEqualizerRouteIsDescribedWithoutItsMessage() {

@@ -1,9 +1,9 @@
 import Foundation
 
 extension QueueViewModel {
-    func playItem(_ item: QueueItem) async {
+    func playItem(_ item: QueueItem, file: String = #fileID, line: Int = #line) async {
         guard let uri = item.playableURI else { return }
-        await playbackSession.play(uri: uri)
+        await playbackSession.play(uri: uri, file: file, line: line)
     }
 
     /// Existing single-track callers keep the fire-and-forget API. Batch callers

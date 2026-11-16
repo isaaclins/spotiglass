@@ -481,7 +481,8 @@ final class CommandPaletteManager: ObservableObject {
         return responder is NSTextView
     }
 
-    func execute(commandID: String, args: [String: JSONValue]? = nil) {
+    func execute(commandID: String, args: [String: JSONValue]? = nil, file: String = #fileID, line: Int = #line) {
+        PlaybackTrace.shared.via(commandID, file: file, line: line)
         switch commandID {
         case CommandPaletteCommandID.openPalette:
             viewModel.show()

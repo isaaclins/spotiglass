@@ -47,9 +47,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private var repeatWanted: MusicPlayer.RepeatMode?
     /// Notices the position jumping while it plays, for the log (#590).
     private var positionWatch = PlaybackPositionWatch()
-    /// Logs what the player reports by itself: status, rate, the current entry (#590). Held
-    /// only to keep its subscriptions alive.
-    // periphery:ignore
+    /// Logs what the player reports by itself: status, rate, the current entry (#590).
     private let stateObserver: AppleMusicPlayerStateObserver
 
     init() {
@@ -351,17 +349,21 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         let seconds = player.playbackTime
         let positionMilliseconds = seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0
+        let track = current.flatMap { track(for: $0, at: currentIndex) }
+        // A new queue is a new object MusicKit announces nothing on; the poll catches it.
+        stateObserver.check()
         if let jump = positionWatch.observe(
             positionMilliseconds: positionMilliseconds,
             isPlaying: status == .playing,
             item: current?.id,
+            durationMilliseconds: track?.durationMilliseconds,
             at: ContinuousClock.now
         ) {
             PlaybackTrace.shared.playerReported(jump)
         }
         return AppleMusicPlayerState(
             status: status,
-            current: current.flatMap { track(for: $0, at: currentIndex) },
+            current: track,
             positionMilliseconds: positionMilliseconds,
             shuffle: player.state.shuffleMode == .songs,
             repeatMode: Self.repeatMode(player.state.repeatMode)
@@ -1076,13 +1078,28 @@ final class AppleMusicPlayerStateObserver {
     private var lastRate: Float?
     private var lastEntryID: String??
 
+    private var queueSubscription: AnyCancellable?
+    private var subscribedQueue: ObjectIdentifier?
+
     init(player: ApplicationMusicPlayer) {
         self.player = player
-        let changed: () -> Void = { [weak self] in
-            DispatchQueue.main.async { MainActor.assumeIsolated { self?.report() } }
+        subscriptions.append(player.state.objectWillChange.sink { [weak self] _ in self?.changed() })
+        check()
+    }
+
+    /// Follows a queue MusicKit replaced (a new play sets a new queue object) and logs what
+    /// changed since the last line. The session's once-a-second read calls this.
+    func check() {
+        let queue = player.queue
+        if subscribedQueue != ObjectIdentifier(queue) {
+            subscribedQueue = ObjectIdentifier(queue)
+            queueSubscription = queue.objectWillChange.sink { [weak self] _ in self?.changed() }
         }
-        subscriptions.append(player.state.objectWillChange.sink { _ in changed() })
-        subscriptions.append(player.queue.objectWillChange.sink { _ in changed() })
+        report()
+    }
+
+    private nonisolated func changed() {
+        DispatchQueue.main.async { [weak self] in MainActor.assumeIsolated { self?.report() } }
     }
 
     private func report() {

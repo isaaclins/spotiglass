@@ -193,10 +193,10 @@ final class AudioOutputTrace {
     private func report(reason: String?) {
         let defaultID = MacAudioOutputHardware.defaultOutputDeviceID()
         let devices = MacAudioOutputHardware.enumerateOutputDevices().map { device in
-            "\(device.name) (\(device.id)) \(Self.rate(device.id))"
+            Self.describe(device.id, name: device.name)
         }
         let defaultName = defaultID.map { id in
-            "\(MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id) ?? "?") (\(id)) \(Self.rate(id))"
+            Self.describe(id, name: MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id) ?? "?")
         } ?? "none"
         let line = "default output \(defaultName); outputs: \(devices.joined(separator: ", "))"
         guard line != lastLine else { return }
@@ -221,6 +221,41 @@ final class AudioOutputTrace {
             if AudioObjectAddPropertyListenerBlock(id, &address, DispatchQueue.main, block) == noErr {
                 rateListeners[id] = block
             }
+        }
+    }
+
+    /// "AirPods Max (bluetooth, 91) 48000 Hz". The log gets attached to public issues, so the
+    /// owner in a name ("Isaac's AirPods Max") is left out.
+    private static func describe(_ id: AudioDeviceID, name: String) -> String {
+        "\(ownerlessName(name)) (\(transport(id)), \(id)) \(rate(id))"
+    }
+
+    static func ownerlessName(_ name: String) -> String {
+        for marker in ["\u{2019}s ", "'s "] {
+            if let range = name.range(of: marker) {
+                let rest = name[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                if !rest.isEmpty { return rest }
+            }
+        }
+        return name
+    }
+
+    private static func transport(_ id: AudioDeviceID) -> String {
+        var value: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        var address = Self.address(kAudioDevicePropertyTransportType)
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &value) == noErr else { return "unknown" }
+        switch value {
+        case kAudioDeviceTransportTypeBuiltIn: return "built-in"
+        case kAudioDeviceTransportTypeUSB: return "usb"
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE: return "bluetooth"
+        case kAudioDeviceTransportTypeAirPlay: return "airplay"
+        case kAudioDeviceTransportTypeHDMI: return "hdmi"
+        case kAudioDeviceTransportTypeDisplayPort: return "displayport"
+        case kAudioDeviceTransportTypeVirtual: return "virtual"
+        case kAudioDeviceTransportTypeAggregate, kAudioDeviceTransportTypeAutoAggregate: return "aggregate"
+        case kAudioDeviceTransportTypeThunderbolt: return "thunderbolt"
+        default: return "other"
         }
     }
 
