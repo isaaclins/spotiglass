@@ -44,7 +44,10 @@ struct EQRateFollower {
             want = static_cast<uint32_t>(
                 EQClock_MatchingRate(targetRate, kEQSupportedSampleRates, kEQNumSupportedSampleRates));
             target.store(want, std::memory_order_release);
-            client.store(0, std::memory_order_release);
+            // A target at a rate the EQ device doesn't offer can't be followed:
+            // a rate a client picks then still applies.
+            const uint32_t picked = client.exchange(0, std::memory_order_acq_rel);
+            if (want == 0) want = picked;
         }
         if (want == 0 || want == current) return 0;
         if (requested.exchange(want, std::memory_order_acq_rel) == want) return 0;

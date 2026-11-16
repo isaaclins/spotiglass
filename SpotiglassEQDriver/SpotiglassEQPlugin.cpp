@@ -720,7 +720,9 @@ OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
     // Only the last client stopping stops the device (#590: a notification
     // sound ending used to silence the music still playing). All of it under
     // the state lock, so a client starting meanwhile can't be undone by this
-    // stop. The IO callback never takes the lock, so waiting here is safe.
+    // stop. The IO callback (DoIOOperation) never takes the lock, so waiting
+    // here is safe; GetZeroTimeStamp runs on the IO thread and does take it,
+    // but holds no IO lease while it does, so it can't hold the wait up.
     pthread_mutex_lock(&gPlugin.stateLock);
     if (!gPlugin.ioClients.stop()) {
         pthread_mutex_unlock(&gPlugin.stateLock);
@@ -785,6 +787,13 @@ OSStatus RemoveDeviceClient(AudioServerPlugInDriverRef /*self*/, AudioObjectID /
 OSStatus PerformDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
                                           AudioObjectID /*deviceID*/, UInt64 changeAction,
                                           void* /*info*/) {
+    // Asked twice for the rate it already runs at (the watcher read the rate
+    // just before an earlier change landed): nothing to change, and no reason
+    // to restart the timeline.
+    if (static_cast<UInt32>(changeAction) == gPlugin.currentSampleRateHz.load(std::memory_order_acquire)) {
+        gPlugin.rates.settled();
+        return noErr;
+    }
     pthread_mutex_lock(&gPlugin.stateLock);
     gPlugin.ioAccepting.store(false, std::memory_order_seq_cst);
     WaitForIOUsers();

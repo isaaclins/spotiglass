@@ -452,6 +452,16 @@ void testOtherAppsCantFightTheTargetRate() {
     expect(rates.tick(48000, false, 0.0) == 0, "and only once");
 }
 
+void testAClientRateAppliesWhenTheTargetsRateCantBeFollowed() {
+    // A 768 kHz DAC: the EQ device can't run at its rate, so a rate picked in
+    // Audio MIDI Setup is taken and applied instead of reporting success and
+    // being dropped on the next tick.
+    EQRateFollower rates;
+    expect(rates.tick(48000, true, 768000.0) == 0, "an unsupported target rate isn't asked for");
+    expect(rates.clientSets(96000.0), "a client may pick a rate then");
+    expect(rates.tick(48000, true, 768000.0) == 96000, "and the watcher asks for it");
+}
+
 void testIOStartsWithTheFirstClientAndStopsWithTheLast() {
     EQIOClients clients;
     expect(clients.start(), "the music starting starts the device");
@@ -572,6 +582,7 @@ int main() {
     testTheRateFollowsTheTargetAndAsksOnce();
     testAnAbortedOrForgottenRequestIsAskedAgain();
     testOtherAppsCantFightTheTargetRate();
+    testAClientRateAppliesWhenTheTargetsRateCantBeFollowed();
     testIOStartsWithTheFirstClientAndStopsWithTheLast();
     testTheEQDeviceFollowsEveryCommonOutputRate();
 

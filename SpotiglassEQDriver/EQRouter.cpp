@@ -515,7 +515,9 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
     // The producer overran the ring: frames older than one push before the
     // oldest slot it may be writing right now are gone or going. Start over
     // with the newest sound.
-    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - push &&
+    // Checked against the largest push allowed, not the largest seen: the
+    // first larger push may be landing right now.
+    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - kEQRouterRingMaxChunk &&
         write_pos >= start_fill) {
         read_pos = write_pos - start_fill;
         ring->window_cycles = 0;
