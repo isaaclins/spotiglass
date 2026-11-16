@@ -35,6 +35,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     func testSetInAppPlayerPlayingPausesAndResumes() async throws {
         let player = ScriptedAppleMusicPlayer()
         let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
         try await provider.setInAppPlayerPlaying(false, commandID: nil)
         try await provider.setInAppPlayerPlaying(true, commandID: nil)
         XCTAssertEqual(player.commands.filter { $0 == "pause" || $0 == "resume" }, ["pause", "resume"])
@@ -1451,6 +1452,58 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         }
     }
 
+    // MARK: - Relaunch
+
+    /// #586, as seen on 0.8.44: after a relaunch MusicKit hands back the last launch's queue,
+    /// its library song under a persistent id (`applemusic:song:-1993878998138392367`), paused
+    /// at 0:00. Its `play()` returns without an error and plays nothing, so three presses of
+    /// Play stayed paused without a word. The leftover song isn't offered, a resume says it
+    /// failed, and the next play starts.
+    func testTheQueueLeftFromTheLastLaunchIsNotOfferedAndAPlayAfterItStarts() async throws {
+        let leftover = "applemusic:song:-1993878998138392367"
+        let player = ScriptedAppleMusicPlayer()
+        player.restoreLastLaunchQueue([leftover])
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+
+        try await Self.read(session, player, at: 1)
+        let restored = try await provider.fetchPlaybackState()
+        XCTAssertNil(restored, "the leftover song must not show in the player bar")
+        XCTAssertNil(session.currentNowPlaying)
+        XCTAssertTrue(session.hasNothingLoaded, "Play must be off with nothing playable loaded")
+
+        // A resume that still reaches the provider (media keys, Control Center) fails out loud
+        // instead of asking MusicKit to play a queue it won't.
+        do {
+            try await provider.resume(deviceID: AppleMusicPlaybackProvider.deviceID)
+            XCTFail("resuming the leftover queue must fail")
+        } catch {
+            XCTAssertEqual(MusicPlaybackError.from(error)?.reason, .notFound)
+        }
+        do {
+            try await provider.setInAppPlayerPlaying(true, commandID: nil)
+            XCTFail("resuming the leftover queue must fail")
+        } catch {
+            XCTAssertEqual(MusicPlaybackError.from(error)?.reason, .notFound)
+        }
+        XCTAssertFalse(player.commands.contains("resume"))
+
+        // Playing a song starts it, and pause then play resumes it.
+        try await provider.play(.items(uris: Self.uris, startURI: Self.uris[0]), deviceID: AppleMusicPlaybackProvider.deviceID)
+        try await Self.read(session, player, at: 1)
+        XCTAssertTrue(Self.isPlaying(session))
+        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
+        await session.togglePlayPause()
+        try await Self.read(session, player, at: 1)
+        await session.togglePlayPause()
+        XCTAssertEqual(player.commands.last, "resume")
+        try await Self.read(session, player, at: 1)
+        XCTAssertTrue(Self.isPlaying(session))
+    }
+
     // MARK: - Measured MusicKit lag
 
     /// Replays the lag measured on a Mac mini M4 (macOS 27, 2026-11-06): how long
@@ -1825,6 +1878,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         // The live player's contract: a play overtaken during its lookup leaves the queue alone.
         guard isCurrent() else { throw CancellationError() }
         commands.append("play")
+        queueIsFromLastLaunch = false
         // Like the live player: added songs not played yet go right after the new first song.
         let carried = (book.addedAhead(of: queue.indices.contains(index) ? index : nil) ?? 0..<0)
             .filter(queue.indices.contains)
@@ -1852,7 +1906,21 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     }
 
     func resume() async throws {
+        // Like MusicKit on the queue it restored from the last launch: `play()` returns and
+        // nothing plays (#586).
+        if queueIsFromLastLaunch { commands.append("resume"); return }
         later("resume") { [self] in positionAnchor = now; playing = true }
+    }
+
+    /// The queue MusicKit hands back after a relaunch: paused at 0:00, unplayable.
+    private var queueIsFromLastLaunch = false
+
+    func restoreLastLaunchQueue(_ uris: [String]) {
+        queue = uris
+        index = 0
+        playing = false
+        positionBase = 0
+        queueIsFromLastLaunch = true
     }
 
     /// Like the live player: the queue stays, the songs added to it are forgotten.

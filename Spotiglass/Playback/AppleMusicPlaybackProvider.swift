@@ -92,7 +92,12 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// holds is from the session that ended, and a play that fails leaves it there. Add to
     /// Queue doesn't clear it (there's nothing loaded to add after,
     /// ``PlaybackSessionViewModel/hasNothingLoaded``), or the old songs would return.
-    private var isSessionEnded = false
+    ///
+    /// Set from the start too: MusicKit hands back the queue of the app's last launch, its
+    /// library songs under persistent ids (`applemusic:song:-1993878998138392367`), and
+    /// `play()` on it returns without an error and without playing. Showing that song would
+    /// offer a play button that does nothing (#586), so a launch starts with nothing loaded.
+    private var isSessionEnded = true
     /// Bumped by every disconnect: an add still looking up its song when the session ended
     /// leaves the queue alone.
     private var session: UInt64 = 0
@@ -168,7 +173,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func resume(deviceID: String) async throws {
-        try await perform { try await player.resume() }
+        try await resumePlayer()
     }
 
     func seek(to milliseconds: Int, deviceID: String) async throws {
@@ -219,19 +224,29 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         if player.readState().status == .playing {
             player.pause()
         } else {
-            try await perform { try await player.resume() }
+            try await resumePlayer()
         }
     }
 
     func setInAppPlayerPlaying(_ playing: Bool, commandID: UInt64?) async throws {
         if playing {
-            try await perform { try await player.resume() }
+            try await resumePlayer()
         } else {
             player.pause()
         }
     }
 
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws {}
+
+    /// Resumes the queue a play of this session set. MusicKit's leftover queue (a session that
+    /// ended, or the last launch) never plays on `play()` and never says so, so resuming it
+    /// fails out loud instead of staying paused (#586).
+    private func resumePlayer() async throws {
+        guard !isSessionEnded else {
+            throw MusicPlaybackError(service: .appleMusic, reason: .notFound, detail: "Nothing to resume: no song was started since Apple Music connected")
+        }
+        try await perform { try await player.resume() }
+    }
 
     // MARK: - Reads
 
