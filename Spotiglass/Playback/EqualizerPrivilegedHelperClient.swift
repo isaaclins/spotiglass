@@ -19,7 +19,15 @@ protocol EqualizerDriverInstalling {
 final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDriverInstalling {
     private let bundle: Bundle
     private let fileManager: FileManager
-    private let service: SMAppService
+    private let injectedService: SMAppService?
+
+    /// A fresh `SMAppService` per use: an instance kept since launch went on
+    /// reporting `.requiresApproval` after the user had allowed Spotiglass in
+    /// Login Items, so the warning never went away (#587).
+    private var service: SMAppService {
+        injectedService
+            ?? SMAppService.daemon(plistName: EqualizerPrivilegedHelperIdentity.plistName)
+    }
 
     init(
         bundle: Bundle = .main,
@@ -28,11 +36,7 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
     ) {
         self.bundle = bundle
         self.fileManager = fileManager
-        self.service =
-            service
-            ?? SMAppService.daemon(
-                plistName: EqualizerPrivilegedHelperIdentity.plistName
-            )
+        self.injectedService = service
     }
 
     func installDriver(sourceURL: URL, destinationURL: URL) throws {

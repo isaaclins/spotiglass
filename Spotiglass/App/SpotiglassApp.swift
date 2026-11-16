@@ -110,7 +110,12 @@ struct SpotiglassApp: App {
         engine: AudioEqualizerEngine
     ) {
         let equalizerSettings = settingsStore.settings.equalizer
-        guard equalizerSettings.enabled else { return }
+        guard equalizerSettings.enabled else {
+            // An earlier failed run may have left the Mac's sound on the EQ
+            // device with nothing processing it (#587).
+            if !AppMetadata.isRunningUnitTests { engine.releaseStrandedOutput() }
+            return
+        }
 
         engine.apply(settings: equalizerSettings)
         do {

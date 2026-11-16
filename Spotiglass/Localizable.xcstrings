@@ -4026,6 +4026,29 @@
         }
       }
     },
+    "eq.error.routerStopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Equalizer hat aufgehört, Ton zu verarbeiten. Der Ton läuft wieder über Ihr vorheriges Gerät."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer stopped processing sound, so your sound is back on your previous device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ecualizador dejó de procesar el sonido, así que el sonido vuelve a tu dispositivo anterior."
+          }
+        }
+      }
+    },
     "eq.error.routerTargetOpenFailed": {
       "extractionState": "manual",
       "localizations": {

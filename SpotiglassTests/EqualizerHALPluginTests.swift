@@ -418,6 +418,102 @@ final class EqualizerHALPluginTests: XCTestCase {
         }
     }
 
+    // MARK: - Sound never stays on the EQ device without a working route (#587)
+
+    /// The Mac's output as CoreAudio would report it, so a test can tell where
+    /// the sound ends up after the equalizer gives up.
+    private final class FakeMacOutput {
+        let originalID = AudioObjectID(41)
+        let virtualID = AudioObjectID(99)
+        let originalUID = "OriginalOutputUID"
+        var current: AudioObjectID
+        var setIDs: [AudioObjectID] = []
+        var routerStatus: EqualizerRouterStatus?
+
+        init() { current = originalID }
+    }
+
+    private func makeController(
+        for output: FakeMacOutput,
+        routerStatusURL: URL? = nil
+    ) -> EqualizerHALPluginController {
+        EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceIDForUID: { $0 == output.originalUID ? output.originalID : nil },
+            outputDeviceUID: { $0 == output.originalID ? output.originalUID : nil },
+            defaultOutputDeviceIDProvider: { output.current },
+            virtualDeviceIDProvider: { output.virtualID },
+            defaultOutputSetter: { id in
+                output.setIDs.append(id)
+                output.current = id
+            },
+            routerStatusURL: routerStatusURL ?? makeTempDirectory().appendingPathComponent("router.status"),
+            routerStatusReader: { output.routerStatus },
+            routerReadinessTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+    }
+
+    /// Switching the EQ on while its router never comes up (nothing processes
+    /// the EQ device) used to leave the Mac's sound on the EQ device, where it
+    /// stuttered and sped up.
+    @MainActor
+    func testASwitchOnTheRouterNeverConfirmsPutsTheSoundBackOnThePreviousDevice() throws {
+        let output = FakeMacOutput()
+        let controller = makeController(for: output)
+        try controller.install()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+
+        XCTAssertThrowsError(try engine.start())
+
+        XCTAssertEqual(output.setIDs, [output.virtualID, output.originalID])
+        XCTAssertEqual(output.current, output.originalID, "the sound stayed on the EQ device")
+        XCTAssertFalse(engine.isEngaged)
+        XCTAssertNotNil(engine.lastError, "nothing said why the equalizer is off")
+    }
+
+    /// A live route whose router stops processing hands the sound back by itself.
+    @MainActor
+    func testALiveRouteThatStopsProcessingPutsTheSoundBack() throws {
+        let output = FakeMacOutput()
+        output.routerStatus = .ready(targetUID: output.originalUID)
+        let controller = makeController(for: output)
+        try controller.install()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+        try engine.start()
+        XCTAssertEqual(output.current, output.virtualID)
+
+        engine.checkRouteHealth()
+        XCTAssertEqual(output.current, output.virtualID, "a working route was torn down")
+
+        output.routerStatus = .failed(targetUID: output.originalUID, reasonCode: 2)
+        engine.checkRouteHealth()
+
+        XCTAssertEqual(output.current, output.originalID, "the sound stayed on the EQ device")
+        XCTAssertFalse(engine.isEngaged)
+        XCTAssertEqual(engine.lastError, SpotiglassL10n.string("eq.error.routerStopped"))
+    }
+
+    /// A Mac left on the EQ device by an earlier failed run gets its sound back
+    /// on the next launch with the equalizer off.
+    @MainActor
+    func testLaunchWithTheEqualizerOffTakesTheSoundOffAStrandedEQDevice() throws {
+        let output = FakeMacOutput()
+        output.current = output.virtualID
+        try EqualizerHALPluginController.writeDefaultOutputBackup(
+            uid: output.originalUID,
+            to: defaultOutputBackupURL,
+            fileManager: .default
+        )
+        let engine = AudioEqualizerEngine(pluginController: makeController(for: output))
+
+        engine.releaseStrandedOutput()
+
+        XCTAssertEqual(output.current, output.originalID, "the sound stayed on the EQ device")
+    }
+
     /// Settings › Equalizer shows why the EQ isn't running. The pane sits in the same window as
     /// the language picker, and the reason stayed in the old language after a switch (#571).
     @MainActor

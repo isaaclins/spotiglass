@@ -75,7 +75,9 @@ final class AudioEqualizerEngine: ObservableObject {
     /// One authoritative lifecycle/readiness state for both UI status and
     /// system-output reconciliation. The driver is not considered live until
     /// its router worker reports a matching ready target.
-    @Published private(set) var routeState: EqualizerRouteState = .disabled
+    @Published private(set) var routeState: EqualizerRouteState = .disabled {
+        didSet { updateRouteHealthTimer() }
+    }
 
     /// Whether the last start attempt stopped on the user's background-item
     /// approval. This is a pending user action rather than a second reading of
@@ -94,6 +96,10 @@ final class AudioEqualizerEngine: ObservableObject {
     private let coefficientPublisher: EQCoefficientPublisher
     private let sampleRateProvider: any EqualizerSampleRateProviding
     private var settingsCancellable: AnyCancellable?
+    private weak var observedSettingsStore: SpotiglassSettingsStore?
+    /// While the route is live, checks now and then that the driver is still
+    /// processing, so a dead route never keeps the Mac's sound (#587).
+    private var routeHealthTimer: Timer?
     private var lastObservedSettings: EqualizerSettings?
 
     /// In-memory mirror of the most recently applied settings. The persisted
@@ -122,6 +128,7 @@ final class AudioEqualizerEngine: ObservableObject {
     /// values to the audio path and owns reload-driven lifecycle changes.
     func observe(settingsStore: SpotiglassSettingsStore) {
         settingsCancellable?.cancel()
+        observedSettingsStore = settingsStore
         lastObservedSettings = settingsStore.settings.equalizer
         settingsCancellable = settingsStore.$settings
             .map(\.equalizer)
@@ -308,11 +315,7 @@ final class AudioEqualizerEngine: ObservableObject {
             let targetUID = try pluginController.setForwardingTargetAndWait(uid: uid)
             routeState = .live(targetUID: targetUID, errorMessage: nil)
         } catch {
-            recordFailure(error)
-            routeState = .failed(
-                message: userFacingErrorText(for: error),
-                isEngaged: true
-            )
+            turnOffAfterRouteFailure(error)
         }
     }
 
@@ -328,11 +331,7 @@ final class AudioEqualizerEngine: ObservableObject {
             let targetUID = try pluginController.routeEqualizerThroughOutputDevice(outputDeviceID)
             routeState = .live(targetUID: targetUID, errorMessage: nil)
         } catch {
-            recordFailure(error)
-            routeState = .failed(
-                message: userFacingErrorText(for: error),
-                isEngaged: true
-            )
+            turnOffAfterRouteFailure(error)
         }
     }
 
@@ -352,6 +351,51 @@ final class AudioEqualizerEngine: ObservableObject {
     /// real on-disk state instead of just the last persisted preference.
     func currentForwardingTargetUID() -> String? {
         pluginController.currentForwardingTargetUID()
+    }
+
+    // MARK: - Route health (#587)
+
+    /// Puts the Mac's output back when the live route has stopped processing:
+    /// the router gave up on its target or the EQ device disappeared.
+    func checkRouteHealth() {
+        guard case let .live(targetUID, _) = routeState,
+              pluginController.routeIsBroken(targetUID: targetUID)
+        else { return }
+        pluginController.releaseOutputFromEqualizerDevice(fallbackUID: targetUID)
+        let message = LocalizedText(SpotiglassL10n.string("eq.error.routerStopped"))
+        SpotiglassLog.error(.playback, "Equalizer route to \(targetUID) stopped processing; output restored")
+        routeState = .failed(message: message, isEngaged: false)
+        requiresBackgroundApproval = false
+        if let observedSettingsStore { disablePersistedEqualizer(in: observedSettingsStore) }
+    }
+
+    /// The equalizer is off (or could not start) but the output may still sit
+    /// on the EQ device from an earlier failed run. Puts it back.
+    func releaseStrandedOutput() {
+        guard !routeState.isEngaged else { return }
+        pluginController.releaseStrandedOutput()
+    }
+
+    private func turnOffAfterRouteFailure(_ error: Error) {
+        // The controller has already taken the output off the EQ device, so
+        // the equalizer is off now; the line says why.
+        recordFailure(error)
+        routeState = .failed(message: userFacingErrorText(for: error), isEngaged: false)
+        if let observedSettingsStore { disablePersistedEqualizer(in: observedSettingsStore) }
+    }
+
+    private func updateRouteHealthTimer() {
+        if routeState.isLive {
+            guard routeHealthTimer == nil else { return }
+            let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.checkRouteHealth() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            routeHealthTimer = timer
+        } else {
+            routeHealthTimer?.invalidate()
+            routeHealthTimer = nil
+        }
     }
 
     // MARK: - Internals
