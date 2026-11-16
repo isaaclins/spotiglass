@@ -225,10 +225,11 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// route: back to the device the user had, else the device the EQ was
     /// meant to forward to, else the built-in speakers. Never throws, because
     /// it runs while another error is already on its way to the user.
-    func releaseOutputFromEqualizerDevice(fallbackUID: String? = nil) {
+    @discardableResult
+    func releaseOutputFromEqualizerDevice(fallbackUID: String? = nil) -> Bool {
         do {
             try disable()
-            return
+            return true
         } catch {
             SpotiglassLog.error(
                 .playback,
@@ -237,16 +238,18 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         }
         guard let virtualDeviceID = lookupSpotiglassEQDeviceID(),
               (try? currentDefaultOutputDeviceID()) == virtualDeviceID
-        else { return }
-        let candidates = [fallbackUID, Self.fallbackForwardingUID].compactMap { $0 }
-        for uid in candidates {
-            guard let deviceID = outputDeviceIDForUID(uid), deviceID != virtualDeviceID else { continue }
+        else { return true }
+        let preferred = [fallbackUID, Self.fallbackForwardingUID]
+            .compactMap { $0 }
+            .compactMap { outputDeviceIDForUID($0) }
+        let candidates = preferred + availableForwardingTargets().map(\.id)
+        for deviceID in candidates where deviceID != virtualDeviceID {
             do {
                 try setDefaultOutputDevice(to: deviceID)
                 removeActiveSampleRateObservation()
                 clearRouterStatus()
                 Self.clearForwardingTarget()
-                return
+                return true
             } catch {
                 SpotiglassLog.error(
                     .playback,
@@ -254,6 +257,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
                 )
             }
         }
+        return false
     }
 
     /// Whether the driver's router has given up on the target it was told to
@@ -261,10 +265,18 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// processing what is sent to the EQ device.
     func routeIsBroken(targetUID: String) -> Bool {
         guard lookupSpotiglassEQDeviceID() != nil else { return true }
+        // The router reports nothing when its target is unplugged later; the
+        // EQ device stays the default and plays into nothing.
+        guard outputDeviceIDForUID(targetUID) != nil else { return true }
         if case let .failed(failedUID, _)? = routerStatusReader(), failedUID == targetUID {
             return true
         }
         return false
+    }
+
+    var outputIsOnEqualizerDevice: Bool {
+        guard let virtualDeviceID = lookupSpotiglassEQDeviceID() else { return false }
+        return (try? currentDefaultOutputDeviceID()) == virtualDeviceID
     }
 
     /// The output was left on the EQ device while the equalizer is off, for

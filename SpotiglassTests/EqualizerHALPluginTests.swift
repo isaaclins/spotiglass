@@ -490,6 +490,8 @@ final class EqualizerHALPluginTests: XCTestCase {
 
         output.routerStatus = .failed(targetUID: output.originalUID, reasonCode: 2)
         engine.checkRouteHealth()
+        XCTAssertEqual(output.current, output.virtualID, "one bad reading tore the route down")
+        engine.checkRouteHealth()
 
         XCTAssertEqual(output.current, output.originalID, "the sound stayed on the EQ device")
         XCTAssertFalse(engine.isEngaged)
