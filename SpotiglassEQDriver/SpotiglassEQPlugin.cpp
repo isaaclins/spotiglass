@@ -421,19 +421,21 @@ void RequestSampleRate(UInt32 rate);
 
 void FollowTargetSampleRate() {
     AudioObjectID target = kAudioObjectUnknown;
+    Float64 targetRate = 0;
     {
         RouterLease current;
         if (current) target = EQRouter_TargetDevice(current.get());
-    }
-    Float64 targetRate = 0;
-    if (target != kAudioObjectUnknown) {
-        AudioObjectPropertyAddress address = {
-            kAudioDevicePropertyNominalSampleRate,
-            kAudioObjectPropertyScopeGlobal,
-            kAudioObjectPropertyElementMain
-        };
-        UInt32 size = sizeof(targetRate);
-        if (AudioObjectGetPropertyData(target, &address, 0, nullptr, &size, &targetRate) != noErr) return;
+        if (target != kAudioObjectUnknown) {
+            AudioObjectPropertyAddress address = {
+                kAudioDevicePropertyNominalSampleRate,
+                kAudioObjectPropertyScopeGlobal,
+                kAudioObjectPropertyElementMain
+            };
+            UInt32 size = sizeof(targetRate);
+            if (AudioObjectGetPropertyData(target, &address, 0, nullptr, &size, &targetRate) != noErr) return;
+            // The ring's margin is sized in time at the rate it plays at.
+            EQRouter_SetRate(current.get(), static_cast<uint32_t>(targetRate));
+        }
     }
     const UInt32 want = gPlugin.rates.tick(
         gPlugin.currentSampleRateHz.load(std::memory_order_acquire),

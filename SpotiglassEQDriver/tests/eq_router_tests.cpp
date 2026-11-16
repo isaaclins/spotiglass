@@ -269,9 +269,21 @@ void encode(uint64_t number, float* out) {
 // on its own clock, like the Mac's host clock and the speakers' crystal.
 Playback playTwoClocks(double producerRate, size_t producerChunk,
                        double consumerRate, size_t consumerChunk,
-                       double seconds) {
+                       double seconds, double jitterSeconds = 0.0) {
     auto* ring = new EQRouterRing();
     EQRouterRing_Reset(ring);
+    ring->rate_hz.store(static_cast<uint32_t>(consumerRate));
+    // Each IO cycle runs up to `jitterSeconds` late, as scheduling does; the
+    // same seed every run.
+    uint64_t seed = 0x2545F4914F6CDD1Dull;
+    auto late = [&]() {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        return jitterSeconds * static_cast<double>(seed % 1000) / 1000.0;
+    };
+    double pushLate = 0.0;
+    double pullLate = 0.0;
     Playback result;
     std::vector<float> in(producerChunk * 2);
     std::vector<float> out(consumerChunk * 2);
@@ -287,17 +299,19 @@ Playback playTwoClocks(double producerRate, size_t producerChunk,
     bool started = false;
     uint64_t last = 0;
     while (true) {
-        const double nextPush = static_cast<double>(pushes) * producerChunk / producerRate;
-        const double nextPull = static_cast<double>(pulls) * consumerChunk / consumerRate;
+        const double nextPush = static_cast<double>(pushes) * producerChunk / producerRate + pushLate;
+        const double nextPull = static_cast<double>(pulls) * consumerChunk / consumerRate + pullLate;
         if (nextPush > seconds && nextPull > seconds) break;
         if (nextPush <= nextPull) {
             for (size_t i = 0; i < producerChunk; ++i) encode(++produced, &in[i * 2]);
             EQRouterRing_Push(ring, in.data(), producerChunk);
             pushes += 1;
+            pushLate = late();
             continue;
         }
         expect(EQRouterRing_Pull(ring, &list) == 0, "the ring fills an output cycle");
         pulls += 1;
+        pullLate = late();
         for (size_t i = 0; i < consumerChunk; ++i) {
             const float* frame = &out[i * 2];
             if (frame[0] == 0.0f && frame[1] == 0.0f) {
@@ -387,8 +401,9 @@ void testMatchedClocksNeverSlipOnceSettled() {
     // sawtooth a cycle landed hunted for minutes after every start.
     struct Sizes { size_t push; size_t pull; };
     for (const Sizes sizes : {Sizes{512, 512}, Sizes{1024, 1024}, Sizes{512, 4096}, Sizes{1024, 2048},
-                              Sizes{512, 441}, Sizes{4096, 512}}) {
-        const Playback heard = playTwoClocks(48000.0, sizes.push, 48000.0, sizes.pull, 300.0);
+                              Sizes{512, 441}, Sizes{4096, 512}, Sizes{6000, 512}, Sizes{8192, 512},
+                              Sizes{512, 6000}, Sizes{512, 8192}}) {
+        const Playback heard = playTwoClocks(48000.0, sizes.push, 48000.0, sizes.pull, 300.0, 0.0002);
         expect(heard.cuts == 0 && heard.silentAfterStart == 0, "matched clocks play every frame");
         expect(heard.slipsAfterWarmUp == 0, "matched clocks never slip a frame once settled");
         if (heard.slipsAfterWarmUp != 0 || heard.silentAfterStart != 0) {
@@ -447,6 +462,26 @@ void testIOStartsWithTheFirstClientAndStopsWithTheLast() {
     expect(clients.start(), "the next start starts the device again");
 }
 
+void testHighRatesWithSmallJitteryBuffersPlayWithoutCuts() {
+    // A 384 kHz DAC with 64-frame buffers: 512 frames of margin were 1.3 ms,
+    // less than the timing jitter of one IO cycle. The margin is now in time.
+    for (const double drift : {0.0, 50e-6}) {
+        const Playback heard = playTwoClocks(384000.0, 64, 384000.0 * (1.0 + drift), 64, 120.0, 0.001);
+        expect(heard.cuts == 0 && heard.silentAfterStart == 0, "384 kHz with small jittery buffers plays every frame");
+        // 50 ppm of the last minute at 384 kHz is ~1150 frames, made up in
+        // corrections of up to half the ~10.7 ms margin (~2050 frames).
+        const uint64_t limit = drift == 0.0 ? 1 : 3500;
+        expect(heard.slipsAfterWarmUp < limit, "384 kHz only slips what the drift needs");
+        if (heard.cuts != 0 || heard.silentAfterStart != 0 || heard.slipsAfterWarmUp >= limit) {
+            std::fprintf(stderr, "  384 kHz drift %+.0f ppm: cuts=%llu silent=%llu slips after a minute=%llu\n",
+                         drift * 1e6,
+                         static_cast<unsigned long long>(heard.cuts),
+                         static_cast<unsigned long long>(heard.silentAfterStart),
+                         static_cast<unsigned long long>(heard.slipsAfterWarmUp));
+        }
+    }
+}
+
 void testAStoppedTargetStartsOverAtTheTargetFill() {
     // The target stops pulling for a second (unplugged, asleep): the ring
     // overruns, and when it comes back it plays the newest sound from the
@@ -461,7 +496,7 @@ void testAStoppedTargetStartsOverAtTheTargetFill() {
     list.mBuffers[0].mDataByteSize = static_cast<UInt32>(out.size() * sizeof(float));
     list.mBuffers[0].mData = out.data();
     uint64_t produced = 0;
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 300; ++i) {
         for (size_t f = 0; f < 512; ++f) encode(++produced, &in[f * 2]);
         EQRouterRing_Push(ring, in.data(), 512);
     }
@@ -533,6 +568,7 @@ int main() {
     testZeroTimeStampsAdvanceAtTheDeviceRate();
     testLargeEQBuffersWithDriftPlayWithoutCuts();
     testMatchedClocksNeverSlipOnceSettled();
+    testHighRatesWithSmallJitteryBuffersPlayWithoutCuts();
     testTheRateFollowsTheTargetAndAsksOnce();
     testAnAbortedOrForgottenRequestIsAskedAgain();
     testOtherAppsCantFightTheTargetRate();

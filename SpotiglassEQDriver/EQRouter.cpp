@@ -380,6 +380,10 @@ void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames) {
     EQRouterRing_Push(&router->ring, frames, n_frames);
 }
 
+void EQRouter_SetRate(EQRouter* router, uint32_t rate_hz) {
+    if (router && rate_hz > 0) router->ring.rate_hz.store(rate_hz, std::memory_order_relaxed);
+}
+
 uint64_t EQRouter_DroppedFrames(EQRouter* router) {
     return router ? router->ring.dropped_frames.load(std::memory_order_relaxed) : 0;
 }
@@ -426,15 +430,18 @@ void EQRouterRing_Reset(EQRouterRing* ring) {
 size_t EQRouterRing_TargetFill(const EQRouterRing* ring) {
     // The low point moves in whole pushes (when a push lands just after a
     // pull instead of just before it), so it keeps a push of room above a pull.
-    size_t target = ring->max_pull + ring->max_push.load(std::memory_order_relaxed) + kEQRouterRingFillMargin;
-    if (target > kEQRouterRingFrames / 3) target = kEQRouterRingFrames / 3;
-    return target;
+    return ring->max_pull + ring->max_push.load(std::memory_order_relaxed) + EQRouterRing_Margin(ring);
+}
+
+size_t EQRouterRing_Margin(const EQRouterRing* ring) {
+    const size_t byTime = static_cast<size_t>(ring->rate_hz.load(std::memory_order_relaxed)) * 107 / 10000;
+    return byTime > kEQRouterRingFillMargin ? byTime : kEQRouterRingFillMargin;
 }
 
 void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames) {
     if (!ring || !frames || n_frames == 0) return;
     // Never write more than half the ring at once: keep the newest frames.
-    constexpr size_t kMaxPush = kEQRouterRingFrames / 2;
+    constexpr size_t kMaxPush = kEQRouterRingMaxChunk;
     if (n_frames > kMaxPush) {
         ring->dropped_frames.fetch_add(n_frames - kMaxPush, std::memory_order_relaxed);
         frames += (n_frames - kMaxPush) * kChannels;
@@ -491,6 +498,11 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
     if (!OutputFrameCount(output_data, layout, &frame_count)) return 1;
     if (frame_count == 0) return 0;
 
+    // A pull larger than the ring allows is played as silence beyond its cap.
+    if (frame_count > kEQRouterRingMaxChunk) {
+        ZeroOutputFrames(output_data, layout, kEQRouterRingMaxChunk, frame_count);
+        frame_count = kEQRouterRingMaxChunk;
+    }
     if (frame_count > ring->max_pull) ring->max_pull = frame_count;
     const size_t target = EQRouterRing_TargetFill(ring);
     const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
@@ -503,7 +515,8 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
     // The producer overran the ring: frames older than one push before the
     // oldest slot it may be writing right now are gone or going. Start over
     // with the newest sound.
-    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - push) {
+    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - push &&
+        write_pos >= start_fill) {
         read_pos = write_pos - start_fill;
         ring->window_cycles = 0;
         ring->pending_slips = 0;
@@ -551,9 +564,10 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
             // latency (where the low point settles depends on how pushes and
             // pulls interleave), so that range is left alone.
             const long error = static_cast<long>(ring->window_low) - static_cast<long>(target);
-            const long above = static_cast<long>(push + kEQRouterRingDeadBand);
-            if (error > above || error < -static_cast<long>(kEQRouterRingDeadBand)) {
-                ring->pending_slips = error > 0 ? error - static_cast<long>(push / 2) : error - static_cast<long>(kEQRouterRingDeadBand);
+            const long deadBand = static_cast<long>(EQRouterRing_Margin(ring) / 2);
+            const long above = static_cast<long>(push) + deadBand;
+            if (error > above || error < -deadBand) {
+                ring->pending_slips = error > 0 ? error - static_cast<long>(push / 2) : error;
                 ring->skip_window = true;
             }
         }
