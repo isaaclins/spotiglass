@@ -1490,6 +1490,10 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             XCTAssertEqual(MusicPlaybackError.from(error)?.reason, .notFound)
         }
         XCTAssertFalse(player.commands.contains("resume"))
+        // Space or the palette still send the press: the bar says it couldn't play.
+        await session.togglePlayPause()
+        XCTAssertNotNil(session.refusedPlayPause, "a press that can't play must say so")
+        XCTAssertFalse(player.commands.contains("resume"))
 
         // Playing a song starts it, and pause then play resumes it.
         try await provider.play(.items(uris: Self.uris, startURI: Self.uris[0]), deviceID: AppleMusicPlaybackProvider.deviceID)
