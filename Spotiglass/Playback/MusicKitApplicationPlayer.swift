@@ -47,11 +47,13 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private var repeatWanted: MusicPlayer.RepeatMode?
     /// Notices the position jumping while it plays, for the log (#590).
     private var positionWatch = PlaybackPositionWatch()
-    /// Logs what the player reports by itself: status, rate, the current entry (#590).
-    private var stateObserver: AppleMusicPlayerStateObserver?
+    /// Logs what the player reports by itself: status, rate, the current entry (#590). Held
+    /// only to keep its subscriptions alive.
+    // periphery:ignore
+    private let stateObserver: AppleMusicPlayerStateObserver
 
     init() {
-        stateObserver = AppleMusicPlayerStateObserver(player: player)
+        stateObserver = AppleMusicPlayerStateObserver(player: ApplicationMusicPlayer.shared)
     }
 
     func isAuthorized() -> Bool {

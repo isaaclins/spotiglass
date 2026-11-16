@@ -145,7 +145,8 @@ final class AudioOutputTrace {
         self.write = write
     }
 
-    /// Stops listening.
+    /// Stops listening. The app's trace runs for the app's lifetime; tests stop the ones they start.
+    // periphery:ignore
     func stop() {
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
         for (selector, block) in systemListeners {
