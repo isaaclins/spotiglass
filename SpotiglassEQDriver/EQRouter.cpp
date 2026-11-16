@@ -411,7 +411,10 @@ void EQRouterRing_Reset(EQRouterRing* ring) {
     ring->max_push.store(0, std::memory_order_relaxed);
     ring->max_pull = 0;
     ring->priming = true;
-    ring->average_fill = 0.0;
+    ring->window_cycles = 0;
+    ring->window_low = 0;
+    ring->pending_slips = 0;
+    ring->skip_window = true;
     ring->has_last_frame = false;
     ring->last_frame[0] = 0.0f;
     ring->last_frame[1] = 0.0f;
@@ -421,13 +424,10 @@ void EQRouterRing_Reset(EQRouterRing* ring) {
 }
 
 size_t EQRouterRing_TargetFill(const EQRouterRing* ring) {
-    const size_t push = ring->max_push.load(std::memory_order_relaxed);
-    // The fill rises by a whole push and falls a pull at a time, so its average
-    // sits about half a push above its low point; the low point keeps a pull
-    // and a margin in hand.
-    size_t target = push / 2 + ring->max_pull + 4 * kEQRouterRingFillMargin;
-    if (target < kEQRouterRingTargetFill) target = kEQRouterRingTargetFill;
-    if (target > kEQRouterRingFrames / 2) target = kEQRouterRingFrames / 2;
+    // The low point moves in whole pushes (when a push lands just after a
+    // pull instead of just before it), so it keeps a push of room above a pull.
+    size_t target = ring->max_pull + ring->max_push.load(std::memory_order_relaxed) + kEQRouterRingFillMargin;
+    if (target > kEQRouterRingFrames / 3) target = kEQRouterRingFrames / 3;
     return target;
 }
 
@@ -495,22 +495,26 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
     const size_t target = EQRouterRing_TargetFill(ring);
     const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
     size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
-    // The producer overran the ring: frames older than one push before the
-    // oldest slot it may be writing right now are gone or going. Start over at
-    // the target fill with the newest sound.
+    // A push raises the fill by its whole size at once, so the fill swings
+    // between a low point and a push above it. Playing starts (and an overrun
+    // resumes) a push above the target low point.
     const size_t push = ring->max_push.load(std::memory_order_relaxed);
+    const size_t start_fill = target + push;
+    // The producer overran the ring: frames older than one push before the
+    // oldest slot it may be writing right now are gone or going. Start over
+    // with the newest sound.
     if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - push) {
-        read_pos = write_pos - (target + push / 2);
-        ring->average_fill = static_cast<double>(target);
+        read_pos = write_pos - start_fill;
+        ring->window_cycles = 0;
+        ring->pending_slips = 0;
+        ring->skip_window = true;
     }
     size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
 
-    // After running dry, wait until the target fill is back before playing
+    // After running dry, wait until the start fill is back before playing
     // again, so one late producer cycle doesn't become a stutter of tiny gaps.
     if (ring->priming) {
-        // Start only with half a push above the target in hand: the fill was
-        // perhaps just topped up by a push, and its next low point is a push lower.
-        if (avail < target + push / 2) {
+        if (avail < start_fill) {
             ZeroOutputFrames(output_data, layout, 0, frame_count);
             if (ring->has_last_frame) {
                 ring->silent_frames.fetch_add(frame_count, std::memory_order_relaxed);
@@ -518,20 +522,55 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
             ring->read_pos.store(read_pos, std::memory_order_release);
             return 0;
         }
-        // Start the average at the target: right after a large push `avail`
-        // is at its peak, and starting there would skip toward the next underrun.
+        // Coming out of silence, so dropping what piled up meanwhile is
+        // inaudible: start at exactly the start fill.
+        if (avail > start_fill) {
+            read_pos = write_pos - start_fill;
+            avail = start_fill;
+        }
         ring->priming = false;
-        ring->average_fill = static_cast<double>(target);
+        ring->window_cycles = 0;
+        ring->pending_slips = 0;
+        ring->skip_window = true;
     }
 
-    // Steer the fill toward the target one frame per cycle.
-    ring->average_fill += (static_cast<double>(avail) - ring->average_fill) * kEQRouterRingFillSmoothing;
-    const double error = ring->average_fill - static_cast<double>(target);
+    // Steer the fill's low point, measured over a window of cycles, toward the
+    // target. The low point doesn't depend on where in the push/pull sawtooth
+    // a cycle happens to land, so matched clocks never slip a frame; drift is
+    // made up once it moves the low point past the dead band, one frame per
+    // cycle, and the window after a correction isn't judged so the correction
+    // is never counted twice.
+    if (ring->window_cycles == 0 || avail < ring->window_low) ring->window_low = avail;
+    if (++ring->window_cycles >= kEQRouterRingWindow) {
+        if (ring->pending_slips != 0) {
+            // Still correcting: this window's low point is out of date.
+        } else if (ring->skip_window) {
+            ring->skip_window = false;
+        } else {
+            // Below the target risks running dry; up to a push above it is only
+            // latency (where the low point settles depends on how pushes and
+            // pulls interleave), so that range is left alone.
+            const long error = static_cast<long>(ring->window_low) - static_cast<long>(target);
+            const long above = static_cast<long>(push + kEQRouterRingDeadBand);
+            if (error > above || error < -static_cast<long>(kEQRouterRingDeadBand)) {
+                ring->pending_slips = error > 0 ? error - static_cast<long>(push / 2) : error - static_cast<long>(kEQRouterRingDeadBand);
+                ring->skip_window = true;
+            }
+        }
+        ring->window_cycles = 0;
+    }
     size_t consume = frame_count;
-    if (error > static_cast<double>(kEQRouterRingFillTolerance) && avail > frame_count + 1) {
+    if (ring->pending_slips > 0 && avail > frame_count + 1) {
         consume = frame_count + 1; // skip one frame
-    } else if (error < -static_cast<double>(kEQRouterRingFillTolerance) && frame_count > 1) {
+        ring->pending_slips -= 1;
+    } else if (ring->pending_slips < 0 && frame_count > 1) {
         consume = frame_count - 1; // repeat one frame
+        ring->pending_slips += 1;
+    }
+    if (consume != frame_count && ring->pending_slips == 0) {
+        // The correction is done: measure afresh from here.
+        ring->window_cycles = 0;
+        ring->skip_window = false;
     }
 
     // Map `frame_count` output frames onto `consume` ring frames. The slip

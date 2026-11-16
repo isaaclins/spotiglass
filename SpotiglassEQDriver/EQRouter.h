@@ -80,16 +80,15 @@ void EQRouter_Close(EQRouter* router);
 
 #include <atomic>
 
-// 16384 stereo frames: ~340 ms at 48 kHz of room. The consumer keeps the fill
-// near kEQRouterRingTargetFill (~43 ms at 48 kHz), so the extra room only
-// matters when one side stalls.
+// 16384 stereo frames: ~340 ms at 48 kHz of room. The consumer keeps the low
+// point of the fill a pull, a push and kEQRouterRingFillMargin above empty, so the
+// extra room only matters when one side stalls.
 constexpr size_t kEQRouterRingFrames = 16384;
-/// The least the consumer keeps in the ring. Large IO buffers raise it (see
-/// EQRouterRing_TargetFill): a push of N frames swings the fill by N.
-constexpr size_t kEQRouterRingTargetFill = 2048;
-constexpr size_t kEQRouterRingFillMargin = 256;
-constexpr size_t kEQRouterRingFillTolerance = 256;
-constexpr double kEQRouterRingFillSmoothing = 0.01;
+constexpr size_t kEQRouterRingFillMargin = 512;
+/// How far the low point may wander from its target before frames are slipped.
+constexpr size_t kEQRouterRingDeadBand = 256;
+/// Output cycles over which the fill's low point is measured.
+constexpr size_t kEQRouterRingWindow = 128;
 
 /// The single-producer / single-consumer ring between the EQ device's IO
 /// callback (producer, EQRouterRing_Push) and the target device's IOProc
@@ -103,7 +102,10 @@ struct EQRouterRing {
     size_t max_pull = 0;  // consumer only
     // Consumer-only state.
     bool priming = true;
-    double average_fill = 0.0;
+    size_t window_cycles = 0;
+    size_t window_low = 0;
+    long pending_slips = 0;   // > 0: frames to skip, < 0: frames to repeat
+    bool skip_window = true;  // the window after a correction (or a start) isn't judged
     bool has_last_frame = false;
     float last_frame[2] = {0.0f, 0.0f};
     // Counters for diagnostics and tests.
@@ -114,8 +116,9 @@ struct EQRouterRing {
 
 extern "C" {
 void EQRouterRing_Reset(EQRouterRing* ring);
-// The fill the consumer steers to: enough that the largest push and pull seen
-// never run it dry between them.
+// The low point the consumer steers the fill to: the largest pull and push
+// plus a margin, so a pull at the fill's lowest still finds a whole cycle
+// even after the low point steps down by a push.
 size_t EQRouterRing_TargetFill(const EQRouterRing* ring);
 // Producer side. Overrunning the ring loses the oldest frames; the consumer
 // then starts over at the target fill.

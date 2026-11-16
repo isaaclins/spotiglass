@@ -7,6 +7,7 @@
 // EQRouter_OpenWithError is never called, so nothing here touches CoreAudio devices.
 
 #include "../EQClock.h"
+#include "../EQDeviceState.h"
 #include "../EQRouter.h"
 
 #include <atomic>
@@ -255,7 +256,7 @@ struct Playback {
     uint64_t cuts = 0;              // places where more than one frame went missing
     uint64_t longestCut = 0;
     uint64_t frames = 0;
-    uint64_t slipsAfterWarmUp = 0;  // skips and repeats after the first 30 s
+    uint64_t slipsAfterWarmUp = 0;  // skips and repeats after the first minute
 };
 
 void encode(uint64_t number, float* out) {
@@ -307,10 +308,10 @@ Playback playTwoClocks(double producerRate, size_t producerChunk,
             if (started) {
                 if (number == last) {
                     result.repeated += 1;
-                    if (nextPull > 30.0) result.slipsAfterWarmUp += 1;
+                    if (nextPull > 60.0) result.slipsAfterWarmUp += 1;
                 } else if (number == last + 2) {
                     result.skipped += 1;
-                    if (nextPull > 30.0) result.slipsAfterWarmUp += 1;
+                    if (nextPull > 60.0) result.slipsAfterWarmUp += 1;
                 } else if (number != last + 1) {
                     result.cuts += 1;
                     const uint64_t gap = number > last ? number - last - 1 : last - number + 1;
@@ -365,7 +366,7 @@ void testLargeEQBuffersWithDriftPlayWithoutCuts() {
             expect(heard.cuts == 0, "large EQ buffers never cut frames out");
             expect(heard.silentAfterStart == 0, "large EQ buffers never play silence once sound started");
             // Once settled it slips only what the drift needs: 50 ppm of the last
-            // 90 s at 48 kHz is ~216 frames.
+            // minute at 48 kHz is ~144 frames.
             expect(heard.slipsAfterWarmUp < 400, "large EQ buffers only slip what the drift needs once settled");
             if (heard.cuts != 0 || heard.silentAfterStart != 0 || heard.slipsAfterWarmUp >= 400) {
                 std::fprintf(stderr, "  chunk %zu drift %+.0f ppm: cuts=%llu silent=%llu skipped=%llu repeated=%llu settled=%llu\n",
@@ -378,6 +379,72 @@ void testLargeEQBuffersWithDriftPlayWithoutCuts() {
             }
         }
     }
+}
+
+void testMatchedClocksNeverSlipOnceSettled() {
+    // With no drift at all no frame should ever be skipped or repeated. A
+    // controller that steered on the fill at whatever phase of the push/pull
+    // sawtooth a cycle landed hunted for minutes after every start.
+    struct Sizes { size_t push; size_t pull; };
+    for (const Sizes sizes : {Sizes{512, 512}, Sizes{1024, 1024}, Sizes{512, 4096}, Sizes{1024, 2048},
+                              Sizes{512, 441}, Sizes{4096, 512}}) {
+        const Playback heard = playTwoClocks(48000.0, sizes.push, 48000.0, sizes.pull, 300.0);
+        expect(heard.cuts == 0 && heard.silentAfterStart == 0, "matched clocks play every frame");
+        expect(heard.slipsAfterWarmUp == 0, "matched clocks never slip a frame once settled");
+        if (heard.slipsAfterWarmUp != 0 || heard.silentAfterStart != 0) {
+            std::fprintf(stderr, "  push %zu pull %zu: slips after a minute=%llu silent=%llu\n",
+                         sizes.push, sizes.pull,
+                         static_cast<unsigned long long>(heard.slipsAfterWarmUp),
+                         static_cast<unsigned long long>(heard.silentAfterStart));
+        }
+    }
+}
+
+void testTheRateFollowsTheTargetAndAsksOnce() {
+    EQRateFollower rates;
+    // Forwarding to 44.1 kHz speakers while the EQ device runs at 48 kHz.
+    expect(rates.tick(48000, true, 44100.0) == 44100, "a 44.1 kHz target is asked for");
+    expect(rates.tick(48000, true, 44100.0) == 0, "a pending request isn't asked again every tick");
+    rates.settled();  // coreaudiod performed it
+    expect(rates.tick(44100, true, 44100.0) == 0, "nothing to ask once the rates match");
+    // The speakers change to 96 kHz in Audio MIDI Setup.
+    expect(rates.tick(44100, true, 96000.0) == 96000, "a target rate change is followed");
+}
+
+void testAnAbortedOrForgottenRequestIsAskedAgain() {
+    EQRateFollower rates;
+    expect(rates.tick(48000, true, 44100.0) == 44100, "the first request");
+    rates.settled();  // AbortDeviceConfigurationChange
+    expect(rates.tick(48000, true, 44100.0) == 44100, "an aborted request is asked again on the next tick");
+    // coreaudiod accepts it but never performs or aborts it.
+    uint32_t asked = 0;
+    for (uint32_t i = 0; i < EQRateFollower::kRequestTicks + 2; ++i) {
+        if (rates.tick(48000, true, 44100.0) == 44100) asked += 1;
+    }
+    expect(asked == 1, "a request nobody answered is asked again after a while, once");
+}
+
+void testOtherAppsCantFightTheTargetRate() {
+    EQRateFollower rates;
+    rates.tick(48000, true, 48000.0);
+    expect(!rates.clientSets(96000.0), "while forwarding to 48 kHz, 96 kHz is refused");
+    expect(rates.clientSets(48000.0), "the target's own rate is accepted");
+    expect(!rates.clientSets(47999.0), "a rate the device doesn't offer is refused");
+    // With nothing forwarded, a client's rate is applied by the watcher.
+    rates.tick(48000, false, 0.0);
+    expect(rates.clientSets(96000.0), "with nothing forwarded a client may set a rate");
+    expect(rates.tick(48000, false, 0.0) == 96000, "the watcher asks for the client's rate");
+    expect(rates.tick(48000, false, 0.0) == 0, "and only once");
+}
+
+void testIOStartsWithTheFirstClientAndStopsWithTheLast() {
+    EQIOClients clients;
+    expect(clients.start(), "the music starting starts the device");
+    expect(!clients.start(), "a notification sound joins the running device");
+    expect(!clients.stop(), "the notification ending leaves the music playing");
+    expect(clients.stop(), "the music ending stops the device");
+    expect(!clients.stop(), "a stop without a start is ignored");
+    expect(clients.start(), "the next start starts the device again");
 }
 
 void testAStoppedTargetStartsOverAtTheTargetFill() {
@@ -400,8 +467,8 @@ void testAStoppedTargetStartsOverAtTheTargetFill() {
     }
     EQRouterRing_Pull(ring, &list);
     const uint64_t first = static_cast<uint64_t>(out[1]) * 4096 + static_cast<uint64_t>(out[0]);
-    // The target fill plus half a push, so playback starts at once.
-    expect(first == produced - (EQRouterRing_TargetFill(ring) + 512 / 2) + 1,
+    // The target low point plus a push, so playback starts at once.
+    expect(first == produced - (EQRouterRing_TargetFill(ring) + 512) + 1,
            "after an overrun the target resumes at the target fill with the newest sound");
     expect(ring->dropped_frames.load() == produced - kEQRouterRingFrames,
            "the overrun counts each lost frame once");
@@ -465,6 +532,11 @@ int main() {
     testAStoppedTargetStartsOverAtTheTargetFill();
     testZeroTimeStampsAdvanceAtTheDeviceRate();
     testLargeEQBuffersWithDriftPlayWithoutCuts();
+    testMatchedClocksNeverSlipOnceSettled();
+    testTheRateFollowsTheTargetAndAsksOnce();
+    testAnAbortedOrForgottenRequestIsAskedAgain();
+    testOtherAppsCantFightTheTargetRate();
+    testIOStartsWithTheFirstClientAndStopsWithTheLast();
     testTheEQDeviceFollowsEveryCommonOutputRate();
 
     if (gFailures == 0) {
