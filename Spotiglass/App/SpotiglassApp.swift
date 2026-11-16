@@ -39,6 +39,9 @@ struct SpotiglassApp: App {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         SpotiglassLog.info(.persistence, "Spotiglass launching (version=\(version) build=\(build))")
+        if !AppMetadata.isRunningUnitTests {
+            AudioOutputTrace.shared.start()
+        }
         // Under the unit-test host, point the store at a throwaway file so running
         // tests never read, write, or migrate the developer's real settings (#27).
         let store: SpotiglassSettingsStore

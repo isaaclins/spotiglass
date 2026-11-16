@@ -50,6 +50,18 @@ enum EqualizerRouteState: Equatable {
         }
     }
 
+    /// The state for the playback log (#590), without the user-facing message. `target`
+    /// describes the target device; its UID can be a Bluetooth hardware address, so it never goes
+    /// into the log.
+    func logDescription(target: (String) -> String = AudioOutputTrace.describe(uid:)) -> String {
+        switch self {
+        case .disabled: "off"
+        case let .starting(targetUID): "starting(target \(targetUID.map(target) ?? "none"))"
+        case let .live(targetUID, errorMessage): "live(target \(target(targetUID))\(errorMessage == nil ? "" : ", with error"))"
+        case let .failed(_, isEngaged): "failed(\(isEngaged ? "still engaged" : "released"))"
+        }
+    }
+
     var targetUID: String? {
         switch self {
         case let .starting(targetUID):
@@ -76,7 +88,12 @@ final class AudioEqualizerEngine: ObservableObject {
     /// system-output reconciliation. The driver is not considered live until
     /// its router worker reports a matching ready target.
     @Published private(set) var routeState: EqualizerRouteState = .disabled {
-        didSet { updateRouteHealthTimer() }
+        didSet {
+            updateRouteHealthTimer()
+            if routeState != oldValue {
+                AudioOutputTrace.shared.log(reason: "equalizer route \(oldValue.logDescription()) -> \(routeState.logDescription())")
+            }
+        }
     }
 
     /// Whether the last start attempt stopped on the user's background-item
@@ -374,7 +391,7 @@ final class AudioEqualizerEngine: ObservableObject {
         consecutiveBrokenRouteReadings = 0
         let released = pluginController.releaseOutputFromEqualizerDevice(fallbackUID: targetUID)
         let message = LocalizedText(SpotiglassL10n.string("eq.error.routerStopped"))
-        SpotiglassLog.error(.playback, "Equalizer route to \(targetUID) stopped processing; output restored: \(released)")
+        SpotiglassLog.error(.playback, "Equalizer route to \(AudioOutputTrace.describe(uid: targetUID)) stopped processing; output restored: \(released)")
         // Still engaged when the output could not be moved, so a later stop retries it.
         routeState = .failed(message: message, isEngaged: !released)
         if released, let observedSettingsStore { disablePersistedEqualizer(in: observedSettingsStore) }

@@ -137,6 +137,10 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// songs belongs to the session that ended too: moving the generation on keeps it from
     /// starting once its lookup returns.
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
+        // Its stop isn't any button's: name why it happens.
+        PlaybackTrace.shared.request(
+            "end the Apple Music session (sign-out, service switch or player reset)", file: #fileID, line: #line
+        )
         playGeneration &+= 1
         session &+= 1
         runningPlayGeneration = nil

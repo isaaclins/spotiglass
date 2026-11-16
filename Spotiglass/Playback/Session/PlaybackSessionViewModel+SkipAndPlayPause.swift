@@ -8,7 +8,8 @@ extension PlaybackSessionViewModel {
     /// synchronously from the controls, so the change is on screen before any task runs.
     /// Returns the send, or `nil` when there is nothing to toggle.
     @discardableResult
-    func requestTogglePlayPause() -> Task<Void, Never>? {
+    func requestTogglePlayPause(file: String = #fileID, line: Int = #line) -> Task<Void, Never>? {
+        PlaybackTrace.shared.request("play/pause (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         guard let request = beginPlayPauseRequest() else { return nil }
         // A press replaces a failed command for Retry, like any other command (#451).
@@ -506,12 +507,14 @@ extension PlaybackSessionViewModel {
         return true
     }
 
-    func previous() async {
+    func previous(file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("previous (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         await dispatchSkipCommand(.previous)
     }
 
-    func next() async {
+    func next(file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("next (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         await dispatchSkipCommand(.next)
     }

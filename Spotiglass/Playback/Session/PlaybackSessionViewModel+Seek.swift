@@ -2,7 +2,8 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func seek(to milliseconds: Int) async {
+    func seek(to milliseconds: Int, file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("seek to \(PlaybackPositionWatch.time(milliseconds)) (\(service))", file: file, line: line)
         enqueueSeek(milliseconds: milliseconds)
     }
 

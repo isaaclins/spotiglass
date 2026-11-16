@@ -1,15 +1,16 @@
 import Foundation
 
 extension QueueViewModel {
-    func playItem(_ item: QueueItem) async {
+    func playItem(_ item: QueueItem, file: String = #fileID, line: Int = #line) async {
         guard let uri = item.playableURI else { return }
-        await playbackSession.play(uri: uri)
+        await playbackSession.play(uri: uri, file: file, line: line)
     }
 
     /// Existing single-track callers keep the fire-and-forget API. Batch callers
     /// use the overload below, which serializes Spotify's one-URI endpoint while
     /// preserving the supplied order.
-    func addToQueue(uri: String) async {
+    func addToQueue(uri: String, file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("add \(uri) to the queue", file: file, line: line)
         guard let deviceID = playbackSession.commandDeviceID else {
             publishPlaybackUnavailableError()
             return
@@ -25,7 +26,8 @@ extension QueueViewModel {
     /// limit or unavailable device cannot turn one user action into a storm of
     /// requests. The result lets the caller report a partial queue honestly.
     @discardableResult
-    func addToQueue(uris: [String]) async -> QueueEnqueueResult {
+    func addToQueue(uris: [String], file: String = #fileID, line: Int = #line) async -> QueueEnqueueResult {
+        PlaybackTrace.shared.request("add \(uris.count) to the queue", file: file, line: line, planned: uris.count)
         var uniqueURIs: [String] = []
         var seen: Set<String> = []
         for uri in uris {

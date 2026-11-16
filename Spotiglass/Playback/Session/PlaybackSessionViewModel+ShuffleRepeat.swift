@@ -2,7 +2,8 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func toggleShuffle() async {
+    func toggleShuffle(file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("shuffle (\(service))", file: file, line: line)
         // An in-app player that never pushes its state (Apple Music) reports nothing until it
         // has a queue, but it takes a shuffle command before its first play: the header's
         // Shuffle turns shuffle on and then plays. Spotify keeps waiting for its state.
@@ -79,13 +80,14 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func cycleRepeat() async {
-        await setRepeatMode(repeatMode.next)
+    func cycleRepeat(file: String = #fileID, line: Int = #line) async {
+        await setRepeatMode(repeatMode.next, file: file, line: line)
     }
 
     /// Applies an explicitly selected repeat mode. The Playback menu uses this
     /// instead of forcing users to cycle through unknown intermediate states.
-    func setRepeatMode(_ mode: MusicRepeatMode) async {
+    func setRepeatMode(_ mode: MusicRepeatMode, file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("repeat \(mode) (\(service))", file: file, line: line)
         guard isTransportStateKnown else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
