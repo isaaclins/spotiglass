@@ -14,8 +14,9 @@ final class PlaybackTrace {
     private let now: () -> ContinuousClock.Instant
     private let write: (String) -> Void
 
-    /// The last thing the app was asked to do, and when.
-    private var lastRequest: (what: String, at: ContinuousClock.Instant)?
+    /// The last thing the app was asked to do, when, and how many sends of one command it asked
+    /// for (adding 30 songs is 30 adds, not a loop).
+    private var lastRequest: (what: String, at: ContinuousClock.Instant, planned: Int)?
     /// The command (shortcut, menu, palette) that is about to make a request.
     private var via: (what: String, at: ContinuousClock.Instant)?
     /// Per command name: when it was last sent and how often in a row within ``repeatWindow``.
@@ -34,7 +35,7 @@ final class PlaybackTrace {
 
     /// Someone asked the app for `what` (a button, a shortcut, a row, the palette). `file` and
     /// `line` are the caller's, which names the control.
-    func request(_ what: String, file: String, line: Int) {
+    func request(_ what: String, file: String, line: Int, planned: Int = 1) {
         let fileName = (file as NSString).lastPathComponent
         var label = "\(what) from \(fileName):\(line)"
         // The session calling itself (a fallback, a Retry sending a command again, a handover)
@@ -48,7 +49,7 @@ final class PlaybackTrace {
             label += " via \(via.what)"
         }
         via = nil
-        lastRequest = (label, at)
+        lastRequest = (label, at, planned)
         write("request \(label)")
     }
 
@@ -63,11 +64,16 @@ final class PlaybackTrace {
 
     /// The app sends `command` to the player. The line names the last request and how long ago it
     /// was, and marks a command sent again within ``repeatWindow``.
-    func command(_ command: String, _ detail: String = "") {
+    /// `planned` is how many sends of this command the app is making on purpose in a row (songs
+    /// carried into a new queue); the last request's own count applies otherwise. A run within
+    /// that count is numbered instead of marked as a repeat.
+    func command(_ command: String, _ detail: String = "", planned: Int? = nil) {
         let at = now()
         lastCommandAt = at
         var run = 1
-        if let last = lastSent[command], last.at.duration(to: at) < Self.repeatWindow {
+        // A send after a new request starts a new run.
+        if let last = lastSent[command], last.at.duration(to: at) < Self.repeatWindow,
+           lastRequest.map({ $0.at <= last.at }) ?? true {
             run = last.run + 1
         }
         lastSent[command] = (at, run)
@@ -78,7 +84,12 @@ final class PlaybackTrace {
         } else {
             line += " (no request since launch)"
         }
-        if run > 1 { line += " REPEATED x\(run) within 1 s" }
+        let expected = planned ?? lastRequest?.planned ?? 1
+        if run > 1, run <= expected {
+            line += " (\(run) of \(expected) asked for)"
+        } else if run > 1 {
+            line += " REPEATED x\(run) within 1 s"
+        }
         write(line)
     }
 

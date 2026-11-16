@@ -61,11 +61,12 @@ enum MacAudioOutputHardware {
         var status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &dataSize)
         guard status == noErr else { return nil }
 
-        let rawName = UnsafeMutablePointer<CFString>.allocate(capacity: 1)
-        defer { rawName.deallocate() }
-        status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, rawName)
-        guard status == noErr else { return nil }
-        return rawName.pointee as String
+        // Core Audio hands over a retained string; take it so it is released.
+        var name: Unmanaged<CFString>?
+        dataSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &name)
+        guard status == noErr, let name else { return nil }
+        return name.takeRetainedValue() as String
     }
 
     static func enumerateOutputDevices() -> [MacAudioOutputDevice] {

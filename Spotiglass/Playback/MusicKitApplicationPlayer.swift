@@ -174,7 +174,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             // order they were added in.
             for item in carried.reversed() {
                 guard starts.holdsQueue(started) else { return }
-                PlaybackTrace.shared.command("addToQueue", "after current (carried into a shuffled queue)")
+                PlaybackTrace.shared.command(
+                    "addToQueue", "after current (carried into a shuffled queue)", planned: carried.count
+                )
                 try await Self.mapped {
                     try await self.player.queue.insert(item.entry, position: .afterCurrentEntry)
                 }

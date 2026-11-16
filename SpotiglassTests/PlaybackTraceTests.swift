@@ -14,6 +14,33 @@ final class PlaybackTraceTests: XCTestCase {
         PlaybackTrace(now: { [unowned self] in time }, write: { [unowned self] in lines.append($0) })
     }
 
+    func testAddingSeveralSongsIsNumberedNotARepeatAndANewRequestStartsANewRun() {
+        let trace = makeTrace()
+        trace.request("add 3 to the queue", file: "Spotiglass/AlbumView.swift", line: 88, planned: 3)
+        for _ in 0..<3 {
+            time += .milliseconds(50)
+            trace.command("addToQueue")
+        }
+        XCTAssertTrue(lines[2].hasSuffix("ago) (2 of 3 asked for)"), lines[2])
+        XCTAssertTrue(lines[3].hasSuffix("ago) (3 of 3 asked for)"), lines[3])
+        // A fourth with no new request is a repeat.
+        time += .milliseconds(50)
+        trace.command("addToQueue")
+        XCTAssertTrue(lines[4].hasSuffix("REPEATED x4 within 1 s"), lines[4])
+        // Two quick presses are two runs of one, not a repeat.
+        trace.request("pause", file: "Spotiglass/PlaybackControlsView.swift", line: 625)
+        trace.command("pause")
+        time += .milliseconds(200)
+        trace.request("pause", file: "Spotiglass/PlaybackControlsView.swift", line: 625)
+        trace.command("pause")
+        XCTAssertFalse(lines[8].contains("REPEATED"), lines[8])
+        // Songs carried into a shuffled queue say how many are on purpose.
+        trace.command("carried", planned: 2)
+        time += .milliseconds(10)
+        trace.command("carried", planned: 2)
+        XCTAssertTrue(lines[10].hasSuffix("(2 of 2 asked for)"), lines[10])
+    }
+
     func testACommandSentAgainWithinASecondIsMarkedAsARepeat() {
         let trace = makeTrace()
         trace.request("play/pause (appleMusic)", file: "Spotiglass/PlaybackControlsView.swift", line: 625)

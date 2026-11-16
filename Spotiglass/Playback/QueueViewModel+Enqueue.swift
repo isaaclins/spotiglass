@@ -27,7 +27,7 @@ extension QueueViewModel {
     /// requests. The result lets the caller report a partial queue honestly.
     @discardableResult
     func addToQueue(uris: [String], file: String = #fileID, line: Int = #line) async -> QueueEnqueueResult {
-        PlaybackTrace.shared.request("add \(uris.count) to the queue", file: file, line: line)
+        PlaybackTrace.shared.request("add \(uris.count) to the queue", file: file, line: line, planned: uris.count)
         var uniqueURIs: [String] = []
         var seen: Set<String> = []
         for uri in uris {
