@@ -1,206 +1,148 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Wax, a keyboard-first music app for Mac</title>
-  <meta name="description" content="Wax is a native Mac app for Spotify and Apple Music. Search everything with ⌘K, shape the sound with a real 10-band equalizer and pin what you play most. Free for personal use, with the source on GitHub." />
-  <meta name="color-scheme" content="light dark" />
-  <meta name="theme-color" content="#f4f0e8" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#151312" media="(prefers-color-scheme: dark)" />
-
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Wax, a keyboard-first music app for Mac" />
-  <meta property="og:description" content="A native Mac app for Spotify and Apple Music, with a ⌘K command palette and a real 10-band equalizer. Free for personal use." />
-  <meta property="og:url" content="https://isaaclins.com/spotiglass/" />
-  <meta property="og:image" content="https://isaaclins.com/spotiglass/assets/screens/og.jpg" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta name="twitter:card" content="summary_large_image" />
-
-  <link rel="icon" type="image/png" href="assets/logo.png" />
-  <link rel="apple-touch-icon" href="assets/logo.png" />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/styles.css" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wax · A keyboard-first music app for Mac</title>
+<meta name="description" content="Wax is a keyboard-first music app for Mac. Spotify and Apple Music in one native window. Free.">
+<meta name="theme-color" content="#F5F3EE">
+<link rel="icon" href="img/wax-icon.svg" type="image/svg+xml">
+<link rel="icon" href="img/wax-icon-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Wax">
+<meta property="og:title" content="Wax">
+<meta property="og:description" content="A keyboard-first music app for Mac. Spotify and Apple Music, free.">
+<meta property="og:url" content="https://isaaclins.com/wax/">
+<meta property="og:image" content="https://isaaclins.com/wax/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A marble statue of Orpheus wearing headphones, next to the Wax app icon">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Wax">
+<meta name="twitter:description" content="A keyboard-first music app for Mac. Spotify and Apple Music, free.">
+<meta name="twitter:image" content="https://isaaclins.com/wax/og.png">
+<link rel="preload" href="fonts/funnel-display.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="img/orpheus-1600.webp" as="image" media="(min-width: 700px)">
+<link rel="preload" href="img/orpheus-900.webp" as="image" media="(max-width: 699px)">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="nav">
-    <div class="wrap nav__row">
-      <a class="brand" href="#top" aria-label="Wax, back to top">
-        <img src="assets/logo.png" alt="" width="30" height="30" />
-        <span>Wax</span>
-      </a>
-      <nav class="nav__links" aria-label="Sections">
-        <a href="#palette">Features</a>
-        <a href="#equalizer">Equalizer</a>
-        <a href="#shortcuts">Shortcuts</a>
-        <a href="https://github.com/isaaclins/spotiglass">GitHub</a>
-      </nav>
-      <a class="btn btn--primary btn--sm js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.8.1/Spotiglass-0.8.1.dmg">Download</a>
-    </div>
-  </header>
 
-  <main id="top">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="wrap hero__text">
-        <img class="hero__icon" src="assets/logo.png" alt="" width="88" height="88" />
-        <h1 id="hero-title">A keyboard&#8209;first<br /> music app for&nbsp;Mac</h1>
-        <p class="hero__lead">Wax plays your music in a native Mac window. Find anything with <span class="nowrap"><kbd>⌘K</kbd>,</span> shape the sound with a real 10-band equalizer and pin what you play most.</p>
-        <div class="hero__actions">
-          <a class="btn btn--primary js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.8.1/Spotiglass-0.8.1.dmg">
-            <svg class="btn__apple" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
-            Download for Mac
-          </a>
-          <a class="btn btn--ghost" href="https://github.com/isaaclins/spotiglass">View the source</a>
-        </div>
-        <p class="hero__facts">
-          <span class="hero__works"><img src="assets/icons/spotify.svg" alt="" width="17" height="17" /><img src="assets/icons/apple-music.svg" alt="" width="17" height="17" /><span>Works with Spotify Premium and Apple&nbsp;Music</span></span>
-          <span class="hero__meta"><span class="js-version nowrap">Version 0.8.1</span><span class="sep" aria-hidden="true">·</span><a href="https://github.com/isaaclins/spotiglass/blob/main/LICENSE">Free for personal use</a></span>
-        </p>
-      </div>
-      <div class="hero__window">
-        <picture>
-          <source media="(prefers-color-scheme: dark)" srcset="assets/screens/home-1100.webp 1100w, assets/screens/home.webp 2200w" sizes="(max-width: 760px) 720px, min(1100px, 92vw)" />
-          <img src="assets/screens/home-light.webp" srcset="assets/screens/home-light-1100.webp 1100w, assets/screens/home-light.webp 2200w" sizes="(max-width: 760px) 720px, min(1100px, 92vw)" width="2200" height="1406" fetchpriority="high" alt="Wax home: the service switcher set to Spotify, playlists in the sidebar, recently played albums and top tracks, with Midnight City by M83 playing" />
-        </picture>
-      </div>
-    </section>
+<header class="bar" id="bar">
+  <a class="brand" href="#top" aria-label="Wax, back to top">
+    <img src="img/wax-icon.svg" alt="" width="28" height="28">
+    <span>Wax</span>
+  </a>
+  <nav class="bar-nav" aria-label="Main">
+    <a class="bar-link" href="https://github.com/isaaclins/spotiglass" rel="noopener">
+      <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span class="hide-sm">GitHub</span>
+    </a>
+    <a class="btn btn-sm" data-dl href="https://github.com/isaaclins/spotiglass/releases/latest">Download</a>
+  </nav>
+</header>
 
-    <section class="section" id="palette" aria-labelledby="palette-title">
-      <div class="wrap split">
-        <div class="split__text">
-          <h2 id="palette-title">Search everything with ⌘K</h2>
-          <p>Playlists, artists, albums, tracks and commands in one list. <kbd>↩</kbd> opens a result or plays a track, <kbd>⇧↩</kbd> queues a track and <kbd>⌘↩</kbd> pins a result to the sidebar.</p>
-          <div class="keys" aria-hidden="true"><span class="key">⌘</span><span class="key">K</span></div>
-        </div>
-        <figure class="frame split__media">
-          <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="assets/screens/palette-760.webp 760w, assets/screens/palette.webp 1520w" sizes="(max-width: 899px) min(92vw, 760px), (max-width: 1199px) 50vw, 595px" />
-            <img src="assets/screens/palette-light.webp" srcset="assets/screens/palette-light-760.webp 760w, assets/screens/palette-light.webp 1520w" sizes="(max-width: 899px) min(92vw, 760px), (max-width: 1199px) 50vw, 595px" width="1520" height="758" loading="lazy" alt="The command palette searching for night: two songs, an album and two playlists" />
-          </picture>
-        </figure>
-      </div>
-    </section>
+<main id="top">
 
-    <section class="section" id="library" aria-labelledby="library-title">
-      <div class="wrap split split--flip">
-        <div class="split__text">
-          <h2 id="library-title">Spotify and Apple Music side by side</h2>
-          <ul class="points">
-            <li><b>Switch from the sidebar.</b> The service sits at the top left of the sidebar. <kbd>⌃1</kbd> opens Apple Music and <kbd>⌃2</kbd> Spotify.</li>
-            <li><b>Pin what you play.</b> Drag playlists, artists, albums or single tracks into the sidebar. Each service keeps its own pins.</li>
-            <li><b>Work on many tracks.</b> Shift-click a range, then queue, like or add them to a playlist in one go.</li>
-          </ul>
-        </div>
-        <figure class="frame split__media">
-          <picture>
-            <source media="(prefers-color-scheme: dark)" srcset="assets/screens/playlist-700.webp 700w, assets/screens/playlist.webp 1520w" sizes="(max-width: 899px) min(92vw, 760px), (max-width: 1199px) 50vw, 595px" />
-            <img src="assets/screens/playlist-light.webp" srcset="assets/screens/playlist-light-700.webp 700w, assets/screens/playlist-light.webp 1520w" sizes="(max-width: 899px) min(92vw, 760px), (max-width: 1199px) 50vw, 595px" width="1520" height="993" loading="lazy" alt="Wax with the service switcher set to Spotify, pinned playlists in the sidebar and the Night Drive playlist open, Midnight City playing" />
-          </picture>
-        </figure>
-      </div>
-    </section>
-
-    <section class="section section--ink" id="equalizer" aria-labelledby="equalizer-title">
-      <div class="wrap">
-        <div class="section__head">
-          <h2 id="equalizer-title">A real 10&#8209;band equalizer</h2>
-          <p>It runs as a system audio plug-in, so it changes what you hear from Spotify and from Apple Music, live while a song plays.</p>
-        </div>
-        <figure class="frame frame--eq">
-          <img src="assets/screens/equalizer.webp" srcset="assets/screens/equalizer-725.webp 725w, assets/screens/equalizer.webp 1450w" sizes="(max-width: 899px) min(92vw, 725px), 725px" width="1450" height="1056" loading="lazy" alt="Wax equalizer settings: output device, the Electronic preset, a preamp and ten bands from 32 Hz to 16 kHz" />
-        </figure>
-        <ul class="eq-facts">
-          <li><b>Ten bands</b> from 32 Hz to 16 kHz, plus a preamp.</li>
-          <li><b>Presets</b> to start from, and your own saved ones.</li>
-          <li><b>One approval</b> in macOS installs it. No Terminal.</li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="section" id="mac" aria-labelledby="mac-title">
-      <div class="wrap">
-        <h2 id="mac-title">Made for the Mac</h2>
-        <dl class="details">
-          <div><dt>Native SwiftUI</dt><dd>A real Mac app, not a website in a window.</dd></div>
-          <div><dt>Light and dark</dt><dd>Follows the system or stays light or dark, and respects reduced transparency and motion.</dd></div>
-          <div><dt>Synced lyrics</dt><dd>Lines follow the song wherever LRCLIB has synced lyrics. Click one to jump there.</dd></div>
-          <div><dt>Three languages</dt><dd>English, Español and Deutsch. Switching keeps the music playing.</dd></div>
-          <div><dt>No Wax server</dt><dd>Your Mac talks to Spotify and Apple directly, and to LRCLIB for lyrics. Update checks read a file on this site, and updates come from GitHub. Sign-ins stay in the Keychain.</dd></div>
-          <div><dt>Updates itself</dt><dd>New versions arrive inside the app. You never download by hand again.</dd></div>
-        </dl>
-      </div>
-    </section>
-
-    <section class="section" id="shortcuts" aria-labelledby="shortcuts-title">
-      <div class="wrap">
-        <div class="section__head">
-          <h2 id="shortcuts-title">Keyboard shortcuts</h2>
-          <p>These are the defaults. Change any of them in Settings › Keyboard.</p>
-        </div>
-        <div class="shortcuts">
-          <div class="shortcuts__group">
-            <h3>Find</h3>
-            <dl>
-              <div><dt>Command palette</dt><dd><kbd>⌘</kbd><kbd>K</kbd></dd></div>
-              <div><dt>Search</dt><dd><kbd>⌘</kbd><kbd>F</kbd></dd></div>
-              <div><dt>Refresh</dt><dd><kbd>⌘</kbd><kbd>R</kbd></dd></div>
-              <div><dt>Settings</dt><dd><kbd>⌘</kbd><kbd>,</kbd></dd></div>
-            </dl>
-          </div>
-          <div class="shortcuts__group">
-            <h3>Play</h3>
-            <dl>
-              <div><dt>Play or pause</dt><dd><kbd>Space</kbd></dd></div>
-              <div><dt>Next track</dt><dd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>→</kbd></dd></div>
-              <div><dt>Previous track</dt><dd><kbd>⇧</kbd><kbd>⌘</kbd><kbd>←</kbd></dd></div>
-              <div><dt>Show queue</dt><dd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>Q</kbd></dd></div>
-              <div><dt>Show lyrics</dt><dd><kbd>⌥</kbd><kbd>⌘</kbd><kbd>L</kbd></dd></div>
-            </dl>
-          </div>
-          <div class="shortcuts__group">
-            <h3>Services and pins</h3>
-            <dl>
-              <div><dt>Apple Music</dt><dd><kbd>⌃</kbd><kbd>1</kbd></dd></div>
-              <div><dt>Spotify</dt><dd><kbd>⌃</kbd><kbd>2</kbd></dd></div>
-              <div><dt>Pin the result</dt><dd><kbd>⌘</kbd><kbd>↩</kbd></dd></div>
-              <div><dt>Queue the result</dt><dd><kbd>⇧</kbd><kbd>↩</kbd></dd></div>
-            </dl>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="closing" id="download" aria-labelledby="download-title">
-    <div class="wrap">
-      <div class="closing__main">
-        <h2 id="download-title">Download Wax</h2>
-        <a class="btn btn--light js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.8.1/Spotiglass-0.8.1.dmg">
-          <svg class="btn__apple" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title" class="enter" style="--i:0">Every song,<br>one keystroke away<span class="seal">.</span></h1>
+      <div class="hero-cta enter" style="--i:1">
+        <a class="btn" data-dl href="https://github.com/isaaclins/spotiglass/releases/latest">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2v9m0 0L4.5 7.5M8 11l3.5-3.5M3 14h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Download for Mac
         </a>
-        <ul class="closing__needs">
-          <li>macOS 26 or later.</li>
-          <li>Apple Music needs a subscription to play.</li>
-          <li>Spotify needs Premium and a free Spotify developer app. <a href="https://github.com/isaaclins/spotiglass#quick-start">See how to set it up</a>.</li>
-        </ul>
-      </div>
-      <div class="closing__foot">
-        <nav class="closing__links" aria-label="More">
-          <a href="https://github.com/isaaclins/spotiglass/releases">All releases</a>
-          <a href="https://github.com/isaaclins/spotiglass">Source on GitHub</a>
-          <a href="https://github.com/isaaclins/spotiglass/tree/main/docs#readme">Documentation</a>
-          <a href="https://buymeacoffee.com/isaaclins">Buy me a coffee</a>
-        </nav>
-        <p class="closing__legal">Made by <a href="https://isaaclins.com">Isaac Lins</a>. Wax is not affiliated with Spotify or Apple. Spotify is a trademark of Spotify AB. Apple Music is a trademark of Apple Inc.</p>
+        <p class="meta">Spotify and Apple Music <span aria-hidden="true">·</span> Free</p>
       </div>
     </div>
-  </footer>
 
-  <script src="assets/site.js" defer></script>
+    <img class="statue" src="img/orpheus-1600.webp" srcset="img/orpheus-900.webp 900w, img/orpheus-1600.webp 1600w" sizes="(max-width: 899px) 130vw, 64vw" width="1600" height="2000" alt="A marble statue of Orpheus with a lyre, wearing over-ear headphones, drawn as a blue engraving" fetchpriority="high">
+
+    <figure class="window" aria-label="The Wax app window">
+      <img class="win-color" src="screens/home-light-2200.webp" srcset="screens/home-light-1100.webp 1100w, screens/home-light-2200.webp 2200w" sizes="(max-width: 899px) 94vw, 62vw" width="2200" height="1406" alt="Wax showing its home screen with playlists, recently played albums and top tracks, on Spotify">
+      <img class="win-print" src="screens/home-print-2200.webp" srcset="screens/home-print-1100.webp 1100w, screens/home-print-2200.webp 2200w" sizes="(max-width: 899px) 94vw, 62vw" width="2200" height="1406" alt="" aria-hidden="true">
+    </figure>
+  </section>
+
+  <section class="search" id="search" aria-labelledby="search-title">
+    <div class="search-head">
+      <h2 id="search-title"><span class="when-keys">Press <kbd>⌘K</kbd></span><span class="when-touch">Tap to search</span></h2>
+      <p class="sub">Anything in your library, a few letters away.</p>
+    </div>
+    <div class="stage">
+      <img class="stage-bg" src="screens/playlist-print-1520.webp" srcset="screens/playlist-print-800.webp 800w, screens/playlist-print-1520.webp 1520w" sizes="(max-width: 899px) 100vw, 70vw" width="1520" height="993" alt="" loading="lazy">
+      <div class="palette-slot" id="inline-slot"></div>
+    </div>
+  </section>
+
+  <section class="services" id="services" aria-labelledby="services-title" hidden>
+    <div class="search-head">
+      <h2 id="services-title">Spotify or Apple Music.</h2>
+      <div class="seg" role="radiogroup" aria-label="Music service">
+        <button role="radio" aria-checked="true" data-svc="spotify">Spotify</button>
+        <button role="radio" aria-checked="false" data-svc="apple">Apple Music</button>
+        <span class="seg-thumb" aria-hidden="true"></span>
+      </div>
+    </div>
+    <figure class="window window-plain">
+      <img data-svc-img="spotify" src="screens/home-2200.webp" width="2200" height="1406" alt="Wax on Spotify" loading="lazy">
+      <img data-svc-img="apple" class="is-off" src="" width="2200" height="1406" alt="Wax on Apple Music" loading="lazy">
+    </figure>
+  </section>
+
+  <section class="gate" id="download" aria-labelledby="gate-title">
+    <div class="gate-sticky">
+      <div class="arch-wrap">
+        <svg class="arch" id="arch" viewBox="0 0 2000 1400" aria-hidden="true" focusable="false"></svg>
+        <div class="gate-cta">
+          <img src="img/wax-icon.svg" alt="" width="64" height="64">
+          <h2 id="gate-title" class="visually-hidden">Download Wax</h2>
+          <a class="btn" data-dl href="https://github.com/isaaclins/spotiglass/releases/latest">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2v9m0 0L4.5 7.5M8 11l3.5-3.5M3 14h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Download for Mac
+          </a>
+          <p class="fine"><span data-ver>Latest version</span><br>Free for personal use</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <a href="https://github.com/isaaclins/spotiglass" rel="noopener">GitHub</a>
+  <a href="https://buymeacoffee.com/isaaclins" rel="noopener">Buy me a coffee</a>
+  <a href="https://isaaclins.com" rel="noopener">Isaac Lins</a>
+</footer>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-scrim" data-close></div>
+  <div class="modal-body" role="dialog" aria-modal="true" aria-label="Search" id="modal-slot"></div>
+</div>
+
+<template id="palette-tpl">
+  <div class="pal">
+    <div class="pal-card pal-search">
+      <svg class="pal-glass" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <input class="pal-input" type="text" inputmode="search" enterkeyhint="go" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search Spotify" aria-label="Search your library" role="combobox" aria-expanded="true" aria-autocomplete="list">
+    </div>
+    <div class="pal-card pal-results">
+      <div class="pal-list" role="listbox" aria-label="Results"></div>
+      <div class="pal-foot">
+        <div class="pal-hints">
+          <span class="hint hint-k">↑↓ navigate</span>
+          <button type="button" class="hint" data-act="run">↩ run</button>
+          <button type="button" class="hint" data-act="queue">⇧↩ queue</button>
+          <button type="button" class="hint" data-act="pin">⌘↩ pin</button>
+          <span class="hint hint-k">esc close</span>
+        </div>
+        <div class="pal-status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="app.js" defer></script>
 </body>
 </html>
