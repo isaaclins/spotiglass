@@ -313,8 +313,11 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
     /// people using it, so the host must never come to the front or take keyboard focus (#418).
     /// Setting the policy before launch finishes is what stops the launch-time activation.
     func applicationWillFinishLaunching(_ notification: Notification) {
-        guard AppMetadata.isRunningUnitTests else { return }
-        NSApp.setActivationPolicy(.prohibited)
+        if AppMetadata.isRunningUnitTests {
+            NSApp.setActivationPolicy(.prohibited)
+        } else {
+            AppBundleMigration.run()
+        }
     }
 
     /// Clicking the Dock icon with no main window open brings one back. The pop-out lyrics window

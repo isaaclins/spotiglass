@@ -292,6 +292,8 @@
 		TST00000000000000000000DA /* HiddenPlaybackWebViewConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */; };
 		TST00000000000000000000DB /* AppearanceSettingsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */; };
 		TST00000000000000000000DC /* AccountSettingsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DC /* AccountSettingsViewTests.swift */; };
+		15D23789C4F82C5741290378 /* AppBundleMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */; };
+		1F1DBD633189E4B7894A7B91 /* AppBundleMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */; };
 		TST00000000000000000000DD /* ViewTestHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DD /* ViewTestHost.swift */; };
 		TST00000000000000000000DE /* SettingsShellViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DE /* SettingsShellViewsTests.swift */; };
 		TST00000000000000000000DF /* ArtworkViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DF /* ArtworkViewTests.swift */; };
@@ -829,6 +831,8 @@
 		TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebViewConfigurationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DC /* AccountSettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsViewTests.swift; sourceTree = "<group>"; };
+		A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundleMigration.swift; sourceTree = "<group>"; };
+		DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundleMigrationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DD /* ViewTestHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewTestHost.swift; path = Support/ViewTestHost.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DE /* SettingsShellViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShellViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DF /* ArtworkViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkViewTests.swift; sourceTree = "<group>"; };
@@ -1268,6 +1272,7 @@
 				TST00000000000000000100DE /* SettingsShellViewsTests.swift */,
 				TST00000000000000000100DD /* ViewTestHost.swift */,
 				TST00000000000000000100DC /* AccountSettingsViewTests.swift */,
+				DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */,
 				TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */,
 				TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */,
 				TST00000000000000000100D9 /* PlaylistBrowserPlaybackHelpersTests.swift */,
@@ -1554,6 +1559,7 @@
 		PRO00000000000000000000G1 /* Infrastructure */ = {
 			isa = PBXGroup;
 			children = (
+				A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */,
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
 				SRC0000000000000000080023 /* ScreenshotMode.swift */,
 				SRC0000000000000000080B03 /* PublishedWhenChanged.swift */,
@@ -1969,6 +1975,7 @@
 				SRC0000000000000000000011 /* EqualizerSettingsView.swift in Sources */,
 				SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */,
 				J90000000000000000000103 /* AccountSettingsView.swift in Sources */,
+				15D23789C4F82C5741290378 /* AppBundleMigration.swift in Sources */,
 				J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */,
 				K10000000000000000000001 /* SpotiglassSettingsModel.swift in Sources */,
 				K10000000000000000000002 /* SpotiglassSettingsStore.swift in Sources */,
@@ -2115,6 +2122,7 @@
 				TST00000000000000000000DE /* SettingsShellViewsTests.swift in Sources */,
 				TST00000000000000000000DD /* ViewTestHost.swift in Sources */,
 				TST00000000000000000000DC /* AccountSettingsViewTests.swift in Sources */,
+				1F1DBD633189E4B7894A7B91 /* AppBundleMigrationTests.swift in Sources */,
 				728E7A132FEAA80B00FB3C01 /* PlaylistBrowserHomeFeedTests.swift in Sources */,
 				TST00000000000000000000DB /* AppearanceSettingsViewTests.swift in Sources */,
 				TST00000000000000000000DA /* HiddenPlaybackWebViewConfigurationTests.swift in Sources */,
