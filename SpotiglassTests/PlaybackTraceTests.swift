@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 import XCTest
 @testable import Spotiglass
@@ -173,6 +174,22 @@ final class AudioOutputTraceTests: XCTestCase {
         XCTAssertEqual(AudioOutputTrace.publicName("Isaac\u{2019}s HomePod", transport: "airplay"), "airplay device")
         XCTAssertEqual(AudioOutputTrace.publicName("MacBook Pro Speakers", transport: "built-in"), "MacBook Pro Speakers")
         XCTAssertEqual(AudioOutputTrace.describe(uid: "00-11-22-33-44-55:output"), "a device that is gone")
+    }
+
+    func testARealDevicesUIDIsDescribedByItsIDNotItsUID() throws {
+        guard let id = MacAudioOutputHardware.defaultOutputDeviceID() else { throw XCTSkip("no output device") }
+        var uid: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &uid) == noErr,
+              let uidString = uid?.takeRetainedValue() as String? else { throw XCTSkip("no UID") }
+        let line = AudioOutputTrace.describe(uid: uidString)
+        XCTAssertTrue(line.contains(", \(id)) "), line)
+        XCTAssertFalse(line.contains(uidString), line)
     }
 
     func testTheEqualizerRouteIsDescribedWithoutItsMessage() {

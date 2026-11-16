@@ -243,15 +243,18 @@ final class AudioOutputTrace {
     nonisolated static func describe(uid: String) -> String {
         var cfUID = uid as CFString
         var id = AudioDeviceID(kAudioObjectUnknown)
-        var translation = AudioValueTranslation(
-            mInputData: &cfUID,
-            mInputDataSize: UInt32(MemoryLayout<CFString>.size),
-            mOutputData: &id,
-            mOutputDataSize: UInt32(MemoryLayout<AudioDeviceID>.size)
-        )
-        var size = UInt32(MemoryLayout<AudioValueTranslation>.size)
-        var address = Self.address(kAudioHardwarePropertyDeviceForUID)
-        let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &translation)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = Self.address(kAudioHardwarePropertyTranslateUIDToDevice)
+        let status = withUnsafePointer(to: &cfUID) { uidPointer in
+            AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject),
+                &address,
+                UInt32(MemoryLayout<CFString>.size),
+                uidPointer,
+                &size,
+                &id
+            )
+        }
         guard status == noErr, id != AudioDeviceID(kAudioObjectUnknown) else { return "a device that is gone" }
         return describe(id, name: MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id) ?? "?")
     }
