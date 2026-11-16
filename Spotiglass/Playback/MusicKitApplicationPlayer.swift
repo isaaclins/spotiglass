@@ -351,21 +351,21 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         let seconds = player.playbackTime
         let positionMilliseconds = seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0
-        let track = current.flatMap { track(for: $0, at: currentIndex) }
+        let currentTrack = current.flatMap { track(for: $0, at: currentIndex) }
         // A new queue is a new object MusicKit announces nothing on; the poll catches it.
         stateObserver.check()
         if let jump = positionWatch.observe(
             positionMilliseconds: positionMilliseconds,
             isPlaying: status == .playing,
             item: current?.id,
-            durationMilliseconds: track?.durationMilliseconds,
+            durationMilliseconds: currentTrack?.durationMilliseconds,
             at: ContinuousClock.now
         ) {
             PlaybackTrace.shared.playerReported(jump)
         }
         return AppleMusicPlayerState(
             status: status,
-            current: track,
+            current: currentTrack,
             positionMilliseconds: positionMilliseconds,
             shuffle: player.state.shuffleMode == .songs,
             repeatMode: Self.repeatMode(player.state.repeatMode)
