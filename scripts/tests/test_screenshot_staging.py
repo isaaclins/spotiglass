@@ -68,9 +68,9 @@ class StageApp(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp)
-        self.built = self.tmp / 'built' / 'Spotiglass.app'
+        self.built = self.tmp / 'built' / 'Wax.app'
         make_app(self.built)
-        self.staged = self.tmp / 'screenshot-mode' / 'Spotiglass.app'
+        self.staged = self.tmp / 'screenshot-mode' / 'Wax.app'
         self.staged.parent.mkdir()
 
     def stage(self, bundle_id, without_signing_identities=False, local_sign_identity=None):
@@ -148,7 +148,7 @@ class StartWithAppleMusic(unittest.TestCase):
         for script in ('scripts/screenshots.sh', 'scripts/screenshot-mode/stage-app.sh'):
             (self.checkout / script).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO / script, self.checkout / script)
-        make_app(self.checkout / 'build' / 'DerivedData' / 'Build' / 'Products' / 'Debug' / 'Spotiglass.app')
+        make_app(self.checkout / 'build' / 'DerivedData' / 'Build' / 'Products' / 'Debug' / 'Wax.app')
         bin_dir = tmp / 'bin'
         bin_dir.mkdir()
         self.built = tmp / 'make-ran'
@@ -196,7 +196,7 @@ class StartWithAppleMusic(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertTrue(self.built.exists())
         self.assertIn('errSecInternalComponent', result.stderr)
-        self.assertFalse((self.checkout / 'build' / 'screenshot-mode' / 'Spotiglass.app').exists())
+        self.assertFalse((self.checkout / 'build' / 'screenshot-mode' / 'Wax.app').exists())
         self.assertEqual(list(self.home.rglob('*')), [], 'it claimed the backups before the copy was staged')
 
 

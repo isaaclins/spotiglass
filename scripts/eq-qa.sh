@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/eq-qa.sh — interactive manual-QA walkthrough for the Spotiglass EQ.
+# scripts/eq-qa.sh — interactive manual-QA walkthrough for the Wax EQ.
 #
 # Usage: scripts/eq-qa.sh
 #
@@ -44,7 +44,7 @@ prompt() {
 
 failures=0
 
-log "BEGIN  Spotiglass EQ manual QA"
+log "BEGIN  Wax EQ manual QA"
 log "HAL dir: $HAL_DIR"
 log "Looking for: $DRIVER_NAME"
 
@@ -66,16 +66,16 @@ CoreAudio to re-enumerate it." \
 
 # 3. enable + device-visible
 prompt "device-visible" \
-  "Run: system_profiler SPAudioDataType | grep -A2 'Spotiglass EQ' \
+  "Run: system_profiler SPAudioDataType | grep -A2 'Wax EQ' \
 The device should appear. Also visible in System Settings → Sound → Output." \
-  "System Settings → Sound → Output listing Spotiglass EQ"
+  "System Settings → Sound → Output listing Wax EQ"
 
-# 4. default-output is Spotiglass EQ
+# 4. default-output is Wax EQ
 prompt "default-route" \
   "In System Settings → Sound → Output, confirm the default output device is \
-now 'Spotiglass EQ'. Spotify Web Playback SDK audio should already be routed \
+now 'Wax EQ'. Spotify Web Playback SDK audio should already be routed \
 to it." \
-  "Sound → Output highlight on Spotiglass EQ"
+  "Sound → Output highlight on Wax EQ"
 
 # 5. preset toggle (each of the 7 built-ins)
 for preset in "Flat" "Bass Boost" "Vocal" "Treble Boost" "Acoustic" "Electronic" "Loudness"; do
@@ -133,4 +133,4 @@ if (( failures > 0 )); then
   exit 1
 fi
 echo "QA finished. All checked steps PASS. Log: $LOG_FILE"
-log "END    Spotiglass EQ manual QA — 0 failures"
+log "END    Wax EQ manual QA — 0 failures"

@@ -1,6 +1,6 @@
-# Support Spotiglass
+# Support Wax
 
-Spotiglass is a native macOS client for Spotify and Apple Music, built in the open (SwiftUI, MusicKit, OAuth PKCE, Web Playback SDK).
+Wax is a native macOS client for Spotify and Apple Music, built in the open (SwiftUI, MusicKit, OAuth PKCE, Web Playback SDK).
 
 ## Ways to help
 
@@ -10,7 +10,7 @@ Spotiglass is a native macOS client for Spotify and Apple Music, built in the op
 
 ## Tips (keeps releases shipping)
 
-If Spotiglass saved you time or replaced a workflow you paid for elsewhere:
+If Wax saved you time or replaced a workflow you paid for elsewhere:
 
 - [Buy Me a Coffee](https://buymeacoffee.com/isaaclins)
 

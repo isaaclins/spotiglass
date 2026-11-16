@@ -29,7 +29,7 @@ out = Path(sys.argv[3])
 
 app_target = None
 for target in data.get("targets", []):
-    if "Spotiglass.app" in target.get("name", "") or target.get("name", "").endswith("Spotiglass"):
+    if "Wax.app" in target.get("name", "") or target.get("name", "").endswith("Spotiglass"):
         if "Tests" not in target.get("name", ""):
             app_target = target
             break

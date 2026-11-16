@@ -44,7 +44,7 @@ Add `CODE_SIGNING_ALLOWED=NO` if you need to build without signing locally.
 xcodebuild -project Spotiglass.xcodeproj -scheme Spotiglass -destination 'platform=macOS' test
 ```
 
-Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Spotiglass.app`), the app’s normal launch path would call `restoreSessionIfAvailable()` and touch the Spotify refresh token in the **login keychain**, which can trigger a password prompt. When Xcode sets **`XCTestConfigurationFilePath`** (always true for this scheme’s test action), the app uses an in-memory refresh-token store instead so **unit tests do not read or write that Keychain item**.
+Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Wax.app`), the app’s normal launch path would call `restoreSessionIfAvailable()` and touch the Spotify refresh token in the **login keychain**, which can trigger a password prompt. When Xcode sets **`XCTestConfigurationFilePath`** (always true for this scheme’s test action), the app uses an in-memory refresh-token store instead so **unit tests do not read or write that Keychain item**.
 
 If you add UI tests or another host that does not set that variable, expect Keychain behavior to match a normal app launch.
 
@@ -85,7 +85,7 @@ xcodebuild \
 
 The built app is at:
 
-`build/DerivedData/Build/Products/Release/Spotiglass.app`
+`build/DerivedData/Build/Products/Release/Wax.app`
 
 This product uses only the ad-hoc linker signature macOS applies automatically. It is **not** Developer ID signed and **not** notarized. That is fine for local work, but such a build cannot be published: Gatekeeper refuses it on any other Mac.
 
@@ -118,10 +118,10 @@ that it must never be published.
 ### Verifying a build yourself
 
 ```sh
-codesign --verify --strict --verbose=2 path/to/Spotiglass.app
-codesign -dvv path/to/Spotiglass.app 2>&1 | grep -E 'Authority|TeamIdentifier|Runtime'
-xcrun stapler validate path/to/Spotiglass.app
-spctl --assess --verbose=4 --type execute path/to/Spotiglass.app
+codesign --verify --strict --verbose=2 path/to/Wax.app
+codesign -dvv path/to/Wax.app 2>&1 | grep -E 'Authority|TeamIdentifier|Runtime'
+xcrun stapler validate path/to/Wax.app
+spctl --assess --verbose=4 --type execute path/to/Wax.app
 
 xcrun stapler validate path/to/Spotiglass.dmg
 spctl --assess --verbose=4 --type open --context context:primary-signature path/to/Spotiglass.dmg

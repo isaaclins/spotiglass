@@ -2,8 +2,8 @@
 //
 // Routes EQ-processed audio from inside the AudioServerPlugIn's DoIOOperation
 // to a real hardware output device. Without this forwarder, audio written to
-// the Spotiglass EQ virtual device would have nowhere to go and the user
-// would hear silence after switching default output to "Spotiglass EQ".
+// the Wax EQ virtual device would have nowhere to go and the user
+// would hear silence after switching default output to "Wax EQ".
 //
 // The plugin opens a public-client AudioDeviceIOProc on the target device
 // (read from a one-shot file written by the Swift host: see

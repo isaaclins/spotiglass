@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Package a Release Spotiglass.app for Sparkle + GitHub Releases (local maintainer flow).
+# Package a Release Wax.app for Sparkle + GitHub Releases (local maintainer flow).
 # CI mirrors these steps in .github/workflows/release-artifact.yml.
 set -euo pipefail
 
@@ -148,7 +148,7 @@ rewrite_appcast_download_urls() {
     return 1
   fi
 
-  local enclosure_zip='<enclosure url="[^"]*/download/[^"/]+/Spotiglass-[^"/]+\.zip"'
+  local enclosure_zip='<enclosure url="[^"]*/download/[^"/]+/(Spotiglass|Wax)-[^"/]+\.zip"'
   local before
   before="$(grep -E -c "$enclosure_zip" "$appcast" || true)"
   if [[ "$before" -eq 0 ]]; then
@@ -161,7 +161,7 @@ rewrite_appcast_download_urls() {
   cp "$appcast" "$original"
 
   sed -i '' -E \
-    -e 's#(<enclosure url="[^"]*/download/)[^"/]+(/Spotiglass-([0-9]+\.[0-9]+\.[0-9]+)\.zip")#\1v\3\2#g' \
+    -e 's#(<enclosure url="[^"]*/download/)[^"/]+(/(Spotiglass|Wax)-([0-9]+\.[0-9]+\.[0-9]+)\.zip")#\1v\4\2#g' \
     "$appcast"
 
   # Report rewrites actually performed, not merely lines that matched.
@@ -175,7 +175,7 @@ rewrite_appcast_download_urls() {
   local mismatched
   mismatched="$(
     grep -oE "$enclosure_zip" "$appcast" \
-      | sed -E 's#.*/download/([^"/]+)/Spotiglass-([^"/]+)\.zip"#\1 v\2#' \
+      | sed -E 's#.*/download/([^"/]+)/(Spotiglass|Wax)-([^"/]+)\.zip"#\1 v\3#' \
       | awk '$1 != $2 { print }'
   )"
   if [[ -n "$mismatched" ]]; then
@@ -301,11 +301,11 @@ if [[ -z "$GENERATE_APPCAST" ]]; then
 fi
 
 DERIVED_DATA="$ROOT/build/DerivedData"
-APP_SOURCE="$DERIVED_DATA/Build/Products/Release/Spotiglass.app"
+APP_SOURCE="$DERIVED_DATA/Build/Products/Release/Wax.app"
 ARCHIVES_DIR="$ROOT/docs/sparkle-archives"
 DMG_DIR="$ROOT/build/release"
-ZIP_NAME="Spotiglass-${MARKETING_VERSION}.zip"
-DMG_NAME="Spotiglass-${MARKETING_VERSION}.dmg"
+ZIP_NAME="Wax-${MARKETING_VERSION}.zip"
+DMG_NAME="Wax-${MARKETING_VERSION}.dmg"
 DOWNLOAD_PREFIX="https://github.com/isaaclins/spotiglass/releases/download/${TAG}/"
 
 echo "==> Building Release ${MARKETING_VERSION} (${BUILD_NUMBER})"
@@ -444,7 +444,7 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
   # password otherwise all look like a missing profile.
   if NOTARY_CHECK_OUTPUT="$(xcrun notarytool history "${NOTARY_ARGS[@]}" 2>&1)"; then
     NOTARIZE_DIR="$(mktemp -d)"
-    NOTARIZE_ZIP="$NOTARIZE_DIR/Spotiglass-notarize.zip"
+    NOTARIZE_ZIP="$NOTARIZE_DIR/Wax-notarize.zip"
     ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$NOTARIZE_ZIP"
 
     echo "==> Submitting to Apple for notarization (this can take several minutes)"
@@ -484,11 +484,11 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ZIP_PATH"
 mkdir -p "$DMG_DIR"
 DMG_PATH="$DMG_DIR/$DMG_NAME"
 DMG_STAGE="$(mktemp -d)"
-cp -R "$APP_SOURCE" "$DMG_STAGE/Spotiglass.app"
+cp -R "$APP_SOURCE" "$DMG_STAGE/Wax.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 rm -f "$DMG_PATH"
 hdiutil create \
-  -volname "Spotiglass ${MARKETING_VERSION}" \
+  -volname "Wax ${MARKETING_VERSION}" \
   -srcfolder "$DMG_STAGE" \
   -ov -format UDZO \
   "$DMG_PATH"
@@ -512,7 +512,7 @@ if [[ -n "$RELEASE_NOTES" ]]; then
   # generate_appcast recognizes matching .txt and .html files, not Markdown.
   # Keep the source notes as Markdown in docs/release-notes, and give Sparkle a
   # plain-text copy so the update window embeds the release notes.
-  cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.txt"
+  cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Wax-${MARKETING_VERSION}.txt"
 fi
 
 # Keep the argument array non-empty. macOS still ships Bash 3.2, where
@@ -570,4 +570,4 @@ echo "       (and any ${ARCHIVES_DIR}/*.delta files if present)"
 echo "  2. Commit docs/appcast.xml (and release notes) to main for GitHub Pages."
 echo "  3. Ensure repo Pages uses branch main, folder /docs."
 echo ""
-echo "  gh release create ${TAG} \"${DMG_PATH}\" \"${ZIP_PATH}\" --title \"Spotiglass ${MARKETING_VERSION}\""
+echo "  gh release create ${TAG} \"${DMG_PATH}\" \"${ZIP_PATH}\" --title \"Wax ${MARKETING_VERSION}\""

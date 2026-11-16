@@ -21,10 +21,10 @@ final class PlaybackTokenBridge {
 }
 
 enum SpotifyPlaybackHost {
-    /// Mirrors the device name passed to `new Spotify.Player({ name: 'Spotiglass' })` in the bundled host page.
+    /// Mirrors the device name passed to `new Spotify.Player({ name: 'Wax' })` in the bundled host page.
     /// Swift code matches against this when deciding whether an active Spotify Connect device
     /// is a stale prior session of this app rather than the user's other Connect target.
-    static let deviceName = "Spotiglass"
+    static let deviceName = "Wax"
 
     static var html: String {
         guard let url = Bundle.main.url(forResource: "SpotifyPlaybackHost", withExtension: "html"),

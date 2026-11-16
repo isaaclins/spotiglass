@@ -77,7 +77,7 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             mapped.diagnosticDetails,
-            "Spotiglass EQ privileged helper failed (status 74): copyfile failed"
+            "Wax EQ privileged helper failed (status 74): copyfile failed"
         )
         XCTAssertFalse(mapped.isUserVisible)
         XCTAssertNil(mapped.userFacingDescription)
@@ -99,7 +99,7 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             mapped.diagnosticDetails,
-            "Spotiglass is not allowed to run in the background, so launchd refused to register the equalizer helper"
+            "Wax is not allowed to run in the background, so launchd refused to register the equalizer helper"
         )
     }
 

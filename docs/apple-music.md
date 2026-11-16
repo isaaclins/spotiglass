@@ -1,6 +1,6 @@
 # Apple Music
 
-Since 0.8.0 Spotiglass plays Apple Music next to Spotify (#372). You can browse your Apple
+Since 0.8.0 Wax plays Apple Music next to Spotify (#372). You can browse your Apple
 Music library, playlists, Home and search, play them, and edit your library (like, save albums,
 create, rename and delete playlists, add and remove songs; see [Library edits](#library-edits)),
 through Apple's MusicKit, and switch between Apple Music and Spotify at any time.
@@ -69,9 +69,9 @@ Music.
 implements `MusicBrowsingProvider`; the MusicKit requests themselves live in
 [`MusicKitContentSource`](../Spotiglass/Services/AppleMusicContentSource.swift).
 
-| Spotiglass | Apple Music |
+| Wax | Apple Music |
 |---|---|
-| Library playlists | `MusicLibraryRequest<Playlist>`. It lists playlists without their tracks, so the sidebar shows first and the track counts follow, 25 playlists per `MusicLibrarySectionedRequest<Playlist, Track>`. Counts are kept in memory (up to 5,000 playlists, 10 minutes, dropped when a playlist's `lastModifiedDate` changes), so a refresh shows them straight away, and a row keeps its count while a refresh counts it again. A playlist edited from Spotiglass is counted from its tracks with the edit applied, since the library can take hours to show it. A count that can't be read leaves the line blank. |
+| Library playlists | `MusicLibraryRequest<Playlist>`. It lists playlists without their tracks, so the sidebar shows first and the track counts follow, 25 playlists per `MusicLibrarySectionedRequest<Playlist, Track>`. Counts are kept in memory (up to 5,000 playlists, 10 minutes, dropped when a playlist's `lastModifiedDate` changes), so a refresh shows them straight away, and a row keeps its count while a refresh counts it again. A playlist edited from Wax is counted from its tracks with the edit applied, since the library can take hours to show it. A count that can't be read leaves the line blank. |
 | Liked Songs | The songs in your library, newest first (`MusicLibraryRequest<Song>`). Apple Music has no separate "liked" list a Mac app can read; loving a song is a rating, and MusicKit on macOS has no request for loved songs. The library is what you chose to keep, which is what Liked Songs is on Spotify. |
 | Home: Recently played | `MusicRecentlyPlayedRequest<Song>`, with one catalog request to attach each song's album (Home groups them by album) |
 | Home: Your top tracks | The songs of your personal mix from `MusicPersonalRecommendationsRequest` (the Favourites mix is built from what you play most); otherwise the first recommended playlist |
@@ -105,8 +105,8 @@ MusicKit's own library is read-only on macOS, so edits take one of two routes
 The API requests go through `MusicDataRequest`, which signs them with the developer token and the
 user token by itself. The Music app is driven through Apple Events
 ([`MusicAppLibraryScripting`](../Spotiglass/Services/MusicAppLibraryScripting.swift)), which costs
-one system prompt, "Spotiglass wants to control Music" (`NSAppleEventsUsageDescription`, and
-`com.apple.security.automation.apple-events` for the hardened runtime). Spotiglass starts Music
+one system prompt, "Wax wants to control Music" (`NSAppleEventsUsageDescription`, and
+`com.apple.security.automation.apple-events` for the hardened runtime). Wax starts Music
 hidden when it isn't running. If you say no, browsing keeps working and the edit shows a one-line
 hint pointing to System Settings › Privacy & Security › Automation. Every change reaches your other
 devices through iCloud Music Library.
@@ -118,7 +118,7 @@ menus are unchanged.
 **Removing from the library asks first.** Liked Songs are your library, so removing a song from
 Liked Songs (or an album from the library) deletes it from the library, and Music then also takes
 it out of every playlist it's in, on all your devices
-([Apple](https://support.apple.com/en-us/HT204343)). Spotiglass asks before it does that, the way
+([Apple](https://support.apple.com/en-us/HT204343)). Wax asks before it does that, the way
 Music asks before Delete from Library. Spotify's unlike only leaves Liked Songs and still goes
 through at once (`MusicLibraryEdits.confirmLibraryRemoval`).
 
@@ -154,7 +154,7 @@ If Music still doesn't answer after that wait, the edit says the change may stil
 **IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
 Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a
 playlist even for songs that have an `i.` ID elsewhere). MusicKit writes the other IDs out when an
-item is encoded, which is where Spotiglass reads them. Nothing maps a `p.` ID to a persistent ID,
+item is encoded, which is where Wax reads them. Nothing maps a `p.` ID to a persistent ID,
 so a library playlist is found among your cloud playlists by its name, and two editable playlists
 with the same name stop the edit instead of guessing.
 
@@ -189,7 +189,7 @@ another device shows once the record expires.
 implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
 ([`MusicKitApplicationPlayer`](../Spotiglass/Playback/MusicKitApplicationPlayer.swift)).
 
-| Spotiglass | Apple Music |
+| Wax | Apple Music |
 |---|---|
 | Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs, least recently used first out): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
 | Pause, resume, seek, next, previous, shuffle, repeat | The player's own commands. Repeat off / context / track maps to none / all / one. |
@@ -198,7 +198,7 @@ implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
 | Queue panel | The entries after the current one. |
 | Player state | Read, not pushed: the session polls it (every second after a command, while the app is in the background too). |
 | Volume | MusicKit has no volume for the app's player, so the volume control is hidden and the Mac's volume applies. |
-| Now Playing, Control Center, media keys | Apple's player publishes Now Playing and answers the remote commands itself; Spotiglass writes nothing there. |
+| Now Playing, Control Center, media keys | Apple's player publishes Now Playing and answers the remote commands itself; Wax writes nothing there. |
 | Lyrics | LRCLIB, by title, artist, album and duration, cached under `applemusic-song-<id>`. |
 
 MusicKit's player answers a command before its state shows it. Measured on a Mac mini M4
@@ -217,7 +217,7 @@ default output, so Apple Music goes through it as well.
 
 - **Music videos** can't be queued by MusicKit's player on macOS; they are skipped when a list
   is played.
-- **Reordering a playlist.** Spotiglass has no drag-to-reorder for playlist tracks yet, on either
+- **Reordering a playlist.** Wax has no drag-to-reorder for playlist tracks yet, on either
   service.
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
   not the artist's whole catalog. A library album's track count is the number of its songs in

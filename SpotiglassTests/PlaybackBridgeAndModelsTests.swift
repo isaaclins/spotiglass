@@ -253,7 +253,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
 
     func testSpotifyPlaybackHostHTMLFallbackIsNonEmpty() {
         XCTAssertFalse(SpotifyPlaybackHost.html.isEmpty)
-        XCTAssertEqual(SpotifyPlaybackHost.deviceName, "Spotiglass")
+        XCTAssertEqual(SpotifyPlaybackHost.deviceName, "Wax")
     }
 
     /// The Web Playback SDK lists a track's album images in no fixed order. Taking the first one

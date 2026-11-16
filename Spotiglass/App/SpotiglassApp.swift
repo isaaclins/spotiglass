@@ -38,7 +38,7 @@ struct SpotiglassApp: App {
         SpotiglassLog.boot()
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        SpotiglassLog.info(.persistence, "Spotiglass launching (version=\(version) build=\(build))")
+        SpotiglassLog.info(.persistence, "Wax launching (version=\(version) build=\(build))")
         if !AppMetadata.isRunningUnitTests {
             AudioOutputTrace.shared.start()
         }

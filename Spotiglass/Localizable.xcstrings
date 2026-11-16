@@ -382,19 +382,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass aktualisiert die gespeicherte Spotify-Sitzung."
+            "value": "Wax aktualisiert die gespeicherte Spotify-Sitzung."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass is refreshing the stored Spotify session."
+            "value": "Wax is refreshing the stored Spotify session."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass está actualizando la sesión de Spotify almacenada."
+            "value": "Wax está actualizando la sesión de Spotify almacenada."
           }
         }
       }
@@ -428,19 +428,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass ist mit Ihrem Spotify-Konto verbunden."
+            "value": "Wax ist mit Ihrem Spotify-Konto verbunden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass is connected to your Spotify account."
+            "value": "Wax is connected to your Spotify account."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass está conectado a tu cuenta de Spotify."
+            "value": "Wax está conectado a tu cuenta de Spotify."
           }
         }
       }
@@ -520,19 +520,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schliesse die Autorisierung im Browserfenster ab. Spotiglass lauscht auf 127.0.0.1 auf den Callback."
+            "value": "Schliesse die Autorisierung im Browserfenster ab. Wax lauscht auf 127.0.0.1 auf den Callback."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Complete authorization in the browser window. Spotiglass is listening on 127.0.0.1 for the callback."
+            "value": "Complete authorization in the browser window. Wax is listening on 127.0.0.1 for the callback."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Completa la autorización en la ventana del navegador. Spotiglass escucha en 127.0.0.1 el callback."
+            "value": "Completa la autorización en la ventana del navegador. Wax escucha en 127.0.0.1 el callback."
           }
         }
       }
@@ -773,19 +773,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass konnte die Weiterleitung von Spotify nicht empfangen. Möglicherweise belegt eine andere App den Port oder macOS hat ihn blockiert. Beenden Sie andere Apps oder starten Sie Spotiglass neu und versuchen Sie es erneut mit Verbinden."
+            "value": "Wax konnte die Weiterleitung von Spotify nicht empfangen. Möglicherweise belegt eine andere App den Port oder macOS hat ihn blockiert. Beenden Sie andere Apps oder starten Sie Wax neu und versuchen Sie es erneut mit Verbinden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass could not listen for Spotify’s redirect. Another app may be using that port, or macOS blocked it. Quit conflicting apps or restart Spotiglass, then try Connect again."
+            "value": "Wax could not listen for Spotify’s redirect. Another app may be using that port, or macOS blocked it. Quit conflicting apps or restart Wax, then try Connect again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no pudo recibir la redirección de Spotify. Puede que otra app esté usando ese puerto o que macOS lo haya bloqueado. Cierra las apps en conflicto o reinicia Spotiglass y vuelve a pulsar Conectar."
+            "value": "Wax no pudo recibir la redirección de Spotify. Puede que otra app esté usando ese puerto o que macOS lo haya bloqueado. Cierra las apps en conflicto o reinicia Wax y vuelve a pulsar Conectar."
           }
         }
       }
@@ -888,19 +888,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Spotiglass zurückkehren."
+            "value": "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Wax zurückkehren."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify sign-in is complete. You can return to Spotiglass."
+            "value": "Spotify sign-in is complete. You can return to Wax."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El inicio de sesión de Spotify se completó. Puedes volver a Spotiglass."
+            "value": "El inicio de sesión de Spotify se completó. Puedes volver a Wax."
           }
         }
       }
@@ -1118,19 +1118,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat eine Antwort zurückgegeben, die Spotiglass nicht lesen konnte. Prüfe deine Verbindung, versuche es erneut oder trenne und verbinde Spotify erneut."
+            "value": "Spotify hat eine Antwort zurückgegeben, die Wax nicht lesen konnte. Prüfe deine Verbindung, versuche es erneut oder trenne und verbinde Spotify erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify returned a response Spotiglass could not read. Check your connection, try again, or disconnect and connect Spotify again."
+            "value": "Spotify returned a response Wax could not read. Check your connection, try again, or disconnect and connect Spotify again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify devolvió una respuesta que Spotiglass no pudo leer. Comprueba tu conexión, inténtalo de nuevo o desconéctate y vuelve a conectar Spotify."
+            "value": "Spotify devolvió una respuesta que Wax no pudo leer. Comprueba tu conexión, inténtalo de nuevo o desconéctate y vuelve a conectar Spotify."
           }
         }
       }
@@ -1279,19 +1279,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass konnte die Spotify-Anmeldung nicht im Browser öffnen."
+            "value": "Wax konnte die Spotify-Anmeldung nicht im Browser öffnen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass could not open Spotify sign-in in your browser."
+            "value": "Wax could not open Spotify sign-in in your browser."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no pudo abrir el inicio de sesión de Spotify en tu navegador."
+            "value": "Wax no pudo abrir el inicio de sesión de Spotify en tu navegador."
           }
         }
       }
@@ -1486,19 +1486,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS hat den Schlüsselbund-Zugriff für Spotiglass blockiert, oft nach Neuinstallation oder geänderter Signatur. Versuche erneut Verbinden oder installiere Spotiglass aus einer vertrauenswürdigen Version neu."
+            "value": "macOS hat den Schlüsselbund-Zugriff für Wax blockiert, oft nach Neuinstallation oder geänderter Signatur. Versuche erneut Verbinden oder installiere Wax aus einer vertrauenswürdigen Version neu."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS blocked Keychain access for Spotiglass, often after reinstalling or changing how the app is signed. Try Connect again, or reinstall Spotiglass from a trusted build."
+            "value": "macOS blocked Keychain access for Wax, often after reinstalling or changing how the app is signed. Try Connect again, or reinstall Wax from a trusted build."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS bloqueó el acceso al llavero para Spotiglass, a menudo tras reinstalar o cambiar la firma de la app. Prueba Conectar de nuevo o reinstala Spotiglass desde una compilación de confianza."
+            "value": "macOS bloqueó el acceso al llavero para Wax, a menudo tras reinstalar o cambiar la firma de la app. Prueba Conectar de nuevo o reinstala Wax desde una compilación de confianza."
           }
         }
       }
@@ -1624,19 +1624,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass konnte die Anmeldeadresse für Spotify nicht erstellen. Prüfen Sie die Client-ID in den Einstellungen."
+            "value": "Wax konnte die Anmeldeadresse für Spotify nicht erstellen. Prüfen Sie die Client-ID in den Einstellungen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass could not build the Spotify sign-in address. Check the client ID in Settings."
+            "value": "Wax could not build the Spotify sign-in address. Check the client ID in Settings."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no pudo crear la dirección de inicio de sesión de Spotify. Revisa el ID de cliente en Ajustes."
+            "value": "Wax no pudo crear la dirección de inicio de sesión de Spotify. Revisa el ID de cliente en Ajustes."
           }
         }
       }
@@ -1693,19 +1693,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat eine Antwort zurückgegeben, die Spotiglass nicht interpretieren konnte."
+            "value": "Spotify hat eine Antwort zurückgegeben, die Wax nicht interpretieren konnte."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify returned a response Spotiglass could not interpret."
+            "value": "Spotify returned a response Wax could not interpret."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify devolvió una respuesta que Spotiglass no pudo interpretar."
+            "value": "Spotify devolvió una respuesta que Wax no pudo interpretar."
           }
         }
       }
@@ -2247,19 +2247,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass meldet sich ab und kehrt zum Anmeldebildschirm zurück. Die gespeicherte Sitzung wird gelöscht."
+            "value": "Wax meldet sich ab und kehrt zum Anmeldebildschirm zurück. Die gespeicherte Sitzung wird gelöscht."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass will sign out and return to the sign-in screen. The saved session is cleared."
+            "value": "Wax will sign out and return to the sign-in screen. The saved session is cleared."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass cerrará la sesión y volverá a la pantalla de inicio de sesión. Se borrará la sesión guardada."
+            "value": "Wax cerrará la sesión y volverá a la pantalla de inicio de sesión. Se borrará la sesión guardada."
           }
         }
       }
@@ -3871,19 +3871,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Ausgabegerät konnte nicht gewechselt werden. Versuchen Sie es erneut und starten Sie Spotiglass neu, falls es weiterhin fehlschlägt."
+            "value": "Das Ausgabegerät konnte nicht gewechselt werden. Versuchen Sie es erneut und starten Sie Wax neu, falls es weiterhin fehlschlägt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The output device could not be switched. Try again, and restart Spotiglass if it keeps failing."
+            "value": "The output device could not be switched. Try again, and restart Wax if it keeps failing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se pudo cambiar el dispositivo de salida. Inténtalo de nuevo y reinicia Spotiglass si sigue fallando."
+            "value": "No se pudo cambiar el dispositivo de salida. Inténtalo de nuevo y reinicia Wax si sigue fallando."
           }
         }
       }
@@ -3894,19 +3894,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS wartet auf die Erlaubnis, Spotiglass im Hintergrund auszuführen. Erteilen Sie sie und schalten Sie den Equalizer erneut ein."
+            "value": "macOS wartet auf die Erlaubnis, Wax im Hintergrund auszuführen. Erteilen Sie sie und schalten Sie den Equalizer erneut ein."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS is waiting for permission to let Spotiglass run in the background. Allow it, then switch the equalizer on again."
+            "value": "macOS is waiting for permission to let Wax run in the background. Allow it, then switch the equalizer on again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "macOS espera permiso para ejecutar Spotiglass en segundo plano. Concédelo y vuelve a activar el ecualizador."
+            "value": "macOS espera permiso para ejecutar Wax en segundo plano. Concédelo y vuelve a activar el ecualizador."
           }
         }
       }
@@ -4193,19 +4193,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify erlaubt Spotiglass nicht mehr, die Titel in Playlists aufzulisten, die dir nicht gehören. Du kannst die ganze Playlist trotzdem abspielen oder sie in Spotify öffnen."
+            "value": "Spotify erlaubt Wax nicht mehr, die Titel in Playlists aufzulisten, die dir nicht gehören. Du kannst die ganze Playlist trotzdem abspielen oder sie in Spotify öffnen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify no longer lets Spotiglass list the songs in playlists you do not own. You can still play the whole playlist or open it in Spotify."
+            "value": "Spotify no longer lets Wax list the songs in playlists you do not own. You can still play the whole playlist or open it in Spotify."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify ya no permite que Spotiglass muestre las canciones de las listas que no son tuyas. Todavía puedes reproducir la lista completa o abrirla en Spotify."
+            "value": "Spotify ya no permite que Wax muestre las canciones de las listas que no son tuyas. Todavía puedes reproducir la lista completa o abrirla en Spotify."
           }
         }
       }
@@ -4630,19 +4630,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."
+            "value": "Wax konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass could not connect to Spotify playback. Check your connection and choose Reconnect to try again."
+            "value": "Wax could not connect to Spotify playback. Check your connection and choose Reconnect to try again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no pudo conectarse a la reproducción de Spotify. Comprueba la conexión y elige Reconectar para intentarlo de nuevo."
+            "value": "Wax no pudo conectarse a la reproducción de Spotify. Comprueba la conexión y elige Reconectar para intentarlo de nuevo."
           }
         }
       }
@@ -4859,19 +4859,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."
+            "value": "Zum Abspielen von Musik in Wax ist Spotify Premium erforderlich."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing music in Spotiglass requires Spotify Premium."
+            "value": "Playing music in Wax requires Spotify Premium."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproducir música en Spotiglass requiere Spotify Premium."
+            "value": "Reproducir música en Wax requiere Spotify Premium."
           }
         }
       }
@@ -5181,19 +5181,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verbinde die Spotiglass-Wiedergabe, bevor du zur Warteschlange hinzufügst."
+            "value": "Verbinde die Wax-Wiedergabe, bevor du zur Warteschlange hinzufügst."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connect Spotiglass playback before adding to the queue."
+            "value": "Connect Wax playback before adding to the queue."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conecta la reproducción de Spotiglass antes de añadir a la cola."
+            "value": "Conecta la reproducción de Wax antes de añadir a la cola."
           }
         }
       }
@@ -5595,19 +5595,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieser Spotify-Sitzung fehlen Berechtigungen, die Spotiglass benötigt. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden, um sie zu erteilen."
+            "value": "Dieser Spotify-Sitzung fehlen Berechtigungen, die Wax benötigt. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden, um sie zu erteilen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "This Spotify session is missing permissions Spotiglass needs. Open Settings ▸ Account ▸ Reconnect to grant them."
+            "value": "This Spotify session is missing permissions Wax needs. Open Settings ▸ Account ▸ Reconnect to grant them."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "A esta sesión de Spotify le faltan permisos que Spotiglass necesita. Abre Ajustes ▸ Cuenta ▸ Reconectar para concederlos."
+            "value": "A esta sesión de Spotify le faltan permisos que Wax necesita. Abre Ajustes ▸ Cuenta ▸ Reconectar para concederlos."
           }
         }
       }
@@ -5756,19 +5756,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat Daten zurückgegeben, die Spotiglass nicht lesen konnte. Versuchen Sie zu aktualisieren."
+            "value": "Spotify hat Daten zurückgegeben, die Wax nicht lesen konnte. Versuchen Sie zu aktualisieren."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify returned data Spotiglass could not read. Try refreshing."
+            "value": "Spotify returned data Wax could not read. Try refreshing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify devolvió datos que Spotiglass no pudo leer. Prueba a actualizar."
+            "value": "Spotify devolvió datos que Wax no pudo leer. Prueba a actualizar."
           }
         }
       }
@@ -6101,19 +6101,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass kennt die Taste „%@“ nicht."
+            "value": "Wax kennt die Taste „%@“ nicht."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass does not recognize the key “%@”."
+            "value": "Wax does not recognize the key “%@”."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no reconoce la tecla «%@»."
+            "value": "Wax no reconoce la tecla «%@»."
           }
         }
       }
@@ -6814,19 +6814,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass Help"
+            "value": "Wax Help"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass Hilfe"
+            "value": "Wax Hilfe"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ayuda de Spotiglass"
+            "value": "Ayuda de Wax"
           }
         }
       }
@@ -7435,19 +7435,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass-Einstellungen und Tastenkürzel ändern"
+            "value": "Wax-Einstellungen und Tastenkürzel ändern"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Change Spotiglass preferences and shortcuts"
+            "value": "Change Wax preferences and shortcuts"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cambiar preferencias y atajos de Spotiglass"
+            "value": "Cambiar preferencias y atajos de Wax"
           }
         }
       }
@@ -7804,19 +7804,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass-Wiedergabegerät verbinden"
+            "value": "Wax-Wiedergabegerät verbinden"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connect Spotiglass playback device"
+            "value": "Connect Wax playback device"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conectar dispositivo de reproducción de Spotiglass"
+            "value": "Conectar dispositivo de reproducción de Wax"
           }
         }
       }
@@ -8011,19 +8011,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle deine Titel in Spotiglass laden"
+            "value": "Alle deine Titel in Wax laden"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Load All Your Songs into Spotiglass"
+            "value": "Load All Your Songs into Wax"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cargar todas tus canciones en Spotiglass"
+            "value": "Cargar todas tus canciones en Wax"
           }
         }
       }
@@ -10107,19 +10107,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schaltet die Spotify-Wiedergabe in Spotiglass um."
+            "value": "Schaltet die Spotify-Wiedergabe in Wax um."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toggles Spotify playback in Spotiglass."
+            "value": "Toggles Spotify playback in Wax."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alterna la reproducción de Spotify en Spotiglass."
+            "value": "Alterna la reproducción de Spotify en Wax."
           }
         }
       }
@@ -10199,19 +10199,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Registriert das Spotiglass-Web-Wiedergabegerät bei Spotify. Spotify Premium ist erforderlich."
+            "value": "Registriert das Wax-Web-Wiedergabegerät bei Spotify. Spotify Premium ist erforderlich."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Registers the Spotiglass Web Playback device with Spotify. Spotify Premium is required."
+            "value": "Registers the Wax Web Playback device with Spotify. Spotify Premium is required."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Registra el dispositivo Web Playback de Spotiglass con Spotify. Se requiere Spotify Premium."
+            "value": "Registra el dispositivo Web Playback de Wax con Spotify. Se requiere Spotify Premium."
           }
         }
       }
@@ -10314,19 +10314,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Versucht erneut, die Spotify-Wiedergabe nach Spotiglass zu verschieben."
+            "value": "Versucht erneut, die Spotify-Wiedergabe nach Wax zu verschieben."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Attempts to move Spotify playback to Spotiglass again."
+            "value": "Attempts to move Spotify playback to Wax again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Intenta mover la reproducción de Spotify a Spotiglass de nuevo."
+            "value": "Intenta mover la reproducción de Spotify a Wax de nuevo."
           }
         }
       }
@@ -10407,19 +10407,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass verbindet sich mit Spotify. Wenn es zu lange dauert, wird „Erneut verbinden“ verfügbar."
+            "value": "Wax verbindet sich mit Spotify. Wenn es zu lange dauert, wird „Erneut verbinden“ verfügbar."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass is connecting to Spotify. If it takes too long, choose Reconnect when it appears."
+            "value": "Wax is connecting to Spotify. If it takes too long, choose Reconnect when it appears."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass se está conectando a Spotify. Si tarda demasiado, elige Reconectar cuando aparezca."
+            "value": "Wax se está conectando a Spotify. Si tarda demasiado, elige Reconectar cuando aparezca."
           }
         }
       }
@@ -10453,19 +10453,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass verbindet die Wiedergabe automatisch nach der Anmeldung. Verwenden Sie „Erneut verbinden“, wenn sie stoppt."
+            "value": "Wax verbindet die Wiedergabe automatisch nach der Anmeldung. Verwenden Sie „Erneut verbinden“, wenn sie stoppt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass connects playback automatically when signed in. Use Reconnect if playback stops."
+            "value": "Wax connects playback automatically when signed in. Use Reconnect if playback stops."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass conecta la reproducción automáticamente al iniciar sesión. Usa Reconectar si se detiene."
+            "value": "Wax conecta la reproducción automáticamente al iniciar sesión. Usa Reconectar si se detiene."
           }
         }
       }
@@ -10614,19 +10614,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify-Wiedergabe wird nach Spotiglass übertragen."
+            "value": "Spotify-Wiedergabe wird nach Wax übertragen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moving Spotify playback to Spotiglass."
+            "value": "Moving Spotify playback to Wax."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moviendo la reproducción de Spotify a Spotiglass."
+            "value": "Moviendo la reproducción de Spotify a Wax."
           }
         }
       }
@@ -10706,19 +10706,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Passt die Spotify-Web-Wiedergabe in Spotiglass an. Das ist nicht die Mac-Systemlautstärke."
+            "value": "Passt die Spotify-Web-Wiedergabe in Wax an. Das ist nicht die Mac-Systemlautstärke."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Adjusts Spotify Web Playback output in Spotiglass. This is not the Mac system volume."
+            "value": "Adjusts Spotify Web Playback output in Wax. This is not the Mac system volume."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajusta la salida del Web Playback de Spotify en Spotiglass. No es el volumen del sistema del Mac."
+            "value": "Ajusta la salida del Web Playback de Spotify en Wax. No es el volumen del sistema del Mac."
           }
         }
       }
@@ -11329,19 +11329,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass benötigt die Berechtigung, Ihre Lieblingssongs zu ändern. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden."
+            "value": "Wax benötigt die Berechtigung, Ihre Lieblingssongs zu ändern. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass needs permission to change your Liked Songs. Open Settings ▸ Account ▸ Reconnect."
+            "value": "Wax needs permission to change your Liked Songs. Open Settings ▸ Account ▸ Reconnect."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass necesita permiso para cambiar Tus me gusta. Abre Ajustes ▸ Cuenta ▸ Reconectar."
+            "value": "Wax necesita permiso para cambiar Tus me gusta. Abre Ajustes ▸ Cuenta ▸ Reconectar."
           }
         }
       }
@@ -11353,19 +11353,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass benötigt die Berechtigung, Playlists zu ändern. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden."
+            "value": "Wax benötigt die Berechtigung, Playlists zu ändern. Öffnen Sie Einstellungen ▸ Account ▸ Erneut verbinden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass needs permission to change playlists. Open Settings ▸ Account ▸ Reconnect."
+            "value": "Wax needs permission to change playlists. Open Settings ▸ Account ▸ Reconnect."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass necesita permiso para cambiar listas. Abre Ajustes ▸ Cuenta ▸ Reconectar."
+            "value": "Wax necesita permiso para cambiar listas. Abre Ajustes ▸ Cuenta ▸ Reconectar."
           }
         }
       }
@@ -13059,19 +13059,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "System folgt macOS. Hell und Dunkel gelten nur für Spotiglass."
+            "value": "System folgt macOS. Hell und Dunkel gelten nur für Wax."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "System follows macOS. Light and Dark apply only to Spotiglass."
+            "value": "System follows macOS. Light and Dark apply only to Wax."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sistema sigue macOS. Claro y Oscuro se aplican solo a Spotiglass."
+            "value": "Sistema sigue macOS. Claro y Oscuro se aplican solo a Wax."
           }
         }
       }
@@ -13128,19 +13128,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Legt die Sprache der Spotiglass-Oberfläche fest. Verfügbar sind Englisch, Spanisch und Deutsch."
+            "value": "Legt die Sprache der Wax-Oberfläche fest. Verfügbar sind Englisch, Spanisch und Deutsch."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controls Spotiglass UI language. English, Spanish, and German are available."
+            "value": "Controls Wax UI language. English, Spanish, and German are available."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controla el idioma de la interfaz de Spotiglass. Están disponibles inglés, español y alemán."
+            "value": "Controla el idioma de la interfaz de Wax. Están disponibles inglés, español y alemán."
           }
         }
       }
@@ -13680,19 +13680,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein grafischer 10-Band-Equalizer in Echtzeit für die Spotiglass-Wiedergabe. Verschiebe einen Regler während ein Titel läuft, Änderungen wirken sofort."
+            "value": "Ein grafischer 10-Band-Equalizer in Echtzeit für die Wax-Wiedergabe. Verschiebe einen Regler während ein Titel läuft, Änderungen wirken sofort."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A live 10-band graphic equalizer applied to Spotiglass playback. Drag any slider while a song is playing, changes apply immediately."
+            "value": "A live 10-band graphic equalizer applied to Wax playback. Drag any slider while a song is playing, changes apply immediately."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un ecualizador gráfico de 10 bandas en vivo aplicado a la reproducción de Spotiglass. Arrastra cualquier deslizador mientras suena una canción, los cambios se aplican al instante."
+            "value": "Un ecualizador gráfico de 10 bandas en vivo aplicado a la reproducción de Wax. Arrastra cualquier deslizador mientras suena una canción, los cambios se aplican al instante."
           }
         }
       }
@@ -13703,19 +13703,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Equalizer ist ausgeschaltet. Aktiviere ihn, um die Kurve zu bearbeiten und Änderungen auf die Spotiglass-Wiedergabe anzuwenden."
+            "value": "Der Equalizer ist ausgeschaltet. Aktiviere ihn, um die Kurve zu bearbeiten und Änderungen auf die Wax-Wiedergabe anzuwenden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Equalizer is off. Enable Equalizer to edit the curve and apply changes to Spotiglass playback."
+            "value": "Equalizer is off. Enable Equalizer to edit the curve and apply changes to Wax playback."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El ecualizador está desactivado. Activa el ecualizador para editar la curva y aplicar los cambios a la reproducción de Spotiglass."
+            "value": "El ecualizador está desactivado. Activa el ecualizador para editar la curva y aplicar los cambios a la reproducción de Wax."
           }
         }
       }
@@ -14784,19 +14784,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Turn on Apple Music for Spotiglass in System Settings under Privacy & Security, Media & Apple Music."
+            "value": "Turn on Apple Music for Wax in System Settings under Privacy & Security, Media & Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Activa Apple Music para Spotiglass en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
+            "value": "Activa Apple Music para Wax en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schalte Apple Music für Spotiglass in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
+            "value": "Schalte Apple Music für Wax in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
           }
         }
       }
@@ -14830,19 +14830,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing Apple Music in Spotiglass needs an Apple Music subscription."
+            "value": "Playing Apple Music in Wax needs an Apple Music subscription."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para reproducir Apple Music en Spotiglass necesitas una suscripción a Apple Music."
+            "value": "Para reproducir Apple Music en Wax necesitas una suscripción a Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music-Abo."
+            "value": "Um Apple Music in Wax abzuspielen, brauchst du ein Apple Music-Abo."
           }
         }
       }
@@ -15062,19 +15062,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass can't read Apple Music. Turn it on in System Settings under Privacy & Security, Media & Apple Music."
+            "value": "Wax can't read Apple Music. Turn it on in System Settings under Privacy & Security, Media & Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no puede acceder a Apple Music. Actívalo en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
+            "value": "Wax no puede acceder a Apple Music. Actívalo en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass kann nicht auf Apple Music zugreifen. Schalte es in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
+            "value": "Wax kann nicht auf Apple Music zugreifen. Schalte es in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
           }
         }
       }
@@ -15338,19 +15338,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Signing out removes Apple Music from the service menu; your pins stay for when you add it again. Spotiglass's access to your library is a system permission: System Settings › Privacy & Security › Media & Apple Music."
+            "value": "Signing out removes Apple Music from the service menu; your pins stay for when you add it again. Wax's access to your library is a system permission: System Settings › Privacy & Security › Media & Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Al cerrar sesión, Apple Music desaparece del menú de servicios; tus elementos fijados se guardan para cuando lo vuelvas a añadir. El acceso de Spotiglass a tu biblioteca es un permiso del sistema: Ajustes del Sistema › Privacidad y seguridad › Multimedia y Apple Music."
+            "value": "Al cerrar sesión, Apple Music desaparece del menú de servicios; tus elementos fijados se guardan para cuando lo vuelvas a añadir. El acceso de Wax a tu biblioteca es un permiso del sistema: Ajustes del Sistema › Privacidad y seguridad › Multimedia y Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Beim Abmelden verschwindet Apple Music aus dem Dienstmenü; deine angehefteten Einträge bleiben für später erhalten. Der Zugriff von Spotiglass auf deine Mediathek ist eine Systemberechtigung: Systemeinstellungen › Datenschutz & Sicherheit › Medien & Apple Music."
+            "value": "Beim Abmelden verschwindet Apple Music aus dem Dienstmenü; deine angehefteten Einträge bleiben für später erhalten. Der Zugriff von Wax auf deine Mediathek ist eine Systemberechtigung: Systemeinstellungen › Datenschutz & Sicherheit › Medien & Apple Music."
           }
         }
       }
@@ -15729,19 +15729,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass is connecting to Apple Music."
+            "value": "Wax is connecting to Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass se está conectando a Apple Music."
+            "value": "Wax se está conectando a Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass verbindet sich mit Apple Music."
+            "value": "Wax verbindet sich mit Apple Music."
           }
         }
       }
@@ -15775,19 +15775,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Plays or pauses Apple Music in Spotiglass."
+            "value": "Plays or pauses Apple Music in Wax."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproduce o pausa Apple Music en Spotiglass."
+            "value": "Reproduce o pausa Apple Music en Wax."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spielt Apple Music in Spotiglass ab oder pausiert es."
+            "value": "Spielt Apple Music in Wax ab oder pausiert es."
           }
         }
       }
@@ -15937,19 +15937,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass can't control Music. Allow it in System Settings › Privacy & Security › Automation, then try again."
+            "value": "Wax can't control Music. Allow it in System Settings › Privacy & Security › Automation, then try again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no puede controlar Música. Permítelo en Ajustes del Sistema › Privacidad y seguridad › Automatización y vuelve a intentarlo."
+            "value": "Wax no puede controlar Música. Permítelo en Ajustes del Sistema › Privacidad y seguridad › Automatización y vuelve a intentarlo."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass darf Musik nicht steuern. Erlaube es unter Systemeinstellungen › Datenschutz & Sicherheit › Automation und versuche es erneut."
+            "value": "Wax darf Musik nicht steuern. Erlaube es unter Systemeinstellungen › Datenschutz & Sicherheit › Automation und versuche es erneut."
           }
         }
       }
@@ -16081,19 +16081,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music doesn't let Spotiglass change this."
+            "value": "Apple Music doesn't let Wax change this."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music no permite que Spotiglass cambie esto."
+            "value": "Apple Music no permite que Wax cambie esto."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music lässt Spotiglass das nicht ändern."
+            "value": "Apple Music lässt Wax das nicht ändern."
           }
         }
       }
@@ -16549,19 +16549,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify is removed from Spotiglass and the window switches to %@. The saved session is cleared."
+            "value": "Spotify is removed from Wax and the window switches to %@. The saved session is cleared."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify se quitará de Spotiglass y la ventana cambiará a %@. Se borrará la sesión guardada."
+            "value": "Spotify se quitará de Wax y la ventana cambiará a %@. Se borrará la sesión guardada."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify wird aus Spotiglass entfernt und das Fenster wechselt zu %@. Die gespeicherte Sitzung wird gelöscht."
+            "value": "Spotify wird aus Wax entfernt und das Fenster wechselt zu %@. Die gespeicherte Sitzung wird gelöscht."
           }
         }
       }
@@ -16717,19 +16717,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass can't reach Apple Music right now. Try again later."
+            "value": "Wax can't reach Apple Music right now. Try again later."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no puede conectarse con Apple Music en este momento. Vuelve a intentarlo más tarde."
+            "value": "Wax no puede conectarse con Apple Music en este momento. Vuelve a intentarlo más tarde."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass erreicht Apple Music gerade nicht. Versuche es später erneut."
+            "value": "Wax erreicht Apple Music gerade nicht. Versuche es später erneut."
           }
         }
       }
@@ -16855,19 +16855,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version, lädt sie im Hintergrund und installiert sie beim nächsten Beenden der App."
+            "value": "Wax sucht alle paar Stunden nach einer neuen Version, lädt sie im Hintergrund und installiert sie beim nächsten Beenden der App."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass checks for a new version every few hours, downloads it in the background and installs it the next time you quit the app."
+            "value": "Wax checks for a new version every few hours, downloads it in the background and installs it the next time you quit the app."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass busca una versión nueva cada pocas horas, la descarga en segundo plano y la instala la próxima vez que cierres la app."
+            "value": "Wax busca una versión nueva cada pocas horas, la descarga en segundo plano y la instala la próxima vez que cierres la app."
           }
         }
       }
@@ -16877,19 +16877,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass sucht nicht von selbst nach neuen Versionen. Mit „Nach Updates suchen…“ suchst du sofort."
+            "value": "Wax sucht nicht von selbst nach neuen Versionen. Mit „Nach Updates suchen…“ suchst du sofort."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass doesn't look for new versions by itself. Use Check for Updates… to look now."
+            "value": "Wax doesn't look for new versions by itself. Use Check for Updates… to look now."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass no busca versiones nuevas por sí sola. Usa «Buscar actualizaciones…» para buscar ahora."
+            "value": "Wax no busca versiones nuevas por sí sola. Usa «Buscar actualizaciones…» para buscar ahora."
           }
         }
       }
@@ -16899,19 +16899,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version und fragt dich, bevor sie installiert wird."
+            "value": "Wax sucht alle paar Stunden nach einer neuen Version und fragt dich, bevor sie installiert wird."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass checks for a new version every few hours and asks you before it installs one."
+            "value": "Wax checks for a new version every few hours and asks you before it installs one."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass busca una versión nueva cada pocas horas y te pregunta antes de instalarla."
+            "value": "Wax busca una versión nueva cada pocas horas y te pregunta antes de instalarla."
           }
         }
       }

@@ -1,4 +1,4 @@
-/* Spotiglass landing page.
+/* Wax landing page.
    Keeps the download buttons and the version line on the newest release. If the GitHub API
    can't be reached, the links in the HTML (the release this page was written for) stay. */
 (function () {

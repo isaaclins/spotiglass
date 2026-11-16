@@ -1,6 +1,6 @@
 # Localization
 
-Spotiglass ships in English, Spanish, and German. The active language is chosen
+Wax ships in English, Spanish, and German. The active language is chosen
 in **Settings → Appearance → Language** and persisted under
 `appearance.language` in `~/.config/spotiglass/settings.json`. The picker shows
 each language in its own script (English, Español, Deutsch) so users can find
@@ -84,9 +84,9 @@ Per the i18n policy:
 
 - Raw Spotify data — track names, artist names, album names, playlist names.
 - The literal word `"Spotify"`.
-- The brand name `"Spotiglass"` itself (surrounding chrome like "Spotiglass
-  Settings" *is* translated — "Configuración de Spotiglass" /
-  "Spotiglass-Einstellungen").
+- The brand name `"Spotiglass"` itself (surrounding chrome like "Wax
+  Settings" *is* translated — "Configuración de Wax" /
+  "Wax-Einstellungen").
 - Keymap config tokens (`"cmd"`, `"shift"`, `"return"`, …) in `keymap.json`.
 - Debug logs (`SpotiglassLog.info`, etc.) and `#Preview` / `#if DEBUG` code paths.
 

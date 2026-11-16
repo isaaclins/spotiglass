@@ -1,6 +1,6 @@
 # Data storage
 
-Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain for web playback context — only short-lived access tokens are exposed to the hidden `WKWebView`.
+Wax keeps minimal state on disk. Refresh tokens never leave the Keychain for web playback context — only short-lived access tokens are exposed to the hidden `WKWebView`.
 
 ## Local storage summary
 
@@ -11,13 +11,13 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 | Client ID and granted OAuth scope | `UserDefaults` for `com.isaaclins.spotiglass`                                                                                           | Granted scope cleared on Disconnect; client ID kept so the next sign-in does not require re-pasting |
 | Added music services and the one on screen (`musicServices.added`, `musicServices.active`) | `UserDefaults` for `com.isaaclins.spotiglass` | Signing out of a service in Settings › Account removes it; deleting both sets them up again from the saved Spotify client ID |
 | Recent searches in the command palette (`palette.recentSearches`, the last five that led to a result, shared by Spotify and Apple Music) | `UserDefaults` for `com.isaaclins.spotiglass` | **Clear** next to "Recent searches" in the palette; Disconnect keeps them. Screenshot mode keeps its own in memory only |
-| User settings (keybinds + appearance) | `~/.config/spotiglass/settings.json` — single dotfile holding keybinds, app appearance (color scheme), and command palette backdrop | Delete the file (Spotiglass rewrites defaults on next launch)                                       |
+| User settings (keybinds + appearance) | `~/.config/spotiglass/settings.json` — single dotfile holding keybinds, app appearance (color scheme), and command palette backdrop | Delete the file (Wax rewrites defaults on next launch)                                       |
 | Cached playlists / tracks         | `~/Library/Application Support/Spotiglass/SpotifyCache/` (sandbox is disabled, so this is the user-visible Application Support folder)  | Disconnect; same auth failures as above                                                             |
 | Sidebar pins (per account)        | `~/Library/Application Support/Spotiglass/SpotifyCache/pinned/<userID>.json` - one JSON array per account (`userID` is the Spotify user id; Apple Music's pins use `apple-music-library`) | **Disconnect** clears the in-memory pins but preserves these per-account files. A later bind restores the same account's pins. |
 | Cached Web API GET bodies        | `~/Library/Application Support/Spotiglass/SpotifyCache/get_responses/` (SHA256-named JSON; public search, artist and album-track pages - short TTL) | Public catalog responses survive **Disconnect**. Private `/v1/me` responses are not cached. |
 | Artwork image blobs               | `~/Library/Caches/Spotiglass/Artwork/` (SHA256-named files); HTTP layer also uses `~/Library/Caches/Spotiglass/ArtworkURLCache/`       | Disconnect (cleared with Spotify cache); eviction trims disk blobs when the artwork folder exceeds ~50 MB                           |
 | LRCLIB lyrics (per track id)        | `~/Library/Application Support/Spotiglass/LyricsCache/<trackId>.json` (resolved ``FetchedLyrics`` from LRCLIB)                        | Delete files in that folder, or remove the whole `LyricsCache` directory, to drop on-disk lyrics only (does not affect playlist cache) |
-| Web Playback SDK web data         | Non-persistent `WKWebView` data store (in-memory for that session)                                                                      | Quitting Spotiglass                                                                                 |
+| Web Playback SDK web data         | Non-persistent `WKWebView` data store (in-memory for that session)                                                                      | Quitting Wax                                                                                 |
 
 ### `settings.json` shape
 
@@ -37,7 +37,7 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 }
 ```
 
-Hand-edits to the file are picked up live by Spotiglass via a file-system watcher.
+Hand-edits to the file are picked up live by Wax via a file-system watcher.
 
 
 ## Cache behavior
@@ -47,7 +47,7 @@ Hand-edits to the file are picked up live by Spotiglass via a file-system watche
 - Keyed by playlist and Spotify snapshot ID for saved tracks.
 - Short TTL (five minutes by default) for treating cached tracks as still valid for instant display.
 - **Stale-while-revalidate**: opening a playlist shows cached tracks immediately when the snapshot and TTL match; the app still refreshes from the Spotify Web API in the background and updates the UI when new data arrives. A manual **Refresh** from the toolbar or ⌘R (for the active playlist or detail surface), or changing the playlist snapshot, invalidates or bypasses the soft cache as before.
-- **Playlist list**: on launch, if the on-disk playlist list is newer than about **30 minutes**, Spotiglass skips an automatic `GET /v1/me/playlists` round-trip and only loads tracks for the current selection (still subject to track-cache rules above). Older lists still trigger a refresh. Use **Refresh** (⌘R) from Home or the toolbar when you need the latest sidebar immediately.
+- **Playlist list**: on launch, if the on-disk playlist list is newer than about **30 minutes**, Wax skips an automatic `GET /v1/me/playlists` round-trip and only loads tracks for the current selection (still subject to track-cache rules above). Older lists still trigger a refresh. Use **Refresh** (⌘R) from Home or the toolbar when you need the latest sidebar immediately.
 - Does not contain tokens or credentials.
 
 ### Web API GET response cache (`get_responses/`)
@@ -64,4 +64,4 @@ Logs surfaced via playback diagnostics contain SDK status strings only — never
 
 ## Troubleshooting Keychain errors
 
-If sign-in fails with a message about **Keychain**, **macOS blocked access**, or a **security error code**, try: unlock your Mac and retry; use **Disconnect** then **Connect** again; reinstall Spotiglass from the same distribution you used before (Keychain items are tied to the app’s code signature). When reporting an issue, include the numeric **security error** code shown in the message if present.
+If sign-in fails with a message about **Keychain**, **macOS blocked access**, or a **security error code**, try: unlock your Mac and retry; use **Disconnect** then **Connect** again; reinstall Wax from the same distribution you used before (Keychain items are tied to the app’s code signature). When reporting an issue, include the numeric **security error** code shown in the message if present.

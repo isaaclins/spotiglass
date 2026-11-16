@@ -176,7 +176,7 @@ final class ArtworkImageStoreTests: XCTestCase {
             )
         )
         XCTAssertTrue(
-            ArtworkImageStore.defaultDiskDirectory.path.hasSuffix("/\(AppMetadata.displayName)/Artwork"),
+            ArtworkImageStore.defaultDiskDirectory.path.hasSuffix("/\(AppMetadata.storageDirectoryName)/Artwork"),
             "The shared store and the synchronous read must resolve the same cache directory"
         )
     }

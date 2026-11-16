@@ -492,7 +492,7 @@
 		728E7A0E2FEAA72E00FB3C01 /* HomeFeedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedComponents.swift; sourceTree = "<group>"; };
 		728E7A102FEAA74600FB3C01 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		728E7A122FEAA80B00FB3C01 /* PlaylistBrowserHomeFeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserHomeFeedTests.swift; sourceTree = "<group>"; };
-		A10000000000000000000010 /* Spotiglass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotiglass.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000010 /* Spotiglass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wax.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000011 /* SpotiglassApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassApp.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080019 /* SpotiglassMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassMenuCommands.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -2356,13 +2356,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Spotiglass/App/SparkleInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleDisplayName = Wax;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Wax;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Wax asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2370,7 +2370,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.8.48;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Wax;
+				PRODUCT_MODULE_NAME = Spotiglass;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -2392,13 +2393,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Spotiglass/App/SparkleInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleDisplayName = Wax;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Wax;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Wax asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2406,7 +2407,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.8.48;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Wax;
+				PRODUCT_MODULE_NAME = Spotiglass;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -2431,7 +2433,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Wax.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Wax";
 			};
 			name = Debug;
 		};
@@ -2454,7 +2456,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Wax.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Wax";
 			};
 			name = Release;
 		};

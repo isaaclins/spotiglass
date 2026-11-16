@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Spotiglass Playback Host</title>
+  <title>Wax Playback Host</title>
   <script src="https://sdk.scdn.co/spotify-player.js"></script>
 </head>
 <body>
@@ -24,7 +24,7 @@
 
       window.onSpotifyWebPlaybackSDKReady = () => {
         player = new Spotify.Player({
-          name: 'Spotiglass',
+          name: 'Wax',
           getOAuthToken: async callback => {
             try {
               const response = await requestToken(false);

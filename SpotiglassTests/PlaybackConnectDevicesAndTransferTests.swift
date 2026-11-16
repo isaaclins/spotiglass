@@ -326,7 +326,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
                 deviceID: "sdk-device",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer"
             ),
             isPlaying: false
@@ -982,7 +982,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             deviceID: "device-1",
             isActive: true,
             isRestricted: false,
-            name: "Spotiglass",
+            name: "Wax",
             type: "computer"
         )
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))

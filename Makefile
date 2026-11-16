@@ -14,8 +14,8 @@ PROJECT       := Spotiglass.xcodeproj
 SCHEME        := Spotiglass
 DESTINATION   := platform=macOS
 DERIVED_DATA  := build/DerivedData
-DEBUG_APP     := $(DERIVED_DATA)/Build/Products/Debug/Spotiglass.app
-RELEASE_APP   := $(DERIVED_DATA)/Build/Products/Release/Spotiglass.app
+DEBUG_APP     := $(DERIVED_DATA)/Build/Products/Debug/Wax.app
+RELEASE_APP   := $(DERIVED_DATA)/Build/Products/Release/Wax.app
 
 # Keep standalone driver bundles versioned with the project so install policy
 # can tell a new payload from a driver left by an older app release.
@@ -125,7 +125,7 @@ build-driver:
 	DRIVER_CODESIGN_KEYCHAIN="$(HOME)/Library/Keychains/login.keychain-db" \
 	SPOTIGLASS_EQ_DEBUG=$(SPOTIGLASS_EQ_DEBUG) ./SpotiglassEQDriver/build-driver.sh
 
-# Builds the .driver and copies it into the Debug Spotiglass.app at
+# Builds the .driver and copies it into the Debug Wax.app at
 # Contents/Library/Audio/Plug-Ins/HAL/. After this, the app's
 # EqualizerHALPluginController can find the embedded driver and ask its
 # registered privileged helper to install it into the system HAL directory.
@@ -176,8 +176,8 @@ install-driver: build-driver sign-driver
 	sudo killall coreaudiod || true
 	@sleep 3
 	@echo
-	@if system_profiler SPAudioDataType 2>/dev/null | grep -q "Spotiglass EQ"; then \
-		echo "OK: coreaudiod loaded the driver. Spotiglass EQ should appear in System Settings → Sound → Output."; \
+	@if system_profiler SPAudioDataType 2>/dev/null | grep -q "Wax EQ"; then \
+		echo "OK: coreaudiod loaded the driver. Wax EQ should appear in System Settings → Sound → Output."; \
 	else \
 		echo "WARNING: coreaudiod did not pick up the driver. Check system logs for the failure reason."; \
 	fi

@@ -54,7 +54,7 @@ stand-in. That run uses your own Apple Music library through MusicKit and the sy
 prompt, so it keeps the real bundle id (MusicKit issues its token for that id only); the real
 app's preferences are saved at `start` and put back at `stop`. It also needs the identity `make
 build` signs with (`LOCAL_SIGN_IDENTITY`, else Developer ID Application, else Apple Development,
-else "Spotiglass Local Dev"), unlocked: macOS keeps one Apple Music permission per bundle id, so a
+else "Wax Local Dev"), unlocked: macOS keeps one Apple Music permission per bundle id, so a
 copy signed any other way under the real id would take it over from the signed app (and from `make
 test`'s test host, #520). Without it, `start --with-apple-music` stops before it builds or changes
 anything. Without the option screenshot mode never reaches MusicKit.
@@ -105,9 +105,9 @@ terminal you run the script from.
 
 ## Where the run's data goes
 
-The script builds the Debug app, copies it to `build/screenshot-mode/Spotiglass.app` with the
+The script builds the Debug app, copies it to `build/screenshot-mode/Wax.app` with the
 bundle id `com.isaaclins.spotiglass.screenshots` and an ad-hoc signature, and launches it with
 `CFFIXED_USER_HOME=build/screenshot-mode/home`. Settings, caches and logs therefore land in that
-folder and preferences in their own domain, never in your real Spotiglass data. `stop` deletes
+folder and preferences in their own domain, never in your real Wax data. `stop` deletes
 both. The client ID is passed as a launch argument (`-spotify.clientID screenshot-mode`) and is
 not saved.

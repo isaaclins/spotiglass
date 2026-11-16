@@ -67,7 +67,7 @@ final class LocalizationCoverageTests: XCTestCase {
         // Authentication
         ("auth.clientID.hint", "auth.clientID.hint", "Paste the client ID from your Spotify Developer Dashboard app. This public identifier is always visible so you can verify it before signing in.", "Pega el ID de cliente de tu app en el Spotify Developer Dashboard. Este identificador público siempre está visible para que puedas verificarlo antes de iniciar sesión.", "Fügen Sie die Client-ID aus Ihrer App im Spotify Developer Dashboard ein. Diese öffentliche Kennung ist immer sichtbar, damit Sie sie vor der Anmeldung prüfen können."),
         ("auth.callback.response.invalidRequest", "auth.callback.response.invalidRequest", "Invalid Spotify callback.", "Respuesta de Spotify no válida.", "Ungültiger Spotify-Rückruf."),
-        ("auth.callback.response.success", "auth.callback.response.success", "Spotify sign-in is complete. You can return to Spotiglass.", "El inicio de sesión de Spotify se completó. Puedes volver a Spotiglass.", "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Spotiglass zurückkehren."),
+        ("auth.callback.response.success", "auth.callback.response.success", "Spotify sign-in is complete. You can return to Wax.", "El inicio de sesión de Spotify se completó. Puedes volver a Wax.", "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Wax zurückkehren."),
         ("auth.callback.response.failure", "auth.callback.response.failure", "Spotify sign-in could not be completed.", "No se pudo completar el inicio de sesión de Spotify.", "Die Spotify-Anmeldung konnte nicht abgeschlossen werden."),
 
         // Breadcrumb / Account
@@ -455,7 +455,7 @@ final class LocalizationCoverageTests: XCTestCase {
     }
 
     /// Spotify sends removed tracks, deleted artists and untitled playlists without a name, and
-    /// Spotiglass put an English stand-in there that stayed English in German and Spanish, also
+    /// Wax put an English stand-in there that stayed English in German and Spanish, also
     /// in caches and pins saved before a language switch (#547). Decodes the real shapes, plus
     /// caches earlier builds wrote with the English stand-in saved as the name, and reads every
     /// surface in each language. Real names that look like a stand-in are left alone.

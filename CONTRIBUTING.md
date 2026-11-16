@@ -1,4 +1,4 @@
-# Contributing to Spotiglass
+# Contributing to Wax
 
 Thank you for your interest in improving Spotiglass. This project is a personal
 macOS client for Spotify and Apple Music; contributions are welcome within the scope below.

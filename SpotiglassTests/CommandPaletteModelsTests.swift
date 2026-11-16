@@ -62,11 +62,11 @@ final class CommandPaletteModelsTests: XCTestCase {
 
     // MARK: - Service wording and ranking (#397)
 
-    /// ">spot" listed "Open Settings" first, because its subtitle starts with "Spotiglass",
+    /// ">spot" listed "Open Settings" first, because its subtitle starts with "Wax",
     /// above "Switch to Spotify", whose title has a word starting with "spot".
     func testANameMatchRanksAboveASubtitleMatch() {
         let settings = CommandPaletteItem(
-            id: "settings", title: "Open Settings", subtitle: "Spotiglass preferences and shortcuts",
+            id: "settings", title: "Open Settings", subtitle: "Wax preferences and shortcuts",
             iconSystemName: "gearshape", section: .commands, keywords: [], action: {}
         )
         let switchToSpotify = CommandPaletteItem(

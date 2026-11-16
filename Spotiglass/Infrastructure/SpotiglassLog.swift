@@ -1,7 +1,7 @@
 import Foundation
 import os
 
-/// Unified logging for Spotiglass. Mirrors every message to:
+/// Unified logging for Wax. Mirrors every message to:
 ///   1. Apple's unified log (Console.app, subsystem `com.isaaclins.spotiglass`).
 ///   2. A plain-text file under `Application Support/Spotiglass/Logs/spotiglass.log`.
 ///      Each launch starts a fresh `spotiglass.log` and rotates the prior session
@@ -93,7 +93,7 @@ private final class FileLogSink {
             guard let handle = try? FileHandle(forWritingTo: url) else { return }
             self.handle = handle
             self.fileURL = url
-            let header = "=== Spotiglass log started \(Self.formatter.string(from: Date())) ===\n"
+            let header = "=== Wax log started \(Self.formatter.string(from: Date())) ===\n"
             try? handle.write(contentsOf: Data(header.utf8))
         }
     }

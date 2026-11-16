@@ -8,19 +8,19 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass bittet Musik, Titel zu entfernen und deine Playlists zu bearbeiten. Apple Music erlaubt das nur über die Musik-App."
+            "value" : "Wax bittet Musik, Titel zu entfernen und deine Playlists zu bearbeiten. Apple Music erlaubt das nur über die Musik-App."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app."
+            "value" : "Wax asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass pide a Música que quite canciones y edite tus listas, algo que Apple Music solo permite desde la app Música."
+            "value" : "Wax pide a Música que quite canciones y edite tus listas, algo que Apple Music solo permite desde la app Música."
           }
         }
       }
@@ -32,19 +32,19 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass zeigt deine Apple Music Mediathek, Playlists und Empfehlungen."
+            "value" : "Wax zeigt deine Apple Music Mediathek, Playlists und Empfehlungen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass shows your Apple Music library, playlists and recommendations."
+            "value" : "Wax shows your Apple Music library, playlists and recommendations."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spotiglass muestra tu biblioteca, tus listas y tus recomendaciones de Apple Music."
+            "value" : "Wax muestra tu biblioteca, tus listas y tus recomendaciones de Apple Music."
           }
         }
       }

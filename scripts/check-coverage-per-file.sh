@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check per-file region coverage for Spotiglass.app sources.
+# Check per-file region coverage for Wax.app sources.
 # Usage: ./scripts/check-coverage-per-file.sh [path/to/cov.xcresult]
 # Env: COVERAGE_THRESHOLD (default 80), COVERAGE_ALLOWLIST (default scripts/coverage-allowlist.json)
 
@@ -42,7 +42,7 @@ if allowlist_path.is_file():
 app_target = None
 for target in data.get("targets", []):
     name = target.get("name", "")
-    if name.endswith("Spotiglass.app") or name == "Spotiglass.app":
+    if name.endswith("Wax.app") or name == "Wax.app":
         app_target = target
         break
 if app_target is None:

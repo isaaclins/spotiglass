@@ -16,7 +16,7 @@ enum EqualizerRouterStatus: Equatable {
 ///
 /// - Ask the privileged helper to copy the `.driver` bundle into the system
 ///   HAL directory when it is missing, stale, or damaged.
-/// - Switch the system default output device to "Spotiglass EQ" on enable.
+/// - Switch the system default output device to "Wax EQ" on enable.
 /// - Restore the previously-active default output on disable.
 /// - Uninstall (remove the `.driver` from disk) on user request.
 ///
@@ -34,7 +34,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// AudioServerPlugIn `Info.plist` key.
     nonisolated static let driverBundleID = "com.isaaclins.spotiglass.eqdriver"
     nonisolated static let driverBundleName = "SpotiglassEQDriver.driver"
-    nonisolated static let virtualDeviceName = "Spotiglass EQ"
+    nonisolated static let virtualDeviceName = "Wax EQ"
 
     /// Stable pre-EQ output identity. Unlike an ``AudioObjectID``, a device UID
     /// survives a process restart and CoreAudio device re-enumeration.
@@ -159,7 +159,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     }
 
     /// On first enable, installs or repairs the `.driver` and routes the
-    /// system default output to the Spotiglass virtual device. The helper
+    /// system default output to the Wax virtual device. The helper
     /// restarts `coreaudiod`; this method waits briefly for device enumeration
     /// before beginning the route. NEVER asks for microphone permission.
     ///
@@ -167,7 +167,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// target to a previously-saved device UID, which is what makes the
     /// Settings → "Send EQ'd audio to" picker survive a disable→enable cycle.
     /// When nil, falls back to the previous default output (or the built-in
-    /// speaker if that would loop Spotiglass EQ back to itself).
+    /// speaker if that would loop Wax EQ back to itself).
     @discardableResult
     func enable(preferredForwardingUID: String? = nil) throws -> String {
         try installIfNeeded()
@@ -190,7 +190,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         try captureCurrentDefaultOutput(virtualDeviceID: deviceID)
         // Always write the forwarding target so the driver's EQRouter has
         // somewhere to send the EQ'd audio. The previous default's UID is
-        // only relevant when it isn't Spotiglass EQ itself (otherwise the
+        // only relevant when it isn't Wax EQ itself (otherwise the
         // EQ would route to itself and recurse forever).
         let previousUID: String? = {
             if previousDefaultOutputID == deviceID { return nil }
@@ -452,7 +452,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     }
 
     /// Enumerates output-only devices the user can plausibly route EQ'd
-    /// audio TO. Excludes Spotiglass EQ itself (would recurse) and any
+    /// audio TO. Excludes Wax EQ itself (would recurse) and any
     /// input-only devices. Used by the Settings UI dropdown.
     func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
         AudioDeviceEnumerator.allOutputDevices()
@@ -672,7 +672,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
 
     // MARK: - Device-routing internals
 
-    /// Returns the AudioObjectID for the Spotiglass EQ virtual device, or nil
+    /// Returns the AudioObjectID for the Wax EQ virtual device, or nil
     /// if coreaudiod hasn't picked up the new `.driver` yet.
     func lookupSpotiglassEQDeviceID() -> AudioObjectID? {
         virtualDeviceIDProvider()
@@ -681,7 +681,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private func captureCurrentDefaultOutput(virtualDeviceID: AudioObjectID) throws {
         let deviceID = try currentDefaultOutputDeviceID()
         if deviceID == virtualDeviceID {
-            // A relaunch starts with Spotiglass EQ still selected as the system
+            // A relaunch starts with Wax EQ still selected as the system
             // default. Keep the durable hardware UID instead of overwriting it
             // with the virtual device's identity.
             previousDefaultOutputUID = previousDefaultOutputUID ?? Self.readDefaultOutputBackup(
@@ -929,7 +929,7 @@ enum EqualizerHALPluginError: LocalizedError {
         case let .driverInstallationFailed(diagnostic):
             return diagnostic
         case .driverInstallApprovalRequired:
-            return "Spotiglass is not allowed to run in the background, so launchd refused to register the equalizer helper"
+            return "Wax is not allowed to run in the background, so launchd refused to register the equalizer helper"
         case let .driverNotLoadedYet(installedPath):
             return "installed driver: \(installedPath)\ncoreaudiod did not enumerate the driver after the helper restart"
         case let .coreAudioStatus(status):

@@ -1,4 +1,4 @@
-# Spotiglass EQ — proof bundle
+# Wax EQ — proof bundle
 
 What's automatically verified by XCTest, and what still requires a manual
 walkthrough (`scripts/eq-qa.sh`) once a signed driver and privileged helper
@@ -24,7 +24,7 @@ Plus:
 |---|---|
 | `scripts/eq-mic-permission-audit.sh` | Zero hits for microphone, process-tap, and input-scope APIs in the EQ code. |
 | `SpotiglassEQDriver/build-driver.sh` | The C/C++ plugin compiles cleanly against the macOS SDK and produces a Mach-O universal bundle. |
-| `make embed-driver` | The built `.driver` lands at `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`. |
+| `make embed-driver` | The built `.driver` lands at `Wax.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`. |
 
 ## Manually verified by user
 
@@ -35,8 +35,8 @@ These require a real audio environment and a signed, notarized build:
    the driver to `/Library/Audio/Plug-Ins/HAL/`.
 2. **CoreAudio restart** — the helper restarts `coreaudiod` and the virtual
    device is re-enumerated without a shell command or log-out.
-3. **Device-visible** — System Settings → Sound → Output lists Spotiglass EQ.
-4. **Default-route** — the default output switches to Spotiglass EQ.
+3. **Device-visible** — System Settings → Sound → Output lists Wax EQ.
+4. **Default-route** — the default output switches to Wax EQ.
 5. **Preset: Flat … Loudness** — the DSP math is covered by XCTest; listening
    confirms the expected tonal changes.
 6. **Save, reload, and delete preset** — the saved curve survives relaunch and
@@ -52,7 +52,7 @@ unsigned CI build. They need a signed build running on a real Mac.
 ## The equalizer needs a notarized build, not merely a signed one
 
 The privileged helper is a LaunchDaemon, and macOS enforces a launch constraint
-for one. Two identities that look reasonable both fail before any Spotiglass
+for one. Two identities that look reasonable both fail before any Wax
 code runs:
 
 - **Apple Development.** `register()` succeeds and launchd submits the job, then
