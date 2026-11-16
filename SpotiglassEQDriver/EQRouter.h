@@ -53,8 +53,13 @@ void EQRouter_PublishReadyStatus(const char* target_uid);
 void EQRouter_PublishFailureStatus(const char* target_uid, int reason_code);
 
 // Push interleaved stereo Float32 frames from the EQ device's IO callback
-// into the router's lock-free ring. Drops oldest frames if the ring is full.
+// into the router's lock-free ring (see EQRouterRing_Push).
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames);
+
+// Frames the router's ring has thrown away (overrun) or played as silence
+// after it first had sound (underrun), since the router opened.
+uint64_t EQRouter_DroppedFrames(EQRouter* router);
+uint64_t EQRouter_SilentFrames(EQRouter* router);
 
 // Returns the UID the router is currently forwarding to. Buffer is owned by
 // the router and stable until the router is closed. Used by the watcher
@@ -71,6 +76,47 @@ uint32_t EQRouter_TargetDevice(EQRouter* router);
 void EQRouter_Close(EQRouter* router);
 
 #ifdef __cplusplus
+}
+
+#include <atomic>
+
+// 16384 stereo frames: ~340 ms at 48 kHz of room. The consumer keeps the fill
+// near kEQRouterRingTargetFill (~43 ms at 48 kHz), so the extra room only
+// matters when one side stalls.
+constexpr size_t kEQRouterRingFrames = 16384;
+constexpr size_t kEQRouterRingTargetFill = 2048;
+constexpr size_t kEQRouterRingFillTolerance = 256;
+constexpr double kEQRouterRingFillSmoothing = 0.01;
+
+/// The single-producer / single-consumer ring between the EQ device's IO
+/// callback (producer, EQRouterRing_Push) and the target device's IOProc
+/// (consumer, EQRouterRing_Pull). Only the consumer moves read_pos.
+struct EQRouterRing {
+    float buffer[kEQRouterRingFrames * 2] = {};
+    std::atomic<size_t> read_pos{0};
+    std::atomic<size_t> write_pos{0};
+    /// Set by a producer that overran the ring: where the consumer should
+    /// resume reading.
+    std::atomic<size_t> trim_to{0};
+    // Consumer-only state.
+    bool priming = true;
+    double average_fill = 0.0;
+    bool has_last_frame = false;
+    float last_frame[2] = {0.0f, 0.0f};
+    // Counters for diagnostics and tests.
+    std::atomic<uint64_t> dropped_frames{0};
+    std::atomic<uint64_t> silent_frames{0};
+    std::atomic<uint64_t> slipped_frames{0};
+};
+
+extern "C" {
+void EQRouterRing_Reset(EQRouterRing* ring);
+// Producer side. Overrunning the ring loses the oldest frames and asks the
+// consumer to start over at the target fill.
+void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames);
+// Consumer side: fills one output cycle. Returns nonzero when the output
+// layout is unsupported.
+int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data);
 }
 
 #include <atomic>

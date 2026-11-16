@@ -6,12 +6,15 @@
 // target. run-driver-tests.sh compiles this against EQRouter.cpp and runs it.
 // EQRouter_OpenWithError is never called, so nothing here touches CoreAudio devices.
 
+#include "../EQClock.h"
 #include "../EQRouter.h"
 
 #include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <pthread.h>
+#include <cmath>
+#include <cstdlib>
 #include <vector>
 
 namespace {
@@ -240,6 +243,172 @@ void testLifetimeRetirementWaitsForConcurrentReaders() {
            "a reader never observes a torn or null router across a swap");
 }
 
+
+// MARK: - Two clocks (#590)
+
+// What the target device heard: frames are numbered (stored as two floats so
+// the number survives exactly), silence is (0, 0).
+struct Playback {
+    uint64_t silentAfterStart = 0;  // silent frames once sound had started
+    uint64_t skipped = 0;           // single frames left out
+    uint64_t repeated = 0;          // single frames played twice
+    uint64_t cuts = 0;              // places where more than one frame went missing
+    uint64_t longestCut = 0;
+    uint64_t frames = 0;
+};
+
+void encode(uint64_t number, float* out) {
+    out[0] = static_cast<float>(number % 4096);
+    out[1] = static_cast<float>(number / 4096);
+}
+
+// The EQ device pushes `producerChunk` frames at `producerRate`, the target
+// pulls `consumerChunk` frames at `consumerRate`, for `seconds`. Each side runs
+// on its own clock, like the Mac's host clock and the speakers' crystal.
+Playback playTwoClocks(double producerRate, size_t producerChunk,
+                       double consumerRate, size_t consumerChunk,
+                       double seconds) {
+    auto* ring = new EQRouterRing();
+    EQRouterRing_Reset(ring);
+    Playback result;
+    std::vector<float> in(producerChunk * 2);
+    std::vector<float> out(consumerChunk * 2);
+    AudioBufferList list{};
+    list.mNumberBuffers = 1;
+    list.mBuffers[0].mNumberChannels = 2;
+    list.mBuffers[0].mDataByteSize = static_cast<UInt32>(out.size() * sizeof(float));
+    list.mBuffers[0].mData = out.data();
+
+    uint64_t produced = 0;
+    uint64_t pushes = 0;
+    uint64_t pulls = 0;
+    bool started = false;
+    uint64_t last = 0;
+    while (true) {
+        const double nextPush = static_cast<double>(pushes) * producerChunk / producerRate;
+        const double nextPull = static_cast<double>(pulls) * consumerChunk / consumerRate;
+        if (nextPush > seconds && nextPull > seconds) break;
+        if (nextPush <= nextPull) {
+            for (size_t i = 0; i < producerChunk; ++i) encode(++produced, &in[i * 2]);
+            EQRouterRing_Push(ring, in.data(), producerChunk);
+            pushes += 1;
+            continue;
+        }
+        expect(EQRouterRing_Pull(ring, &list) == 0, "the ring fills an output cycle");
+        pulls += 1;
+        for (size_t i = 0; i < consumerChunk; ++i) {
+            const float* frame = &out[i * 2];
+            if (frame[0] == 0.0f && frame[1] == 0.0f) {
+                if (started) result.silentAfterStart += 1;
+                continue;
+            }
+            const uint64_t number = static_cast<uint64_t>(frame[1]) * 4096 + static_cast<uint64_t>(frame[0]);
+            if (started) {
+                if (number == last) {
+                    result.repeated += 1;
+                } else if (number == last + 2) {
+                    result.skipped += 1;
+                } else if (number != last + 1) {
+                    result.cuts += 1;
+                    const uint64_t gap = number > last ? number - last - 1 : last - number + 1;
+                    if (gap > result.longestCut) result.longestCut = gap;
+                }
+            }
+            started = true;
+            last = number;
+            result.frames += 1;
+        }
+    }
+    delete ring;
+    return result;
+}
+
+void testSameRateWithClockDriftPlaysWithoutCuts() {
+    // Ten minutes, the speakers' crystal 80 ppm slow and then 80 ppm fast
+    // against the host clock: before #590 the ring overflowed (or ran dry)
+    // every few minutes and dropped a whole IO buffer (or played silence).
+    for (const double drift : {-80e-6, 80e-6}) {
+        const Playback heard = playTwoClocks(48000.0, 512, 48000.0 * (1.0 + drift), 512, 600.0);
+        expect(heard.cuts == 0, "clock drift never cuts frames out");
+        expect(heard.silentAfterStart == 0, "clock drift never plays silence once sound started");
+        const uint64_t slips = heard.skipped + heard.repeated;
+        // 80 ppm of 10 min at 48 kHz is ~2300 frames to make up, one at a time.
+        expect(slips > 1500 && slips < 4000, "the drift is made up one frame at a time");
+        if (heard.cuts != 0 || heard.silentAfterStart != 0) {
+            std::fprintf(stderr, "  drift %+.0f ppm: cuts=%llu longest=%llu silent=%llu slips=%llu\n",
+                         drift * 1e6,
+                         static_cast<unsigned long long>(heard.cuts),
+                         static_cast<unsigned long long>(heard.longestCut),
+                         static_cast<unsigned long long>(heard.silentAfterStart),
+                         static_cast<unsigned long long>(slips));
+        }
+    }
+}
+
+void testDifferentBufferSizesWithDriftPlayWithoutCuts() {
+    // The EQ device and the speakers rarely use the same IO buffer size.
+    const Playback heard = playTwoClocks(48000.0, 512, 48000.0 * (1.0 + 50e-6), 441, 300.0);
+    expect(heard.cuts == 0, "mismatched buffer sizes never cut frames out");
+    expect(heard.silentAfterStart == 0, "mismatched buffer sizes never play silence");
+}
+
+void testAStoppedTargetStartsOverAtTheTargetFill() {
+    // The target stops pulling for a second (unplugged, asleep): the ring
+    // overruns, and when it comes back it plays the newest sound from the
+    // target fill, not ~340 ms of stale audio.
+    auto* ring = new EQRouterRing();
+    EQRouterRing_Reset(ring);
+    std::vector<float> in(512 * 2);
+    std::vector<float> out(512 * 2);
+    AudioBufferList list{};
+    list.mNumberBuffers = 1;
+    list.mBuffers[0].mNumberChannels = 2;
+    list.mBuffers[0].mDataByteSize = static_cast<UInt32>(out.size() * sizeof(float));
+    list.mBuffers[0].mData = out.data();
+    uint64_t produced = 0;
+    for (int i = 0; i < 100; ++i) {
+        for (size_t f = 0; f < 512; ++f) encode(++produced, &in[f * 2]);
+        EQRouterRing_Push(ring, in.data(), 512);
+    }
+    EQRouterRing_Pull(ring, &list);
+    const uint64_t first = static_cast<uint64_t>(out[1]) * 4096 + static_cast<uint64_t>(out[0]);
+    expect(first == produced - kEQRouterRingTargetFill + 1, "after an overrun the target resumes at the target fill");
+    expect(ring->dropped_frames.load() > 0, "the overrun is counted");
+    delete ring;
+}
+
+void testZeroTimeStampsAdvanceAtTheDeviceRate() {
+    // Before #590 every timestamp had StartIO's host time with the samples
+    // elapsed since then: coreaudiod saw a device that never moved in time.
+    EQZeroTimeStampClock clock;
+    const double ticksPerSecond = 24.0e6;  // Apple silicon's mach timebase
+    EQClock_Reset(&clock, 1000, ticksPerSecond, 48000.0);
+    double previousSample = -1.0;
+    uint64_t previousHost = 0;
+    for (uint64_t now = 1000; now < 1000 + static_cast<uint64_t>(10.0 * ticksPerSecond); now += 7919) {
+        double sample = 0;
+        uint64_t host = 0;
+        EQClock_ZeroTimeStamp(&clock, now, &sample, &host);
+        expect(host <= now, "a zero timestamp is never in the future");
+        expect(std::fmod(sample, kEQZeroTimeStampPeriod) == 0.0, "zero timestamps fall on period boundaries");
+        if (previousSample >= 0.0 && sample != previousSample) {
+            expect(sample - previousSample == kEQZeroTimeStampPeriod, "timestamps advance one period at a time");
+            const double rate = (sample - previousSample) / (static_cast<double>(host - previousHost) / ticksPerSecond);
+            expect(std::fabs(rate - 48000.0) < 1.0, "the host time between timestamps matches the device rate");
+        }
+        previousSample = sample;
+        previousHost = host;
+    }
+    expect(previousSample >= 9.0 * 48000.0 - kEQZeroTimeStampPeriod, "ten seconds of timestamps cover ten seconds of samples");
+}
+
+void testTheEQDeviceFollowsASupportedTargetRate() {
+    const double supported[] = {44100.0, 48000.0, 88200.0, 96000.0, 192000.0};
+    expect(EQClock_MatchingRate(44100.0, supported, 5) == 44100.0, "a 44.1 kHz target makes the EQ device 44.1 kHz");
+    expect(EQClock_MatchingRate(96000.0, supported, 5) == 96000.0, "a 96 kHz target makes the EQ device 96 kHz");
+    expect(EQClock_MatchingRate(32000.0, supported, 5) == 0.0, "an unsupported target rate leaves the EQ device alone");
+}
+
 }  // namespace
 
 int main() {
@@ -255,6 +424,12 @@ int main() {
     testLifetimePublishesAndRetires();
     testLifetimeAcquireOnEmptyDoesNotLeakALease();
     testLifetimeRetirementWaitsForConcurrentReaders();
+
+    testSameRateWithClockDriftPlaysWithoutCuts();
+    testDifferentBufferSizesWithDriftPlayWithoutCuts();
+    testAStoppedTargetStartsOverAtTheTargetFill();
+    testZeroTimeStampsAdvanceAtTheDeviceRate();
+    testTheEQDeviceFollowsASupportedTargetRate();
 
     if (gFailures == 0) {
         std::printf("driver router tests: all checks passed\n");

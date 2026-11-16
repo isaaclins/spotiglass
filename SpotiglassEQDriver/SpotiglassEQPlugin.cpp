@@ -44,6 +44,7 @@
 
 #include <atomic>
 
+#include "EQClock.h"
 #include "EQCoefficientReader.h"
 #include "EQRouter.h"
 #include "SpotiglassEQDSP.h"
@@ -66,6 +67,12 @@ namespace {
 // device range so the menu-bar slider's full travel maps to a useful range.
 constexpr Float32 kVolumeMinDB = -64.0f;
 constexpr Float32 kVolumeMaxDB = 0.0f;
+
+// The discrete rates kAudioDevicePropertyAvailableNominalSampleRates
+// advertises; the EQ device follows its target's rate when it is one of them.
+constexpr Float64 kSupportedSampleRates[] = { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 };
+constexpr UInt32 kNumSupportedSampleRates =
+    sizeof(kSupportedSampleRates) / sizeof(kSupportedSampleRates[0]);
 
 // CFString helpers for property handlers (used once the dispatcher lands).
 [[maybe_unused]] CFStringRef MakeStaticCFString(const char* s) {
@@ -93,6 +100,11 @@ struct PluginState {
     // ever-advancing timeline coreaudiod tears down the IO thread.
     UInt64 ioStartHostTime = 0;
     UInt64 ioStartSeed = 1;
+    // The zero-timestamp timeline, restarted by StartIO and by a rate change.
+    EQZeroTimeStampClock zeroClock{};
+    // A rate asked of coreaudiod with RequestDeviceConfigurationChange that it
+    // hasn't performed yet (0 when none), so the watcher asks only once.
+    std::atomic<UInt32> requestedSampleRateHz{0};
 
     // Forwards EQ-processed audio out to the real hardware output that was
     // active before the user routed default-output to Spotiglass EQ. Without
@@ -398,10 +410,40 @@ ULONG Release(void* /*self*/) { return 1; }
 // UID differs from the current router, opens a new router and atomically
 // publishes it. This lets the Settings UI switch where EQ'd audio goes
 // without requiring the user to toggle EQ off and back on.
+// The EQ device runs at the rate of the device it forwards to (#590). At
+// different rates the router got e.g. 48000 frames a second from the EQ
+// device while the speakers played 44100: the ring overflowed every second and
+// the music played fast, with a cut each time. The rate is checked on the
+// watcher's cadence, so a target picked later or a rate changed in Audio MIDI
+// Setup is followed too.
+void RequestSampleRate(UInt32 rate);
+
+void FollowTargetSampleRate() {
+    AudioObjectID target = kAudioObjectUnknown;
+    {
+        RouterLease current;
+        if (!current) return;
+        target = EQRouter_TargetDevice(current.get());
+    }
+    if (target == kAudioObjectUnknown) return;
+    AudioObjectPropertyAddress address = {
+        kAudioDevicePropertyNominalSampleRate,
+        kAudioObjectPropertyScopeGlobal,
+        kAudioObjectPropertyElementMain
+    };
+    Float64 targetRate = 0;
+    UInt32 size = sizeof(targetRate);
+    if (AudioObjectGetPropertyData(target, &address, 0, nullptr, &size, &targetRate) != noErr) return;
+    const double rate = EQClock_MatchingRate(targetRate, kSupportedSampleRates, kNumSupportedSampleRates);
+    if (rate > 0.0) RequestSampleRate(static_cast<UInt32>(rate));
+}
+
 void* TargetWatcherMain(void* /*unused*/) {
     while (true) {
         struct timespec ts = {0, 500 * 1000 * 1000}; // 500ms
         nanosleep(&ts, nullptr);
+
+        FollowTargetSampleRate();
 
         FILE* f = fopen("/tmp/com.isaaclins.spotiglass.eq.target", "r");
         if (!f) continue;
@@ -545,6 +587,37 @@ OSStatus Initialize(AudioServerPlugInDriverRef /*self*/, AudioServerPlugInHostRe
     return noErr;
 }
 
+double HostTicksPerSecond() {
+    static mach_timebase_info_data_t timebase = {0, 0};
+    if (timebase.denom == 0) mach_timebase_info(&timebase);
+    return 1.0e9 * static_cast<double>(timebase.denom) / static_cast<double>(timebase.numer);
+}
+
+// Call with stateLock held.
+void RestartZeroClock(UInt64 anchorHostTime) {
+    EQClock_Reset(
+        &gPlugin.zeroClock,
+        anchorHostTime,
+        HostTicksPerSecond(),
+        static_cast<double>(gPlugin.currentSampleRateHz.load(std::memory_order_acquire))
+    );
+}
+
+// Asks coreaudiod to move the EQ device to `rate`. It stops IO, calls
+// PerformDeviceConfigurationChange and starts IO again, which is the only
+// safe way to change the rate of a device that may be running.
+void RequestSampleRate(UInt32 rate) {
+    if (rate == gPlugin.currentSampleRateHz.load(std::memory_order_acquire)) return;
+    if (gPlugin.requestedSampleRateHz.exchange(rate, std::memory_order_acq_rel) == rate) return;
+    if (!gPlugin.host || !gPlugin.host->RequestDeviceConfigurationChange) {
+        gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
+        return;
+    }
+    if (gPlugin.host->RequestDeviceConfigurationChange(gPlugin.host, kDeviceObjectID, rate, nullptr) != noErr) {
+        gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
+    }
+}
+
 OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                  AudioObjectID /*deviceID*/,
                  UInt32 /*clientID*/) {
@@ -572,6 +645,7 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
     gPlugin.ioAccepting.store(true, std::memory_order_seq_cst);
     gPlugin.ioStartHostTime = mach_absolute_time();
     gPlugin.ioStartSeed++;
+    RestartZeroClock(gPlugin.ioStartHostTime);
 
     // Snapshot whether the router still needs opening, then release the
     // state lock before the call out. Calls back into coreaudiod while holding
@@ -660,9 +734,6 @@ OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
 // is mutable via SetPropertyData; the constants here are the discrete rates
 // kAudioDevicePropertyAvailableNominalSampleRates advertises.
 constexpr UInt32 kChannelsPerFrame = 2;
-constexpr Float64 kSupportedSampleRates[] = { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 };
-constexpr UInt32 kNumSupportedSampleRates =
-    sizeof(kSupportedSampleRates) / sizeof(kSupportedSampleRates[0]);
 
 constexpr const char* kPluginNameUTF8 = "Spotiglass EQ Driver";
 constexpr const char* kPluginManufacturerUTF8 = "Isaac Lins";
@@ -705,6 +776,10 @@ OSStatus PerformDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
         static_cast<UInt32>(changeAction),
         std::memory_order_release
     );
+    gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
+    // A new timeline: the seed tells coreaudiod the old timestamps are void.
+    gPlugin.ioStartSeed++;
+    RestartZeroClock(mach_absolute_time());
     EQDSP_Reset(&gPlugin.dsp); // clear z1/z2 history across rate change
     gPlugin.ioAccepting.store(gPlugin.ioRunning, std::memory_order_seq_cst);
     pthread_mutex_unlock(&gPlugin.stateLock);
@@ -1051,7 +1126,7 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             }
             case kAudioDevicePropertyIsHidden:               return putUInt32(0);
             case kAudioDevicePropertyZeroTimeStampPeriod:
-                return putUInt32(gPlugin.currentSampleRateHz.load(std::memory_order_acquire));
+                return putUInt32(kEQZeroTimeStampPeriod);
             case kAudioDevicePropertyPreferredChannelsForStereo: {
                 if (inSize < 2 * sizeof(UInt32)) return kAudioHardwareBadPropertySizeError;
                 UInt32* out = static_cast<UInt32*>(outData);
@@ -1169,12 +1244,9 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             if (newRate == kSupportedSampleRates[i]) { ok = true; break; }
         }
         if (!ok) return kAudioHardwareIllegalOperationError;
-        pthread_mutex_lock(&gPlugin.stateLock);
-        gPlugin.currentSampleRateHz.store(
-            static_cast<UInt32>(newRate),
-            std::memory_order_release
-        );
-        pthread_mutex_unlock(&gPlugin.stateLock);
+        // Through coreaudiod, which stops IO around the change; storing the
+        // rate here changed it under a running IO thread (#590).
+        RequestSampleRate(static_cast<UInt32>(newRate));
         return noErr;
     }
     // Stream format / IsActive: accept but no-op (we only support one format).
@@ -1226,27 +1298,20 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
 OSStatus GetZeroTimeStamp(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*deviceID*/,
                           UInt32 /*clientID*/, Float64* outSampleTime, UInt64* outHostTime,
                           UInt64* outSeed) {
-    // coreaudiod uses this to peg the device's sample-domain timeline to
-    // the host clock. Returning a static value makes coreaudiod think the
-    // device isn't advancing and it tears down the IO thread with
-    // `kAudioHardwareStoppedError`. Compute an ever-advancing sample count
-    // anchored at StartIO via mach_absolute_time.
-    static mach_timebase_info_data_t s_tb = {0, 0};
-    if (s_tb.denom == 0) mach_timebase_info(&s_tb);
+    // coreaudiod times the IO cycles from these (see EQClock.h). They have to
+    // keep advancing while IO runs, or it tears the IO thread down with
+    // `kAudioHardwareStoppedError`, and they have to advance at the device's
+    // rate, or it runs the cycles at the wrong pace.
     const UInt64 now = mach_absolute_time();
     pthread_mutex_lock(&gPlugin.stateLock);
-    const UInt64 anchor = gPlugin.ioStartHostTime ? gPlugin.ioStartHostTime : now;
+    if (gPlugin.zeroClock.hostTicksPerFrame == 0.0) RestartZeroClock(now);
+    Float64 sampleTime = 0;
+    UInt64 hostTime = 0;
+    EQClock_ZeroTimeStamp(&gPlugin.zeroClock, now, &sampleTime, &hostTime);
     const UInt64 seed = gPlugin.ioStartSeed;
-    const Float64 rate = static_cast<Float64>(
-        gPlugin.currentSampleRateHz.load(std::memory_order_acquire)
-    );
     pthread_mutex_unlock(&gPlugin.stateLock);
-    // Convert (now - anchor) mach ticks to nanoseconds to samples.
-    const UInt64 elapsed_ticks = (now >= anchor) ? (now - anchor) : 0;
-    const Float64 elapsed_ns = static_cast<Float64>(elapsed_ticks) * s_tb.numer / s_tb.denom;
-    const Float64 elapsed_samples = elapsed_ns * rate / 1.0e9;
-    if (outSampleTime) *outSampleTime = elapsed_samples;
-    if (outHostTime)   *outHostTime = anchor;
+    if (outSampleTime) *outSampleTime = sampleTime;
+    if (outHostTime)   *outHostTime = hostTime;
     if (outSeed)       *outSeed = seed;
     return noErr;
 }
