@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		582000000000000000000001 /* LegacyLoginItems.m in Sources */ = {isa = PBXBuildFile; fileRef = 582000000000000000000002 /* LegacyLoginItems.m */; };
 		728E7A042FEAA68100FB3C01 /* HomeFeedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */; };
 		728E7A062FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */; };
 		728E7A082FEAA69600FB3C01 /* SpotifyDTOs+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A072FEAA69600FB3C01 /* SpotifyDTOs+Home.swift */; };
@@ -487,6 +488,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		582000000000000000000002 /* LegacyLoginItems.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LegacyLoginItems.m; sourceTree = "<group>"; };
 		728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedModels.swift; sourceTree = "<group>"; };
 		728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Home.swift"; sourceTree = "<group>"; };
 		728E7A072FEAA69600FB3C01 /* SpotifyDTOs+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+Home.swift"; sourceTree = "<group>"; };
@@ -1560,6 +1562,7 @@
 			isa = PBXGroup;
 			children = (
 				A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */,
+				582000000000000000000002 /* LegacyLoginItems.m */,
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
 				SRC0000000000000000080023 /* ScreenshotMode.swift */,
 				SRC0000000000000000080B03 /* PublishedWhenChanged.swift */,
@@ -1976,6 +1979,7 @@
 				SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */,
 				J90000000000000000000103 /* AccountSettingsView.swift in Sources */,
 				15D23789C4F82C5741290378 /* AppBundleMigration.swift in Sources */,
+				582000000000000000000001 /* LegacyLoginItems.m in Sources */,
 				J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */,
 				K10000000000000000000001 /* SpotiglassSettingsModel.swift in Sources */,
 				K10000000000000000000002 /* SpotiglassSettingsStore.swift in Sources */,

@@ -317,6 +317,7 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.prohibited)
         } else {
             guard Bundle.main.bundleIdentifier == "com.isaaclins.spotiglass" else { return }
+            let loginItems = LegacyLoginItemSnapshot(source: Bundle.main.bundleURL)
             AppBundleMigration.migrate(
                 source: Bundle.main.bundleURL,
                 register: { LSRegisterURL($0 as CFURL, true) },
@@ -326,6 +327,7 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
                     configuration.arguments = Array(CommandLine.arguments.dropFirst())
                     configuration.environment = ProcessInfo.processInfo.environment
                     NSWorkspace.shared.openApplication(at: destination, configuration: configuration) { app, _ in
+                        if app != nil { loginItems.commit(destination: destination) }
                         completion(app != nil)
                     }
                 },
@@ -454,4 +456,24 @@ private final class MacOSColorScheme: ObservableObject {
     nonisolated private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
     }
+}
+
+@_silgen_name("WaxCaptureLegacyLoginItems")
+private func captureLegacyLoginItems(_ source: UnsafePointer<CChar>) -> UnsafeMutableRawPointer?
+@_silgen_name("WaxFinishLegacyLoginItems")
+private func finishLegacyLoginItems(_ snapshot: UnsafeMutableRawPointer?, _ destination: UnsafePointer<CChar>?)
+
+/// A failed move/relaunch leaves the user's original login item untouched.
+private final class LegacyLoginItemSnapshot {
+    private var snapshot: UnsafeMutableRawPointer?
+    init(source: URL) {
+        guard source.lastPathComponent == "Spotiglass.app",
+              !source.pathComponents.contains("AppTranslocation") else { return }
+        snapshot = source.path.withCString { captureLegacyLoginItems($0) }
+    }
+    func commit(destination: URL) {
+        destination.path.withCString { finishLegacyLoginItems(snapshot, $0) }
+        snapshot = nil
+    }
+    deinit { finishLegacyLoginItems(snapshot, nil) }
 }

@@ -10,24 +10,45 @@ another installation. Custom names and App Translocation are left alone. A faile
 the app usable; a failed relaunch attempts the same no-overwrite rename back. User data is never
 moved, copied or deleted by this migration.
 
-I compared these reported approaches and failure cases. Only the first is a well-known named
-app; I could not substantiate three to five well-known apps with published implementation details,
-so I have not attributed an undocumented solution to them.
+I compared these real Mac rename precedents. These sources distinguish a changed download
+filename from the policy used by an already-installed updater; they are not claims that every
+updater automatically renames every installation.
 
-- [iTerm2's release script](https://github.com/gnachman/iTerm2/blob/master/tools/release_beta.sh)
-  deliberately packages `iTerm.app` for auto-update even though the product is iTerm2. Its
+- **GitHub for Mac → GitHub Desktop.** GitHub's [2015 announcement](https://github.blog/news-insights/product-news/github-desktop-is-now-available/)
+  explicitly says existing Mac installations upgrade automatically. The contemporaneous
+  [distribution change](https://github.com/Homebrew/homebrew-cask/commit/890ae85c93f9df17fd9fc3e7b5c35c6e538e2e95)
+  records `GitHub.app` becoming `GitHub Desktop.app`, with the same `central.github.com/mac/appcast.xml`
+  feed. GitHub's closed native installer implementation is not published in those sources;
+  they establish the automatic transition and the new distributed bundle, not the exact rename code.
+- **Riot → Element.** The [announcement](https://element.io/blog/welcome-to-element/) and
+  [rebrand implementation](https://github.com/element-hq/element-desktop/commit/466a871094fdc59f133b73f4e25cd685ab3745e8)
+  show the productName transition from Riot to Element. The temporary
+  [Element (Riot) name](https://github.com/element-hq/element-desktop/commit/4a488c9ab2f09b3f75a2be6eb5bf1a4692c8ba11)
+  was [removed](https://github.com/element-hq/element-desktop/commit/94086f247a8c89630ddf3c134e4af50c18d1af3b)
+  separately from the preserved legacy user-data directory. Its
+  [Mac updater](https://github.com/element-hq/element-desktop/blob/v1.7.1/src/updater.js)
+  uses Electron/Squirrel. Squirrel's [rename implementation](https://github.com/Squirrel/Squirrel.Mac/pull/149)
+  selects the new bundle name only when the existing name matches its executable and the
+  destination is free. Applying that framework policy to Element is an inference from the code,
+  not a captured historical upgrade. A [later Squirrel relaunch report](https://github.com/Squirrel/Squirrel.Mac/issues/325)
+  is a reason to test the restart as well as the move.
+- **Aurora → Firefox Aurora / Nightly → Firefox Nightly.** Mozilla's
+  [verified rename](https://bugzilla.mozilla.org/show_bug.cgi?id=696436) changes new Mac bundles
+  to `FirefoxAurora.app` and `FirefoxNightly.app`. The discussion explicitly permits existing
+  installations to keep their old filenames. This is the counterexample to assuming a product
+  rename must also rename installed bundles. Mozilla's own updater continues to update those
+  installations; new distribution names and existing paths are separate decisions.
+- **iTerm → iTerm2.** The [release script](https://github.com/gnachman/iTerm2/blob/master/tools/release_beta.sh)
+  still packages `iTerm.app` for auto-update. Its
   [updater](https://github.com/gnachman/iTerm2/blob/master/sources/AppLaunch/iTermSoftwareUpdater.swift)
-  also removes the older alternate-name preference. Keeping the old filename is compatible,
-  but does not meet this rename's Finder requirement.
-- [QuickIP to Quicker IP](https://github.com/sparkle-project/Sparkle/issues/2866)
-  reports the same installed-filename problem and the custom-framework normalization option.
-- [The 2018 rename report](https://github.com/sparkle-project/Sparkle/issues/1442)
-  keeps its bundle ID to preserve signature verification, but normalization still retains the
-  old filename. The follow-up [Sparkle change](https://github.com/sparkle-project/Sparkle/pull/1444)
-  cannot change the updater already installed on users' machines.
-- [The trademark-driven rename](https://github.com/sparkle-project/Sparkle/issues/782)
-  confirms that preserving filenames is intentional, while failure to relaunch is a separate
-  bug. This is why the app-side migration explicitly relaunches and handles failure.
+  clears the older alternate-name preference. Keeping the historical filename is viable, but
+  does not meet Wax's requested Finder filename.
+
+Sparkle reports [2866](https://github.com/sparkle-project/Sparkle/issues/2866),
+[1442](https://github.com/sparkle-project/Sparkle/issues/1442) and
+[782](https://github.com/sparkle-project/Sparkle/issues/782) independently confirm its
+filename-preservation behavior. A normalization flag in a new app cannot retrofit the updater
+already shipped inside 0.8.44.
 
 ## Populated 0.8.44 upgrade
 
@@ -56,18 +77,44 @@ Strict/deep signature verification passed after the move. The designated require
 
 ## Credentials, Dock and login items
 
-No real Spotify account, Apple Music library or real saved credential was used. Screenshot mode
-uses an in-memory stand-in refresh token, so this test does **not** establish end-to-end preservation
-of a real OAuth login. Separately, I saved a synthetic token in a disposable macOS Keychain using
-a signed legacy-named executable, then read it with a renamed, newly signed executable carrying
-the same bundle identifier and Developer ID requirement. That read succeeded. The disposable
-Keychain was deleted. `KeychainRefreshTokenStore.swift` is byte-for-byte identical to 0.8.44
-(SHA-256 `b49db7bcb464ac97f5222649588d59e58a69aae90c25f85fce25e64324a1b3c5`).
+I used no real Spotify account, Apple Music library or saved credential. In a disposable
+Keychain, the published 0.8.44 executable stored a dummy generic-password item using the exact
+production service `com.isaaclins.spotiglass.spotify-auth`, account `spotify-refresh-token`,
+no explicit access-group attribute and `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+The Wax executable read the same bytes with the same query. Both had the same Developer ID
+and designated requirement (`com.isaaclins.spotiglass`, team `BHAF4L4726`).
 
-The automated filesystem test creates a bookmark before migration and resolves it to Wax after
-the move, with the same file resource identifier and intact payload. This exercises the identity
-mechanism used by Finder aliases/bookmarks. I did not modify the real Dock or login-item preferences;
-an actual pinned Dock entry/login-item launch has not been tested in a separate macOS user session.
+To run the offline probe inside each actual app process before its network/UI startup,
+I re-signed isolated copies with test-only DYLD injection entitlements. The injected constructor
+used Security.framework with an explicit disposable-Keychain target/search list. This is an
+exact credential-identity and access-control check, not a real OAuth refresh or an untouched
+production-signature test. The save and read returned `errSecSuccess`. I deleted the dummy,
+confirmed `errSecItemNotFound`, and deleted the disposable Keychain. The production token-store
+source is unchanged from 0.8.44. Apple Music has no app-managed Keychain token: its sign-in
+state comes from MusicKit/system authorization; I did not modify the real system grant.
+
+The current-session integration test backs up the complete Dock preference domain and enumerates
+login-item targets/hidden state first. It pins the extracted published 0.8.44 app in the Dock and
+adds it as a native user login item, then upgrades through Sparkle to a Developer ID signed Wax
+candidate with isolated home and loopback stand-in data. Test-only `LSEnvironment` provides that
+isolation when the Dock or login-item target launches it; no real library or audio device is used.
+
+The original implementation exposed a real failure: the Dock eventually resolves the moved
+bundle, but a pre-update native login-item alias remains unresolved after the rename. The fix
+captures only entries resolving to this exact bundle before the move, then recreates those
+entries at Wax's path, preserving their order and hidden setting, only after successful relaunch.
+It uses the native shared-file-list API because existing user-created login items are not
+SMAppService registrations. It does not enable login launch for anyone who had it disabled.
+A failed move or relaunch leaves the original login items unchanged.
+
+The final replay installed successfully through Sparkle, and the renamed signed bundle passed
+strict/deep signature verification. Pressing the original pinned Dock tile returned `AXPress 0`
+and launched a fresh process from `Wax.app/Contents/MacOS/Wax` (PID 54863). The preserved native
+login item resolved to `Wax.app`; launching that resolved item returned `noErr` and started a
+second fresh Wax process (PID 56327). Its hidden setting and list position were unchanged.
+No logout was required or performed. The complete Dock domain
+and original login-item list are compared with the backups after cleanup. The session stays
+muted, Bluetooth off; testing does not log out or restart the machine.
 
 ## Automated checks
 

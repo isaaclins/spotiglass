@@ -8,8 +8,8 @@ enum AppBundleMigration {
         guard source.lastPathComponent == "Spotiglass.app",
               !source.pathComponents.contains("AppTranslocation") else { return nil }
         let destination = source.deletingLastPathComponent().appendingPathComponent("Wax.app")
-        // RENAME_EXCL closes the check-then-move race and preserves bundle identity (including
-        // Finder aliases/bookmarks used by the Dock and login items). No elevated helper, deletion
+        // RENAME_EXCL closes the check-then-move race and preserves local file identity.
+        // Pre-update login aliases are repaired by the launch adapter. No elevated helper, deletion
         // or fallback copy: an occupied/read-only destination leaves the working app untouched.
         let result = source.withUnsafeFileSystemRepresentation { old in
             destination.withUnsafeFileSystemRepresentation { new in
