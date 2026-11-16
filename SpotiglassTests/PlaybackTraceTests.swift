@@ -116,12 +116,16 @@ final class PlaybackTraceTests: XCTestCase {
         XCTAssertEqual(lines[0], "request \(cause)")
         XCTAssertTrue(lines[1].hasSuffix("(inside the app, after: \(cause))"), lines[1])
         XCTAssertTrue(lines[2].contains("last request: \(cause),"), lines[2])
+        // A command that doesn't reach the player doesn't label the click after it.
+        trace.via("view.sidebar.toggle", file: "Spotiglass/SpotiglassMenuCommands.swift", line: 178)
+        trace.request("add x to the queue", file: "Spotiglass/TrackListRow.swift", line: 90)
+        XCTAssertEqual(lines[3], "request add x to the queue from TrackListRow.swift:90")
         // A shortcut a while ago doesn't label a later click.
         time += .seconds(2)
         trace.via("playback.next", file: "Spotiglass/CommandPaletteManager.swift", line: 704)
         time += .seconds(2)
         trace.request("next (appleMusic)", file: "Spotiglass/PlaybackControlsView.swift", line: 611)
-        XCTAssertEqual(lines[3], "request next (appleMusic) from PlaybackControlsView.swift:611")
+        XCTAssertEqual(lines[4], "request next (appleMusic) from PlaybackControlsView.swift:611")
     }
 
     func testPausesSeeksAndNewSongsStartOver() {
@@ -150,7 +154,7 @@ final class AudioOutputTraceTests: XCTestCase {
         XCTAssertTrue(lines[0].hasPrefix("default output "), lines[0])
         XCTAssertTrue(lines[0].contains("; outputs: "), lines[0])
         for device in MacAudioOutputHardware.enumerateOutputDevices() {
-            XCTAssertTrue(lines[0].contains("\(AudioOutputTrace.ownerlessName(device.name)) ("), lines[0])
+            XCTAssertTrue(lines[0].contains(", \(device.id)) "), lines[0])
             XCTAssertTrue(lines[0].contains(", \(device.id)) "), lines[0])
         }
         if let id = MacAudioOutputHardware.defaultOutputDeviceID(),
@@ -164,17 +168,21 @@ final class AudioOutputTraceTests: XCTestCase {
         XCTAssertTrue(lines[1].hasSuffix(" [equalizer route off -> starting(target none)]"), lines[1])
     }
 
-    func testDeviceNamesLeaveTheOwnerOut() {
-        XCTAssertEqual(AudioOutputTrace.ownerlessName("Isaac\u{2019}s AirPods Max"), "AirPods Max")
-        XCTAssertEqual(AudioOutputTrace.ownerlessName("Someone's HomePod"), "HomePod")
-        XCTAssertEqual(AudioOutputTrace.ownerlessName("MacBook Pro Speakers"), "MacBook Pro Speakers")
+    func testWirelessDevicesAreNamedOnlyByTheirKind() {
+        XCTAssertEqual(AudioOutputTrace.publicName("AirPods Max von Isaac", transport: "bluetooth"), "bluetooth device")
+        XCTAssertEqual(AudioOutputTrace.publicName("Isaac\u{2019}s HomePod", transport: "airplay"), "airplay device")
+        XCTAssertEqual(AudioOutputTrace.publicName("MacBook Pro Speakers", transport: "built-in"), "MacBook Pro Speakers")
+        XCTAssertEqual(AudioOutputTrace.describe(uid: "00-11-22-33-44-55:output"), "a device that is gone")
     }
 
     func testTheEqualizerRouteIsDescribedWithoutItsMessage() {
-        XCTAssertEqual(EqualizerRouteState.disabled.logDescription, "off")
-        XCTAssertEqual(EqualizerRouteState.starting(targetUID: nil).logDescription, "starting(target none)")
-        XCTAssertEqual(EqualizerRouteState.live(targetUID: "BuiltInSpeakerDevice", errorMessage: nil).logDescription, "live(target BuiltInSpeakerDevice)")
-        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: true).logDescription, "failed(still engaged)")
-        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: false).logDescription, "failed(released)")
+        let target = { (uid: String) in uid == "AA-BB-CC-DD-EE-FF:output" ? "bluetooth device (bluetooth, 91) 48000 Hz" : "?" }
+        XCTAssertEqual(EqualizerRouteState.disabled.logDescription(target: target), "off")
+        XCTAssertEqual(EqualizerRouteState.starting(targetUID: nil).logDescription(target: target), "starting(target none)")
+        let live = EqualizerRouteState.live(targetUID: "AA-BB-CC-DD-EE-FF:output", errorMessage: nil).logDescription(target: target)
+        XCTAssertEqual(live, "live(target bluetooth device (bluetooth, 91) 48000 Hz)")
+        XCTAssertFalse(live.contains("AA-BB"))
+        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: true).logDescription(target: target), "failed(still engaged)")
+        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: false).logDescription(target: target), "failed(released)")
     }
 }

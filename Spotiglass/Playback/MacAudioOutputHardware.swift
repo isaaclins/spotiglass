@@ -224,23 +224,39 @@ final class AudioOutputTrace {
         }
     }
 
-    /// "AirPods Max (bluetooth, 91) 48000 Hz". The log gets attached to public issues, so the
-    /// owner in a name ("Isaac's AirPods Max") is left out.
-    private static func describe(_ id: AudioDeviceID, name: String) -> String {
-        "\(ownerlessName(name)) (\(transport(id)), \(id)) \(rate(id))"
+    /// "MacBook Pro Speakers (built-in, 91) 48000 Hz". The log gets attached to public issues,
+    /// so wireless devices, whose names carry their owner in any language ("AirPods Max von
+    /// Isaac"), are named only by their kind.
+    nonisolated static func describe(_ id: AudioDeviceID, name: String) -> String {
+        "\(publicName(name, transport: transport(id))) (\(transport(id)), \(id)) \(rate(id))"
     }
 
-    static func ownerlessName(_ name: String) -> String {
-        for marker in ["\u{2019}s ", "'s "] {
-            if let range = name.range(of: marker) {
-                let rest = name[range.upperBound...].trimmingCharacters(in: .whitespaces)
-                if !rest.isEmpty { return rest }
-            }
+    nonisolated static func publicName(_ name: String, transport: String) -> String {
+        switch transport {
+        case "built-in", "usb", "hdmi", "displayport", "virtual", "thunderbolt": name
+        default: "\(transport) device"
         }
-        return name
     }
 
-    private static func transport(_ id: AudioDeviceID) -> String {
+    /// The device behind a Core Audio UID, described like the others. A Bluetooth UID is the
+    /// device's hardware address, so it never goes into the log itself.
+    nonisolated static func describe(uid: String) -> String {
+        var cfUID = uid as CFString
+        var id = AudioDeviceID(kAudioObjectUnknown)
+        var translation = AudioValueTranslation(
+            mInputData: &cfUID,
+            mInputDataSize: UInt32(MemoryLayout<CFString>.size),
+            mOutputData: &id,
+            mOutputDataSize: UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        var size = UInt32(MemoryLayout<AudioValueTranslation>.size)
+        var address = Self.address(kAudioHardwarePropertyDeviceForUID)
+        let status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &translation)
+        guard status == noErr, id != AudioDeviceID(kAudioObjectUnknown) else { return "a device that is gone" }
+        return describe(id, name: MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id) ?? "?")
+    }
+
+    nonisolated private static func transport(_ id: AudioDeviceID) -> String {
         var value: UInt32 = 0
         var size = UInt32(MemoryLayout<UInt32>.size)
         var address = Self.address(kAudioDevicePropertyTransportType)
@@ -259,11 +275,11 @@ final class AudioOutputTrace {
         }
     }
 
-    private static func rate(_ id: AudioDeviceID) -> String {
+    nonisolated private static func rate(_ id: AudioDeviceID) -> String {
         MacAudioOutputHardware.nominalSampleRate(deviceID: id).map { "\(Int($0)) Hz" } ?? "? Hz"
     }
 
-    private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+    nonisolated private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(
             mSelector: selector,
             mScope: kAudioObjectPropertyScopeGlobal,

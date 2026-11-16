@@ -55,6 +55,9 @@ final class PlaybackTrace {
     /// A shortcut, menu item or palette row ran `commandID`; the request it makes next is labelled
     /// with it, since they all reach the player through the same closures.
     func via(_ commandID: String, file: String, line: Int) {
+        // Only commands that reach the player: a sidebar toggle mustn't be credited with the
+        // Play click that follows it.
+        guard commandID.hasPrefix("playback.") || commandID.hasSuffix("enqueue") else { return }
         via = ("\(commandID) from \((file as NSString).lastPathComponent):\(line)", now())
     }
 
