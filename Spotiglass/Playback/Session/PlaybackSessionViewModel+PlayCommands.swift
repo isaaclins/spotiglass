@@ -2,7 +2,8 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func play(uri: String) async {
+    func play(uri: String, file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("play \(uri) (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "play(uri:) refused: another service is on screen")
@@ -64,7 +65,8 @@ extension PlaybackSessionViewModel {
 
     /// `playlistID` marks the sidebar row of the list that plays (the header Play and Shuffle
     /// of a playlist or album, #396), the way ``playFromPlaylist(clickedURI:playableURIs:playlistID:)`` does.
-    func play(contextURI: String, playlistID: String? = nil) async {
+    func play(contextURI: String, playlistID: String? = nil, file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("play \(contextURI) (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "play(contextURI:) refused: another service is on screen")
@@ -110,7 +112,14 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
+    func playFromPlaylist(
+        clickedURI: String,
+        playableURIs: [String],
+        playlistID: String? = nil,
+        file: String = #fileID,
+        line: Int = #line
+    ) async {
+        PlaybackTrace.shared.request("play \(clickedURI) in a list of \(playableURIs.count) (\(service))", file: file, line: line)
         playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "playFromPlaylist refused: another service is on screen")

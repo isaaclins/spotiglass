@@ -37,6 +37,20 @@ enum MacAudioOutputHardware {
         return AudioObjectSetPropertyData(systemObject, &address, 0, nil, size, &id)
     }
 
+    /// The device's nominal sample rate in Hz, `nil` when it can't be read.
+    static func nominalSampleRate(deviceID: AudioDeviceID) -> Float64? {
+        var rate: Float64 = 0
+        var size = UInt32(MemoryLayout<Float64>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &rate)
+        guard status == noErr, rate > 0 else { return nil }
+        return rate
+    }
+
     static func copyDeviceDisplayName(deviceID: AudioDeviceID) -> String? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceNameCFString,
@@ -110,5 +124,87 @@ enum MacAudioOutputHardware {
             channels += Int(buffer.mNumberChannels)
         }
         return channels
+    }
+}
+
+/// Logs the sound path for the playback log (#590): the system's default output, every output
+/// device with its nominal sample rate, and each change to them. A song that plays too fast or
+/// cuts out is often two devices on different rates, so the log has to show them.
+@MainActor
+final class AudioOutputTrace {
+    static let shared = AudioOutputTrace()
+
+    private var started = false
+    private var lastLine: String?
+    private var rateListeners: [AudioDeviceID: AudioObjectPropertyListenerBlock] = [:]
+
+    /// Starts listening and logs the current path. Later calls do nothing.
+    func start() {
+        guard !started else { return }
+        started = true
+        let systemObject = AudioObjectID(kAudioObjectSystemObject)
+        for selector in [kAudioHardwarePropertyDefaultOutputDevice, kAudioHardwarePropertyDevices] {
+            var address = Self.address(selector)
+            AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main) { _, _ in
+                MainActor.assumeIsolated { AudioOutputTrace.shared.changed() }
+            }
+        }
+        changed()
+    }
+
+    /// Logs the path now, with `reason` (an equalizer route change), even if it didn't change.
+    func log(reason: String) {
+        lastLine = nil
+        report(reason: reason)
+    }
+
+    private func changed() {
+        listenToRates()
+        report(reason: nil)
+    }
+
+    private func report(reason: String?) {
+        let defaultID = MacAudioOutputHardware.defaultOutputDeviceID()
+        let devices = MacAudioOutputHardware.enumerateOutputDevices().map { device in
+            "\(device.name) (\(device.id)) \(Self.rate(device.id))"
+        }
+        let defaultName = defaultID.map { id in
+            "\(MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id) ?? "?") (\(id)) \(Self.rate(id))"
+        } ?? "none"
+        let line = "default output \(defaultName); outputs: \(devices.joined(separator: ", "))"
+        guard line != lastLine else { return }
+        lastLine = line
+        PlaybackTrace.shared.audio(reason.map { "\(line) [\($0)]" } ?? line)
+    }
+
+    /// Follows the nominal sample rate of every output device, so a rate change is logged.
+    private func listenToRates() {
+        let current = Set(MacAudioOutputHardware.enumerateOutputDevices().map(\.id))
+        for (id, block) in rateListeners where !current.contains(id) {
+            var address = Self.address(kAudioDevicePropertyNominalSampleRate)
+            AudioObjectRemovePropertyListenerBlock(id, &address, DispatchQueue.main, block)
+            rateListeners[id] = nil
+        }
+        for id in current where rateListeners[id] == nil {
+            let block: AudioObjectPropertyListenerBlock = { _, _ in
+                MainActor.assumeIsolated { AudioOutputTrace.shared.report(reason: "sample rate of \(id) changed") }
+            }
+            var address = Self.address(kAudioDevicePropertyNominalSampleRate)
+            if AudioObjectAddPropertyListenerBlock(id, &address, DispatchQueue.main, block) == noErr {
+                rateListeners[id] = block
+            }
+        }
+    }
+
+    private static func rate(_ id: AudioDeviceID) -> String {
+        MacAudioOutputHardware.nominalSampleRate(deviceID: id).map { "\(Int($0)) Hz" } ?? "? Hz"
+    }
+
+    private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
     }
 }

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import MusicKit
 
@@ -44,6 +45,14 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private lazy var shuffleWanted = player.state.shuffleMode == .songs
     /// Repeat as last asked for, set again on every new queue like shuffle.
     private var repeatWanted: MusicPlayer.RepeatMode?
+    /// Notices the position jumping while it plays, for the log (#590).
+    private var positionWatch = PlaybackPositionWatch()
+    /// Logs what the player reports by itself: status, rate, the current entry (#590).
+    private var stateObserver: AppleMusicPlayerStateObserver?
+
+    init() {
+        stateObserver = AppleMusicPlayerStateObserver(player: player)
+    }
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -165,6 +174,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             // order they were added in.
             for item in carried.reversed() {
                 guard starts.holdsQueue(started) else { return }
+                PlaybackTrace.shared.command("addToQueue", "after current (carried into a shuffled queue)")
                 try await Self.mapped {
                     try await self.player.queue.insert(item.entry, position: .afterCurrentEntry)
                 }
@@ -179,11 +189,13 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func pause() {
+        PlaybackTrace.shared.command("pause")
         player.pause()
         starts.paused()
     }
 
     func resume() async throws {
+        PlaybackTrace.shared.command("play", "(resume)")
         try await Self.mapped { try await self.player.play() }
         starts.playerPlays()
     }
@@ -196,15 +208,19 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func seek(toMilliseconds milliseconds: Int) {
+        PlaybackTrace.shared.command("seek", "to \(PlaybackPositionWatch.time(milliseconds))")
+        positionWatch.reset()
         player.playbackTime = TimeInterval(milliseconds) / 1000
     }
 
     func skipToNext() async throws {
+        PlaybackTrace.shared.command("skipToNext")
         try await Self.mapped { try await self.player.skipToNextEntry() }
         starts.playerPlays()
     }
 
     func skipToPrevious() async throws {
+        PlaybackTrace.shared.command("skipToPrevious")
         try await Self.mapped { try await self.player.skipToPreviousEntry() }
         starts.playerPlays()
     }
@@ -216,6 +232,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         shuffleWanted = enabled
         // Positions hold until shuffle reorders the queue: note each entry's row by id first.
         if changed { noteEntries() }
+        PlaybackTrace.shared.command("shuffle", enabled ? "on" : "off")
         player.state.shuffleMode = enabled ? .songs : .off
         if changed { book.forgetPositions() }
     }
@@ -223,6 +240,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// Sets the shuffle and repeat last asked for on a queue just set, without trusting what
     /// the player reports right then (its state trails commands by up to a third of a second).
     private func applyModesToNewQueue() {
+        PlaybackTrace.shared.command("modes", "shuffle=\(shuffleWanted) repeat=\(repeatWanted.map { "\($0)" } ?? "unchanged") (new queue)")
         if shuffleWanted {
             noteEntries()
             player.state.shuffleMode = .songs
@@ -260,6 +278,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         case .track: wanted = .one
         }
         repeatWanted = wanted
+        PlaybackTrace.shared.command("repeat", "\(wanted)")
         player.state.repeatMode = wanted
     }
 
@@ -284,6 +303,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             currentIndex: currentIndex,
             entryCount: entries.count
         )
+        PlaybackTrace.shared.command("addToQueue", "at \(plan.index.map(String.init) ?? "after current")")
         if let index = plan.index, !plan.isAfterCurrent {
             player.queue.entries.insert(resolved.entry, at: index)
         } else {
@@ -328,10 +348,19 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         @unknown default: status = .stopped
         }
         let seconds = player.playbackTime
+        let positionMilliseconds = seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0
+        if let jump = positionWatch.observe(
+            positionMilliseconds: positionMilliseconds,
+            isPlaying: status == .playing,
+            item: current?.id,
+            at: ContinuousClock.now
+        ) {
+            PlaybackTrace.shared.playerReported(jump)
+        }
         return AppleMusicPlayerState(
             status: status,
             current: current.flatMap { track(for: $0, at: currentIndex) },
-            positionMilliseconds: seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0,
+            positionMilliseconds: positionMilliseconds,
             shuffle: player.state.shuffleMode == .songs,
             repeatMode: Self.repeatMode(player.state.repeatMode)
         )
@@ -975,18 +1004,37 @@ final class MusicKitQueueStarter: AppleMusicQueueStarting {
 
     var playbackTime: TimeInterval {
         get { player.playbackTime }
-        set { player.playbackTime = newValue }
+        set {
+            PlaybackTrace.shared.command("seek", "to \(PlaybackPositionWatch.time(Int((newValue * 1000).rounded()))) (queue start)")
+            player.playbackTime = newValue
+        }
     }
 
     func setQueue(_ entries: [MusicPlayer.Queue.Entry], startingAt entry: MusicPlayer.Queue.Entry?) {
+        PlaybackTrace.shared.command("setQueue", "entries=\(entries.count) startingAt=\(entry.map { "entry \($0.id)" } ?? "first")")
         player.queue = entry.map { ApplicationMusicPlayer.Queue(entries, startingAt: $0) }
             ?? ApplicationMusicPlayer.Queue(entries)
     }
 
-    func play() async throws { try await player.play() }
-    func prepareToPlay() async throws { try await player.prepareToPlay() }
-    func pause() { player.pause() }
-    func stop() { player.stop() }
+    func play() async throws {
+        PlaybackTrace.shared.command("play", "(queue start)")
+        try await player.play()
+    }
+
+    func prepareToPlay() async throws {
+        PlaybackTrace.shared.command("prepareToPlay", "(queue start)")
+        try await player.prepareToPlay()
+    }
+
+    func pause() {
+        PlaybackTrace.shared.command("pause", "(queue start)")
+        player.pause()
+    }
+
+    func stop() {
+        PlaybackTrace.shared.command("stop")
+        player.stop()
+    }
 }
 
 /// Whether this Mac only allows clean music. Screen Time's Content & Privacy ("Music, Podcasts,
@@ -1011,5 +1059,66 @@ enum AppleMusicContentRestrictions {
         let key = key as CFString
         CFPreferencesAppSynchronize(domain)
         return (CFPreferencesCopyAppValue(key, domain), CFPreferencesAppValueIsForced(key, domain))
+    }
+}
+
+/// Logs what MusicKit's player reports by itself (#590): its status (playing, paused, stopped,
+/// interrupted, seeking), its rate, and the entry it is on. MusicKit announces a change before it
+/// makes it, so each change is read on the next turn of the main queue, and only lines that differ
+/// from the last one are written.
+@MainActor
+final class AppleMusicPlayerStateObserver {
+    private let player: ApplicationMusicPlayer
+    private var subscriptions: [AnyCancellable] = []
+    private var lastStatus: String?
+    private var lastRate: Float?
+    private var lastEntryID: String??
+
+    init(player: ApplicationMusicPlayer) {
+        self.player = player
+        let changed: () -> Void = { [weak self] in
+            DispatchQueue.main.async { MainActor.assumeIsolated { self?.report() } }
+        }
+        subscriptions.append(player.state.objectWillChange.sink { _ in changed() })
+        subscriptions.append(player.queue.objectWillChange.sink { _ in changed() })
+    }
+
+    private func report() {
+        let status = Self.describe(player.state.playbackStatus)
+        if status != lastStatus {
+            PlaybackTrace.shared.playerReported("status \(lastStatus ?? "unknown") -> \(status) at \(position)")
+            lastStatus = status
+        }
+        let rate = player.state.playbackRate
+        if rate != lastRate {
+            PlaybackTrace.shared.playerReported("rate \(lastRate.map { "\($0)" } ?? "unknown") -> \(rate)")
+            lastRate = rate
+        }
+        let entryID = player.queue.currentEntry?.id
+        if lastEntryID != .some(entryID) {
+            let entries = player.queue.entries
+            let index = entryID.flatMap { id in entries.firstIndex { $0.id == id } }
+            PlaybackTrace.shared.playerReported(
+                "current entry -> \(entryID ?? "none") (position \(index.map { "\($0 + 1)" } ?? "-") of \(entries.count))"
+            )
+            lastEntryID = .some(entryID)
+        }
+    }
+
+    private var position: String {
+        let seconds = player.playbackTime
+        return seconds.isFinite ? PlaybackPositionWatch.time(Int((seconds * 1000).rounded())) : "?"
+    }
+
+    private static func describe(_ status: MusicPlayer.PlaybackStatus) -> String {
+        switch status {
+        case .playing: "playing"
+        case .paused: "paused"
+        case .stopped: "stopped"
+        case .interrupted: "interrupted"
+        case .seekingForward: "seekingForward"
+        case .seekingBackward: "seekingBackward"
+        @unknown default: "unknown(\(status))"
+        }
     }
 }

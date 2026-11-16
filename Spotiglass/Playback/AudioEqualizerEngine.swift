@@ -50,6 +50,16 @@ enum EqualizerRouteState: Equatable {
         }
     }
 
+    /// The state for the playback log (#590), without the user-facing message.
+    var logDescription: String {
+        switch self {
+        case .disabled: "off"
+        case let .starting(targetUID): "starting(target \(targetUID ?? "none"))"
+        case let .live(targetUID, errorMessage): "live(target \(targetUID)\(errorMessage == nil ? "" : ", with error"))"
+        case let .failed(_, isEngaged): "failed(\(isEngaged ? "still engaged" : "released"))"
+        }
+    }
+
     var targetUID: String? {
         switch self {
         case let .starting(targetUID):
@@ -76,7 +86,12 @@ final class AudioEqualizerEngine: ObservableObject {
     /// system-output reconciliation. The driver is not considered live until
     /// its router worker reports a matching ready target.
     @Published private(set) var routeState: EqualizerRouteState = .disabled {
-        didSet { updateRouteHealthTimer() }
+        didSet {
+            updateRouteHealthTimer()
+            if routeState != oldValue {
+                AudioOutputTrace.shared.log(reason: "equalizer route \(oldValue.logDescription) -> \(routeState.logDescription)")
+            }
+        }
     }
 
     /// Whether the last start attempt stopped on the user's background-item

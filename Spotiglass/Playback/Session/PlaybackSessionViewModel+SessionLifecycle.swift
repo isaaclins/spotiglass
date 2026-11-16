@@ -243,7 +243,8 @@ extension PlaybackSessionViewModel {
     /// was moving playback to this device, and that is retried.
     /// A click while the command is still being sent again does nothing: moving playback here
     /// next to it would race it.
-    func retryAfterError() async {
+    func retryAfterError(file: String = #fileID, line: Int = #line) async {
+        PlaybackTrace.shared.request("retry (\(service))", file: file, line: line)
         // A newer failure that came while it's out has its own Retry, and that one goes.
         guard failedCommandResendsInFlight == 0 || failedCommand != nil else { return }
         guard let failedCommand else {
