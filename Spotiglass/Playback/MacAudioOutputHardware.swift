@@ -134,9 +134,32 @@ enum MacAudioOutputHardware {
 final class AudioOutputTrace {
     static let shared = AudioOutputTrace()
 
+    /// Where lines go; `nil` writes them to the playback log.
+    private let write: ((String) -> Void)?
     private var started = false
     private var lastLine: String?
     private var rateListeners: [AudioDeviceID: AudioObjectPropertyListenerBlock] = [:]
+    private var systemListeners: [(AudioObjectPropertySelector, AudioObjectPropertyListenerBlock)] = []
+
+    init(write: ((String) -> Void)? = nil) {
+        self.write = write
+    }
+
+    /// Stops listening.
+    func stop() {
+        let systemObject = AudioObjectID(kAudioObjectSystemObject)
+        for (selector, block) in systemListeners {
+            var address = Self.address(selector)
+            AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block)
+        }
+        systemListeners = []
+        for (id, block) in rateListeners {
+            var address = Self.address(kAudioDevicePropertyNominalSampleRate)
+            AudioObjectRemovePropertyListenerBlock(id, &address, DispatchQueue.main, block)
+        }
+        rateListeners = [:]
+        started = false
+    }
 
     /// Starts listening and logs the current path. Later calls do nothing.
     func start() {
@@ -145,8 +168,11 @@ final class AudioOutputTrace {
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
         for selector in [kAudioHardwarePropertyDefaultOutputDevice, kAudioHardwarePropertyDevices] {
             var address = Self.address(selector)
-            AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main) { _, _ in
-                MainActor.assumeIsolated { AudioOutputTrace.shared.changed() }
+            let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.changed() }
+            }
+            if AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, block) == noErr {
+                systemListeners.append((selector, block))
             }
         }
         changed()
@@ -174,7 +200,8 @@ final class AudioOutputTrace {
         let line = "default output \(defaultName); outputs: \(devices.joined(separator: ", "))"
         guard line != lastLine else { return }
         lastLine = line
-        PlaybackTrace.shared.audio(reason.map { "\(line) [\($0)]" } ?? line)
+        let entry = reason.map { "\(line) [\($0)]" } ?? line
+        if let write { write(entry) } else { PlaybackTrace.shared.audio(entry) }
     }
 
     /// Follows the nominal sample rate of every output device, so a rate change is logged.
@@ -186,8 +213,8 @@ final class AudioOutputTrace {
             rateListeners[id] = nil
         }
         for id in current where rateListeners[id] == nil {
-            let block: AudioObjectPropertyListenerBlock = { _, _ in
-                MainActor.assumeIsolated { AudioOutputTrace.shared.report(reason: "sample rate of \(id) changed") }
+            let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+                MainActor.assumeIsolated { self?.report(reason: "sample rate of \(id) changed") }
             }
             var address = Self.address(kAudioDevicePropertyNominalSampleRate)
             if AudioObjectAddPropertyListenerBlock(id, &address, DispatchQueue.main, block) == noErr {

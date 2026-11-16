@@ -91,3 +91,38 @@ final class PlaybackTraceTests: XCTestCase {
         XCTAssertNil(watch.observe(positionMilliseconds: 91_000, isPlaying: true, item: "b", at: start + .seconds(9)))
     }
 }
+
+/// The sound path in the log (#590): the default output and every output's sample rate.
+@MainActor
+final class AudioOutputTraceTests: XCTestCase {
+    func testStartLogsTheDefaultOutputAndEveryOutputsRateOnceUntilSomethingChanges() {
+        var lines: [String] = []
+        let trace = AudioOutputTrace(write: { lines.append($0) })
+        defer { trace.stop() }
+        trace.start()
+        trace.start()
+        XCTAssertEqual(lines.count, 1, lines.joined(separator: "\n"))
+        XCTAssertTrue(lines[0].hasPrefix("default output "), lines[0])
+        XCTAssertTrue(lines[0].contains("; outputs: "), lines[0])
+        for device in MacAudioOutputHardware.enumerateOutputDevices() {
+            XCTAssertTrue(lines[0].contains("\(device.name) (\(device.id)) "), lines[0])
+        }
+        if let id = MacAudioOutputHardware.defaultOutputDeviceID(),
+           let rate = MacAudioOutputHardware.nominalSampleRate(deviceID: id) {
+            XCTAssertTrue(lines[0].contains("(\(id)) \(Int(rate)) Hz"), lines[0])
+        }
+
+        // An equalizer route change logs the path again, with why.
+        trace.log(reason: "equalizer route off -> starting(target none)")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[1].hasSuffix(" [equalizer route off -> starting(target none)]"), lines[1])
+    }
+
+    func testTheEqualizerRouteIsDescribedWithoutItsMessage() {
+        XCTAssertEqual(EqualizerRouteState.disabled.logDescription, "off")
+        XCTAssertEqual(EqualizerRouteState.starting(targetUID: nil).logDescription, "starting(target none)")
+        XCTAssertEqual(EqualizerRouteState.live(targetUID: "BuiltInSpeakerDevice", errorMessage: nil).logDescription, "live(target BuiltInSpeakerDevice)")
+        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: true).logDescription, "failed(still engaged)")
+        XCTAssertEqual(EqualizerRouteState.failed(message: nil, isEngaged: false).logDescription, "failed(released)")
+    }
+}
