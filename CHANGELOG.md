@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.46] - 2026-11-16
+
+### Fixed
+
+- Apple Music no longer offers a song that can't play after you reopen the app.
+- When there's nothing to resume on Apple Music, the app now says so instead of doing nothing.
+
 ## [0.8.45] - 2026-11-16
 
 ### Fixed

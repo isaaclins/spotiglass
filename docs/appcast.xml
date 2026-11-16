@@ -3,14 +3,15 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.45</title>
-            <pubDate>Mon, 16 Nov 2026 22:58:57 +0100</pubDate>
-            <sparkle:version>56</sparkle:version>
-            <sparkle:shortVersionString>0.8.45</sparkle:shortVersionString>
+            <title>0.8.46</title>
+            <pubDate>Mon, 16 Nov 2026 23:06:51 +0100</pubDate>
+            <sparkle:version>57</sparkle:version>
+            <sparkle:shortVersionString>0.8.46</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Sound now goes back to your normal output device when the equalizer isn't processing anything, instead of staying routed through it.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music no longer offers a song that can't play after you reopen the app.
+• When there's nothing to resume on Apple Music, the app now says so instead of doing nothing.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.45/Spotiglass-0.8.45.zip" length="14101842" type="application/octet-stream" sparkle:edSignature="E2TO1XCNnTF7XLkGgxp6fEi+cxJ4mCfPBozu9ioPPNpWeQhmqUsGlM7a/H2H6oRGD2AnmH8CaGq5CUT+5dBoBQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.46/Spotiglass-0.8.46.zip" length="14101329" type="application/octet-stream" sparkle:edSignature="ii085Hg74oto9ZFAgHlhOnFJDil30v5cQc5yaRFJ6MK6N1hhli/9g/dCH9M8lMtDEW6L2ExJFcDg0trJKRbbDg=="/>
         </item>
     </channel>
 </rss>
