@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.47] - 2026-11-17
+
+### Fixed
+
+- Small fixes behind the scenes.
+
 ## [0.8.46] - 2026-11-16
 
 ### Fixed

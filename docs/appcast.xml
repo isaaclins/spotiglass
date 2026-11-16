@@ -3,15 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.46</title>
-            <pubDate>Mon, 16 Nov 2026 23:06:51 +0100</pubDate>
-            <sparkle:version>57</sparkle:version>
-            <sparkle:shortVersionString>0.8.46</sparkle:shortVersionString>
+            <title>0.8.47</title>
+            <pubDate>Tue, 17 Nov 2026 00:51:22 +0100</pubDate>
+            <sparkle:version>58</sparkle:version>
+            <sparkle:shortVersionString>0.8.47</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Apple Music no longer offers a song that can't play after you reopen the app.
-• When there's nothing to resume on Apple Music, the app now says so instead of doing nothing.
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.46/Spotiglass-0.8.46.zip" length="14101329" type="application/octet-stream" sparkle:edSignature="ii085Hg74oto9ZFAgHlhOnFJDil30v5cQc5yaRFJ6MK6N1hhli/9g/dCH9M8lMtDEW6L2ExJFcDg0trJKRbbDg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.47/Spotiglass-0.8.47.zip" length="14178767" type="application/octet-stream" sparkle:edSignature="nL6quKJxANO+7EzYFs6nocyA7O8HJlA8uJmTNAi2ilQdrzu2nIQe0B3zsGBqGGqduQU2m8/CsQGMUs02oKesBA=="/>
         </item>
     </channel>
 </rss>
