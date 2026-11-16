@@ -212,10 +212,80 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             try setDefaultOutputDevice(to: deviceID)
             try waitForRouterReadiness(targetUID: targetUID)
         } catch {
-            removeActiveSampleRateObservation()
+            // Sound sent to the EQ device goes nowhere useful until the router
+            // has opened its target, so a half-finished switch-on must not
+            // leave the Mac's output there (#587).
+            releaseOutputFromEqualizerDevice(fallbackUID: targetUID)
             throw error
         }
         return targetUID
+    }
+
+    /// Takes the Mac's output off the EQ device after a failed or broken
+    /// route: back to the device the user had, else the device the EQ was
+    /// meant to forward to, else the built-in speakers. Never throws, because
+    /// it runs while another error is already on its way to the user.
+    @discardableResult
+    func releaseOutputFromEqualizerDevice(fallbackUID: String? = nil) -> Bool {
+        do {
+            try disable()
+            return true
+        } catch {
+            SpotiglassLog.error(
+                .playback,
+                "Could not restore the pre-EQ output: \(error.localizedDescription)"
+            )
+        }
+        guard let virtualDeviceID = lookupSpotiglassEQDeviceID(),
+              (try? currentDefaultOutputDeviceID()) == virtualDeviceID
+        else { return true }
+        let preferred = [fallbackUID, Self.fallbackForwardingUID]
+            .compactMap { $0 }
+            .compactMap { outputDeviceIDForUID($0) }
+        let candidates = preferred + availableForwardingTargets().map(\.id)
+        for deviceID in candidates where deviceID != virtualDeviceID {
+            do {
+                try setDefaultOutputDevice(to: deviceID)
+                removeActiveSampleRateObservation()
+                clearRouterStatus()
+                Self.clearForwardingTarget()
+                return true
+            } catch {
+                SpotiglassLog.error(
+                    .playback,
+                    "Could not move the output off the EQ device: \(error.localizedDescription)"
+                )
+            }
+        }
+        return false
+    }
+
+    /// Whether the driver's router has given up on the target it was told to
+    /// forward to, or the EQ device itself is gone. Either way nothing is
+    /// processing what is sent to the EQ device.
+    func routeIsBroken(targetUID: String) -> Bool {
+        guard lookupSpotiglassEQDeviceID() != nil else { return true }
+        // The router reports nothing when its target is unplugged later; the
+        // EQ device stays the default and plays into nothing.
+        guard outputDeviceIDForUID(targetUID) != nil else { return true }
+        if case let .failed(failedUID, _)? = routerStatusReader(), failedUID == targetUID {
+            return true
+        }
+        return false
+    }
+
+    var outputIsOnEqualizerDevice: Bool {
+        guard let virtualDeviceID = lookupSpotiglassEQDeviceID() else { return false }
+        return (try? currentDefaultOutputDeviceID()) == virtualDeviceID
+    }
+
+    /// The output was left on the EQ device while the equalizer is off, for
+    /// example by an older build that failed half way. Puts it back.
+    func releaseStrandedOutput() {
+        guard let virtualDeviceID = lookupSpotiglassEQDeviceID(),
+              (try? currentDefaultOutputDeviceID()) == virtualDeviceID
+        else { return }
+        releaseOutputFromEqualizerDevice(fallbackUID: currentForwardingTargetUID())
     }
 
     /// Fallback UID for the EQRouter's forwarding target when we don't have
@@ -301,8 +371,13 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         )
         prepareRouterReadiness(for: uid)
         Self.writeForwardingTarget(uid: uid)
-        try setDefaultOutputDevice(to: virtualDeviceID)
-        try waitForRouterReadiness(targetUID: uid)
+        do {
+            try setDefaultOutputDevice(to: virtualDeviceID)
+            try waitForRouterReadiness(targetUID: uid)
+        } catch {
+            releaseOutputFromEqualizerDevice(fallbackUID: uid)
+            throw error
+        }
         return uid
     }
 
@@ -367,7 +442,12 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         let resolved = uid.isEmpty ? Self.fallbackForwardingUID : uid
         prepareRouterReadiness(for: resolved)
         Self.writeForwardingTarget(uid: resolved)
-        try waitForRouterReadiness(targetUID: resolved)
+        do {
+            try waitForRouterReadiness(targetUID: resolved)
+        } catch {
+            releaseOutputFromEqualizerDevice(fallbackUID: resolved)
+            throw error
+        }
         return resolved
     }
 
