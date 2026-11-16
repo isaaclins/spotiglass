@@ -84,7 +84,10 @@ void EQRouter_Close(EQRouter* router);
 // near kEQRouterRingTargetFill (~43 ms at 48 kHz), so the extra room only
 // matters when one side stalls.
 constexpr size_t kEQRouterRingFrames = 16384;
+/// The least the consumer keeps in the ring. Large IO buffers raise it (see
+/// EQRouterRing_TargetFill): a push of N frames swings the fill by N.
 constexpr size_t kEQRouterRingTargetFill = 2048;
+constexpr size_t kEQRouterRingFillMargin = 256;
 constexpr size_t kEQRouterRingFillTolerance = 256;
 constexpr double kEQRouterRingFillSmoothing = 0.01;
 
@@ -95,9 +98,9 @@ struct EQRouterRing {
     float buffer[kEQRouterRingFrames * 2] = {};
     std::atomic<size_t> read_pos{0};
     std::atomic<size_t> write_pos{0};
-    /// Set by a producer that overran the ring: where the consumer should
-    /// resume reading.
-    std::atomic<size_t> trim_to{0};
+    /// The largest push and pull seen, which set the target fill.
+    std::atomic<size_t> max_push{0};
+    size_t max_pull = 0;  // consumer only
     // Consumer-only state.
     bool priming = true;
     double average_fill = 0.0;
@@ -111,8 +114,11 @@ struct EQRouterRing {
 
 extern "C" {
 void EQRouterRing_Reset(EQRouterRing* ring);
-// Producer side. Overrunning the ring loses the oldest frames and asks the
-// consumer to start over at the target fill.
+// The fill the consumer steers to: enough that the largest push and pull seen
+// never run it dry between them.
+size_t EQRouterRing_TargetFill(const EQRouterRing* ring);
+// Producer side. Overrunning the ring loses the oldest frames; the consumer
+// then starts over at the target fill.
 void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames);
 // Consumer side: fills one output cycle. Returns nonzero when the output
 // layout is unsupported.

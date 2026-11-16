@@ -255,6 +255,7 @@ struct Playback {
     uint64_t cuts = 0;              // places where more than one frame went missing
     uint64_t longestCut = 0;
     uint64_t frames = 0;
+    uint64_t slipsAfterWarmUp = 0;  // skips and repeats after the first 30 s
 };
 
 void encode(uint64_t number, float* out) {
@@ -306,8 +307,10 @@ Playback playTwoClocks(double producerRate, size_t producerChunk,
             if (started) {
                 if (number == last) {
                     result.repeated += 1;
+                    if (nextPull > 30.0) result.slipsAfterWarmUp += 1;
                 } else if (number == last + 2) {
                     result.skipped += 1;
+                    if (nextPull > 30.0) result.slipsAfterWarmUp += 1;
                 } else if (number != last + 1) {
                     result.cuts += 1;
                     const uint64_t gap = number > last ? number - last - 1 : last - number + 1;
@@ -352,6 +355,31 @@ void testDifferentBufferSizesWithDriftPlayWithoutCuts() {
     expect(heard.silentAfterStart == 0, "mismatched buffer sizes never play silence");
 }
 
+void testLargeEQBuffersWithDriftPlayWithoutCuts() {
+    // A client can run the EQ device with a 2048 or 4096 frame buffer: each
+    // push then swings the fill by that much, and a fixed 2048-frame target ran
+    // the ring dry at every low point.
+    for (const size_t chunk : {size_t(2048), size_t(4096)}) {
+        for (const double drift : {-50e-6, 50e-6}) {
+            const Playback heard = playTwoClocks(48000.0, chunk, 48000.0 * (1.0 + drift), 512, 120.0);
+            expect(heard.cuts == 0, "large EQ buffers never cut frames out");
+            expect(heard.silentAfterStart == 0, "large EQ buffers never play silence once sound started");
+            // Once settled it slips only what the drift needs: 50 ppm of the last
+            // 90 s at 48 kHz is ~216 frames.
+            expect(heard.slipsAfterWarmUp < 400, "large EQ buffers only slip what the drift needs once settled");
+            if (heard.cuts != 0 || heard.silentAfterStart != 0 || heard.slipsAfterWarmUp >= 400) {
+                std::fprintf(stderr, "  chunk %zu drift %+.0f ppm: cuts=%llu silent=%llu skipped=%llu repeated=%llu settled=%llu\n",
+                             chunk, drift * 1e6,
+                             static_cast<unsigned long long>(heard.cuts),
+                             static_cast<unsigned long long>(heard.silentAfterStart),
+                             static_cast<unsigned long long>(heard.skipped),
+                             static_cast<unsigned long long>(heard.repeated),
+                             static_cast<unsigned long long>(heard.slipsAfterWarmUp));
+            }
+        }
+    }
+}
+
 void testAStoppedTargetStartsOverAtTheTargetFill() {
     // The target stops pulling for a second (unplugged, asleep): the ring
     // overruns, and when it comes back it plays the newest sound from the
@@ -372,8 +400,11 @@ void testAStoppedTargetStartsOverAtTheTargetFill() {
     }
     EQRouterRing_Pull(ring, &list);
     const uint64_t first = static_cast<uint64_t>(out[1]) * 4096 + static_cast<uint64_t>(out[0]);
-    expect(first == produced - kEQRouterRingTargetFill + 1, "after an overrun the target resumes at the target fill");
-    expect(ring->dropped_frames.load() > 0, "the overrun is counted");
+    // The target fill plus half a push, so playback starts at once.
+    expect(first == produced - (EQRouterRing_TargetFill(ring) + 512 / 2) + 1,
+           "after an overrun the target resumes at the target fill with the newest sound");
+    expect(ring->dropped_frames.load() == produced - kEQRouterRingFrames,
+           "the overrun counts each lost frame once");
     delete ring;
 }
 
@@ -402,11 +433,15 @@ void testZeroTimeStampsAdvanceAtTheDeviceRate() {
     expect(previousSample >= 9.0 * 48000.0 - kEQZeroTimeStampPeriod, "ten seconds of timestamps cover ten seconds of samples");
 }
 
-void testTheEQDeviceFollowsASupportedTargetRate() {
-    const double supported[] = {44100.0, 48000.0, 88200.0, 96000.0, 192000.0};
-    expect(EQClock_MatchingRate(44100.0, supported, 5) == 44100.0, "a 44.1 kHz target makes the EQ device 44.1 kHz");
-    expect(EQClock_MatchingRate(96000.0, supported, 5) == 96000.0, "a 96 kHz target makes the EQ device 96 kHz");
-    expect(EQClock_MatchingRate(32000.0, supported, 5) == 0.0, "an unsupported target rate leaves the EQ device alone");
+void testTheEQDeviceFollowsEveryCommonOutputRate() {
+    // Headsets in call mode, CD and video rates, high-rate DACs.
+    for (const double rate : {8000.0, 16000.0, 24000.0, 32000.0, 44100.0, 48000.0, 88200.0, 96000.0,
+                              176400.0, 192000.0, 352800.0, 384000.0}) {
+        expect(EQClock_MatchingRate(rate, kEQSupportedSampleRates, kEQNumSupportedSampleRates) == rate,
+               "the EQ device takes the target's rate");
+    }
+    expect(EQClock_MatchingRate(47999.0, kEQSupportedSampleRates, kEQNumSupportedSampleRates) == 0.0,
+           "a rate the EQ device can't run at leaves it alone");
 }
 
 }  // namespace
@@ -429,7 +464,8 @@ int main() {
     testDifferentBufferSizesWithDriftPlayWithoutCuts();
     testAStoppedTargetStartsOverAtTheTargetFill();
     testZeroTimeStampsAdvanceAtTheDeviceRate();
-    testTheEQDeviceFollowsASupportedTargetRate();
+    testLargeEQBuffersWithDriftPlayWithoutCuts();
+    testTheEQDeviceFollowsEveryCommonOutputRate();
 
     if (gFailures == 0) {
         std::printf("driver router tests: all checks passed\n");

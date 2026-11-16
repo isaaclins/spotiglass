@@ -14,6 +14,16 @@
 
 #include <stdint.h>
 
+/// Every rate the EQ device offers. It follows its target's rate, so this
+/// covers what output devices run at: Bluetooth headsets in call mode (8 to
+/// 24 kHz) up to high-rate DACs (384 kHz).
+constexpr double kEQSupportedSampleRates[] = {
+    8000.0, 11025.0, 16000.0, 22050.0, 24000.0, 32000.0, 44100.0, 48000.0,
+    64000.0, 88200.0, 96000.0, 176400.0, 192000.0, 352800.0, 384000.0
+};
+constexpr uint32_t kEQNumSupportedSampleRates =
+    sizeof(kEQSupportedSampleRates) / sizeof(kEQSupportedSampleRates[0]);
+
 constexpr uint32_t kEQZeroTimeStampPeriod = 16384;
 
 struct EQZeroTimeStampClock {

@@ -33,6 +33,27 @@ final class EqualizerCoefficientTests: XCTestCase {
         }
     }
 
+    /// The EQ device follows its speakers' rate (#590), down to 8-24 kHz for a headset in call
+    /// mode. Every band then stays stable: one at or near Nyquist passes through instead of
+    /// becoming a biquad with poles outside the unit circle.
+    func testEveryBandIsStableAtLowOutputRates() {
+        for rate in [8000.0, 16000.0, 22050.0, 24000.0, 32000.0] {
+            for (index, frequency) in EqualizerSettings.bandFrequenciesHz.enumerated() {
+                let kind: EQCoefficientFrame.BiquadKind = index == 0
+                    ? .lowShelf
+                    : (index == EqualizerSettings.bandFrequenciesHz.count - 1 ? .highShelf : .peaking(q: 1.0))
+                let coeffs = EQCoefficientFrame.biquad(kind: kind, centerHz: frequency, gainDb: 12, sampleRateHz: rate)
+                // A second-order filter is stable when |a2| < 1 and |a1| < 1 + a2.
+                XCTAssertLessThan(abs(coeffs.a2), 1, "f=\(frequency) r=\(rate)")
+                XCTAssertLessThan(abs(coeffs.a1), 1 + coeffs.a2, "f=\(frequency) r=\(rate)")
+                if frequency >= rate * 0.45 {
+                    XCTAssertEqual(coeffs.b0, 1, "f=\(frequency) r=\(rate) passes through")
+                    XCTAssertEqual(coeffs.a1, 0)
+                }
+            }
+        }
+    }
+
     /// Peaking-EQ behavioural checks at 1 kHz / +6 dB / Q=1 / 48 kHz:
     /// - The peak response (z = e^{jw0}) should be |10^(6/20)| = ~1.995.
     /// - b1 must equal a1 (RBJ peaking symmetry: both equal `-2 cos w0`

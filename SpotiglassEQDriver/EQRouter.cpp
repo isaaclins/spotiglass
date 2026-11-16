@@ -408,7 +408,8 @@ void EQRouterRing_Reset(EQRouterRing* ring) {
     if (!ring) return;
     ring->read_pos.store(0, std::memory_order_relaxed);
     ring->write_pos.store(0, std::memory_order_relaxed);
-    ring->trim_to.store(0, std::memory_order_relaxed);
+    ring->max_push.store(0, std::memory_order_relaxed);
+    ring->max_pull = 0;
     ring->priming = true;
     ring->average_fill = 0.0;
     ring->has_last_frame = false;
@@ -419,25 +420,39 @@ void EQRouterRing_Reset(EQRouterRing* ring) {
     ring->slipped_frames.store(0, std::memory_order_relaxed);
 }
 
+size_t EQRouterRing_TargetFill(const EQRouterRing* ring) {
+    const size_t push = ring->max_push.load(std::memory_order_relaxed);
+    // The fill rises by a whole push and falls a pull at a time, so its average
+    // sits about half a push above its low point; the low point keeps a pull
+    // and a margin in hand.
+    size_t target = push / 2 + ring->max_pull + 4 * kEQRouterRingFillMargin;
+    if (target < kEQRouterRingTargetFill) target = kEQRouterRingTargetFill;
+    if (target > kEQRouterRingFrames / 2) target = kEQRouterRingFrames / 2;
+    return target;
+}
+
 void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames) {
     if (!ring || !frames || n_frames == 0) return;
-    // Never write more than the ring holds: keep the newest frames.
-    if (n_frames > kEQRouterRingFrames) {
-        ring->dropped_frames.fetch_add(n_frames - kEQRouterRingFrames, std::memory_order_relaxed);
-        frames += (n_frames - kEQRouterRingFrames) * kChannels;
-        n_frames = kEQRouterRingFrames;
+    // Never write more than half the ring at once: keep the newest frames.
+    constexpr size_t kMaxPush = kEQRouterRingFrames / 2;
+    if (n_frames > kMaxPush) {
+        ring->dropped_frames.fetch_add(n_frames - kMaxPush, std::memory_order_relaxed);
+        frames += (n_frames - kMaxPush) * kChannels;
+        n_frames = kMaxPush;
+    }
+    if (n_frames > ring->max_push.load(std::memory_order_relaxed)) {
+        ring->max_push.store(n_frames, std::memory_order_relaxed);
     }
     const size_t write_pos = ring->write_pos.load(std::memory_order_relaxed);
     const size_t read_pos = ring->read_pos.load(std::memory_order_acquire);
     const size_t in_ring = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
     if (in_ring + n_frames > kEQRouterRingFrames) {
-        // The consumer isn't keeping up at all (stopped, or far off rate).
-        // The producer only asks it to start over at the target fill: the
-        // read position belongs to the consumer.
-        ring->trim_to.store(write_pos + n_frames - kEQRouterRingTargetFill, std::memory_order_release);
-        // The frames about to be overwritten are lost whatever happens.
+        // The consumer isn't keeping up at all (stopped, or far off rate): the
+        // unread frames this push overwrites are lost. Only the consumer moves
+        // the read position; it notices the overrun from the positions.
         const size_t overwritten = in_ring + n_frames - kEQRouterRingFrames;
-        ring->dropped_frames.fetch_add(overwritten, std::memory_order_relaxed);
+        ring->dropped_frames.fetch_add(overwritten < n_frames ? overwritten : n_frames,
+                                       std::memory_order_relaxed);
     }
     for (size_t i = 0; i < n_frames; ++i) {
         const size_t idx = (write_pos + i) % kEQRouterRingFrames;
@@ -476,20 +491,26 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
     if (!OutputFrameCount(output_data, layout, &frame_count)) return 1;
     if (frame_count == 0) return 0;
 
+    if (frame_count > ring->max_pull) ring->max_pull = frame_count;
+    const size_t target = EQRouterRing_TargetFill(ring);
     const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
     size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
-    // A producer that overran the ring asked to start over at the target fill.
-    const size_t trim_to = ring->trim_to.load(std::memory_order_acquire);
-    if (trim_to > read_pos && trim_to <= write_pos) {
-        read_pos = trim_to;
-        ring->average_fill = static_cast<double>(kEQRouterRingTargetFill);
+    // The producer overran the ring: frames older than one push before the
+    // oldest slot it may be writing right now are gone or going. Start over at
+    // the target fill with the newest sound.
+    const size_t push = ring->max_push.load(std::memory_order_relaxed);
+    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - push) {
+        read_pos = write_pos - (target + push / 2);
+        ring->average_fill = static_cast<double>(target);
     }
     size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
 
     // After running dry, wait until the target fill is back before playing
     // again, so one late producer cycle doesn't become a stutter of tiny gaps.
     if (ring->priming) {
-        if (avail < kEQRouterRingTargetFill) {
+        // Start only with half a push above the target in hand: the fill was
+        // perhaps just topped up by a push, and its next low point is a push lower.
+        if (avail < target + push / 2) {
             ZeroOutputFrames(output_data, layout, 0, frame_count);
             if (ring->has_last_frame) {
                 ring->silent_frames.fetch_add(frame_count, std::memory_order_relaxed);
@@ -497,13 +518,15 @@ int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
             ring->read_pos.store(read_pos, std::memory_order_release);
             return 0;
         }
+        // Start the average at the target: right after a large push `avail`
+        // is at its peak, and starting there would skip toward the next underrun.
         ring->priming = false;
-        ring->average_fill = static_cast<double>(avail);
+        ring->average_fill = static_cast<double>(target);
     }
 
     // Steer the fill toward the target one frame per cycle.
     ring->average_fill += (static_cast<double>(avail) - ring->average_fill) * kEQRouterRingFillSmoothing;
-    const double error = ring->average_fill - static_cast<double>(kEQRouterRingTargetFill);
+    const double error = ring->average_fill - static_cast<double>(target);
     size_t consume = frame_count;
     if (error > static_cast<double>(kEQRouterRingFillTolerance) && avail > frame_count + 1) {
         consume = frame_count + 1; // skip one frame

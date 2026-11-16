@@ -70,9 +70,8 @@ constexpr Float32 kVolumeMaxDB = 0.0f;
 
 // The discrete rates kAudioDevicePropertyAvailableNominalSampleRates
 // advertises; the EQ device follows its target's rate when it is one of them.
-constexpr Float64 kSupportedSampleRates[] = { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 };
-constexpr UInt32 kNumSupportedSampleRates =
-    sizeof(kSupportedSampleRates) / sizeof(kSupportedSampleRates[0]);
+constexpr const Float64* kSupportedSampleRates = kEQSupportedSampleRates;
+constexpr UInt32 kNumSupportedSampleRates = kEQNumSupportedSampleRates;
 
 // CFString helpers for property handlers (used once the dispatcher lands).
 [[maybe_unused]] CFStringRef MakeStaticCFString(const char* s) {
@@ -105,6 +104,18 @@ struct PluginState {
     // A rate asked of coreaudiod with RequestDeviceConfigurationChange that it
     // hasn't performed yet (0 when none), so the watcher asks only once.
     std::atomic<UInt32> requestedSampleRateHz{0};
+    // Watcher ticks the request has been pending; coreaudiod may never
+    // perform or abort it, so it is asked again after a while.
+    UInt32 requestedTicks = 0;  // watcher thread only
+    // The target's rate while a router forwards to it (0 otherwise): the only
+    // rate the EQ device takes then.
+    std::atomic<UInt32> targetSampleRateHz{0};
+    // A rate a client set while nothing was being forwarded, applied by the
+    // watcher (never from inside coreaudiod's property dispatch).
+    std::atomic<UInt32> clientSampleRateHz{0};
+    // Clients with IO running. StartIO/StopIO are per client; the device runs
+    // while at least one has it running.
+    UInt32 ioClients = 0;
 
     // Forwards EQ-processed audio out to the real hardware output that was
     // active before the user routed default-output to Spotiglass EQ. Without
@@ -419,13 +430,25 @@ ULONG Release(void* /*self*/) { return 1; }
 void RequestSampleRate(UInt32 rate);
 
 void FollowTargetSampleRate() {
+    if (gPlugin.requestedSampleRateHz.load(std::memory_order_acquire) != 0) {
+        if (++gPlugin.requestedTicks > 10) {
+            gPlugin.requestedTicks = 0;
+            gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
+        }
+    } else {
+        gPlugin.requestedTicks = 0;
+    }
     AudioObjectID target = kAudioObjectUnknown;
     {
         RouterLease current;
-        if (!current) return;
-        target = EQRouter_TargetDevice(current.get());
+        if (current) target = EQRouter_TargetDevice(current.get());
     }
-    if (target == kAudioObjectUnknown) return;
+    if (target == kAudioObjectUnknown) {
+        gPlugin.targetSampleRateHz.store(0, std::memory_order_release);
+        const UInt32 client = gPlugin.clientSampleRateHz.exchange(0, std::memory_order_acq_rel);
+        if (client != 0) RequestSampleRate(client);
+        return;
+    }
     AudioObjectPropertyAddress address = {
         kAudioDevicePropertyNominalSampleRate,
         kAudioObjectPropertyScopeGlobal,
@@ -435,6 +458,8 @@ void FollowTargetSampleRate() {
     UInt32 size = sizeof(targetRate);
     if (AudioObjectGetPropertyData(target, &address, 0, nullptr, &size, &targetRate) != noErr) return;
     const double rate = EQClock_MatchingRate(targetRate, kSupportedSampleRates, kNumSupportedSampleRates);
+    gPlugin.targetSampleRateHz.store(static_cast<UInt32>(rate), std::memory_order_release);
+    gPlugin.clientSampleRateHz.store(0, std::memory_order_release);
     if (rate > 0.0) RequestSampleRate(static_cast<UInt32>(rate));
 }
 
@@ -609,6 +634,7 @@ void RestartZeroClock(UInt64 anchorHostTime) {
 void RequestSampleRate(UInt32 rate) {
     if (rate == gPlugin.currentSampleRateHz.load(std::memory_order_acquire)) return;
     if (gPlugin.requestedSampleRateHz.exchange(rate, std::memory_order_acq_rel) == rate) return;
+    gPlugin.requestedTicks = 0;
     if (!gPlugin.host || !gPlugin.host->RequestDeviceConfigurationChange) {
         gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
         return;
@@ -622,6 +648,13 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                  AudioObjectID /*deviceID*/,
                  UInt32 /*clientID*/) {
     pthread_mutex_lock(&gPlugin.stateLock);
+    // Another client starting while one plays joins the running timeline; only
+    // the first start sets it up (#590: a notification sound used to restart
+    // the clock mid-song).
+    if (gPlugin.ioClients++ > 0) {
+        pthread_mutex_unlock(&gPlugin.stateLock);
+        return noErr;
+    }
     if (!gPlugin.coeffReader) {
         // Fixed path (no uid suffix). The Swift host writes from the
         // logged-in user; the driver reads from inside coreaudiod where
@@ -708,6 +741,14 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
 OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
                 AudioObjectID /*deviceID*/,
                 UInt32 /*clientID*/) {
+    // Only the last client stopping stops the device (#590: a notification
+    // sound ending used to silence the music still playing).
+    pthread_mutex_lock(&gPlugin.stateLock);
+    if (gPlugin.ioClients == 0 || --gPlugin.ioClients > 0) {
+        pthread_mutex_unlock(&gPlugin.stateLock);
+        return noErr;
+    }
+    pthread_mutex_unlock(&gPlugin.stateLock);
     gPlugin.ioAccepting.store(false, std::memory_order_seq_cst);
     WaitForIOUsers();
 
@@ -787,7 +828,11 @@ OSStatus PerformDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
 }
 OSStatus AbortDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
                                         AudioObjectID /*deviceID*/, UInt64 /*action*/,
-                                        void* /*info*/) { return noErr; }
+                                        void* /*info*/) {
+    // The watcher asks again on its next tick.
+    gPlugin.requestedSampleRateHz.store(0, std::memory_order_release);
+    return noErr;
+}
 
 // MARK: - Property dispatcher
 
@@ -1244,9 +1289,17 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             if (newRate == kSupportedSampleRates[i]) { ok = true; break; }
         }
         if (!ok) return kAudioHardwareIllegalOperationError;
-        // Through coreaudiod, which stops IO around the change; storing the
-        // rate here changed it under a running IO thread (#590).
-        RequestSampleRate(static_cast<UInt32>(newRate));
+        // While sound is forwarded the EQ device runs at its target's rate and
+        // takes no other (#590): another app setting its own would fight the
+        // watcher, with an IO restart each time.
+        const UInt32 target = gPlugin.targetSampleRateHz.load(std::memory_order_acquire);
+        if (target != 0) {
+            return static_cast<UInt32>(newRate) == target ? noErr : kAudioDeviceUnsupportedFormatError;
+        }
+        // Applied by the watcher through coreaudiod, which stops IO around the
+        // change; never requested from inside this property dispatch, and never
+        // stored here under a running IO thread.
+        gPlugin.clientSampleRateHz.store(static_cast<UInt32>(newRate), std::memory_order_release);
         return noErr;
     }
     // Stream format / IsActive: accept but no-op (we only support one format).
