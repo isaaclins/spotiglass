@@ -148,7 +148,7 @@
           const key = it.k + ":" + it.t;
           const media = it.art ? `<img class="pal-art" src="${it.art}" alt="" width="36" height="36" loading="lazy">` : `<span class="pal-ico" aria-hidden="true">${ICONS[it.k]}</span>`;
           row.innerHTML = `${media}<span class="pal-txt"><span class="pal-t">${esc(it.t)}</span><span class="pal-s">${esc(it.s)}</span></span><span class="pal-tag" aria-hidden="true">${pinned.has(key) ? PIN : ""}</span>`;
-          row.addEventListener("pointermove", e => { if (e.pointerType === "mouse" && !(opts.busy && opts.busy()) && sel !== idx) select(idx, false); });
+          row.addEventListener("pointermove", e => { if (e.pointerType !== "touch" && !(opts.busy && opts.busy()) && sel !== idx) select(idx, false); });
           row.addEventListener("click", e => { select(idx, false); act(e.shiftKey ? "queue" : (e.metaKey || e.ctrlKey) ? "pin" : "run"); });
           list.appendChild(row);
           flat.push({ it, row, key });
@@ -244,12 +244,12 @@
 
   /* ---------- inline palette with self-typing demo ---------- */
   let demoOn = !reduce;
-  const inline = Palette(document.getElementById("inline-slot"), { quiet: true, busy: () => demoOn });
+  const inline = Palette(document.getElementById("inline-slot"), { quiet: demoOn, busy: () => demoOn });
   const inlineStatus = inline.root.querySelector(".pal-status");
   const listen = on => (on ? inlineStatus.setAttribute("aria-live", "polite") : inlineStatus.removeAttribute("aria-live"));
-  // The demo hands over on a real interaction. A mouse press stops it at once, so the row under the pointer
-  // can't change before the click. A touch holds it while the finger is down: a swipe (pointercancel) lets it
-  // carry on, a tap ends in a click that stops it. Scrolling past never stops it.
+  // The demo hands over on a real interaction. A mouse moving over the palette holds it (until it has been
+  // still for a moment), so rows don't move while the visitor aims, and a mouse press stops it. A touch holds it while the finger is down: a swipe
+  // (pointercancel) lets it carry on, a tap ends in a click that stops it. Scrolling past never stops it.
   let held = false, release = 0;
   const stopDemo = () => { demoOn = false; held = false; inline.root.classList.remove("is-demo"); listen(true); };
   inline.root.classList.toggle("is-demo", demoOn);
@@ -260,6 +260,8 @@
   }, { passive: true, capture: true });
   const letGo = delay => { clearTimeout(release); release = setTimeout(() => { if (demoOn) { held = false; listen(false); } }, delay); };
   inline.root.addEventListener("pointercancel", () => letGo(0), { passive: true, capture: true });
+  inline.root.addEventListener("pointermove", e => { if (demoOn && e.pointerType !== "touch") { held = true; letGo(1500); } }, { passive: true });
+  inline.root.addEventListener("pointerleave", e => { if (demoOn && e.pointerType !== "touch") letGo(0); });
   inline.root.addEventListener("pointerup", e => { if (e.pointerType === "touch") letGo(600); }, { passive: true, capture: true });
   ["click", "focus", "keydown"].forEach(ev => inline.root.addEventListener(ev, () => { if (demoOn) stopDemo(); }, { passive: true, capture: true }));
 
