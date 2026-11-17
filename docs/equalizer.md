@@ -15,7 +15,7 @@ using vDSP biquads at the device's native sample rate, with no resampling.
    privileged helper with `SMAppService`. macOS shows its standard
    authorization prompt once, then the helper copies the bundled
    `SpotiglassEQDriver.driver` into `/Library/Audio/Plug-Ins/HAL/`, restarts
-   `coreaudiod`, and routes the system default output to `"Spotiglass EQ"`.
+   `coreaudiod`, and routes the system default output to `"Wax EQ"`.
    Spotify Web Playback SDK audio is already wired to the system default, so it
    picks up the new device without restarting playback. Later installs,
    upgrades, and repairs happen without another prompt.
@@ -247,7 +247,7 @@ again; an unreadable bundle is repaired. An exact or newer installed version is
 left alone unless CoreAudio needs a reload. These operations use the already
 approved helper and remain silent after the first authorization.
 
-After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
+After activation, `"Wax EQ"` appears in **System Settings → Sound →
 Output**. Wax flips the system default output to it via
 `AudioObjectSetPropertyData` (kAudioHardwarePropertyDefaultOutputDevice) and
 persists the previous default's stable device UID in

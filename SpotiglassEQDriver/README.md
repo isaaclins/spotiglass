@@ -1,6 +1,6 @@
 # SpotiglassEQDriver
 
-CoreAudio AudioServerPlugIn that registers "Spotiglass EQ" as a virtual
+CoreAudio AudioServerPlugIn that registers "Wax EQ" as a virtual
 output device and applies a 10-band biquad cascade in its IO callback.
 
 ## What's in this directory
