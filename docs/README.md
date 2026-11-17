@@ -1,4 +1,4 @@
-# Spotiglass documentation
+# Wax documentation
 
 | Guide | Description |
 |-------|-------------|

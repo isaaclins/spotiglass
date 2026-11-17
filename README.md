@@ -1,8 +1,8 @@
 <p align="center">
-  <img src=".github/assets/logo.png" alt="Spotiglass logo" width="128" />
+  <img src=".github/assets/logo.png" alt="Wax logo" width="128" />
 </p>
 
-<h1 align="center">Spotiglass</h1>
+<h1 align="center">Wax</h1>
 
 <p align="center">
   Native macOS client for Spotify and Apple Music in a glass-style SwiftUI shell: Spotify through its Web API and Web Playback SDK, Apple Music through MusicKit.
@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/screens/home.webp" alt="Spotiglass home: playlists, recently played albums and top tracks, with Midnight City by M83 playing" width="880" />
+  <img src="docs/assets/screens/home.webp" alt="Wax home: playlists, recently played albums and top tracks, with Midnight City by M83 playing" width="880" />
 </p>
 
 ## What you get
@@ -77,13 +77,13 @@ Unsigned Release bundle (same layout as CI):
 make release
 ```
 
-Output: `build/DerivedData/Build/Products/Release/Spotiglass.app`.
+Output: `build/DerivedData/Build/Products/Release/Wax.app`.
 
 For raw `xcodebuild` commands, test-host Keychain behavior, and icon pipeline notes, see [Building and testing](docs/building-and-testing.md).
 
 ## Release artifact
 
-The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsigned Release `Spotiglass.app`, and uploads it for 14 days. It is a preview for testing a branch, not a release: [CI and releases](docs/ci-and-releases.md).
+The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsigned Release `Wax.app`, and uploads it for 14 days. It is a preview for testing a branch, not a release: [CI and releases](docs/ci-and-releases.md).
 
 ## Documentation
 
@@ -110,7 +110,7 @@ Use `scripts/generate_readme_logo.sh --rebuild` to force a fresh unsigned Releas
 
 ## Support
 
-If Spotiglass has been useful and you want to support ongoing development:
+If Wax has been useful and you want to support ongoing development:
 
 - [Buy Me a Coffee](https://buymeacoffee.com/isaaclins) — tips fund releases and docs; see [SUPPORT.md](SUPPORT.md) for details.
 

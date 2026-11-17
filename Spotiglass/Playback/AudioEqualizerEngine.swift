@@ -314,7 +314,7 @@ final class AudioEqualizerEngine: ObservableObject {
     // MARK: - Forwarding-target picker
 
     /// Lists output-only hardware devices the EQ can forward to. Excludes
-    /// the Spotiglass EQ device itself. Used by the Settings UI dropdown.
+    /// the Wax EQ device itself. Used by the Settings UI dropdown.
     func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
         pluginController.availableForwardingTargets()
     }

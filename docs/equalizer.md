@@ -1,8 +1,8 @@
 # Equalizer
 
-Spotiglass ships a realtime 10-band graphic equalizer that filters what
-Spotiglass plays, from Spotify's Web Playback SDK and from Apple Music's player,
-since both play to the system default output. **Spotiglass EQ requires NO microphone or
+Wax ships a realtime 10-band graphic equalizer that filters what
+Wax plays, from Spotify's Web Playback SDK and from Apple Music's player,
+since both play to the system default output. **Wax EQ requires NO microphone or
 audio-recording permission.** The EQ does not tap, record, or capture audio
 input from anywhere — it is a virtual *output* device installed as a CoreAudio
 `AudioServerPlugIn`. Music routed through it is filtered in the IO callback
@@ -11,11 +11,11 @@ using vDSP biquads at the device's native sample rate, with no resampling.
 ## How users turn it on
 
 1. Open **Settings → Equalizer** in Spotiglass.
-2. Toggle **Enable Equalizer**. On the first enable Spotiglass registers its
+2. Toggle **Enable Equalizer**. On the first enable Wax registers its
    privileged helper with `SMAppService`. macOS shows its standard
    authorization prompt once, then the helper copies the bundled
    `SpotiglassEQDriver.driver` into `/Library/Audio/Plug-Ins/HAL/`, restarts
-   `coreaudiod`, and routes the system default output to `"Spotiglass EQ"`.
+   `coreaudiod`, and routes the system default output to `"Wax EQ"`.
    Spotify Web Playback SDK audio is already wired to the system default, so it
    picks up the new device without restarting playback. Later installs,
    upgrades, and repairs happen without another prompt.
@@ -62,7 +62,7 @@ locks.
 ### Context
 
 The EQ has to live below the application layer because Spotify's Web Playback
-SDK plays audio through standard system output — Spotiglass can't tap into the
+SDK plays audio through standard system output — Wax can't tap into the
 SDK's audio graph from JavaScript. Two macOS APIs can register a virtual
 output device that runs DSP in the kernel-adjacent path:
 
@@ -85,14 +85,14 @@ output device that runs DSP in the kernel-adjacent path:
 Apple only on request and is not available to indie macOS developers without
 a formal review. Without it the DriverKit dext refuses to load. Every shipping
 third-party EQ on macOS (eqMac, BackgroundMusic, BlackHole, Loopback,
-Soundsource) uses `AudioServerPlugIn` for exactly this reason. Spotiglass
+Soundsource) uses `AudioServerPlugIn` for exactly this reason. Wax
 adopts the same path: a bundled `.driver`, copied to the system HAL directory
 by the registered helper on first enable, with no Apple entitlement gate.
 
 ### Consequences
 
 - **Pro:** No entitlement gate. Plugin is a self-contained C++ bundle inside
-  `Spotiglass.app`.
+  `Wax.app`.
 - **Pro:** Standard install path means dot-files / Migration Assistant pick it
   up correctly.
 - **Con:** Activating the driver requires `coreaudiod` to re-load the HAL
@@ -176,7 +176,7 @@ downstream device (speakers, headphones, AirPods) that actually emits sound.
 Without a `kAudioVolumeControl` exposed on the virtual device, the slider
 is greyed out and the user has to dive into System Settings → Sound to
 adjust the EQRouter target's volume, which defeats the point of routing
-audio through Spotiglass EQ in the first place.
+audio through Wax EQ in the first place.
 
 Three ways to expose a working slider:
 
@@ -232,7 +232,7 @@ The control is published via the device's `kAudioObjectPropertyControlList`
 
 ## Activating the driver
 
-On first enable Spotiglass registers
+On first enable Wax registers
 `com.isaaclins.spotiglass.eqprivilegedhelper.plist` with
 `SMAppService.daemon(plistName:)`. macOS presents its own administrator
 authorization dialog for the LaunchDaemon. The helper then copies the
@@ -247,8 +247,8 @@ again; an unreadable bundle is repaired. An exact or newer installed version is
 left alone unless CoreAudio needs a reload. These operations use the already
 approved helper and remain silent after the first authorization.
 
-After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
-Output**. Spotiglass flips the system default output to it via
+After activation, `"Wax EQ"` appears in **System Settings → Sound →
+Output**. Wax flips the system default output to it via
 `AudioObjectSetPropertyData` (kAudioHardwarePropertyDefaultOutputDevice) and
 persists the previous default's stable device UID in
 `~/Library/Application Support/Spotiglass/eq-default-output.uid` so disable
@@ -273,7 +273,7 @@ can restore it after a relaunch.
 
 ## Privacy
 
-Spotiglass EQ:
+Wax EQ:
 
 - **Never** requests Microphone / Audio Recording permission.
 - **Never** uses `AudioHardwareCreateProcessTap` / `CATapDescription`.
@@ -292,7 +292,7 @@ Two paths:
 
 1. **`make embed-driver`** (recommended) — builds the host app, then builds
    the `.driver` universal Mach-O bundle, then copies it into
-   `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/`. Uses `clang`
+   `Wax.app/Contents/Library/Audio/Plug-Ins/HAL/`. Uses `clang`
    directly via `SpotiglassEQDriver/build-driver.sh`, so it doesn't need
    a separate Xcode target.
 
@@ -313,7 +313,7 @@ as the recommended next step once Developer ID signing is wired up.
   Application* signing is not required for the driver to register in
   `coreaudiod` and appear in System Settings → Sound → Output. The
   embedded build at
-  `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`
+  `Wax.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`
   is signed with whichever identity the user passes via
   `XCODE_EXTRA='CODE_SIGN_IDENTITY=…'`. For shipping outside developer
   machines, sign with a Developer ID Application identity and notarize.
@@ -352,6 +352,6 @@ as the recommended next step once Developer ID signing is wired up.
   output (e.g. MacBook Pro Speakers) and writes the processed audio there
   via a lock-free SPSC ring buffer. The Swift controller writes the
   forwarding target's UID to `/tmp/com.isaaclins.spotiglass.eq.target.u<uid>`
-  before flipping default-output to Spotiglass EQ. **EQRouter is
+  before flipping default-output to Wax EQ. **EQRouter is
   output-scope only.** It never opens an input IOProc and never reads from
   any input stream — no microphone path exists by construction.

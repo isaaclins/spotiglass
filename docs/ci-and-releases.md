@@ -46,7 +46,7 @@ Download the short-lived Actions artifact from the workflow run **Summary** page
 
 ## Sparkle auto-update (serverless)
 
-No Spotiglass server is required. Updates use:
+No Wax server is required. Updates use:
 
 | Piece | Host |
 |-------|------|
@@ -56,7 +56,7 @@ No Spotiglass server is required. Updates use:
 | Archive signatures | Sparkle EdDSA (`SUPublicEDKey` in the app; private key stored locally and never committed) |
 | Gatekeeper trust | Developer ID Application, hardened runtime, Apple notarization ticket stapled to the app and disk image |
 
-The app checks the feed automatically about once per day, or via **Spotiglass → Check for Updates…** in the menu bar. Automatic **install** is off by default (`SUAllowsAutomaticUpdates` = false); the user confirms the update.
+The app checks the feed automatically about once per day, or via **Wax → Check for Updates…** in the menu bar. Automatic **install** is off by default (`SUAllowsAutomaticUpdates` = false); the user confirms the update.
 
 ### One-time setup (maintainer)
 
@@ -162,3 +162,24 @@ that artifact as an end-user release.
 Sparkle EdDSA independently verifies that the downloaded zip came from the feed's
 signing key. It complements Developer ID and notarization; it does not replace
 either one.
+
+## Wax rename and legacy feed
+
+The bundle identifier, Keychain services, application-support directory and cache
+directory names remain unchanged. The product is Wax.app; the Xcode project,
+scheme and Swift module retain their internal names.
+
+The feed baked into existing installations remains
+`https://isaaclins.com/spotiglass/appcast.xml`. Before renaming the repository,
+`python3 scripts/publish-legacy-feed.py docs/appcast.xml` publishes a copy into
+`static/spotiglass/appcast.xml` in `isaaclins/isaaclins.github.io` on main. Hugo
+therefore retains it across portfolio deployments. The release publisher runs
+this after uploading the archives and pushing the current appcast. This copy is
+independent of project Pages routing and requires no HTTP or cross-domain redirect.
+Never rename the repository until the domain Pages deployment contains the copy.
+
+The website's link previews (`og:url`, `og:image`) point at `https://isaaclins.com/wax/`,
+which exists only once the repository is renamed. Rename it right after the rename
+branch reaches `main` and the legacy feed copy is live, so shared links never show
+a missing preview image for long.
+Historical release asset URLs retain their original filenames; new archives use Wax.

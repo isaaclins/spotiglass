@@ -16,8 +16,8 @@ later.
    - Product Name: `SpotiglassEQDriver`
    - Bundle Identifier: `com.isaaclins.spotiglass.eqdriver`
    - Language: Objective-C (it doesn't matter, the source files are C/C++)
-   - Project: Spotiglass
-   - Embed in Application: **Spotiglass**
+   - Project: Wax
+   - Embed in Application: **Wax**
 4. Configure the new target:
    - **Build Settings**:
      - `WRAPPER_EXTENSION = driver`
@@ -82,7 +82,7 @@ must keep both of these build phases and the target dependency:
   `BundleProgram` and `SMAppService.daemon(plistName:)` exist in the signed
   bundle.
 
-The helper accepts only requests from the Spotiglass code-signing identifier,
+The helper accepts only requests from the Wax code-signing identifier,
 only accepts the driver's path inside the containing app bundle, and preserves
 file metadata while replacing the system-scope bundle. It restarts `coreaudiod`
 after a copy. A Developer ID-signed and notarized app is required for a
@@ -93,21 +93,21 @@ LaunchDaemon to be accepted on a user's Mac.
 ```bash
 make build
 # Check the privileged helper is embedded:
-ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/PrivilegedHelperTools/"
+ls "build/DerivedData/Build/Products/Debug/Wax.app/Contents/Library/PrivilegedHelperTools/"
 # → SpotiglassEQPrivilegedHelper
-ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/LaunchDaemons/"
+ls "build/DerivedData/Build/Products/Debug/Wax.app/Contents/Library/LaunchDaemons/"
 # → com.isaaclins.spotiglass.eqprivilegedhelper.plist
 
 # `make embed-driver` additionally embeds the .driver:
-ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/"
+ls "build/DerivedData/Build/Products/Debug/Wax.app/Contents/Library/Audio/Plug-Ins/HAL/"
 # → SpotiglassEQDriver.driver
 
 # Check it's a universal Mach-O bundle:
-file "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver/Contents/MacOS/SpotiglassEQDriver"
+file "build/DerivedData/Build/Products/Debug/Wax.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver/Contents/MacOS/SpotiglassEQDriver"
 # → Mach-O universal binary with 2 architectures: [x86_64...] [arm64...]
 ```
 
-Once Developer ID signing is in place, launch Spotiglass and enable the
+Once Developer ID signing is in place, launch Wax and enable the
 Equalizer. The app registers the LaunchDaemon, macOS asks for authorization,
 and the helper installs the driver and restarts `coreaudiod`. Confirm the
 result in System Settings → Sound → Output. `scripts/eq-qa.sh` records the

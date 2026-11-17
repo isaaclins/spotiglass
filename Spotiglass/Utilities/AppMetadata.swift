@@ -1,10 +1,12 @@
 import Foundation
 
 enum AppMetadata {
-    static let displayName = "Spotiglass"
+    static let displayName = "Wax"
+    // Kept across the rename so offline libraries, pins and artwork stay available.
+    static let storageDirectoryName = "Spotiglass"
     static let bundleIdentifier = "com.isaaclins.spotiglass"
 
-    /// `SpotiglassTests` is injected into `Spotiglass.app` (`TEST_HOST`); Xcode sets this env var so
+    /// `SpotiglassTests` is injected into `Wax.app` (`TEST_HOST`); Xcode sets this env var so
     /// the hosted app can avoid touching the user Keychain during `restoreSessionIfAvailable()`.
     static var isRunningUnitTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil

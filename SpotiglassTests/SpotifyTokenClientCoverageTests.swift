@@ -5,7 +5,7 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
     func testTokenClientErrorDescriptions() {
         XCTAssertEqual(
             SpotifyTokenClientError.invalidResponse.errorDescription,
-            "Spotify returned a response Spotiglass could not interpret."
+            "Spotify returned a response Wax could not interpret."
         )
         // The status code is a developer fact and stays on the error case for
         // the log, out of the sentence the user reads (#157).

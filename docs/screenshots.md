@@ -105,9 +105,9 @@ terminal you run the script from.
 
 ## Where the run's data goes
 
-The script builds the Debug app, copies it to `build/screenshot-mode/Spotiglass.app` with the
+The script builds the Debug app, copies it to `build/screenshot-mode/Wax.app` with the
 bundle id `com.isaaclins.spotiglass.screenshots` and an ad-hoc signature, and launches it with
 `CFFIXED_USER_HOME=build/screenshot-mode/home`. Settings, caches and logs therefore land in that
-folder and preferences in their own domain, never in your real Spotiglass data. `stop` deletes
+folder and preferences in their own domain, never in your real Wax data. `stop` deletes
 both. The client ID is passed as a launch argument (`-spotify.clientID screenshot-mode`) and is
 not saved.

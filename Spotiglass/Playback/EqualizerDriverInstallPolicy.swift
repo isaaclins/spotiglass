@@ -106,7 +106,7 @@ enum EqualizerDriverInstallPolicy {
 }
 
 enum EqualizerDriverInstallError: Error, Equatable {
-    /// macOS is holding the helper until the user allows Spotiglass to run in
+    /// macOS is holding the helper until the user allows Wax to run in
     /// the background. No amount of retrying changes it.
     case approvalRequired
     case registrationFailed(status: Int)
@@ -120,21 +120,21 @@ enum EqualizerDriverInstallError: Error, Equatable {
     var diagnosticDetails: String {
         switch self {
         case .approvalRequired:
-            return "SMAppService will not register the helper until Spotiglass is allowed in Login Items"
+            return "SMAppService will not register the helper until Wax is allowed in Login Items"
         case .registrationFailed(let status):
             return "SMAppService registration failed (status \(status))"
         case .unregistrationFailed(let status):
             return "SMAppService re-registration could not remove the previous service (status \(status))"
         case .helperUnavailable(let message):
-            return "Spotiglass EQ privileged helper was unavailable: \(message)"
+            return "Wax EQ privileged helper was unavailable: \(message)"
         case .helperRejected(let status, let message):
-            return "Spotiglass EQ privileged helper rejected the request (status \(status)): \(message)"
+            return "Wax EQ privileged helper rejected the request (status \(status)): \(message)"
         case .helperOperationFailed(let status, let message):
-            return "Spotiglass EQ privileged helper failed (status \(status)): \(message)"
+            return "Wax EQ privileged helper failed (status \(status)): \(message)"
         case .invalidReply:
-            return "Spotiglass EQ privileged helper returned an invalid reply"
+            return "Wax EQ privileged helper returned an invalid reply"
         case .invalidRequest:
-            return "Spotiglass EQ privileged helper request did not match the installed app bundle"
+            return "Wax EQ privileged helper request did not match the installed app bundle"
         }
     }
 }

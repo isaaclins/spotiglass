@@ -12,7 +12,7 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Spotiglass EQ Driver</string>
+    <string>Wax EQ Driver</string>
     <key>CFBundlePackageType</key>
     <string>BNDL</string>
     <key>CFBundleShortVersionString</key>
@@ -43,6 +43,6 @@
          exactly one virtual output device with the friendly name shown to
          users in System Settings → Sound → Output. -->
     <key>NSHumanReadableCopyright</key>
-    <string>© Isaac Lins. Released as part of Spotiglass. Not for redistribution outside Spotiglass.app.</string>
+    <string>© Isaac Lins. Released as part of Wax. Not for redistribution outside Wax.app.</string>
 </dict>
 </plist>

@@ -1264,7 +1264,7 @@ extension QueuePanelTests {
 
         let banner = try XCTUnwrap(queue.lastError)
         XCTAssertEqual(banner.title, "Warteschlangen-Update fehlgeschlagen")
-        XCTAssertEqual(banner.message, "Spotify hat Daten zurückgegeben, die Spotiglass nicht lesen konnte. Versuchen Sie zu aktualisieren.")
+        XCTAssertEqual(banner.message, "Spotify hat Daten zurückgegeben, die Wax nicht lesen konnte. Versuchen Sie zu aktualisieren.")
     }
 }
 
@@ -1296,7 +1296,7 @@ extension QueuePanelTests {
             XCTAssertEqual(QueueViewModel.displayError(for: error)?.message, "Spotify hat den Zugriff verweigert.")
             XCTAssertEqual(
                 PlaybackSessionViewModel.displayError(for: error).message,
-                "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."
+                "Zum Abspielen von Musik in Wax ist Spotify Premium erforderlich."
             )
         }
     }

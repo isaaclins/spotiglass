@@ -38,8 +38,11 @@ struct SpotiglassApp: App {
         SpotiglassLog.boot()
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        SpotiglassLog.info(.persistence, "Spotiglass launching (version=\(version) build=\(build))")
+        SpotiglassLog.info(.persistence, "Wax launching (version=\(version) build=\(build))")
         if !AppMetadata.isRunningUnitTests {
+            // Before anything starts: a copy about to rename itself must not touch the equalizer,
+            // the updater or playback, because it quits as soon as the renamed copy is running.
+            LegacyBundleRelaunch.relaunchFromRenamedBundleIfNeeded()
             AudioOutputTrace.shared.start()
         }
         // Under the unit-test host, point the store at a throwaway file so running
@@ -436,4 +439,53 @@ private final class MacOSColorScheme: ObservableObject {
     nonisolated private static func colorScheme(of appearance: NSAppearance) -> ColorScheme {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? .dark : .light
     }
+}
+
+/// Sparkle installs an update under the installed filename, so an update from Spotiglass lands in
+/// `Spotiglass.app`. That copy renames itself to `Wax.app`, opens the renamed copy and quits.
+/// `AppBundleMigration.migrate` waits for the open to answer, so the old copy doesn't go on
+/// launching while the new one starts; if the open fails or doesn't answer, the rename is undone
+/// and this copy carries on as before.
+private enum LegacyBundleRelaunch {
+    static func relaunchFromRenamedBundleIfNeeded() {
+        guard Bundle.main.bundleIdentifier == "com.isaaclins.spotiglass" else { return }
+        let source = Bundle.main.bundleURL
+        let loginItems = LegacyLoginItemSnapshot(source: source)
+        AppBundleMigration.migrate(
+            source: source,
+            register: { LSRegisterURL($0 as CFURL, true) },
+            relaunch: { destination, completion in
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.createsNewApplicationInstance = true
+                configuration.arguments = Array(CommandLine.arguments.dropFirst())
+                configuration.environment = ProcessInfo.processInfo.environment
+                // AppKit answers on a concurrent queue, so `migrate` can wait on the main thread.
+                NSWorkspace.shared.openApplication(at: destination, configuration: configuration) { app, _ in
+                    // Refused when it came too late: this copy already rolled back and carries on,
+                    // so close the second one.
+                    if !completion(app != nil), let app { app.terminate() }
+                }
+            },
+            finish: { destination in
+                loginItems.commit(destination: destination)
+                exit(EXIT_SUCCESS)
+            },
+            log: { SpotiglassLog.info(.persistence, $0) }
+        )
+    }
+}
+
+/// A failed move/relaunch leaves the user's original login item untouched.
+private final class LegacyLoginItemSnapshot {
+    private var snapshot: UnsafeMutableRawPointer?
+    init(source: URL) {
+        guard source.lastPathComponent == "Spotiglass.app",
+              !source.pathComponents.contains("AppTranslocation") else { return }
+        snapshot = source.path.withCString { WaxCaptureLegacyLoginItems($0) }
+    }
+    func commit(destination: URL) {
+        destination.path.withCString { WaxFinishLegacyLoginItems(snapshot, $0) }
+        snapshot = nil
+    }
+    deinit { WaxFinishLegacyLoginItems(snapshot, nil) }
 }

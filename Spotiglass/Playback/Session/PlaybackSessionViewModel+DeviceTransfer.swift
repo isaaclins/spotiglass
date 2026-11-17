@@ -212,7 +212,7 @@ extension PlaybackSessionViewModel {
     /// On window reopen the previous session's `WKWebView` often lingers as the active Spotify
     /// Connect "Spotiglass" device for a few seconds. When that happens, hand playback to the
     /// freshly created device so the user keeps hearing music through the window they just
-    /// reopened. Restricted to devices named ``SpotifyPlaybackHost/deviceName`` so a clean first
+    /// reopened. Restricted to devices named ``SpotifyPlaybackHost/deviceName`` (or its pre-rename name) so a clean first
     /// launch never steals playback from the user's other Connect targets (phone, desktop, …).
     func autoResumeFromStaleSpotiglassDeviceIfNeeded(
         targetDeviceID: String,
@@ -227,7 +227,7 @@ extension PlaybackSessionViewModel {
         let devices = connectDevices
         guard let staleSpotiglass = devices.first(where: { device in
             device.isActive
-                && device.name == SpotifyPlaybackHost.deviceName
+                && SpotifyPlaybackHost.isOwnDevice(named: device.name)
                 && device.deviceID != targetDeviceID
         }) else {
             return

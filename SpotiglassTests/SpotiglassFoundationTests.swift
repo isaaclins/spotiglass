@@ -15,9 +15,12 @@ final class SpotiglassFoundationTests: XCTestCase {
         )
     }
 
+    @MainActor
     func testAppMetadataMatchesProjectIdentity() {
-        XCTAssertEqual(AppMetadata.displayName, "Spotiglass")
+        XCTAssertEqual(AppMetadata.displayName, "Wax")
         XCTAssertEqual(AppMetadata.bundleIdentifier, "com.isaaclins.spotiglass")
+        XCTAssertEqual(AppMetadata.storageDirectoryName, "Spotiglass")
+        XCTAssertTrue(SpotiglassSettingsStore.defaultFileURL(fileManager: .default).path.hasSuffix("/Spotiglass/settings.json"))
     }
 
     func testAppMenuKeepsPaletteInStandardApplicationMenu() throws {

@@ -25,7 +25,7 @@ actor ArtworkImageStore {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         let disk = Self.defaultDiskDirectory
-        let urlCacheDir = base.appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+        let urlCacheDir = base.appendingPathComponent(AppMetadata.storageDirectoryName, isDirectory: true)
             .appendingPathComponent("ArtworkURLCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: urlCacheDir, withIntermediateDirectories: true)
         let urlCache = URLCache(
@@ -86,7 +86,7 @@ actor ArtworkImageStore {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return base
-            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+            .appendingPathComponent(AppMetadata.storageDirectoryName, isDirectory: true)
             .appendingPathComponent("Artwork", isDirectory: true)
     }
 

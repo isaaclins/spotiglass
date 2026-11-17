@@ -56,10 +56,11 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
             // one this app ships, and only while the registration is approved:
             // unregistering an unapproved service throws its approval away and
             // the next register needs the user again.
-            guard shouldRetryAfter(error),
-                !helperVersionMarkerMatches(),
-                service.status == .enabled
-            else { throw error }
+            guard Self.shouldReRegister(
+                after: error,
+                helperIsThisBuild: helperVersionMarkerMatches(),
+                isEnabled: service.status == .enabled
+            ) else { throw error }
             try reRegister()
             try awaitEnabledService()
             try requestInstall(sourceURL: source, destinationURL: destination)
@@ -167,19 +168,28 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
         try register()
     }
 
-    private func shouldRetryAfter(_ error: EqualizerDriverInstallError) -> Bool {
+    /// Whether a failed request is worth a fresh helper: only when the running helper is
+    /// another build than the one this app ships, and only while the registration is approved.
+    nonisolated static func shouldReRegister(
+        after error: EqualizerDriverInstallError,
+        helperIsThisBuild: Bool,
+        isEnabled: Bool
+    ) -> Bool {
+        guard !helperIsThisBuild, isEnabled else { return false }
         switch error {
-        case .helperUnavailable, .invalidReply:
-            true
+        // A helper from an older build may not be able to answer at all, or may answer with
+        // a rejection: it keeps the app path it was started from until the Mac restarts, so
+        // after the update from Spotiglass it refuses the driver inside Wax.app.
+        case .helperUnavailable, .invalidReply, .helperRejected:
+            return true
         // Retrying cannot clear a missing approval, and re-registering would
         // throw away an approval the user has already granted.
         case .approvalRequired,
             .registrationFailed,
             .unregistrationFailed,
-            .helperRejected,
             .helperOperationFailed,
             .invalidRequest:
-            false
+            return false
         }
     }
 

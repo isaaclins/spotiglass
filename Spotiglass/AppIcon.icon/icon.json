@@ -1,61 +1,50 @@
 {
-  "color-space-for-untagged-svg-colors" : "display-p3",
-  "fill" : {
-    "linear-gradient" : [
-      "display-p3:0.29570,0.01370,0.00000,1.00000",
-      "display-p3:0.00000,0.00000,0.00000,1.00000"
+  "color-space-for-untagged-svg-colors": "display-p3",
+  "fill": {
+    "linear-gradient": [
+      "display-p3:0.00000,0.17255,0.77647,1.00000",
+      "display-p3:0.00000,0.11765,0.61961,1.00000"
     ],
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
+    "orientation": {
+      "start": {
+        "x": 0.5,
+        "y": 0
       },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
+      "stop": {
+        "x": 0.5,
+        "y": 0.7
       }
     }
   },
-  "groups" : [
+  "groups": [
     {
-      "layers" : [
+      "layers": [
         {
-          "image-name" : "music.note 2.png",
-          "name" : "music.note 2",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              150,
-              50
-            ]
-          }
-        },
-        {
-          "image-name" : "waveform.png",
-          "name" : "waveform",
-          "position" : {
-            "scale" : 1,
-            "translation-in-points" : [
-              -150,
-              -50
+          "image-name": "wax-icon.png",
+          "name": "Wax",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
             ]
           }
         }
       ],
-      "shadow" : {
-        "kind" : "neutral",
-        "opacity" : 0.5
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0
       },
-      "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+      "translucency": {
+        "enabled": false,
+        "value": 0
       }
     }
   ],
-  "supported-platforms" : {
-    "circles" : [
+  "supported-platforms": {
+    "circles": [
       "watchOS"
     ],
-    "squares" : "shared"
+    "squares": "shared"
   }
 }

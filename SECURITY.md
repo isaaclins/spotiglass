@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-If you believe you have found a security issue in Spotiglass, please report it
+If you believe you have found a security issue in Wax, please report it
 privately. Do not open a public GitHub issue for exploitable vulnerabilities.
 
 **Preferred:** [GitHub private vulnerability reporting](https://github.com/isaaclins/spotiglass/security/advisories/new) for this repository (if enabled).
@@ -27,7 +27,7 @@ Redact or rotate credentials if they were accidentally exposed.
 
 In scope:
 
-- Spotiglass macOS app code in this repository
+- Wax macOS app code in this repository
 - OAuth loopback listener and token storage behavior documented in [data-storage.md](docs/data-storage.md)
 - Local cache and settings handling
 

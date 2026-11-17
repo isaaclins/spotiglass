@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${ROOT_DIR}/build/DerivedData/Build/Products/Release/Spotiglass.app"
+APP_PATH="${ROOT_DIR}/build/DerivedData/Build/Products/Release/Wax.app"
 ICON_PATH="${APP_PATH}/Contents/Resources/AppIcon.icns"
 OUTPUT_PATH="${ROOT_DIR}/.github/assets/logo.png"
 
@@ -10,7 +10,7 @@ print_usage() {
   cat <<'EOF'
 Usage: scripts/generate_readme_logo.sh [--rebuild] [--output <path>]
 
-Generates a README-ready PNG logo from Spotiglass.app's AppIcon.icns.
+Generates a README-ready PNG logo from Wax.app's AppIcon.icns.
 
 Options:
   --rebuild        Force a fresh unsigned Release build before export

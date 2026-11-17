@@ -159,7 +159,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 20
             ),
@@ -276,7 +276,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 20
             ),
@@ -314,7 +314,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 30
             ),
@@ -341,7 +341,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 80
             ),
@@ -397,7 +397,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 30
             ),
@@ -420,7 +420,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer",
                 volumePercent: 30
             ),

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		582000000000000000000001 /* LegacyLoginItems.m in Sources */ = {isa = PBXBuildFile; fileRef = 582000000000000000000002 /* LegacyLoginItems.m */; };
 		728E7A042FEAA68100FB3C01 /* HomeFeedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */; };
 		728E7A062FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */; };
 		728E7A082FEAA69600FB3C01 /* SpotifyDTOs+Home.swift in Sources */ = {isa = PBXBuildFile; fileRef = 728E7A072FEAA69600FB3C01 /* SpotifyDTOs+Home.swift */; };
@@ -292,6 +293,8 @@
 		TST00000000000000000000DA /* HiddenPlaybackWebViewConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */; };
 		TST00000000000000000000DB /* AppearanceSettingsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */; };
 		TST00000000000000000000DC /* AccountSettingsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DC /* AccountSettingsViewTests.swift */; };
+		15D23789C4F82C5741290378 /* AppBundleMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */; };
+		1F1DBD633189E4B7894A7B91 /* AppBundleMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */; };
 		TST00000000000000000000DD /* ViewTestHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DD /* ViewTestHost.swift */; };
 		TST00000000000000000000DE /* SettingsShellViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DE /* SettingsShellViewsTests.swift */; };
 		TST00000000000000000000DF /* ArtworkViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100DF /* ArtworkViewTests.swift */; };
@@ -485,6 +488,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		582000000000000000000003 /* LegacyLoginItems.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LegacyLoginItems.h; sourceTree = "<group>"; };
+		582000000000000000000002 /* LegacyLoginItems.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LegacyLoginItems.m; sourceTree = "<group>"; };
 		728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedModels.swift; sourceTree = "<group>"; };
 		728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Home.swift"; sourceTree = "<group>"; };
 		728E7A072FEAA69600FB3C01 /* SpotifyDTOs+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+Home.swift"; sourceTree = "<group>"; };
@@ -492,7 +497,7 @@
 		728E7A0E2FEAA72E00FB3C01 /* HomeFeedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedComponents.swift; sourceTree = "<group>"; };
 		728E7A102FEAA74600FB3C01 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		728E7A122FEAA80B00FB3C01 /* PlaylistBrowserHomeFeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserHomeFeedTests.swift; sourceTree = "<group>"; };
-		A10000000000000000000010 /* Spotiglass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotiglass.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000010 /* Spotiglass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Wax.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000011 /* SpotiglassApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassApp.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080019 /* SpotiglassMenuCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassMenuCommands.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -829,6 +834,8 @@
 		TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebViewConfigurationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DC /* AccountSettingsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsViewTests.swift; sourceTree = "<group>"; };
+		A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundleMigration.swift; sourceTree = "<group>"; };
+		DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundleMigrationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DD /* ViewTestHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ViewTestHost.swift; path = Support/ViewTestHost.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DE /* SettingsShellViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsShellViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100DF /* ArtworkViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkViewTests.swift; sourceTree = "<group>"; };
@@ -1268,6 +1275,7 @@
 				TST00000000000000000100DE /* SettingsShellViewsTests.swift */,
 				TST00000000000000000100DD /* ViewTestHost.swift */,
 				TST00000000000000000100DC /* AccountSettingsViewTests.swift */,
+				DF8BCE6974FBAEFF3B42B50A /* AppBundleMigrationTests.swift */,
 				TST00000000000000000100DB /* AppearanceSettingsViewTests.swift */,
 				TST00000000000000000100DA /* HiddenPlaybackWebViewConfigurationTests.swift */,
 				TST00000000000000000100D9 /* PlaylistBrowserPlaybackHelpersTests.swift */,
@@ -1554,6 +1562,9 @@
 		PRO00000000000000000000G1 /* Infrastructure */ = {
 			isa = PBXGroup;
 			children = (
+				A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */,
+				582000000000000000000003 /* LegacyLoginItems.h */,
+				582000000000000000000002 /* LegacyLoginItems.m */,
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
 				SRC0000000000000000080023 /* ScreenshotMode.swift */,
 				SRC0000000000000000080B03 /* PublishedWhenChanged.swift */,
@@ -1969,6 +1980,8 @@
 				SRC0000000000000000000011 /* EqualizerSettingsView.swift in Sources */,
 				SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */,
 				J90000000000000000000103 /* AccountSettingsView.swift in Sources */,
+				15D23789C4F82C5741290378 /* AppBundleMigration.swift in Sources */,
+				582000000000000000000001 /* LegacyLoginItems.m in Sources */,
 				J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */,
 				K10000000000000000000001 /* SpotiglassSettingsModel.swift in Sources */,
 				K10000000000000000000002 /* SpotiglassSettingsStore.swift in Sources */,
@@ -2115,6 +2128,7 @@
 				TST00000000000000000000DE /* SettingsShellViewsTests.swift in Sources */,
 				TST00000000000000000000DD /* ViewTestHost.swift in Sources */,
 				TST00000000000000000000DC /* AccountSettingsViewTests.swift in Sources */,
+				1F1DBD633189E4B7894A7B91 /* AppBundleMigrationTests.swift in Sources */,
 				728E7A132FEAA80B00FB3C01 /* PlaylistBrowserHomeFeedTests.swift in Sources */,
 				TST00000000000000000000DB /* AppearanceSettingsViewTests.swift in Sources */,
 				TST00000000000000000000DA /* HiddenPlaybackWebViewConfigurationTests.swift in Sources */,
@@ -2356,13 +2370,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Spotiglass/App/SparkleInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleDisplayName = Wax;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Wax;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Wax asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2370,7 +2384,9 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.8.48;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Wax;
+				PRODUCT_MODULE_NAME = Spotiglass;
+				SWIFT_OBJC_BRIDGING_HEADER = Spotiglass/Infrastructure/LegacyLoginItems.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -2392,13 +2408,13 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Spotiglass/App/SparkleInfo.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleDisplayName = Wax;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
-				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Wax;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
-				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Wax shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Wax asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2406,7 +2422,9 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.8.48;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = Wax;
+				PRODUCT_MODULE_NAME = Spotiglass;
+				SWIFT_OBJC_BRIDGING_HEADER = Spotiglass/Infrastructure/LegacyLoginItems.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -2431,7 +2449,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Wax.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Wax";
 			};
 			name = Debug;
 		};
@@ -2454,7 +2472,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/SpotiglassTests/EQDriverC";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Wax.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Wax";
 			};
 			name = Release;
 		};

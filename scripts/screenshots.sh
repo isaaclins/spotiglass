@@ -21,7 +21,7 @@ PORT="${SPOTIGLASS_MOCK_PORT:-43900}"
 # A separate bundle id keeps the run's UserDefaults out of the real app's domain; the fake home
 # keeps settings, caches and logs out of ~/Library.
 BUNDLE_ID="com.isaaclins.spotiglass.screenshots"
-APP="$WORK/Spotiglass.app"
+APP="$WORK/Wax.app"
 FAKE_HOME="$WORK/home"
 WINDOW_FRAME="${WINDOW_FRAME:-120, 80, 1320, 860}"   # x, y, width, height in points
 
@@ -41,7 +41,7 @@ REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
 REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
-app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
+app_pid() { pgrep -f "$APP/Contents/MacOS/Wax" | head -1; }
 # Stops when another checkout owns the backups.
 refuse_if_owned_elsewhere() {
     local owner; owner="$(state_owner)"
@@ -117,7 +117,7 @@ start() {
     local bundle_id="$BUNDLE_ID"
     [ "$apple_music" = 0 ] || bundle_id="$REAL_BUNDLE_ID"
     echo "==> staging $APP ($bundle_id)"
-    scripts/screenshot-mode/stage-app.sh "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP" \
+    scripts/screenshot-mode/stage-app.sh "build/DerivedData/Build/Products/$configuration/Wax.app" "$APP" \
         "$bundle_id" "$REAL_BUNDLE_ID"
     if [ "$apple_music" = 1 ]; then
         claim_state

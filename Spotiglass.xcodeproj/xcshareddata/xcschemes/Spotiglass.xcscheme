@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000040"
-               BuildableName = "Spotiglass.app"
+               BuildableName = "Wax.app"
                BlueprintName = "Spotiglass"
                ReferencedContainer = "container:Spotiglass.xcodeproj">
             </BuildableReference>
@@ -58,7 +58,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000040"
-            BuildableName = "Spotiglass.app"
+            BuildableName = "Wax.app"
             BlueprintName = "Spotiglass"
             ReferencedContainer = "container:Spotiglass.xcodeproj">
          </BuildableReference>
@@ -75,7 +75,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000040"
-            BuildableName = "Spotiglass.app"
+            BuildableName = "Wax.app"
             BlueprintName = "Spotiglass"
             ReferencedContainer = "container:Spotiglass.xcodeproj">
          </BuildableReference>

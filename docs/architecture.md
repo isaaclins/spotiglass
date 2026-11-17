@@ -1,6 +1,6 @@
 # Architecture
 
-Spotiglass is a native macOS SwiftUI app for Spotify and Apple Music. Spotify uses
+Wax is a native macOS SwiftUI app for Spotify and Apple Music. Spotify uses
 OAuth PKCE sign-in, the Spotify Web API for library data, and Web Playback SDK audio
 through a hidden `WKWebView`. Apple Music uses MusicKit for the library, the catalog and
 playback ([Apple Music](apple-music.md)).

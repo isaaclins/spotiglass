@@ -56,13 +56,13 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         let cases: [(MusicPlaybackEvent, String, String)] = [
             (.initializationError("Spotify Web Playback SDK could not connect to Spotify."),
              "Wiedergabe konnte nicht gestartet werden",
-             "Spotiglass konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."),
+             "Wax konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."),
             (.authenticationError("Authentication failed"),
              "Erneut anmelden",
              "Ihre Spotify-Sitzung ist abgelaufen. Verbinden Sie sich erneut, um weiter abzuspielen."),
             (.accountError("This functionality is restricted to premium users only"),
              "Spotify Premium erforderlich",
-             "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."),
+             "Zum Abspielen von Musik in Wax ist Spotify Premium erforderlich."),
             (.playbackError("Playback error"),
              "Wiedergabefehler",
              "Spotify konnte das nicht ausführen. Versuche es gleich erneut.")

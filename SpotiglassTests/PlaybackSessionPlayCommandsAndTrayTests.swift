@@ -488,7 +488,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
                 deviceID: "local-device",
                 isActive: true,
                 isRestricted: false,
-                name: "Spotiglass",
+                name: "Wax",
                 type: "computer"
             ),
             isPlaying: true

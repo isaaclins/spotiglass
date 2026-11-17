@@ -575,7 +575,7 @@ final class MusicServiceStoreTests: XCTestCase {
         let next = store.orderedServices.first { $0 != .spotify }
         XCTAssertEqual(
             PlaylistBrowserView.disconnectConfirmationMessage(switchingTo: next),
-            "Spotify is removed from Spotiglass and the window switches to Apple Music. The saved session is cleared."
+            "Spotify is removed from Wax and the window switches to Apple Music. The saved session is cleared."
         )
         XCTAssertEqual(PlaylistBrowserView.disconnectHint(switchingTo: next), "Disconnects Spotify and switches to Apple Music.")
 

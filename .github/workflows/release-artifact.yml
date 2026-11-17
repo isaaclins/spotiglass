@@ -2,7 +2,7 @@ name: Release artifact
 
 # NOTE: This workflow is PREVIEW-ONLY as of v0.2.0.
 #
-# It builds an unsigned Release Spotiglass.app and uploads it as a 14-day
+# It builds an unsigned Release Wax.app and uploads it as a 14-day
 # Actions artifact so reviewers can grab a build of a branch without a Mac.
 # It does NOT cut a real release.
 #
@@ -30,7 +30,7 @@ on:
 
 jobs:
   build:
-    name: Build unsigned Release Spotiglass.app (preview only)
+    name: Build unsigned Release Wax.app (preview only)
     # Pinned to the macos-26 (Tahoe) runner because Spotiglass and
     # SpotiglassTests both have a macOS 26.0 deployment target. The default
     # macos-latest label currently maps to macOS 15, whose host OS (15.7.x)
@@ -105,7 +105,7 @@ jobs:
           COVERAGE_ALLOWLIST=scripts/coverage-allowlist.json \
             ./scripts/check-coverage-per-file.sh "$GITHUB_WORKSPACE/build/ci-cov.xcresult"
 
-      - name: Build unsigned Release Spotiglass.app
+      - name: Build unsigned Release Wax.app
         run: |
           set -euo pipefail
           xcodebuild \
@@ -121,26 +121,26 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-      - name: Stage Spotiglass.app in artifact folder
+      - name: Stage Wax.app in artifact folder
         run: |
           set -euo pipefail
-          APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
+          APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Wax.app"
           if [ ! -d "$APP_SOURCE" ]; then
-            echo "Spotiglass.app not found at $APP_SOURCE" >&2
+            echo "Wax.app not found at $APP_SOURCE" >&2
             ls -la "$DERIVED_DATA/Build/Products/$CONFIGURATION/" || true
             exit 1
           fi
           ARTIFACT_DIR="$GITHUB_WORKSPACE/artifact"
           rm -rf "$ARTIFACT_DIR"
           mkdir -p "$ARTIFACT_DIR"
-          cp -R "$APP_SOURCE" "$ARTIFACT_DIR/Spotiglass.app"
-          file "$ARTIFACT_DIR/Spotiglass.app/Contents/MacOS/Spotiglass"
-          codesign -dv "$ARTIFACT_DIR/Spotiglass.app" 2>&1 || true
+          cp -R "$APP_SOURCE" "$ARTIFACT_DIR/Wax.app"
+          file "$ARTIFACT_DIR/Wax.app/Contents/MacOS/Wax"
+          codesign -dv "$ARTIFACT_DIR/Wax.app" 2>&1 || true
           echo ""
           echo "NOTE: this preview build does NOT contain SpotiglassEQDriver.driver."
           echo "Cut a real release locally via ./scripts/sparkle-release.sh."
 
-      - name: Upload Spotiglass.app artifact bundle
+      - name: Upload Wax.app artifact bundle
         uses: actions/upload-artifact@v4
         with:
           name: Spotiglass-release-app

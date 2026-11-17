@@ -53,7 +53,7 @@ struct SpotifyLocalCache {
                 throw SpotifyLocalCacheError.applicationSupportUnavailable
             }
             self.rootDirectory = supportDirectory
-                .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+                .appendingPathComponent(AppMetadata.storageDirectoryName, isDirectory: true)
                 .appendingPathComponent("SpotifyCache", isDirectory: true)
         }
 

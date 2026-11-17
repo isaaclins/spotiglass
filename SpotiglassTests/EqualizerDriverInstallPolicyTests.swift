@@ -77,7 +77,7 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             mapped.diagnosticDetails,
-            "Spotiglass EQ privileged helper failed (status 74): copyfile failed"
+            "Wax EQ privileged helper failed (status 74): copyfile failed"
         )
         XCTAssertFalse(mapped.isUserVisible)
         XCTAssertNil(mapped.userFacingDescription)
@@ -99,7 +99,7 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             mapped.diagnosticDetails,
-            "Spotiglass is not allowed to run in the background, so launchd refused to register the equalizer helper"
+            "Wax is not allowed to run in the background, so launchd refused to register the equalizer helper"
         )
     }
 
@@ -120,6 +120,29 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
             XCTAssertFalse(mapped.isUserVisible)
             XCTAssertNil(mapped.userFacingDescription)
         }
+    }
+
+    /// The EQ helper runs until the Mac restarts and keeps the app path it was started from.
+    /// After the update from Spotiglass, the helper still running from Spotiglass.app refuses the
+    /// driver inside Wax.app (status 64). That has to bring up the new build's helper instead of
+    /// switching the equalizer off; a refusal from the current build's helper is final.
+    func testARejectionFromAnOlderHelperBringsUpTheNewOne() {
+        let rejected = EqualizerDriverInstallError.helperRejected(
+            status: 64,
+            message: "the request did not identify this app's bundled driver"
+        )
+        XCTAssertTrue(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: true, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: false, isEnabled: false))
+        XCTAssertTrue(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .helperUnavailable(message: "connection invalidated"), helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .approvalRequired, helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .helperOperationFailed(status: 74, message: "copyfile failed"), helperIsThisBuild: false, isEnabled: true))
     }
 
     func testCodeSigningRequirementsPinTeamOrExplicitLocalCertificate() {

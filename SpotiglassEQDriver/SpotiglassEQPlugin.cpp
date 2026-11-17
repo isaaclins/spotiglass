@@ -1,14 +1,14 @@
 // SpotiglassEQDriver / SpotiglassEQPlugin.cpp
 //
 // AudioServerPlugIn entry point and `AudioServerPlugInDriverInterface` vtable
-// for the Spotiglass EQ virtual output device.
+// for the Wax EQ virtual output device.
 //
 // `coreaudiod` loads this bundle, calls `SpotiglassEQDriver_Create` to obtain
 // a driver factory, and from there walks an AudioObject hierarchy rooted at
 // the plugin:
 //
 //     Plugin (kAudioPlugInClassID)
-//       └── Device "Spotiglass EQ" (kAudioDeviceClassID)
+//       └── Device "Wax EQ" (kAudioDeviceClassID)
 //             ├── Output Stream  (kAudioStreamClassID, output scope only)
 //             └── Volume Control (kAudioVolumeControlClassID, optional)
 //
@@ -61,7 +61,7 @@ namespace {
 [[maybe_unused]] constexpr UInt32 kOutputStreamObjectID = 3;
 // Master output volume control. Mirrors the EQRouter target device's
 // kAudioDevicePropertyVolumeScalar so the macOS menu-bar volume slider is
-// usable while Spotiglass EQ is the default output. See ADR-EQ-3.
+// usable while Wax EQ is the default output. See ADR-EQ-3.
 [[maybe_unused]] constexpr UInt32 kVolumeControlObjectID = 4;
 
 // Volume range exposed by the master control. Matches the typical macOS
@@ -108,7 +108,7 @@ struct PluginState {
     EQIOClients ioClients;
 
     // Forwards EQ-processed audio out to the real hardware output that was
-    // active before the user routed default-output to Spotiglass EQ. Without
+    // active before the user routed default-output to Wax EQ. Without
     // this, audio routed to our virtual device would have nowhere to go.
     // Lazily opened on StartIO; closed after a retired router has no users.
     // NEVER opens an input IOProc, output scope only, no microphone path.
@@ -748,14 +748,14 @@ OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
 // MARK: - Static device shape
 
 // 2 ch, native-endian Float32 interleaved — the format coreaudiod will
-// publish to clients as "Spotiglass EQ"'s virtual stream format. Sample rate
+// publish to clients as "Wax EQ"'s virtual stream format. Sample rate
 // is mutable via SetPropertyData; the constants here are the discrete rates
 // kAudioDevicePropertyAvailableNominalSampleRates advertises.
 constexpr UInt32 kChannelsPerFrame = 2;
 
-constexpr const char* kPluginNameUTF8 = "Spotiglass EQ Driver";
+constexpr const char* kPluginNameUTF8 = "Wax EQ Driver";
 constexpr const char* kPluginManufacturerUTF8 = "Isaac Lins";
-constexpr const char* kDeviceNameUTF8 = "Spotiglass EQ";
+constexpr const char* kDeviceNameUTF8 = "Wax EQ";
 constexpr const char* kDeviceUIDUTF8 = "com.isaaclins.spotiglass.eqdevice";
 constexpr const char* kModelUIDUTF8 = "com.isaaclins.spotiglass.eqmodel";
 
@@ -982,7 +982,7 @@ OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID obje
             case kAudioDevicePropertyLatency:                               *outDataSize = sizeof(UInt32); return noErr;
             case kAudioDevicePropertyStreams:
                 // Match GetPropertyData's scope filter: input scope reports
-                // zero streams so Spotiglass EQ has zero input channels.
+                // zero streams so Wax EQ has zero input channels.
                 *outDataSize = (address->mScope == kAudioObjectPropertyScopeInput)
                     ? 0 : sizeof(AudioObjectID);
                 return noErr;
@@ -1120,7 +1120,7 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice: return putUInt32(1);
             case kAudioDevicePropertyLatency:                        return putUInt32(0);
             case kAudioDevicePropertyStreams: {
-                // CRITICAL: Spotiglass EQ is OUTPUT-ONLY. coreaudiod queries
+                // CRITICAL: Wax EQ is OUTPUT-ONLY. coreaudiod queries
                 // streams with both input and output scopes. If we return a
                 // stream for input scope, the device incorrectly appears with
                 // "Input Channels: 2" in system_profiler — and worse, that's
@@ -1170,7 +1170,7 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioObjectPropertyBaseClass: return putClassID(kAudioObjectClassID);
             case kAudioObjectPropertyClass:     return putClassID(kAudioStreamClassID);
             case kAudioObjectPropertyOwner:     return putObjectID(kDeviceObjectID);
-            case kAudioObjectPropertyName:      return putString("Spotiglass EQ Output");
+            case kAudioObjectPropertyName:      return putString("Wax EQ Output");
             case kAudioStreamPropertyIsActive:  return putUInt32(1);
             case kAudioStreamPropertyDirection: return putUInt32(0); // output
             case kAudioStreamPropertyTerminalType: return putUInt32(kAudioStreamTerminalTypeSpeaker);
@@ -1213,7 +1213,7 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioObjectPropertyClass:            return putClassID(kAudioVolumeControlClassID);
             case kAudioObjectPropertyOwner:            return putObjectID(kDeviceObjectID);
             case kAudioObjectPropertyOwnedObjects:     *outDataSize = 0; return noErr;
-            case kAudioObjectPropertyName:             return putString("Spotiglass EQ Master Volume");
+            case kAudioObjectPropertyName:             return putString("Wax EQ Master Volume");
             case kAudioControlPropertyScope:           return putUInt32(kAudioObjectPropertyScopeOutput);
             case kAudioControlPropertyElement:         return putUInt32(kAudioObjectPropertyElementMain);
             case kAudioLevelControlPropertyScalarValue: {

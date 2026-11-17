@@ -296,7 +296,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             deviceID: "local-device",
             isActive: true,
             isRestricted: false,
-            name: "Spotiglass",
+            name: "Wax",
             type: "computer"
         )
         let snapshotTrack = PlaylistBrowsingTestFixtures.fallbackTrack(

@@ -7,14 +7,14 @@ Apple Music needs no setup: pick it on the welcome screen, or choose **Add a ser
 - macOS with Xcode suitable for the project deployment target (see `MACOSX_DEPLOYMENT_TARGET` in the Xcode project).
 - A [Spotify Developer](https://developer.spotify.com/dashboard) app — you only need the **client ID** (PKCE public client; do not add a client secret).
 
-## Run Spotiglass
+## Run Wax
 
 1. Create a Spotify app in the dashboard and copy its **client ID**.
 2. Open `Spotiglass.xcodeproj` in Xcode and run the **Spotiglass** scheme on macOS.
-3. Pick Spotify on the welcome screen (or **Add a service…** at the top left of the sidebar), paste the client ID on the Spotify sign-in screen that follows or in **Settings → Account** (⌘,), choose **Connect Spotify**, and complete sign-in in your default browser. While Spotiglass is waiting for the callback, use **Cancel** (or the Cancel shortcut) to abandon sign-in and return to the Spotify sign-in screen.
+3. Pick Spotify on the welcome screen (or **Add a service…** at the top left of the sidebar), paste the client ID on the Spotify sign-in screen that follows or in **Settings → Account** (⌘,), choose **Connect Spotify**, and complete sign-in in your default browser. While Wax is waiting for the callback, use **Cancel** (or the Cancel shortcut) to abandon sign-in and return to the Spotify sign-in screen.
 4. Browse **Home**, **Liked Songs** at the top of the **Playlists** section, your other playlists, and play tracks.
 
-**Settings** (Spotiglass menu or ⌘,) is organized into **Equalizer** (output device, presets and bands), **Appearance** (UI language: English, Spanish, or German—defaults to macOS when it is one of those, otherwise English; color scheme: System, Light, or Dark; plus command palette backdrop blur), **Account** (each service's sign-in, and Spotify's client ID), and **Keyboard** (shortcuts). On **Keyboard**, type in **Search Commands** to find a command, then click its **Record Shortcut** field and press the shortcut you want: the keys you hold show as you press them, and a valid shortcut saves at once (Esc cancels; Delete or the ⓧ on the field clears). If a chord is already used by another command, the field says which one and **Replace** moves it. Disconnect isn't listed: it stays off a single keypress and runs from the command palette. Power users can still edit the raw JSON under **Advanced (JSON)**; the on-disk path is shown there. Open the command palette with the shortcut shown in **Keyboard** (default ⌘K). Use a `>` prefix to list and filter in-app commands (while signed in, type `> lyrics` for **Toggle Lyrics**, or bind **Toggle Lyrics** to a shortcut on **Keyboard**). Otherwise the palette searches the service on screen: use the footer to choose **All**, **Tracks**, **Artists**, **Here** (search inside the open playlist, Liked Songs, or the artist page you are viewing, when applicable), or **My Playlists** (your loaded library), or press Tab / Shift+Tab to cycle categories while the search field is focused. A leading `@` still switches to artists-only for one query. **All** merges catalog playlist hits with matching playlists from your sidebar library (same playlist ID appears once, catalog first), shows matches in the current playlist when available, then songs and other hits; **My Playlists** only lists library matches. Readable messages appear when Spotify returns an error.
+**Settings** (Wax menu or ⌘,) is organized into **Equalizer** (output device, presets and bands), **Appearance** (UI language: English, Spanish, or German—defaults to macOS when it is one of those, otherwise English; color scheme: System, Light, or Dark; plus command palette backdrop blur), **Account** (each service's sign-in, and Spotify's client ID), and **Keyboard** (shortcuts). On **Keyboard**, type in **Search Commands** to find a command, then click its **Record Shortcut** field and press the shortcut you want: the keys you hold show as you press them, and a valid shortcut saves at once (Esc cancels; Delete or the ⓧ on the field clears). If a chord is already used by another command, the field says which one and **Replace** moves it. Disconnect isn't listed: it stays off a single keypress and runs from the command palette. Power users can still edit the raw JSON under **Advanced (JSON)**; the on-disk path is shown there. Open the command palette with the shortcut shown in **Keyboard** (default ⌘K). Use a `>` prefix to list and filter in-app commands (while signed in, type `> lyrics` for **Toggle Lyrics**, or bind **Toggle Lyrics** to a shortcut on **Keyboard**). Otherwise the palette searches the service on screen: use the footer to choose **All**, **Tracks**, **Artists**, **Here** (search inside the open playlist, Liked Songs, or the artist page you are viewing, when applicable), or **My Playlists** (your loaded library), or press Tab / Shift+Tab to cycle categories while the search field is focused. A leading `@` still switches to artists-only for one query. **All** merges catalog playlist hits with matching playlists from your sidebar library (same playlist ID appears once, catalog first), shows matches in the current playlist when available, then songs and other hits; **My Playlists** only lists library matches. Readable messages appear when Spotify returns an error.
 
 While signed in, **⌘R** (command **Refresh** in Keyboard settings) reloads the surface under the pointer: **Home** refreshes the playlist sidebar list; a playlist or Liked Songs refreshes tracks for that selection; an artist page reloads that artist; move the pointer over the **queue** column so **⌘R** refreshes the queue instead of the main column. The trailing toolbar uses the same control (spinner while data loads). Legacy **⌘T** bindings for the removed “refresh tracks” command are dropped when `settings.json` is loaded.
 
@@ -29,7 +29,7 @@ Configure the Spotify app as follows:
 | Redirect URI | `http://127.0.0.1:43824/callback` |
 | Web Playback SDK | Enabled |
 
-Spotiglass binds a temporary OAuth callback listener to `127.0.0.1` on port **43824** during sign-in. The listener closes after success, error, cancellation, or a **120 second** timeout.
+Wax binds a temporary OAuth callback listener to `127.0.0.1` on port **43824** during sign-in. The listener closes after success, error, cancellation, or a **120 second** timeout.
 
 ### OAuth scopes
 
@@ -43,9 +43,9 @@ playlist-read-private playlist-read-collaborative playlist-modify-private playli
 
 Manual verification needs a Premium account:
 
-- Connect playback from the app and confirm a Spotiglass device becomes ready.
+- Connect playback from the app and confirm a Wax device becomes ready.
 - Start playback from a playlist track row.
-- Confirm playback transfers to Spotiglass before audio plays.
+- Confirm playback transfers to Wax before audio plays.
 - Exercise play/pause, previous, next, and seek.
 - Confirm auth, Premium, and playback errors show a clear recovery message.
 
