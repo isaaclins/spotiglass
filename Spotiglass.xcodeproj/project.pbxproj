@@ -488,6 +488,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		582000000000000000000003 /* LegacyLoginItems.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LegacyLoginItems.h; sourceTree = "<group>"; };
 		582000000000000000000002 /* LegacyLoginItems.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LegacyLoginItems.m; sourceTree = "<group>"; };
 		728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeFeedModels.swift; sourceTree = "<group>"; };
 		728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Home.swift"; sourceTree = "<group>"; };
@@ -1562,6 +1563,7 @@
 			isa = PBXGroup;
 			children = (
 				A7E49E8058C2543F152AB95A /* AppBundleMigration.swift */,
+				582000000000000000000003 /* LegacyLoginItems.h */,
 				582000000000000000000002 /* LegacyLoginItems.m */,
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
 				SRC0000000000000000080023 /* ScreenshotMode.swift */,
@@ -2384,6 +2386,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = Wax;
 				PRODUCT_MODULE_NAME = Spotiglass;
+				SWIFT_OBJC_BRIDGING_HEADER = Spotiglass/Infrastructure/LegacyLoginItems.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -2421,6 +2424,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = Wax;
 				PRODUCT_MODULE_NAME = Spotiglass;
+				SWIFT_OBJC_BRIDGING_HEADER = Spotiglass/Infrastructure/LegacyLoginItems.h;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};

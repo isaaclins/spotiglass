@@ -441,11 +441,6 @@ private final class MacOSColorScheme: ObservableObject {
     }
 }
 
-@_silgen_name("WaxCaptureLegacyLoginItems")
-private func captureLegacyLoginItems(_: UnsafePointer<CChar>) -> UnsafeMutableRawPointer?
-@_silgen_name("WaxFinishLegacyLoginItems")
-private func finishLegacyLoginItems(_: UnsafeMutableRawPointer?, _: UnsafePointer<CChar>?)
-
 /// Sparkle installs an update under the installed filename, so an update from Spotiglass lands in
 /// `Spotiglass.app`. That copy renames itself to `Wax.app`, opens the renamed copy and quits.
 /// `AppBundleMigration.migrate` waits for the open to answer, so the old copy doesn't go on
@@ -486,11 +481,11 @@ private final class LegacyLoginItemSnapshot {
     init(source: URL) {
         guard source.lastPathComponent == "Spotiglass.app",
               !source.pathComponents.contains("AppTranslocation") else { return }
-        snapshot = source.path.withCString { captureLegacyLoginItems($0) }
+        snapshot = source.path.withCString { WaxCaptureLegacyLoginItems($0) }
     }
     func commit(destination: URL) {
-        destination.path.withCString { finishLegacyLoginItems(snapshot, $0) }
+        destination.path.withCString { WaxFinishLegacyLoginItems(snapshot, $0) }
         snapshot = nil
     }
-    deinit { finishLegacyLoginItems(snapshot, nil) }
+    deinit { WaxFinishLegacyLoginItems(snapshot, nil) }
 }

@@ -1,4 +1,4 @@
-#import <Foundation/Foundation.h>
+#import "LegacyLoginItems.h"
 #import <CoreServices/CoreServices.h>
 
 // Existing user-created login items are not SMAppService registrations. Capture their
