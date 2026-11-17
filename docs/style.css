@@ -90,6 +90,7 @@ h2 kbd{display:inline-block;padding:.06em .22em .1em;border:1.5px solid currentC
 .pal-results{overflow:hidden;display:flex;flex-direction:column}
 .pal-list{height:316px;overflow-y:auto;padding:4px;scrollbar-width:none}
 .modal .pal-list{overscroll-behavior:contain}
+.is-demo .pal-list{overflow:hidden}
 .pal-list::-webkit-scrollbar{display:none}
 .pal-sec{padding:8px 10px 3px;font:600 11.5px/1.2 var(--app);color:rgba(0,0,0,.45)}
 .pal-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:5px 10px;border:0;border-radius:9px;background:transparent;text-align:left;cursor:pointer;position:relative;transition:background-color .18s}
