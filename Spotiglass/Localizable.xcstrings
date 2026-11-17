@@ -3888,6 +3888,29 @@
         }
       }
     },
+    "eq.error.driverInstallApprovalRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS wartet auf die Erlaubnis, Wax im Hintergrund auszuführen. Erteilen Sie sie und schalten Sie den Equalizer erneut ein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is waiting for permission to let Wax run in the background. Allow it, then switch the equalizer on again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS espera permiso para ejecutar Wax en segundo plano. Concédelo y vuelve a activar el ecualizador."
+          }
+        }
+      }
+    },
     "eq.error.driverInstallationFailed": {
       "extractionState": "manual",
       "localizations": {
@@ -3953,29 +3976,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "A esta copia de Wax le falta el ecualizador. Vuelve a instalar Wax para usarlo."
-          }
-        }
-      }
-    },
-    "eq.error.driverInstallApprovalRequired": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS wartet auf die Erlaubnis, Wax im Hintergrund auszuführen. Erteilen Sie sie und schalten Sie den Equalizer erneut ein."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS is waiting for permission to let Wax run in the background. Allow it, then switch the equalizer on again."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS espera permiso para ejecutar Wax en segundo plano. Concédelo y vuelve a activar el ecualizador."
           }
         }
       }
