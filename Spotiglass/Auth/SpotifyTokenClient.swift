@@ -65,17 +65,13 @@ enum AuthFailureDescription {
             }
         case let callbackError as LoopbackOAuthCallbackError:
             return "callback " + (callbackError.diagnosticDetails ?? String(describing: callbackError))
-        case let urlError as URLError:
-            return "URLError \(urlError.code.rawValue)"
-        case let decodingError as DecodingError:
-            return "could not decode the response: \(decodingError)"
         case let apiError as SpotifyAPIError:
             if case let .insufficientScope(requiredScopes, _, _) = apiError {
                 return "token lacks required scopes \(requiredScopes.sorted().joined(separator: " "))"
             }
             return String(describing: apiError)
         default:
-            return String(describing: error)
+            return SpotiglassLog.describe(error)
         }
     }
 }

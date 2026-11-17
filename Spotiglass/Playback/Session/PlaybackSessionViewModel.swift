@@ -926,7 +926,7 @@ final class PlaybackSessionViewModel: ObservableObject {
                 // The slider keeps the new value; the next player poll shows the real one.
                 SpotiglassLog.error(
                     .playback,
-                    "Setting the volume to \(Int((value * 100).rounded())) % failed: \(error); the next player update shows the real volume"
+                    "Setting the volume to \(Int((value * 100).rounded())) % failed: \(SpotiglassLog.describe(error)); the next player update shows the real volume"
                 )
             }
         }

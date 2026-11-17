@@ -202,7 +202,7 @@ struct LrcLibClient: Sendable {
             (data, response) = try await session.data(for: request)
         } catch {
             if !(error is CancellationError) {
-                SpotiglassLog.error(.api, "LRCLIB \(endpoint) failed: \(error)")
+                SpotiglassLog.error(.api, "LRCLIB \(endpoint) failed: \(SpotiglassLog.describe(error))")
             }
             throw error
         }
@@ -229,7 +229,7 @@ struct LrcLibClient: Sendable {
         do {
             return try JSONDecoder().decode(LrcLibResponseDTO.self, from: data)
         } catch {
-            SpotiglassLog.error(.api, "LRCLIB \(endpoint) -> status=\(http.statusCode), could not decode the body: \(error)")
+            SpotiglassLog.error(.api, "LRCLIB \(endpoint) -> status=\(http.statusCode), \(SpotiglassLog.describe(error))")
             throw Failure.decoding
         }
     }

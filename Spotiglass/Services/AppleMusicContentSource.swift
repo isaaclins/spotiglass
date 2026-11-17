@@ -103,11 +103,20 @@ struct MusicKitContentSource: AppleMusicContentSource {
                 return try await body()
             } catch {
                 if !(error is CancellationError) {
-                    SpotiglassLog.error(.api, "Apple Music \(read()) failed: \(error); passed to the screen")
+                    SpotiglassLog.error(.api, "Apple Music \(read()) failed: \(describe(error)); passed to the screen")
                 }
                 throw error
             }
         }
+    }
+
+    /// MusicKit's error for the log: a `MusicDataRequest.Error` prints its whole response,
+    /// request URL included (a search's text, item IDs), so only its status and code go in.
+    static func describe(_ error: Error) -> String {
+        if let dataError = error as? MusicDataRequest.Error {
+            return "HTTP \(dataError.status) code \(dataError.code) (\(dataError.title))"
+        }
+        return SpotiglassLog.describe(error)
     }
 
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
@@ -208,7 +217,7 @@ struct MusicKitContentSource: AppleMusicContentSource {
         do {
             detailed = try await request.response().items
         } catch {
-            SpotiglassLog.info(.api, "Apple Music recently played album details failed (\(error)); Home shows those songs without them")
+            SpotiglassLog.info(.api, "Apple Music recently played album details failed (\(describe(error))); Home shows those songs without them")
             return songs
         }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -226,7 +235,7 @@ struct MusicKitContentSource: AppleMusicContentSource {
         do {
             detailed = try await request.response().items
         } catch {
-            SpotiglassLog.info(.api, "Apple Music search album artists failed (\(error)); those albums keep their plain artist name")
+            SpotiglassLog.info(.api, "Apple Music search album artists failed (\(describe(error))); those albums keep their plain artist name")
             return albums
         }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -482,7 +491,7 @@ enum AppleMusicCatalogPages {
             return try await MusicDataRequest(urlRequest: request).response().data
         } catch {
             if !(error is CancellationError), !MusicKitContentSource.isInsideLoggedRead {
-                SpotiglassLog.error(.api, "Apple Music GET \(request.url?.path ?? "") failed: \(error)")
+                SpotiglassLog.error(.api, "Apple Music GET \(request.url?.path ?? "") failed: \(MusicKitContentSource.describe(error))")
             }
             throw error
         }

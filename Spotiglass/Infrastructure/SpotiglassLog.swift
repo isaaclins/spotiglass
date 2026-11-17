@@ -93,6 +93,33 @@ enum SpotiglassLog {
         FileLogSink.shared.write(level: "INFO", category: category.rawValue, message: message)
     }
 
+    /// An error as a log line may carry it: the code and kind, never the request behind it.
+    /// `"\(error)"` of a `URLError` prints the failing URL with its query (the song for
+    /// LRCLIB, the search text for a search), which a log someone attaches must not hold (#603).
+    static func describe(_ error: Error) -> String {
+        switch error {
+        case let urlError as URLError:
+            return "URLError \(urlError.code.rawValue)"
+        case let decodingError as DecodingError:
+            switch decodingError {
+            case let .typeMismatch(_, context), let .valueNotFound(_, context),
+                 let .keyNotFound(_, context), let .dataCorrupted(context):
+                let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+                return "could not decode the response at \(path.isEmpty ? "the top level" : path)"
+            @unknown default:
+                return "could not decode the response"
+            }
+        default:
+            let nsError = error as NSError
+            // Foundation and system errors print their userInfo, which may hold a URL.
+            if nsError.domain == NSURLErrorDomain || nsError.domain == NSCocoaErrorDomain
+                || nsError.domain == NSPOSIXErrorDomain || nsError.domain == NSOSStatusErrorDomain {
+                return "\(nsError.domain) \(nsError.code)"
+            }
+            return String(describing: error)
+        }
+    }
+
     /// The folder the log files go to: the real `Logs` folder for the app, a per-run
     /// temporary folder under the unit-test host.
     static func logDirectory(
@@ -181,7 +208,7 @@ final class FileLogSink {
                     try? FileManager.default.removeItem(at: earlierURL) // A leftover only costs one capped file.
                 } catch {
                     // Appending keeps the previous session's lines; the size cap below still holds.
-                    rotationNote = "Could not move the previous session's log aside (\(error)); appending to it instead"
+                    rotationNote = "Could not move the previous session's log aside (\(SpotiglassLog.describe(error))); appending to it instead"
                     diagnostics.error("\(rotationNote ?? "", privacy: .public)")
                 }
             }
@@ -267,7 +294,7 @@ final class FileLogSink {
             // file over; the previous session's file is never touched here.
             diagnostics.error("Could not move the full log aside (\(String(describing: error), privacy: .public)); starting it over")
             FileManager.default.createFile(atPath: url.path, contents: nil)
-            header = "=== Log started over \(stamp): the full log could not be moved aside (\(error)) ===\n"
+            header = "=== Log started over \(stamp): the full log could not be moved aside (\(SpotiglassLog.describe(error))) ===\n"
         }
         _ = open(url, header: header)
     }

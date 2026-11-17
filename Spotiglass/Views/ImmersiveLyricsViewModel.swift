@@ -79,7 +79,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             return
         } catch {
             // Prefetch is best-effort; failures surface when the user opens lyrics and `load` runs.
-            SpotiglassLog.info(.api, "Lyrics prefetch failed (\(error)); nothing shown, opening lyrics fetches again")
+            // `LrcLibClient` logged what failed; this says it was a prefetch.
+            SpotiglassLog.info(.api, "Lyrics prefetch failed; nothing shown, opening lyrics fetches again")
         }
     }
 
@@ -117,14 +118,14 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             return
         } catch let failure as LrcLibClient.Failure {
             guard isCurrentLoad(generation) else { return }
-            registerFailureBackoff(trackId: tid, failure: failure, reason: "\(failure)")
+            registerFailureBackoff(trackId: tid, failure: failure)
             phase = .failed(LocalizedText(failure.userFacingMessage))
         } catch {
             guard isCurrentLoad(generation) else { return }
             // localizedDescription here is an URLError or decoding dump, which
-            // is not a sentence for a reader waiting on lyrics (#157). The log line
-            // comes from the backoff, with the error.
-            registerFailureBackoff(trackId: tid, failure: nil, reason: "\(error)")
+            // is not a sentence for a reader waiting on lyrics (#157). `LrcLibClient`
+            // logged it; the backoff logs what the app does about it.
+            registerFailureBackoff(trackId: tid, failure: nil)
             phase = .failed(LocalizedText(SpotiglassL10n.string("lyrics.error.http")))
         }
     }
@@ -170,7 +171,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
                 try diskCache?.save(trackKey: trackId, lyrics: value)
                 try diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
             } catch {
-                SpotiglassLog.error(.persistence, "Saving lyrics to the disk cache failed: \(error); they are fetched again next launch")
+                SpotiglassLog.error(.persistence, "Saving lyrics to the disk cache failed: \(SpotiglassLog.describe(error)); they are fetched again next launch")
             }
             return value
         } catch {
@@ -220,7 +221,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         do {
             try diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
         } catch {
-            SpotiglassLog.error(.persistence, "Saving a lyrics miss to the disk cache failed: \(error); it is retried after a relaunch")
+            SpotiglassLog.error(.persistence, "Saving a lyrics miss to the disk cache failed: \(SpotiglassLog.describe(error)); it is retried after a relaunch")
         }
     }
 
@@ -253,7 +254,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         return "\(Int(max(0, until.timeIntervalSinceNow).rounded())) s more"
     }
 
-    private func registerFailureBackoff(trackId: String, failure: LrcLibClient.Failure?, reason: String) {
+    private func registerFailureBackoff(trackId: String, failure: LrcLibClient.Failure?) {
         let now = Date()
         let currentCount = Self.backoffMetadata[trackId]?.failureCount ?? 0
         let nextCount = currentCount + 1
@@ -306,15 +307,16 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         // Kept a day past its cooldown so repeated failures still back off further, like the disk copy.
         Self.backoffMetadata = Self.backoffMetadata.filter { $0.value.nextEligibleFetchAt > now.addingTimeInterval(-24 * 60 * 60) }
         Self.backoffMetadata[trackId] = metadata
-        SpotiglassLog.error(
+        // `LrcLibClient` logged the failure itself; this is what the app does about it.
+        SpotiglassLog.info(
             .api,
-            "Lyrics fetch failed (\(reason)); failure \(nextCount) for this song, "
+            "Lyrics failed \(nextCount) time(s) for this song; showed the error, "
                 + "no new fetch for \(Int(metadata.nextEligibleFetchAt.timeIntervalSince(now).rounded())) s"
         )
         do {
             try diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
         } catch {
-            SpotiglassLog.error(.persistence, "Saving the lyrics wait to the disk cache failed: \(error); it ends at relaunch")
+            SpotiglassLog.error(.persistence, "Saving the lyrics wait to the disk cache failed: \(SpotiglassLog.describe(error)); it ends at relaunch")
         }
     }
 }
