@@ -34,7 +34,15 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// AudioServerPlugIn `Info.plist` key.
     nonisolated static let driverBundleID = "com.isaaclins.spotiglass.eqdriver"
     nonisolated static let driverBundleName = "SpotiglassEQDriver.driver"
-    nonisolated static let virtualDeviceName = "Wax EQ"
+    /// The virtual device's UID, set by the driver (`kDeviceUIDUTF8`). The
+    /// device is found by this, not by its name: the name changed from
+    /// "Spotiglass EQ" to "Wax EQ", and a driver installed by an older release
+    /// keeps the old name until the app installs its own copy.
+    nonisolated static let virtualDeviceUID = "com.isaaclins.spotiglass.eqdevice"
+
+    nonisolated static func isVirtualDevice(_ device: AudioDeviceEnumerator.Device) -> Bool {
+        device.uid == virtualDeviceUID
+    }
 
     /// Stable pre-EQ output identity. Unlike an ``AudioObjectID``, a device UID
     /// survives a process restart and CoreAudio device re-enumeration.
@@ -120,9 +128,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             AudioDeviceEnumerator.uid(of: deviceID)
         }
         self.virtualDeviceIDProvider = virtualDeviceIDProvider ?? {
-            AudioDeviceEnumerator.allOutputDevices().first { device in
-                device.name == Self.virtualDeviceName
-            }?.id
+            AudioDeviceEnumerator.allOutputDevices().first(where: Self.isVirtualDevice)?.id
         }
         self.defaultOutputDeviceIDProvider = defaultOutputDeviceIDProvider ?? {
             try Self.currentDefaultOutputDeviceIDInCoreAudio()
@@ -456,7 +462,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// input-only devices. Used by the Settings UI dropdown.
     func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
         AudioDeviceEnumerator.allOutputDevices()
-            .filter { $0.name != Self.virtualDeviceName }
+            .filter { !Self.isVirtualDevice($0) }
             .filter { AudioDeviceEnumerator.supportsEQForwarding(deviceID: $0.id) }
     }
 

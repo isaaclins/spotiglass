@@ -73,6 +73,23 @@ final class EqualizerHALPluginTests: XCTestCase {
 
     // MARK: - Install / uninstall
 
+    /// Someone updating from Spotiglass still has the driver an older release
+    /// installed, and its device is called "Spotiglass EQ" until the new app
+    /// replaces it. The app has to recognise that device as its own, or it
+    /// can't find it and offers it as a place to send the EQ'd audio.
+    func testTheEQDeviceIsRecognisedByItsUIDWhateverItIsCalled() {
+        let uid = EqualizerHALPluginController.virtualDeviceUID
+        let legacy = AudioDeviceEnumerator.Device(id: 41, name: "Spotiglass EQ", uid: uid)
+        let renamed = AudioDeviceEnumerator.Device(id: 42, name: "Wax EQ", uid: uid)
+        let speakers = AudioDeviceEnumerator.Device(id: 43, name: "MacBook Pro Speakers", uid: "BuiltInSpeakerDevice")
+        let lookalike = AudioDeviceEnumerator.Device(id: 44, name: "Wax EQ", uid: "com.example.other-eq")
+
+        XCTAssertTrue(EqualizerHALPluginController.isVirtualDevice(legacy))
+        XCTAssertTrue(EqualizerHALPluginController.isVirtualDevice(renamed))
+        XCTAssertFalse(EqualizerHALPluginController.isVirtualDevice(speakers))
+        XCTAssertFalse(EqualizerHALPluginController.isVirtualDevice(lookalike))
+    }
+
     func testInstallCopiesEmbeddedDriverIntoHALDirectory() throws {
         let controller = EqualizerHALPluginController(
             halDirectory: halDirectory,
