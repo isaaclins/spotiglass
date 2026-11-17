@@ -124,7 +124,11 @@ struct SpotifyTokenClient {
                 guard attempt < maxAttempts, shouldRetryRefresh(error) else {
                     throw error
                 }
-                let delay = retryDelay(forAttempt: attempt, error: error)
+                // Every request waits on this one refresh, so a long Retry-After is not slept
+                // here: it goes back to the sign-in, which shows it as a cooldown (#593).
+                guard let delay = retryDelay(forAttempt: attempt, error: error) else {
+                    throw error
+                }
                 try await sleep(delay)
             }
         }
@@ -150,13 +154,18 @@ struct SpotifyTokenClient {
         return (error as? URLError) != nil
     }
 
-    private func retryDelay(forAttempt attempt: Int, error: Error) -> TimeInterval {
+    /// The longest Retry-After the refresh waits out itself before trying again.
+    static let longestInlineRetryAfter: TimeInterval = 5
+
+    /// `nil` when Spotify asked for a longer wait than ``longestInlineRetryAfter``.
+    private func retryDelay(forAttempt attempt: Int, error: Error) -> TimeInterval? {
         let jitterUpperBound = min(pow(2.0, Double(attempt)), 5.0)
         let jitterDelay = random(0...jitterUpperBound)
         if let tokenError = error as? SpotifyTokenClientError,
            case let .httpError(status, _, _, retryAfter) = tokenError,
            status == 429,
            let retryAfter {
+            guard retryAfter <= Self.longestInlineRetryAfter else { return nil }
             return max(jitterDelay, retryAfter)
         }
         return jitterDelay

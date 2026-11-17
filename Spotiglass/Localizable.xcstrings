@@ -376,6 +376,121 @@
         }
       }
     },
+    "app.connection.paused.busy": {
+      "comment": "Calm line while Spotify rate-limits or fails the sign-in refresh, without a known retry time.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify ist ausgelastet. Gleich wird es erneut versucht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is busy. Trying again shortly."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está ocupado. Se volverá a intentar en breve."
+          }
+        }
+      }
+    },
+    "app.connection.paused.busyUntil": {
+      "comment": "Calm line while Spotify rate-limits the sign-in refresh. %@ is the time of day of the next try, e.g. 14:32.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify ist ausgelastet. Erneuter Versuch um %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is busy. Trying again at %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está ocupado. Se volverá a intentar a las %@."
+          }
+        }
+      }
+    },
+    "app.connection.paused.offline": {
+      "comment": "Calm line under the service switcher and in Settings while offline; the library stays on screen.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du bist offline. Spotify verbindet sich wieder von selbst, sobald du online bist."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You're offline. Spotify reconnects by itself when you're back online."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estás sin conexión. Spotify se vuelve a conectar solo cuando vuelvas a estar en línea."
+          }
+        }
+      }
+    },
+    "app.connection.paused.title": {
+      "comment": "Settings > Account status while a still-valid Spotify sign-in can't refresh right now (offline or Spotify busy).",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warte auf Spotify"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for Spotify"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando a Spotify"
+          }
+        }
+      }
+    },
+    "app.connection.paused.unreachable": {
+      "comment": "Calm line while the network is up but Spotify's sign-in server doesn't answer.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify ist gerade nicht erreichbar. Es wird von selbst erneut versucht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach Spotify right now. Trying again by itself."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede conectar con Spotify ahora mismo. Se volverá a intentar automáticamente."
+          }
+        }
+      }
+    },
     "app.connection.refreshing.message": {
       "extractionState": "stale",
       "localizations": {

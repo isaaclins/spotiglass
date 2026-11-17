@@ -149,7 +149,8 @@ struct AccountSettingsView: View {
             session
         case let .refreshing(.some(session)):
             session
-        case .signedOut, .signingIn, .failed, .refreshing(.none):
+        // Paused shows its "offline" / "Spotify is busy" line under Status.
+        case .signedOut, .signingIn, .failed, .refreshing(.none), .paused:
             nil
         }
     }

@@ -519,7 +519,7 @@ struct RootView: View {
             }
             .onChange(of: viewModel.state) { _, newState in
                 switch newState {
-                case .signedIn, .refreshing(.some):
+                case .signedIn, .refreshing(.some), .paused:
                     // Signing in to Spotify (welcome screen, "Add a service…" or Settings) adds it.
                     serviceStore.completeAddition(of: .spotify)
                     guard serviceStore.active == .spotify else {
@@ -639,7 +639,7 @@ struct RootView: View {
     @ViewBuilder
     private var spotifyContent: some View {
         switch spotifyState {
-        case .signedIn, .refreshing(.some):
+        case .signedIn, .refreshing(.some), .paused:
             PlaylistBrowserView(
                 viewModel: sceneHost.browserViewModel(for: .spotify) {
                     .live(tokenProvider: viewModel)
@@ -649,7 +649,7 @@ struct RootView: View {
                 commandPaletteManager: commandPaletteManager,
                 signOut: signOutAction,
                 disconnectSwitchesTo: spotifyDisconnectSwitchesTo,
-                sidebarHeader: AnyView(serviceSwitcher)
+                sidebarHeader: AnyView(spotifySidebarHeader)
             )
             .id(MusicService.spotify)
         case .refreshing(.none):
@@ -737,8 +737,24 @@ struct RootView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
             }
-        case .signedIn, .refreshing:
+        case .signedIn, .refreshing, .paused:
             EmptyView()
+        }
+    }
+
+    /// The service switcher, and under it one calm line while the sign-in is paused (offline or
+    /// Spotify busy): the library stays, and the line says it tries again by itself (#593).
+    private var spotifySidebarHeader: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            serviceSwitcher
+            if case let .paused(pause) = spotifyState {
+                Label(pause.message, systemImage: pause.reason == .busy ? "clock" : "wifi.slash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .symbolRenderingMode(.hierarchical)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, SpotiglassDesign.spacingXS)
+            }
         }
     }
 }

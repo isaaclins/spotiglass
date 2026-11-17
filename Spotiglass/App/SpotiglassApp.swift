@@ -178,7 +178,7 @@ struct SpotiglassApp: App {
             break
         }
         switch spotifyState {
-        case .signedIn, .refreshing(.some):
+        case .signedIn, .refreshing(.some), .paused:
             return true
         case .signedOut, .signingIn, .failed, .refreshing(.none):
             return false
