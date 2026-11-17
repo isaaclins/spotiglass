@@ -83,9 +83,8 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         XCTAssertFalse(mapped.localizedDescription.contains("copyfile"))
     }
 
-    /// The one install outcome the listener has to act on. Everything else in
-    /// this area is deliberately log-only, and this case was hidden by that
-    /// rule: the switch sprang back with nothing on screen.
+    /// The one install outcome the listener has to act on: its line says what to allow,
+    /// and the pane offers the way to Login Items.
     func testMissingBackgroundApprovalIsUserVisibleAndActionable() {
         let mapped = EqualizerDriverInstallErrorMapper.map(.approvalRequired)
 
