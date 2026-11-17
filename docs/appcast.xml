@@ -3,14 +3,14 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.48</title>
-            <pubDate>Tue, 17 Nov 2026 01:18:17 +0100</pubDate>
-            <sparkle:version>59</sparkle:version>
-            <sparkle:shortVersionString>0.8.48</sparkle:shortVersionString>
+            <title>0.8.49</title>
+            <pubDate>Tue, 17 Nov 2026 23:43:55 +0100</pubDate>
+            <sparkle:version>60</sparkle:version>
+            <sparkle:shortVersionString>0.8.49</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Apple Music playback no longer stops, cuts out or speeds up.
+            <description sparkle:format="plain-text"><![CDATA[• The app is now called Wax, and it keeps receiving updates from your existing install.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.48/Spotiglass-0.8.48.zip" length="14183664" type="application/octet-stream" sparkle:edSignature="3PBA5VWTHwFvKUgsEsPMlnpB9VgJueFMuxSzQoJNUHQqWPRw3mQXNRrzDC1uhoEoz2TDuHl16BXHnPWz4M7ICw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.49/Wax-0.8.49.zip" length="15792400" type="application/octet-stream" sparkle:edSignature="A9B9D/cH6VUVXMgb+V1+8hgqGhbfJHROzpnygZ6/o9n8eFqegrRJckq6dK/4PzOqAIn579p7gSuC14podOV+AA=="/>
         </item>
     </channel>
 </rss>
