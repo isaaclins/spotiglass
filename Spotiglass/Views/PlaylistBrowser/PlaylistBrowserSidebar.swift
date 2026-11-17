@@ -65,7 +65,8 @@ struct PlaylistBrowserSidebar: View {
                         Text(pinnedFileNotice)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } header: {
                     Text(SpotiglassL10n.string("browser.library"))

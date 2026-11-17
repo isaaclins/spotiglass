@@ -384,7 +384,6 @@ struct SettingsFileNotice<Actions: View>: View {
                 .accessibilityHidden(true)
             Text(text)
                 .font(.callout)
-                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             actions
                 .buttonStyle(.link)
