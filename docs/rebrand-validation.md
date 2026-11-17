@@ -124,6 +124,6 @@ and did the whole startup.
 
 ## Automated checks
 
-Five migration tests pass. They cover bookmark/file identity, occupied destination, custom name,
-App Translocation, failed moves, relaunch success, relaunch failure and rollback. The migration
-file has 98.44% line coverage (63/64 executable lines). The Python script tests pass. The signed candidate passed notarization, stapling and Gatekeeper.
+Six migration tests pass. They cover bookmark/file identity, occupied destination, custom name,
+App Translocation, failed moves, relaunch success, relaunch failure and rollback, and a relaunch
+that doesn't answer in time. The Python script tests pass. The signed candidate passed notarization, stapling and Gatekeeper.
