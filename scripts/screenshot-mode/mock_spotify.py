@@ -158,7 +158,7 @@ class Library:
         return (self.tracks[i + 1:] + self.tracks[:i])[:14]
 
 
-DEVICE = {"id": "spotiglass-screenshot", "name": "Spotiglass", "type": "Computer", "is_active": True,
+DEVICE = {"id": "spotiglass-screenshot", "name": "Wax", "type": "Computer", "is_active": True,
           "is_private_session": False, "is_restricted": False, "volume_percent": 72, "supports_volume": True}
 
 

@@ -119,6 +119,36 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         )
     }
 
+    /// The first launch after updating from Spotiglass finds the session the old copy left,
+    /// still named "Spotiglass", and hands playback over from it like from any earlier session.
+    func testAutoResumeTakesOverTheSessionLeftUnderThePreRenameName() async {
+        let playbackAPI = MockPlaybackAPI()
+        let transferCompleted = AsyncSignal()
+        playbackAPI.onTransferPlaybackCompleted = { _, _ in
+            transferCompleted.signal()
+        }
+        let staleDevice = MusicPlaybackDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: "Spotiglass",
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: staleDevice,
+            isPlaying: true
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
+        viewModel.autoResumeOnNextReady = true
+        viewModel.handle(.ready(deviceID: "new-wax"))
+
+        await transferCompleted.wait()
+        XCTAssertTrue(playbackAPI.actions.contains("transfer:new-wax:true"))
+    }
+
     func testAutoResumePreservesPausedStateFromStaleSpotiglassDevice() async {
         let playbackAPI = MockPlaybackAPI()
         let staleDevice = MusicPlaybackDevice(
