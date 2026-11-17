@@ -327,14 +327,6 @@ struct EqualizerSettingsView: View {
             }
 
             Spacer()
-
-            if let storeError = settingsStore.lastError {
-                Text(storeError)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 

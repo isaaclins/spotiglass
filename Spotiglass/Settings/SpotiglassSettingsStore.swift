@@ -495,6 +495,8 @@ final class SpotiglassSettingsStore: ObservableObject {
         do {
             try write(proposed)
             saveFailure = nil
+            // What is on disk now is this document, so an earlier failed reload no longer applies.
+            lastError = nil
         } catch {
             SpotiglassLog.error(
                 SpotiglassLog.settings,

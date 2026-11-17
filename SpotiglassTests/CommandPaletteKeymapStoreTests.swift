@@ -332,6 +332,16 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.toggleQueue), try CommandShortcut(keystroke: "shift-cmd-8"))
         XCTAssertEqual(store.unusableRows, [fromNewerBuild])
         XCTAssertNotNil(store.unusableRowsText)
+        // One row reads as one, not "1 saved shortcuts".
+        for (language, one, other) in [
+            ("en", "One saved shortcut", "2 saved shortcuts"),
+            ("de", "Ein gespeichertes Tastenkürzel", "2 gespeicherte Tastenkürzel"),
+            ("es", "un atajo guardado", "2 atajos guardados"),
+        ] {
+            let locale = Locale(identifier: language)
+            XCTAssertTrue(SpotiglassL10n.format("keymap.unusableRows", locale: locale, 1).contains(one), language)
+            XCTAssertTrue(SpotiglassL10n.format("keymap.unusableRows", locale: locale, 2).contains(other), language)
+        }
 
         try store.setBinding(
             commandID: CommandPaletteCommandID.openSettings,

@@ -17337,21 +17337,57 @@
       "extractionState": "manual",
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld gespeicherte Tastenkürzel kann diese Version nicht verwenden, daher sind sie aus. Sie bleiben in Ihrer Einstellungsdatei."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ein gespeichertes Tastenkürzel kann diese Version nicht verwenden, daher ist es aus. Es bleibt in Ihrer Einstellungsdatei."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld gespeicherte Tastenkürzel kann diese Version nicht verwenden, daher sind sie aus. Sie bleiben in Ihrer Einstellungsdatei."
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld saved shortcuts can’t be used by this version, so they’re off. They stay in your settings file."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "One saved shortcut can’t be used by this version, so it’s off. It stays in your settings file."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saved shortcuts can’t be used by this version, so they’re off. They stay in your settings file."
+                }
+              }
+            }
           }
         },
         "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta versión no puede usar %lld atajos guardados, así que están desactivados. Se quedan en tu archivo de ajustes."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Esta versión no puede usar un atajo guardado, así que está desactivado. Se queda en tu archivo de ajustes."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Esta versión no puede usar %lld atajos guardados, así que están desactivados. Se quedan en tu archivo de ajustes."
+                }
+              }
+            }
           }
         }
       }
@@ -17448,6 +17484,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron guardar tus ajustes, así que los cambios se perderán al salir."
+          }
+        }
+      }
+    },
+    "settings.file.reloadFailed": {
+      "comment": "Settings notice while saving settings.json fails.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Einstellungsdatei kann gerade nicht gelesen werden. Die aktuellen Einstellungen bleiben, und vor dem nächsten Speichern wird eine Kopie der Datei aufbewahrt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your settings file can’t be read right now. The settings in use stay, and a copy of the file is kept before the next save."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora mismo no se puede leer tu archivo de ajustes. Se mantienen los ajustes actuales y se conserva una copia del archivo antes de guardar."
           }
         }
       }

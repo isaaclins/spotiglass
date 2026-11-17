@@ -317,6 +317,12 @@ struct SpotiglassSettingsView: View {
                 .padding(.horizontal, SpotiglassDesign.spacingL)
                 .padding(.top, SpotiglassDesign.spacingS)
         }
+        // A hand edit that doesn't parse: the settings in use stay until the file reads again.
+        if settingsStore.lastError != nil {
+            SettingsFileNotice(text: SpotiglassL10n.string("settings.file.reloadFailed"))
+                .padding(.horizontal, SpotiglassDesign.spacingL)
+                .padding(.top, SpotiglassDesign.spacingS)
+        }
         if let notice = settingsStore.backupNotice {
             SettingsFileNotice(text: notice.string) {
                 if let copy = settingsStore.backupURL {

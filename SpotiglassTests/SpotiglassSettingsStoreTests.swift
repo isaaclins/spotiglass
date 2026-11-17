@@ -337,8 +337,11 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let edit = Data(#"{"version":2,"appearance":{"colorScheme":"dark",}"#.utf8)
         try edit.write(to: url)
         store.reloadFromDisk()
+        XCTAssertNotNil(store.lastError, "Settings says the file can't be read right now")
 
         try store.mutate { $0.appearance.lyricsTextSize = .large }
+        XCTAssertNil(store.lastError, "once the copy is kept and the file saved, only the copy is named")
+        XCTAssertNotNil(store.backupNotice)
 
         let copies = UnreadableFileBackup.copies(of: url)
         XCTAssertEqual(copies.count, 1)
