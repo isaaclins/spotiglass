@@ -19,7 +19,7 @@ Two paths:
 
 1. **`make embed-driver`** (recommended) — builds the host app and the
    `.driver`, then copies the driver into
-   `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/`. This is the
+   `Wax.app/Contents/Library/Audio/Plug-Ins/HAL/`. This is the
    no-Xcode-target shortcut; uses `clang` via `./build-driver.sh` and a
    Makefile copy step.
 

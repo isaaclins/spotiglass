@@ -84,7 +84,7 @@ Per the i18n policy:
 
 - Raw Spotify data — track names, artist names, album names, playlist names.
 - The literal word `"Spotify"`.
-- The brand name `"Spotiglass"` itself (surrounding chrome like "Wax
+- The brand name `"Wax"` itself (surrounding chrome like "Wax
   Settings" *is* translated — "Configuración de Wax" /
   "Wax-Einstellungen").
 - Keymap config tokens (`"cmd"`, `"shift"`, `"return"`, …) in `keymap.json`.
