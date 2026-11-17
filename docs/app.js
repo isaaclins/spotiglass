@@ -5,11 +5,8 @@
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const touch = matchMedia("(hover: none) and (pointer: coarse)").matches;
   if (touch) doc.classList.add("is-touch");
-  const qs = new URLSearchParams(location.search);
-  if (qs.get("accent")) doc.dataset.accent = qs.get("accent");
   const win = document.querySelector(".hero .window");
-  if (qs.get("win") === "dark") win.querySelectorAll("img").forEach((im, i) => { if (i) im.remove(); else { im.src = "screens/home-2200.webp"; im.removeAttribute("srcset"); } });
-  else if (qs.get("win") !== "print") setTimeout(() => win.classList.add("developed"), reduce ? 0 : 2600);
+  setTimeout(() => win.classList.add("developed"), reduce ? 0 : 2600);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   /* ---------- bar ---------- */
@@ -114,6 +111,7 @@
   const palettes = [];
   function Palette(slot, opts = {}) {
     const root = tpl.content.firstElementChild.cloneNode(true);
+    if (!opts.quiet) root.querySelector(".pal-status").setAttribute("aria-live", "polite");
     slot.appendChild(root);
     const input = root.querySelector(".pal-input");
     const list = root.querySelector(".pal-list");
@@ -245,9 +243,9 @@
   }
 
   /* ---------- inline palette with self-typing demo ---------- */
-  const inline = Palette(document.getElementById("inline-slot"));
+  const inline = Palette(document.getElementById("inline-slot"), { quiet: true });
   let demoOn = !reduce;
-  const stopDemo = () => { demoOn = false; };
+  const stopDemo = () => { demoOn = false; inline.root.querySelector(".pal-status").setAttribute("aria-live", "polite"); };
   ["pointerdown", "focus", "keydown", "wheel"].forEach(ev => inline.root.addEventListener(ev, stopDemo, { passive: true, capture: true }));
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
