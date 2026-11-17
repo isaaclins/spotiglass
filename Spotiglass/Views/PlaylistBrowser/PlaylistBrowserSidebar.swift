@@ -12,6 +12,8 @@ struct PlaylistBrowserSidebar: View {
     /// account with no pins (#133).
     var pinnedBindingFailed: Bool = false
     var retryPinnedBinding: (() -> Void)? = nil
+    /// Says the pins file could not be fully read and names the copy kept of it (#597).
+    var pinnedFileNotice: String? = nil
 
     let likedSongsStubRow: PlaylistRowViewModel
     let playlistSummaryFromRow: (PlaylistRowViewModel) -> MusicPlaylistSummary
@@ -58,6 +60,12 @@ struct PlaylistBrowserSidebar: View {
                             .buttonStyle(.link)
                             .font(.caption)
                         }
+                    }
+                    if let pinnedFileNotice {
+                        Text(pinnedFileNotice)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 } header: {
                     Text(SpotiglassL10n.string("browser.library"))

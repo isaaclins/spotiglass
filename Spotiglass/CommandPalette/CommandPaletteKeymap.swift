@@ -337,15 +337,6 @@ enum CommandPaletteKeymapErrorPresenter {
         return LocalizedText(message(for: error, source: source()))
     }
 
-    static func recoveredDefaultsText(
-        for error: Error,
-        source: @autoclosure @escaping () -> String,
-        operation: String
-    ) -> LocalizedText {
-        log(error, operation: operation)
-        return LocalizedText(recoveredDefaultsMessage(for: error, source: source()))
-    }
-
     static func settingsReloadFailureText(source: String) -> LocalizedText {
         LocalizedText(SpotiglassL10n.format("keymap.error.reloadFailed", source))
     }
@@ -362,18 +353,6 @@ enum CommandPaletteKeymapErrorPresenter {
             return decodingMessage(decoding, source: source)
         }
         return SpotiglassL10n.format("keymap.error.updateFailed", source)
-    }
-
-    private static func recoveredDefaultsMessage(for error: Error, source: String) -> String {
-        let detail: String
-        if let validation = error as? KeymapValidationError {
-            detail = validation.errorDescription ?? SpotiglassL10n.format("keymap.error.invalidValue", source)
-        } else if let decoding = error as? DecodingError {
-            detail = decodingMessage(decoding, source: source)
-        } else {
-            detail = SpotiglassL10n.format("keymap.error.invalidValue", source)
-        }
-        return SpotiglassL10n.format("keymap.error.invalidStored", source, detail)
     }
 
     private static func decodingMessage(_ error: DecodingError, source: String) -> String {

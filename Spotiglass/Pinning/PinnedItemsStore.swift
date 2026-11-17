@@ -34,6 +34,12 @@ final class PinnedItemsStore: ObservableObject {
     /// uses this to offer a retry instead of rendering as if the user had never
     /// pinned anything (#133).
     @Published private(set) var didFailToBind = false
+    /// Says that the account's pins file could not be fully read and names the copy kept of
+    /// it, or that pins aren't saved because no copy could be made (#597).
+    @Published private(set) var fileNotice: LocalizedText?
+    /// True while the pins file could be neither read in full nor copied: nothing is written
+    /// over it until the account is bound again.
+    private var isSavingHeld = false
 
     private let cache: PinnedItemsCache?
     private let resolver: PinnedItemAliasResolving?
@@ -87,23 +93,58 @@ final class PinnedItemsStore: ObservableObject {
         }
         boundUserID = userID
         didFailToBind = false
+        fileNotice = nil
+        isSavingHeld = false
         aliasLookup?.cancel()
         pendingPinLookups = []
         guard let userID, let cache else {
             items = []
             return
         }
-        if let loaded = try? cache.loadPinnedItems(userID: userID) {
-            let migrated = mergingSameItems(PinnedItem.migrateLegacyTrackPins(loaded))
-            let filled = fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
-            items = filled
-            if filled != loaded {
-                persist()
+        let loaded: [PinnedItem]
+        do {
+            let load = try cache.loadPinnedItemsRowByRow(userID: userID)
+            loaded = load.items
+            if !load.unreadableRows.isEmpty {
+                keepCopyOfPinsFile(userID: userID, file: load.fileURL, problems: load.unreadableRows)
             }
-            aliasLookup = lookUpAliases(of: items)
-        } else {
-            items = []
-            SpotiglassLog.error(SpotiglassLog.pinning, "Failed to load pinned items for user")
+        } catch {
+            // Nothing in it could be read. The list starts empty, and the next pin is only
+            // saved once a copy of the file has been kept.
+            loaded = []
+            keepCopyOfPinsFile(userID: userID, file: nil, problems: [UnreadableFileBackup.describe(error)])
+        }
+        let migrated = mergingSameItems(PinnedItem.migrateLegacyTrackPins(loaded))
+        let filled = fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
+        items = filled
+        if filled != loaded {
+            persist()
+        }
+        aliasLookup = lookUpAliases(of: items)
+    }
+
+    /// Keeps the pins file as it is before anything is saved over it, and says so in the
+    /// sidebar. When the copy can't be made, pins aren't saved for this account.
+    private func keepCopyOfPinsFile(userID: String, file: URL?, problems: [String]) {
+        let location = file?.path ?? "the pins file"
+        do {
+            guard let copy = try cache?.preservePinnedItemsFile(userID: userID) else { return }
+            SpotiglassLog.error(
+                SpotiglassLog.pinning,
+                "Pins in \(location) could not be fully read; kept a copy at \(copy.path). \(problems.joined(separator: "; "))"
+            )
+            let name = copy.lastPathComponent
+            fileNotice = LocalizedText(
+                SpotiglassL10n.format("browser.pinned.copyKept", name),
+                comparedBy: "browser.pinned.copyKept|\(name)"
+            )
+        } catch {
+            isSavingHeld = true
+            SpotiglassLog.error(
+                SpotiglassLog.pinning,
+                "Pins in \(location) could not be read (\(problems.joined(separator: "; "))) or copied (\(UnreadableFileBackup.describe(error))); not saving pins for this account."
+            )
+            fileNotice = LocalizedText(SpotiglassL10n.string("browser.pinned.notSaved"), comparedByKey: "browser.pinned.notSaved")
         }
     }
 
@@ -430,14 +471,16 @@ final class PinnedItemsStore: ObservableObject {
         pendingPinLookups = []
         items = []
         boundUserID = nil
+        fileNotice = nil
+        isSavingHeld = false
     }
 
     private func persist() {
-        guard let userID = boundUserID, let cache else { return }
+        guard let userID = boundUserID, let cache, !isSavingHeld else { return }
         do {
             try cache.savePinnedItems(items, userID: userID)
         } catch {
-            SpotiglassLog.error(SpotiglassLog.pinning, "Failed to save pinned items: \(error.localizedDescription)")
+            SpotiglassLog.error(SpotiglassLog.pinning, "Failed to save pinned items: \(UnreadableFileBackup.describe(error))")
         }
     }
 }

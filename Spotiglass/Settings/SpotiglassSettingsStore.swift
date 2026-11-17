@@ -16,8 +16,16 @@ final class SpotiglassSettingsStore: ObservableObject {
     }
     @Published private(set) var fileURL: URL
     @Published var lastError: String?
+    /// Names the copy kept of a settings file that could not be fully read before it was
+    /// saved over (#597). Shown above every Settings pane until dismissed.
+    @Published private(set) var backupNotice: LocalizedText?
+    @Published private(set) var backupURL: URL?
+    /// Set while saving fails (a folder that can't be written, a full disk, a file that can't
+    /// be read and so isn't replaced); the next save that works clears it.
+    @Published private(set) var saveFailure: LocalizedText?
 
     private let fileManager: FileManager
+    private let now: () -> Date
     private var fileWatcher: DispatchSourceFileSystemObject?
 
     /// The last document known to be on disk before any unsaved local staging.
@@ -36,8 +44,9 @@ final class SpotiglassSettingsStore: ObservableObject {
     /// merely because some event happened after a local write.
     private var lastOwnWriteData: Data?
 
-    init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil) {
+    init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil, now: @escaping () -> Date = Date.init) {
         self.fileManager = fileManager
+        self.now = now
         let resolvedURL = customFileURL ?? Self.defaultFileURL(fileManager: fileManager)
         // Production (default-path) launches only: relocate a pre-existing config
         // from the old Linux-style `~/.config/spotiglass` location to the
@@ -83,6 +92,16 @@ final class SpotiglassSettingsStore: ObservableObject {
         try persist(next)
     }
 
+    /// ``mutate(_:)`` for controls that have nothing else to do when saving fails: the store
+    /// has already logged the failure and set ``saveFailure``, which Settings shows.
+    func update(_ change: (inout SpotiglassSettingsFile) -> Void) {
+        try? mutate(change)
+    }
+
+    func dismissBackupNotice() {
+        backupNotice = nil
+    }
+
     /// Updates the in-memory settings without writing to disk — for high-frequency
     /// edits (e.g. a slider drag) where every tick should publish to observers but
     /// only the final value is worth an atomic file write. Call
@@ -115,7 +134,10 @@ final class SpotiglassSettingsStore: ObservableObject {
             lastError = nil
         } catch {
             lastError = error.localizedDescription
-            SpotiglassLog.error(SpotiglassLog.settings, "Settings reload failed: \(error.localizedDescription)")
+            SpotiglassLog.error(
+                SpotiglassLog.settings,
+                "Settings reload of \(fileURL.path) failed, keeping the settings in use: \(UnreadableFileBackup.describe(error))"
+            )
         }
     }
 
@@ -414,7 +436,10 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     private struct SettingsDiskSnapshot {
         let data: Data
-        let decoded: DecodedSettings
+        /// `nil` when the document doesn't parse at all.
+        let decoded: DecodedSettings?
+        /// What could not be read as written; empty for a document read in full.
+        let problems: [String]
     }
 
     private struct SettingsMergeResult {
@@ -423,35 +448,64 @@ final class SpotiglassSettingsStore: ObservableObject {
     }
 
     private func decodeSettings(_ data: Data) throws -> DecodedSettings {
+        try decodeSettingsReportingRepairs(data).decoded
+    }
+
+    private func decodeSettingsReportingRepairs(_ data: Data) throws -> (decoded: DecodedSettings, repairs: [String]) {
         let tracker = SpotiglassSettingsDecodeTracker()
         let decoder = JSONDecoder()
         decoder.userInfo[.spotiglassSettingsDecodeTracker] = tracker
         let settings = try decoder.decode(SpotiglassSettingsFile.self, from: data)
-        return DecodedSettings(settings: settings, didRepair: tracker.didRepair)
+        return (DecodedSettings(settings: settings, didRepair: tracker.didRepair), tracker.repairs)
     }
 
-    private func readDiskSnapshot() throws -> SettingsDiskSnapshot? {
+    /// The document on disk, if there is one. A read error (no permission) throws, so nothing
+    /// is written over a file that could not even be read. A document that doesn't parse
+    /// comes back without a decoded value and with the reason, so the caller can keep a copy.
+    private func readDiskSnapshotForWrite() throws -> SettingsDiskSnapshot? {
         guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
         let data = try Data(contentsOf: fileURL)
-        return SettingsDiskSnapshot(data: data, decoded: try decodeSettings(data))
-    }
-
-    /// A syntactically invalid document cannot provide a merge base. It is safe
-    /// to replace that document with the proposed settings, matching bootstrap's
-    /// existing whole-document fallback while keeping valid documents protected.
-    private func readDiskSnapshotForWrite() throws -> SettingsDiskSnapshot? {
         do {
-            return try readDiskSnapshot()
-        } catch is DecodingError {
-            SpotiglassLog.error(
-                SpotiglassLog.settings,
-                "Settings document is not parseable; replacing it with the next valid snapshot."
-            )
-            return nil
+            let result = try decodeSettingsReportingRepairs(data)
+            return SettingsDiskSnapshot(data: data, decoded: result.decoded, problems: result.repairs)
+        } catch {
+            return SettingsDiskSnapshot(data: data, decoded: nil, problems: [UnreadableFileBackup.describe(error)])
         }
     }
 
+    /// Keeps the bytes of a document that is about to be saved over without having been
+    /// read in full. Throws when the copy can't be made, which stops the save (#597).
+    private func preserveBeforeOverwriting(_ snapshot: SettingsDiskSnapshot) throws {
+        guard !snapshot.problems.isEmpty else { return }
+        let copy = try UnreadableFileBackup.preserve(snapshot.data, of: fileURL, now: now(), fileManager: fileManager)
+        guard copy != backupURL else { return }
+        SpotiglassLog.error(
+            SpotiglassLog.settings,
+            "Settings file \(fileURL.path) could not be fully read; kept a copy at \(copy.path) before saving. \(snapshot.problems.joined(separator: "; "))"
+        )
+        backupURL = copy
+        let name = copy.lastPathComponent
+        backupNotice = LocalizedText(
+            String(format: SpotiglassL10n.string("settings.file.backedUp"), name),
+            comparedBy: "settings.file.backedUp|\(name)"
+        )
+    }
+
     private func persist(_ proposed: SpotiglassSettingsFile) throws {
+        do {
+            try write(proposed)
+            saveFailure = nil
+        } catch {
+            SpotiglassLog.error(
+                SpotiglassLog.settings,
+                "Saving settings to \(fileURL.path) failed: \(UnreadableFileBackup.describe(error))"
+            )
+            saveFailure = LocalizedText(SpotiglassL10n.string("settings.file.saveFailed"), comparedByKey: "settings.file.saveFailed")
+            throw error
+        }
+    }
+
+    private func write(_ proposed: SpotiglassSettingsFile) throws {
         try ensureDirectory()
 
         // Read immediately before encoding, then check once more before replacing
@@ -465,11 +519,11 @@ final class SpotiglassSettingsStore: ObservableObject {
         }
 
         let merge: SettingsMergeResult
-        if let currentSnapshot, let baseline = lastKnownDiskSettings {
+        if let disk = currentSnapshot?.decoded, let baseline = lastKnownDiskSettings {
             merge = Self.mergedSettings(
                 local: proposed,
                 baseline: baseline,
-                disk: currentSnapshot.decoded.settings
+                disk: disk.settings
             )
         } else {
             merge = SettingsMergeResult(settings: proposed, conflicts: [])
@@ -478,7 +532,12 @@ final class SpotiglassSettingsStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
         let data = try encoder.encode(merge.settings)
-        try data.write(to: fileURL, options: .atomic)
+        if let currentSnapshot {
+            try preserveBeforeOverwriting(currentSnapshot)
+        }
+        // A symlinked settings file (dotfiles) stays a link: the new document goes to the
+        // file it points at, because an atomic write replaces whatever is at the path.
+        try data.write(to: fileURL.resolvingSymlinksInPath(), options: .atomic)
 
         // The watcher may receive an event for the old inode after this method
         // returns. Remember the exact replacement so only this write is ignored;
@@ -498,15 +557,37 @@ final class SpotiglassSettingsStore: ObservableObject {
     }
 
     private func loadOrBootstrap() {
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            // `persist` logs a failure and sets `saveFailure`.
+            try? persist(Self.bootstrapDefaults())
+            return
+        }
+        let data: Data
         do {
-            if !fileManager.fileExists(atPath: fileURL.path) {
-                try ensureDirectory()
-                try persist(Self.bootstrapDefaults())
-                return
-            }
-            let data = try Data(contentsOf: fileURL)
-            rememberObservedFileData(data)
-            let loaded = try decodeSettings(data)
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            // Unreadable, not damaged: run on defaults and leave the file alone. Every save
+            // reads it first, so none replaces it until it can be read and copied.
+            SpotiglassLog.error(
+                SpotiglassLog.settings,
+                "Settings file \(fileURL.path) can't be read; using defaults without saving over it: \(UnreadableFileBackup.describe(error))"
+            )
+            saveFailure = LocalizedText(SpotiglassL10n.string("settings.file.saveFailed"), comparedByKey: "settings.file.saveFailed")
+            return
+        }
+        rememberObservedFileData(data)
+        let loaded: DecodedSettings
+        do {
+            loaded = try decodeSettings(data)
+        } catch {
+            // Nothing in it could be used. Saving the defaults keeps a copy of it first, and
+            // the copy is named in Settings.
+            lastKnownDiskSettings = nil
+            settings = Self.bootstrapDefaults()
+            try? persist(settings)
+            return
+        }
+        do {
             try applyLoadedSettings(
                 loaded.settings,
                 didRepair: loaded.didRepair,
@@ -514,16 +595,8 @@ final class SpotiglassSettingsStore: ObservableObject {
             )
             lastError = nil
         } catch {
-            do {
-                let fallback = Self.bootstrapDefaults()
-                lastKnownDiskSettings = nil
-                settings = fallback
-                try persist(fallback)
-                lastError = "Settings file was invalid and has been reset to defaults. \(error.localizedDescription)"
-            } catch {
-                lastError = error.localizedDescription
-                SpotiglassLog.error(SpotiglassLog.settings, "Settings bootstrap failed: \(error.localizedDescription)")
-            }
+            // The loaded settings are in use; only saving their migration failed, and
+            // `persist` has logged that and set `saveFailure`.
         }
     }
 
@@ -643,6 +716,16 @@ final class SpotiglassSettingsStore: ObservableObject {
                 at: newURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
+            // A symlink (dotfiles) is recreated pointing at the same file: moving the link
+            // as is would break a relative one, and the dotfiles copy would stop counting.
+            if let destination = try? fileManager.destinationOfSymbolicLink(atPath: legacyURL.path) {
+                let target = URL(fileURLWithPath: destination, relativeTo: legacyURL.deletingLastPathComponent())
+                    .standardizedFileURL
+                try fileManager.createSymbolicLink(at: newURL, withDestinationURL: target)
+                try fileManager.removeItem(at: legacyURL)
+                SpotiglassLog.info(.settings, "Migrated the settings.json link from ~/.config/spotiglass to Application Support; it still points at \(target.path).")
+                return
+            }
             try fileManager.moveItem(at: legacyURL, to: newURL)
             SpotiglassLog.info(.settings, "Migrated settings.json from ~/.config/spotiglass to Application Support.")
         } catch {

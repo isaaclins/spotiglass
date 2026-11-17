@@ -56,7 +56,7 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { settingsStore.settings.appearance.language },
             set: { newValue in
-                try? settingsStore.mutate { $0.appearance.language = newValue }
+                settingsStore.update { $0.appearance.language = newValue }
             }
         )
     }
@@ -99,7 +99,7 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { settingsStore.settings.appearance.colorScheme },
             set: { newValue in
-                try? settingsStore.mutate { $0.appearance.colorScheme = newValue }
+                settingsStore.update { $0.appearance.colorScheme = newValue }
             }
         )
     }
@@ -108,7 +108,7 @@ struct AppearanceSettingsView: View {
         Binding(
             get: { settingsStore.settings.commandPalette.backdropBlur },
             set: { newValue in
-                try? settingsStore.mutate { $0.commandPalette.backdropBlur = newValue }
+                settingsStore.update { $0.commandPalette.backdropBlur = newValue }
             }
         )
     }
@@ -152,7 +152,7 @@ struct AppearanceSettingsView: View {
             },
             set: { newValue in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
-                    try? settingsStore.mutate {
+                    settingsStore.update {
                         $0.appearance.lyricsTextSize = newValue
                         $0.appearance.lyricsTextScale = 1.0
                     }
@@ -195,7 +195,7 @@ struct AppearanceSettingsView: View {
             .labelsHidden()
 
             Button(SpotiglassL10n.string("settings.appearance.lyricsOffset.reset")) {
-                try? settingsStore.mutate { $0.appearance.lyricsOffsetMilliseconds = 0 }
+                settingsStore.update { $0.appearance.lyricsOffsetMilliseconds = 0 }
             }
             .buttonStyle(.link)
             .font(.caption)
@@ -227,7 +227,7 @@ struct AppearanceSettingsView: View {
             get: { Double(settingsStore.settings.appearance.lyricsOffsetMilliseconds) / 1_000 },
             set: { newValue in
                 let ms = AppearanceSettings.clampOffset(Int((newValue * 1_000).rounded()))
-                try? settingsStore.mutate { $0.appearance.lyricsOffsetMilliseconds = ms }
+                settingsStore.update { $0.appearance.lyricsOffsetMilliseconds = ms }
             }
         )
     }
@@ -246,6 +246,7 @@ struct AppearanceSettingsView: View {
                 // Drag ticks only stage in memory (keeps the preview and the live
                 // lyrics view updating); one atomic file write on knob release.
                 if !editing {
+                    // A failed save is logged and shown above the pane by the store.
                     try? settingsStore.persistStagedSettings()
                 }
             }

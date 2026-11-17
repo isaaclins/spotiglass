@@ -205,12 +205,33 @@ struct SpotifyLocalCache {
     }
 
     func loadPinnedItems(userID: String) throws -> [PinnedItem] {
+        try loadPinnedItemsRowByRow(userID: userID).items
+    }
+
+    /// One pin of a newer kind or a typo costs only that row (#597).
+    func loadPinnedItemsRowByRow(userID: String) throws -> PinnedItemsLoad {
         let url = pinnedURL(userID: userID)
         guard fileManager.fileExists(atPath: url.path) else {
-            return []
+            return PinnedItemsLoad(items: [], fileURL: url)
         }
         let data = try Data(contentsOf: url)
-        return try decoder.decode([PinnedItem].self, from: data)
+        let rows = try decoder.decode([PinnedItemRow].self, from: data)
+        var load = PinnedItemsLoad(items: [], fileURL: url)
+        for (index, row) in rows.enumerated() {
+            switch row.result {
+            case let .success(item):
+                load.items.append(item)
+            case let .failure(error):
+                load.unreadableRows.append("row \(index) skipped, \(UnreadableFileBackup.describe(error))")
+            }
+        }
+        return load
+    }
+
+    func preservePinnedItemsFile(userID: String) throws -> URL? {
+        let url = pinnedURL(userID: userID)
+        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        return try UnreadableFileBackup.preserve(Data(contentsOf: url), of: url, fileManager: fileManager)
     }
 
     /// Clears account-bound library data while retaining public catalog GET
@@ -280,6 +301,15 @@ struct SpotifyLocalCache {
             return
         }
         try fileManager.removeItem(at: url)
+    }
+}
+
+/// One element of a pins file, read on its own so a bad row doesn't fail the list.
+private struct PinnedItemRow: Decodable {
+    let result: Result<PinnedItem, Error>
+
+    init(from decoder: Decoder) throws {
+        result = Result { try PinnedItem(from: decoder) }
     }
 }
 

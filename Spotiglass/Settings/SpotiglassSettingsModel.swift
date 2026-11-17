@@ -7,7 +7,20 @@ import SwiftUI
 /// repair themselves without making the whole document fail. The store uses the
 /// flag to persist the repaired document after a successful load.
 final class SpotiglassSettingsDecodeTracker {
-    var didRepair = false
+    /// One line per value that could not be read as written: where it is and what was
+    /// wrong. The store logs them and keeps a copy of the file before saving the repair (#597).
+    private(set) var repairs: [String] = []
+
+    var didRepair: Bool { !repairs.isEmpty }
+
+    func noteRepair(at path: [CodingKey], _ reason: String) {
+        let location = UnreadableFileBackup.codingPathDescription(path)
+        repairs.append(location.isEmpty ? reason : "\(location): \(reason)")
+    }
+
+    func noteRepair(at path: [CodingKey], error: Error) {
+        noteRepair(at: path, UnreadableFileBackup.describe(error))
+    }
 }
 
 extension CodingUserInfoKey {
@@ -29,7 +42,7 @@ extension KeyedDecodingContainer {
         do {
             return try decode(type, forKey: key)
         } catch {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: codingPath + [key], error: error)
             return defaultValue
         }
     }
@@ -45,7 +58,7 @@ extension KeyedDecodingContainer {
         do {
             return try decode(type, forKey: key)
         } catch {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: codingPath + [key], error: error)
             return nil
         }
     }
@@ -61,25 +74,43 @@ extension KeyedDecodingContainer {
         guard contains(key), (try? decodeNil(forKey: key)) != true else {
             return defaultValue
         }
-        guard var nested = try? nestedUnkeyedContainer(forKey: key) else {
-            tracker?.didRepair = true
+        let nested: UnkeyedDecodingContainer
+        do {
+            nested = try nestedUnkeyedContainer(forKey: key)
+        } catch {
+            tracker?.noteRepair(at: codingPath + [key], error: error)
             return defaultValue
         }
-
+        var rows = nested
         var values: [T] = []
-        while !nested.isAtEnd {
-            guard let itemDecoder = try? nested.superDecoder() else {
-                tracker?.didRepair = true
+        while !rows.isAtEnd {
+            let index = rows.currentIndex
+            let itemDecoder: Decoder
+            do {
+                itemDecoder = try rows.superDecoder()
+            } catch {
+                tracker?.noteRepair(at: codingPath + [key], error: error)
                 break
             }
             do {
                 values.append(try type.init(from: itemDecoder))
             } catch {
-                tracker?.didRepair = true
+                // The row is skipped and named in the log; its siblings stay.
+                tracker?.noteRepair(at: codingPath + [key, SettingsRowKey(index)], "row \(index) skipped, \(UnreadableFileBackup.describe(error))")
             }
         }
         return values
     }
+}
+
+/// The index of a list row in a repair's location.
+private struct SettingsRowKey: CodingKey {
+    let intValue: Int?
+    var stringValue: String { intValue.map(String.init) ?? "" }
+
+    init(_ index: Int) { intValue = index }
+    init?(intValue: Int) { self.intValue = intValue }
+    init?(stringValue: String) { nil }
 }
 
 /// In-app UI language persisted in ``AppearanceSettings``.
@@ -309,7 +340,7 @@ struct AppearanceSettings: Codable, Equatable {
         )
         lyricsOffsetMilliseconds = Self.clampOffset(rawOffset)
         if rawOffset != lyricsOffsetMilliseconds {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: container.codingPath + [CodingKeys.lyricsOffsetMilliseconds], "\(rawOffset) is out of range, set to \(lyricsOffsetMilliseconds)")
         }
         let rawScale = container.decodeRepairing(
             Double.self,
@@ -319,7 +350,7 @@ struct AppearanceSettings: Codable, Equatable {
         )
         lyricsTextScale = Self.clampedLyricsTextScale(rawScale)
         if rawScale != lyricsTextScale {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: container.codingPath + [CodingKeys.lyricsTextScale], "\(rawScale) is out of range, set to \(lyricsTextScale)")
         }
     }
 
@@ -538,7 +569,7 @@ struct EqualizerSettings: Codable, Equatable {
         )
         preamp = EqualizerSettings.clampPreamp(rawPreamp)
         if rawPreamp != preamp {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: container.codingPath + [CodingKeys.preamp], "\(rawPreamp) is out of range, set to \(preamp)")
         }
         let defaultBands = Array(repeating: 0.0, count: EqualizerSettings.bandCount)
         let raw = container.decodeRepairingArray(
@@ -549,7 +580,7 @@ struct EqualizerSettings: Codable, Equatable {
         )
         bands = EqualizerSettings.normalizedBands(raw)
         if raw != bands {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: container.codingPath + [CodingKeys.bands], "\(raw.count) values out of shape or range, normalized")
         }
         activePresetName = container.decodeRepairingOptional(
             String.self,
@@ -635,7 +666,7 @@ struct EqualizerPreset: Codable, Equatable, Identifiable, Hashable {
         )
         bands = EqualizerSettings.normalizedBands(raw)
         if raw != bands {
-            tracker?.didRepair = true
+            tracker?.noteRepair(at: container.codingPath + [CodingKeys.bands], "\(raw.count) values out of shape or range, normalized")
         }
     }
 

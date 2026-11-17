@@ -70,6 +70,10 @@ struct CommandPaletteSettingsView: View {
                     .font(.title2.weight(.semibold))
             }
 
+            if let unusable = keymapStore.unusableRowsText {
+                SettingsFileNotice(text: unusable.string)
+            }
+
             // No instruction line: each field says what to do itself (#541).
             CommandSearchField(
                 text: $searchText,
