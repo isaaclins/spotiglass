@@ -122,6 +122,29 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         }
     }
 
+    /// The EQ helper runs until the Mac restarts and keeps the app path it was started from.
+    /// After the update from Spotiglass, the helper still running from Spotiglass.app refuses the
+    /// driver inside Wax.app (status 64). That has to bring up the new build's helper instead of
+    /// switching the equalizer off; a refusal from the current build's helper is final.
+    func testARejectionFromAnOlderHelperBringsUpTheNewOne() {
+        let rejected = EqualizerDriverInstallError.helperRejected(
+            status: 64,
+            message: "the request did not identify this app's bundled driver"
+        )
+        XCTAssertTrue(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: true, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: rejected, helperIsThisBuild: false, isEnabled: false))
+        XCTAssertTrue(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .helperUnavailable(message: "connection invalidated"), helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .approvalRequired, helperIsThisBuild: false, isEnabled: true))
+        XCTAssertFalse(EqualizerPrivilegedHelperClient.shouldReRegister(
+            after: .helperOperationFailed(status: 74, message: "copyfile failed"), helperIsThisBuild: false, isEnabled: true))
+    }
+
     func testCodeSigningRequirementsPinTeamOrExplicitLocalCertificate() {
         XCTAssertEqual(
             EqualizerPrivilegedHelperIdentity.clientRequirement,
