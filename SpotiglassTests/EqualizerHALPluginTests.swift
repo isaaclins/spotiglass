@@ -1,3 +1,4 @@
+import Combine
 import CoreAudio
 import Foundation
 import XCTest
@@ -173,7 +174,7 @@ final class EqualizerHALPluginTests: XCTestCase {
             guard case .embeddedDriverMissing = driverError else {
                 return XCTFail("expected embeddedDriverMissing, got \(driverError)")
             }
-            XCTAssertNil(driverError.userFacingDescription)
+            XCTAssertEqual(driverError.errorDescription, SpotiglassL10n.string("eq.error.embeddedDriverMissing"))
         }
     }
 
@@ -513,6 +514,89 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertEqual(output.current, output.originalID, "the sound stayed on the EQ device")
         XCTAssertFalse(engine.isEngaged)
         XCTAssertEqual(engine.lastError, SpotiglassL10n.string("eq.error.routerStopped"))
+    }
+
+    private struct FailingDriverInstaller: EqualizerDriverInstalling {
+        let error: Error
+        func installDriver(sourceURL: URL, destinationURL: URL) throws { throw error }
+    }
+
+    /// Waits for the store to publish the switch going back off. On the old code that never
+    /// happened (the write was swallowed), so the timeout is the failure, not a pause.
+    @MainActor
+    private func waitForTheSwitchToGoBackOff(in settingsStore: SpotiglassSettingsStore) async {
+        let switchedOff = expectation(description: "the equalizer switch went back off")
+        switchedOff.assertForOverFulfill = false
+        let watch = settingsStore.$settings
+            .filter { !$0.equalizer.enabled }
+            .sink { _ in switchedOff.fulfill() }
+        await fulfillment(of: [switchedOff], timeout: 5)
+        watch.cancel()
+    }
+
+    /// Switching the equalizer on when the helper can't install the driver flipped the switch
+    /// back with nothing on screen saying why (#587).
+    @MainActor
+    func testAFailedDriverInstallFlipsTheSwitchBackAndSaysWhy() async throws {
+        let output = FakeMacOutput()
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            driverInstaller: FailingDriverInstaller(
+                error: EqualizerDriverInstallError.helperUnavailable(message: "connection invalidated")
+            ),
+            defaultOutputDeviceIDProvider: { output.current },
+            virtualDeviceIDProvider: { nil },
+            defaultOutputSetter: { output.current = $0 },
+            routerStatusReader: { nil },
+            driverLoadTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+        let settingsStore = try ViewTestHost.makeSettingsStore()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+        engine.observe(settingsStore: settingsStore)
+
+        try settingsStore.mutate { $0.equalizer.enabled = true }
+        await waitForTheSwitchToGoBackOff(in: settingsStore)
+
+        XCTAssertFalse(settingsStore.settings.equalizer.enabled, "the switch stayed on")
+        XCTAssertFalse(SpotiglassSettingsStore(fileURL: settingsStore.fileURL).settings.equalizer.enabled,
+                       "the switch is off in memory but on in the settings file")
+        XCTAssertEqual(output.current, output.originalID)
+        XCTAssertEqual(engine.lastError, SpotiglassL10n.string("eq.error.driverInstallationFailed"),
+                       "nothing said why the equalizer is off")
+    }
+
+    /// The driver installs but Core Audio never shows its device: same switch-back, same need
+    /// for a line saying why (#587).
+    @MainActor
+    func testADriverThatNeverLoadsFlipsTheSwitchBackAndSaysWhy() async throws {
+        let output = FakeMacOutput()
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            defaultOutputDeviceIDProvider: { output.current },
+            virtualDeviceIDProvider: { nil },
+            defaultOutputSetter: { output.current = $0 },
+            routerStatusReader: { nil },
+            driverLoadTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+        let settingsStore = try ViewTestHost.makeSettingsStore()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+        engine.observe(settingsStore: settingsStore)
+
+        try settingsStore.mutate { $0.equalizer.enabled = true }
+        await waitForTheSwitchToGoBackOff(in: settingsStore)
+
+        XCTAssertFalse(settingsStore.settings.equalizer.enabled, "the switch stayed on")
+        XCTAssertFalse(SpotiglassSettingsStore(fileURL: settingsStore.fileURL).settings.equalizer.enabled,
+                       "the switch is off in memory but on in the settings file")
+        XCTAssertEqual(output.current, output.originalID)
+        XCTAssertEqual(engine.lastError, SpotiglassL10n.string("eq.error.driverNotLoadedYet"),
+                       "nothing said why the equalizer is off")
     }
 
     /// A Mac left on the EQ device by an earlier failed run gets its sound back

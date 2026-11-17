@@ -180,7 +180,7 @@ final class AudioEqualizerEngine: ObservableObject {
                 do {
                     try start(forwardingTargetUID: settings.forwardingTargetUID)
                 } catch {
-                    disablePersistedEqualizer(in: settingsStore)
+                    putPersistedSwitchBack(in: settingsStore)
                 }
             }
         } else {
@@ -194,31 +194,35 @@ final class AudioEqualizerEngine: ObservableObject {
                     // A transactional disable failure leaves the virtual device as
                     // the possible system default. Keep the persisted switch on so
                     // the UI cannot claim that audio was restored.
-                    enablePersistedEqualizer(in: settingsStore)
+                    putPersistedSwitchBack(in: settingsStore)
                 }
             }
         }
     }
 
-    private func disablePersistedEqualizer(in settingsStore: SpotiglassSettingsStore) {
-        do {
-            try settingsStore.mutate { $0.equalizer.enabled = false }
-        } catch {
-            SpotiglassLog.error(
-                .settings,
-                "Could not persist the disabled EQ state after settings-driven start failed: \(error.localizedDescription)"
-            )
-        }
-    }
-
-    private func enablePersistedEqualizer(in settingsStore: SpotiglassSettingsStore) {
-        do {
-            try settingsStore.mutate { $0.equalizer.enabled = true }
-        } catch {
-            SpotiglassLog.error(
-                .settings,
-                "Could not persist the enabled EQ state after settings-driven stop failed: \(error.localizedDescription)"
-            )
+    /// Puts the persisted switch where the route actually is: off once the
+    /// equalizer has given up, on while a failed stop may still have the sound
+    /// on the EQ device.
+    ///
+    /// Most callers run inside the store's change: `$settings` fires before the
+    /// new value is stored, so a write made right away was overwritten by the
+    /// change that triggered it. A failed switch-on stayed on, with "Starting…"
+    /// under it, while the file on disk said off (#587). The write waits until
+    /// that change has landed and checks again then, in case the listener
+    /// flipped the switch meanwhile.
+    private func putPersistedSwitchBack(in settingsStore: SpotiglassSettingsStore) {
+        Task { @MainActor [weak self, weak settingsStore] in
+            guard let self, let settingsStore else { return }
+            let engaged = routeState.isEngaged
+            guard settingsStore.settings.equalizer.enabled != engaged else { return }
+            do {
+                try settingsStore.mutate { $0.equalizer.enabled = engaged }
+            } catch {
+                SpotiglassLog.error(
+                    .settings,
+                    "Could not persist the EQ switch as \(engaged ? "on" : "off") after the route changed: \(error.localizedDescription)"
+                )
+            }
         }
     }
 
@@ -394,7 +398,7 @@ final class AudioEqualizerEngine: ObservableObject {
         SpotiglassLog.error(.playback, "Equalizer route to \(AudioOutputTrace.describe(uid: targetUID)) stopped processing; output restored: \(released)")
         // Still engaged when the output could not be moved, so a later stop retries it.
         routeState = .failed(message: message, isEngaged: !released)
-        if released, let observedSettingsStore { disablePersistedEqualizer(in: observedSettingsStore) }
+        if released, let observedSettingsStore { putPersistedSwitchBack(in: observedSettingsStore) }
     }
 
     /// The equalizer is off (or could not start) but the output may still sit
@@ -411,8 +415,9 @@ final class AudioEqualizerEngine: ObservableObject {
         recordFailure(error)
         let stillOnEqualizerDevice = pluginController.outputIsOnEqualizerDevice
         routeState = .failed(message: userFacingErrorText(for: error), isEngaged: stillOnEqualizerDevice)
+        // A failed forwarding-target change arrives here from inside a settings change.
         if !stillOnEqualizerDevice, let observedSettingsStore {
-            disablePersistedEqualizer(in: observedSettingsStore)
+            putPersistedSwitchBack(in: observedSettingsStore)
         }
     }
 
@@ -445,11 +450,7 @@ final class AudioEqualizerEngine: ObservableObject {
 
     /// The error is kept, not its sentence, so the line follows a language switch (#571).
     private func userFacingErrorText(for error: Error) -> LocalizedText? {
-        if let pluginError = error as? EqualizerHALPluginError {
-            guard pluginError.userFacingDescription != nil else { return nil }
-            return LocalizedText(pluginError.userFacingDescription ?? "")
-        }
-        return LocalizedText(error.localizedDescription)
+        LocalizedText(error.localizedDescription)
     }
 
     private func recordFailure(_ error: Error) {

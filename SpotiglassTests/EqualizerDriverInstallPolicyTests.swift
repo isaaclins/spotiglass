@@ -79,8 +79,8 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
             mapped.diagnosticDetails,
             "Wax EQ privileged helper failed (status 74): copyfile failed"
         )
-        XCTAssertFalse(mapped.isUserVisible)
-        XCTAssertNil(mapped.userFacingDescription)
+        XCTAssertEqual(mapped.errorDescription, SpotiglassL10n.string("eq.error.driverInstallationFailed"))
+        XCTAssertFalse(mapped.localizedDescription.contains("copyfile"))
     }
 
     /// The one install outcome the listener has to act on. Everything else in
@@ -92,9 +92,8 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         guard case .driverInstallApprovalRequired = mapped else {
             return XCTFail("expected .driverInstallApprovalRequired, got \(mapped)")
         }
-        XCTAssertTrue(mapped.isUserVisible)
         XCTAssertEqual(
-            mapped.userFacingDescription,
+            mapped.errorDescription,
             SpotiglassL10n.string("eq.error.driverInstallApprovalRequired")
         )
         XCTAssertEqual(
@@ -117,8 +116,7 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         for error in errors {
             let mapped = EqualizerDriverInstallErrorMapper.map(error)
             XCTAssertEqual(mapped.diagnosticDetails, error.diagnosticDetails)
-            XCTAssertFalse(mapped.isUserVisible)
-            XCTAssertNil(mapped.userFacingDescription)
+            XCTAssertEqual(mapped.errorDescription, SpotiglassL10n.string("eq.error.driverInstallationFailed"))
         }
     }
 
@@ -160,7 +158,9 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         )
     }
 
-    func testDriverLifecycleErrorsHaveNoUserFacingDescription() {
+    /// Each of these turns the equalizer switch back off, so each says why in a plain line;
+    /// the path or helper message only goes to the log (#587).
+    func testDriverLifecycleErrorsSayWhyWithoutTheirDiagnostics() throws {
         let errors: [EqualizerHALPluginError] = [
             .embeddedDriverMissing,
             .embeddedDriverMetadataMissing,
@@ -169,8 +169,10 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         ]
 
         for error in errors {
-            XCTAssertFalse(error.isUserVisible)
-            XCTAssertNil(error.userFacingDescription)
+            let line = try XCTUnwrap(error.errorDescription)
+            XCTAssertFalse(line.isEmpty)
+            XCTAssertFalse(line.contains("/Library"), line)
+            XCTAssertFalse(line.contains("helper unavailable"), line)
             XCTAssertNotNil(error.diagnosticDetails)
         }
     }

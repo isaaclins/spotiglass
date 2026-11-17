@@ -3888,6 +3888,75 @@
         }
       }
     },
+    "eq.error.driverInstallationFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Equalizer konnte nicht installiert werden und ist deshalb aus. Versuchen Sie es erneut und starten Sie Wax neu, falls es weiterhin fehlschlägt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer could not be installed, so it is off. Try again, and restart Wax if it keeps failing."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo instalar el ecualizador, así que está desactivado. Inténtalo de nuevo y reinicia Wax si sigue fallando."
+          }
+        }
+      }
+    },
+    "eq.error.driverNotLoadedYet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS hat den Equalizer nicht geladen, deshalb ist er aus. Versuchen Sie es gleich noch einmal und starten Sie Ihren Mac neu, falls es weiterhin fehlschlägt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS did not load the equalizer, so it is off. Try again in a moment, and restart your Mac if it keeps failing."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no cargó el ecualizador, así que está desactivado. Inténtalo de nuevo en un momento y reinicia el Mac si sigue fallando."
+          }
+        }
+      }
+    },
+    "eq.error.embeddedDriverMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In dieser Wax-Installation fehlt der Equalizer. Installieren Sie Wax neu, um ihn zu verwenden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This copy of Wax is missing its equalizer. Reinstall Wax to use it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A esta copia de Wax le falta el ecualizador. Vuelve a instalar Wax para usarlo."
+          }
+        }
+      }
+    },
     "eq.error.driverInstallApprovalRequired": {
       "extractionState": "manual",
       "localizations": {
