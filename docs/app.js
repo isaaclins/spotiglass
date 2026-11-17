@@ -339,12 +339,11 @@
   });
   if (!isMac) document.querySelectorAll("#search-title kbd").forEach(k => (k.textContent = "Ctrl K"));
 
-  /* ---------- Spotify / Apple Music switch (shown only when both captures exist) ---------- */
+  /* ---------- Spotify / Apple Music switch (shown only when the Apple Music capture is published) ---------- */
   const svcSec = document.getElementById("services");
-  const AM = "screens/applemusic-home-2200.webp";
-  fetch(AM, { method: "HEAD" }).then(r => {
-    if (!r.ok || !/image/.test(r.headers.get("content-type") || "")) return;
-    svcSec.querySelector('[data-svc-img="apple"]').src = AM;
+  const amImg = svcSec.querySelector('[data-svc-img="apple"]');
+  if (amImg.dataset.src) {
+    amImg.src = amImg.dataset.src;
     svcSec.hidden = false;
     const seg = svcSec.querySelector(".seg");
     seg.addEventListener("click", e => {
@@ -354,7 +353,7 @@
       seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-checked", String(x === b)));
       svcSec.querySelectorAll("[data-svc-img]").forEach(img => img.classList.toggle("is-off", img.dataset.svcImg !== b.dataset.svc));
     });
-  }).catch(() => {});
+  }
 
   /* ---------- the arch, built stone by stone ---------- */
   const svg = document.getElementById("arch");
