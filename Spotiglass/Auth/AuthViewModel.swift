@@ -111,16 +111,35 @@ final class AuthViewModel: ObservableObject {
         // and signing back in as a different Spotify account, cannot leak
         // the previous account's library through the cache layer. Public GET
         // catalog responses and per-account pins have separate ownership.
-        guard let cache = try? SpotifyLocalCache() else { return }
-        try? cache.clearPrivateAccountData()
+        do {
+            try SpotifyLocalCache().clearPrivateAccountData()
+        } catch {
+            // Nothing on screen can fix it, but a report about the old account's library
+            // showing up again starts here.
+            SpotiglassLog.error(
+                .auth,
+                "Sign-out could not delete the cached library (playlists.json, tracks/): \(SpotiglassLog.describe(error)); the old account's data may stay on disk"
+            )
+        }
     }
 
     func restoreSessionIfAvailable() async {
         guard currentSession == nil else { return }
         let generation = authTransitionGeneration
         do {
-            guard let refreshToken = try refreshTokenStore.loadRefreshToken(), !settings.clientID.isEmpty else {
+            let storedRefreshToken: String?
+            do {
+                storedRefreshToken = try refreshTokenStore.loadRefreshToken()
+            } catch {
+                SpotiglassLog.error(
+                    .auth,
+                    "Restoring the session could not read the saved sign-in (\(AuthFailureDescription.describe(error))); showed the error"
+                )
+                throw error
+            }
+            guard let refreshToken = storedRefreshToken, !settings.clientID.isEmpty else {
                 guard generation == authTransitionGeneration else { return }
+                SpotiglassLog.info(.auth, "No saved sign-in to restore")
                 state = .signedOut
                 return
             }
@@ -149,6 +168,7 @@ final class AuthViewModel: ObservableObject {
         reconnectFailure = nil
         // Set before the task starts, so a Cancel that comes first still goes back to it.
         signInRestorePoint = isReconnect ? (stateBeforeSignIn, sessionBeforeSignIn) : nil
+        SpotiglassLog.info(.auth, isReconnect ? "Sign-in started (reconnect)" : "Sign-in started")
         state = .signingIn
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -231,10 +251,13 @@ final class AuthViewModel: ObservableObject {
         generation: Int,
         replacesSavedSignIn: Bool
     ) async {
+        // What the failure log line says was being attempted.
+        var step = "waiting for the browser"
         do {
             try ensureAuthTransitionIsCurrent(generation)
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)
             try ensureAuthTransitionIsCurrent(generation)
+            step = "exchanging the code"
             let configuration = try SpotifyAuthConfiguration(clientID: clientID, redirectURI: authorizationCode.redirectURI)
             let grant = try await tokenClient.exchangeAuthorizationCode(
                 clientID: configuration.clientID,
@@ -245,6 +268,7 @@ final class AuthViewModel: ObservableObject {
             try ensureAuthTransitionIsCurrent(generation)
 
             let session = grant.authenticatedSession
+            step = "checking the granted scopes"
             // A reconnect keeps the sign-in from before unless the new one can browse the library.
             if signInRestorePoint != nil {
                 try validateBrowsingScopes(in: session)
@@ -253,11 +277,13 @@ final class AuthViewModel: ObservableObject {
             // Only now does the new grant replace the old one, and it is saved first: a save that
             // fails leaves the old sign-in and its caches as they were. From here on the sign-in
             // finishes: Cancel has nothing left to go back to.
+            step = "saving the sign-in to the Keychain"
             if let refreshToken = grant.refreshToken {
                 try refreshTokenStore.saveRefreshToken(refreshToken)
             } else {
                 try refreshTokenStore.deleteRefreshToken()
             }
+            step = "checking the granted scopes"
             signInRestorePoint = nil
             isCommittingSignIn = true
             defer { isCommittingSignIn = false }
@@ -275,11 +301,13 @@ final class AuthViewModel: ObservableObject {
             try validateBrowsingScopes(in: session)
             currentSession = session
             signInRetryCooldownUntil = nil
+            SpotiglassLog.info(.auth, "Sign-in succeeded (scopes: \(session.scope ?? "none returned"))")
             state = .signedIn(session)
         } catch is AuthTransitionInvalidatedError {
             return
         } catch is CancellationError {
             guard generation == authTransitionGeneration else { return }
+            SpotiglassLog.info(.auth, "Sign-in cancelled while \(step)")
             signInRetryCooldownUntil = nil
             if case .signingIn = state {
                 restoreStateBeforeSignIn()
@@ -287,6 +315,7 @@ final class AuthViewModel: ObservableObject {
         } catch {
             guard generation == authTransitionGeneration else { return }
             if Task.isCancelled {
+                SpotiglassLog.info(.auth, "Sign-in cancelled while \(step) (\(AuthFailureDescription.describe(error)))")
                 signInRetryCooldownUntil = nil
                 restoreStateBeforeSignIn()
                 return
@@ -296,13 +325,20 @@ final class AuthViewModel: ObservableObject {
                restorePoint.state.hasSpotifySession || restorePoint.state == .refreshing(nil) {
                 // The reason still reaches the log; the session from before keeps working (or, at
                 // launch, its refresh is tried again).
-                SpotiglassLog.error(.auth, "Reconnect failed, keeping the previous sign-in: \(error)")
+                SpotiglassLog.error(
+                    .auth,
+                    "Reconnect failed while \(step) (\(AuthFailureDescription.describe(error))); kept the previous sign-in, Connect works again in 2 s"
+                )
                 if restorePoint.state.hasSpotifySession {
                     reconnectFailure = Self.displayError(for: error)
                 }
                 restoreStateBeforeSignIn()
             } else {
                 // Nothing was working before (a failed refresh): show why this sign-in failed.
+                SpotiglassLog.error(
+                    .auth,
+                    "Sign-in failed while \(step) (\(AuthFailureDescription.describe(error))); showed the error, Connect works again in 2 s"
+                )
                 signInRestorePoint = nil
                 state = .failed(Self.displayError(for: error))
             }
@@ -322,8 +358,13 @@ final class AuthViewModel: ObservableObject {
             currentSession = nil
             await clearSignOutData()
             guard generation == authTransitionGeneration else { return }
+            SpotiglassLog.info(.auth, "Signed out; deleted the saved sign-in and the cached library")
             state = .signedOut
         } catch {
+            SpotiglassLog.error(
+                .auth,
+                "Sign-out could not delete the saved sign-in (\(AuthFailureDescription.describe(error))); still signed in, showed the error"
+            )
             state = .failed(Self.displayError(for: error))
         }
     }
@@ -363,6 +404,11 @@ final class AuthViewModel: ObservableObject {
         pausedRetryTask?.cancel()
         pausedRetryTask = nil
         temporaryFailureStreak = 0
+        SpotiglassLog.info(
+            .auth,
+            "Token refreshed (valid for \(Int(session.expiresAt.timeIntervalSince(now()))) s"
+                + (grant.refreshToken == nil ? ")" : ", new refresh token saved)")
+        )
         state = .signedIn(session)
     }
 
@@ -399,6 +445,14 @@ final class AuthViewModel: ObservableObject {
             } catch {
                 guard generation == self.authTransitionGeneration else {
                     throw AuthTransitionInvalidatedError()
+                }
+                // Logged here, once per refresh that ran: every waiter on this task gets the
+                // same error, and `handleRefreshFailure` acts on it the way this line says.
+                if !(error is CancellationError || error is AuthTransitionInvalidatedError || error is SpotifySignInPausedError) {
+                    SpotiglassLog.error(
+                        .auth,
+                        "Token refresh failed (\(AuthFailureDescription.describe(error))); \(Self.refreshFailureOutcome(error))"
+                    )
                 }
                 throw error
             }
@@ -453,7 +507,14 @@ final class AuthViewModel: ObservableObject {
         switch Self.refreshFailureKind(error) {
         case .deadGrant:
             let generation = authTransitionGeneration
-            try? refreshTokenStore.deleteRefreshToken()
+            do {
+                try refreshTokenStore.deleteRefreshToken()
+            } catch {
+                SpotiglassLog.error(
+                    .auth,
+                    "Could not delete the rejected sign-in (\(AuthFailureDescription.describe(error))); the next launch will try it again"
+                )
+            }
             settings.grantedScope = nil
             currentSession = nil
             await clearSignOutData()
@@ -465,7 +526,6 @@ final class AuthViewModel: ObservableObject {
             if let refreshCooldownUntil, refreshCooldownUntil > now(), case let .paused(pause) = state {
                 return SpotifySignInPausedError(pause: pause)
             }
-            SpotiglassLog.error(.auth, "Sign-in refresh failed for now, keeping the sign-in: \(error)")
             // Spotify's Retry-After when it is longer; a short or zero one doesn't undercut the
             // backoff, or repeated 429s would ask again almost at once.
             let cooldown = max(retryAfter ?? 0, Self.temporaryFailureCooldown(afterFailures: temporaryFailureStreak))
@@ -476,11 +536,11 @@ final class AuthViewModel: ObservableObject {
                 reason: reason,
                 retryAt: reason == .busy ? refreshCooldownUntil : nil
             )
+            SpotiglassLog.info(.auth, "Sign-in paused (\(reason)); it tries again by itself in \(Int(cooldown.rounded())) s")
             state = .paused(pause)
             schedulePausedRetry(after: cooldown)
             return SpotifySignInPausedError(pause: pause)
         case .other:
-            SpotiglassLog.error(.auth, "Sign-in refresh failed, keeping the saved sign-in: \(error)")
             state = .failed(Self.displayError(for: error))
             return SpotifyAPIError.unauthorized
         }
@@ -554,6 +614,15 @@ final class AuthViewModel: ObservableObject {
         case other
     }
 
+    /// What ``handleRefreshFailure(error:previousSession:)`` does about a failure, for the log.
+    nonisolated static func refreshFailureOutcome(_ error: Error) -> String {
+        switch refreshFailureKind(error) {
+        case .deadGrant: return "Spotify rejected the saved sign-in: signed out, deleting it and the cached library"
+        case .temporary: return "kept the sign-in and paused it"
+        case .other: return "kept the saved sign-in and showed the error"
+        }
+    }
+
     nonisolated static func refreshFailureKind(_ error: Error) -> RefreshFailureKind {
         if let urlError = error as? URLError {
             switch urlError.code {
@@ -606,14 +675,9 @@ final class AuthViewModel: ObservableObject {
     }
 
     private static func displayError(for error: Error) -> AuthDisplayError {
-        // The sentence stays free of OAuth codes and socket steps, but they must
-        // not be dropped either: the log is where a bug report picks them up.
-        // Every auth failure routes through here, so this is the one place that
-        // has to remember (#186).
-        if let callbackError = error as? LoopbackOAuthCallbackError,
-           let details = callbackError.diagnosticDetails {
-            SpotiglassLog.error(.auth, details)
-        }
+        // The sentence stays free of OAuth codes and socket steps. They are not
+        // dropped: each failure path logs them through `AuthFailureDescription`
+        // next to what it did about the failure (#186, #602).
         // The error itself is kept, not its sentence: the sentence is looked up each time it
         // is shown, so it follows a language switch (#571).
         return AuthDisplayError(message: displayMessage(for: error))
@@ -654,7 +718,17 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
         // back on screen in the middle of the sign-in, and a dead-grant answer would delete the
         // token the reconnect falls back to (#593).
         guard signInTask == nil else { throw SpotifyAPIError.unauthorized }
-        guard let refreshToken = try refreshTokenStore.loadRefreshToken() else {
+        let storedRefreshToken: String?
+        do {
+            storedRefreshToken = try refreshTokenStore.loadRefreshToken()
+        } catch {
+            SpotiglassLog.error(
+                .auth,
+                "The player's token refresh could not read the saved sign-in (\(AuthFailureDescription.describe(error))); passed to the player"
+            )
+            throw error
+        }
+        guard let refreshToken = storedRefreshToken else {
             throw SpotifyAPIError.unauthorized
         }
         let previousSession = currentSession ?? state.pausedOrLiveSession

@@ -252,6 +252,36 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(cleaner.callCount, 1, "Cache must be cleared when refresh fails permanently.")
     }
 
+    /// A user's log used to say nothing when a refresh failed and signed them out (#602, #593).
+    @MainActor
+    func testARejectedRefreshLeavesOneAuthLineSayingWhatHappened() async throws {
+        let marker = "revoked-\(UUID().uuidString)"
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("secret-refresh-token-602")
+        let httpClient = MockHTTPClient(
+            data: Data(#"{ "error": "invalid_grant", "error_description": "\#(marker)" }"#.utf8),
+            statusCode: 400
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        let lines = try SpotiglassLogReader.lines(containing: marker)
+        XCTAssertEqual(lines.count, 1, "Expected one log line for the failed refresh, got: \(lines)")
+        let line = try XCTUnwrap(lines.first)
+        XCTAssertTrue(line.contains("[ERROR] [auth]"), line)
+        for fact in ["refresh", "400", "invalid_grant", "signed out"] {
+            XCTAssertTrue(line.contains(fact), "\(fact) is missing from: \(line)")
+        }
+        XCTAssertFalse(line.contains("secret-refresh-token-602"), "The log must never hold the token.")
+    }
+
     @MainActor
     func testRestoreSessionPreservesKeychainOnTransientNetworkError() async throws {
         let store = InMemoryRefreshTokenStore()

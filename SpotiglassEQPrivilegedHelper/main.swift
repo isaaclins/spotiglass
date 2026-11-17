@@ -1,6 +1,12 @@
 import Darwin
 import Foundation
+import os
 import Security
+
+/// Console › subsystem `com.isaaclins.spotiglass`, category `eq-helper`: every refused caller,
+/// install and `coreaudiod` restart leaves a line there (#602). Paths and statuses are public;
+/// they name system folders and this app's bundle, nothing about the user.
+private let helperLog = Logger(subsystem: "com.isaaclins.spotiglass", category: "eq-helper")
 
 @objc private protocol EqualizerPrivilegedHelperProtocol {
     func installDriver(
@@ -56,15 +62,20 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
                 sourceURL: URL(fileURLWithPath: sourcePath),
                 destinationURL: URL(fileURLWithPath: destinationPath)
             )
+            helperLog.notice("Driver installed at \(destinationPath, privacy: .public) and coreaudiod restarted")
             reply(Self.response(status: 0, message: ""))
         } catch {
             let status: Int32 = error is HelperOperationError && isRejected(error) ? 64 : 74
+            helperLog.error(
+                "Driver install from \(sourcePath, privacy: .public) to \(destinationPath, privacy: .public) failed (reply status \(status)): \(String(describing: error), privacy: .public)"
+            )
             reply(Self.response(status: status, message: String(describing: error)))
         }
     }
 
     private func install(sourceURL: URL, destinationURL: URL) throws {
         guard isExpectedSource(sourceURL), destinationURL == expectedDestinationURL else {
+            helperLog.error("Refused an install outside this app's driver and the HAL folder")
             throw HelperOperationError.invalidRequest
         }
         guard fileManager.fileExists(atPath: sourceURL.path) else {
@@ -74,6 +85,7 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
             // Path checks prevent arbitrary filesystem writes. Signature
             // validation prevents a modified app bundle from becoming a
             // root-loaded CoreAudio plug-in.
+            helperLog.error("Refused a driver whose signature does not meet the driver requirement")
             throw HelperOperationError.invalidRequest
         }
 
@@ -83,7 +95,16 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
             ".\(destinationURL.lastPathComponent).install-\(UUID().uuidString)",
             isDirectory: true
         )
-        defer { try? fileManager.removeItem(at: temporaryURL) }
+        defer {
+            // Left behind only after a failed copy or move; the next install uses a new name.
+            if fileManager.fileExists(atPath: temporaryURL.path) {
+                do {
+                    try fileManager.removeItem(at: temporaryURL)
+                } catch {
+                    helperLog.error("Could not remove the temporary copy \(temporaryURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+            }
+        }
 
         // COPYFILE_ALL retains the signed bundle's metadata, including the
         // executable mtime that CoreAudio checks against its code signature.
@@ -154,6 +175,7 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
         guard process.terminationStatus == 0 else {
             throw HelperOperationError.restartFailed(status: process.terminationStatus)
         }
+        helperLog.notice("Restarted coreaudiod")
     }
 
     private func isRejected(_ error: Error) -> Bool {
@@ -175,7 +197,10 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
     private let lock = NSLock()
     private let service: EqualizerPrivilegedService?
 
+    private let executablePath: String
+
     init(executableURL: URL) {
+        executablePath = executableURL.path
         service = EqualizerPrivilegedService(executableURL: executableURL)
     }
 
@@ -183,9 +208,14 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         _ listener: NSXPCListener,
         shouldAcceptNewConnection newConnection: NSXPCConnection
     ) -> Bool {
-        guard newConnection.effectiveUserIdentifier != 0,
-            let service
-        else { return false }
+        guard newConnection.effectiveUserIdentifier != 0 else {
+            helperLog.error("Rejected a connection from root (pid \(newConnection.processIdentifier, privacy: .public))")
+            return false
+        }
+        guard let service else {
+            helperLog.error("Rejected a connection: this helper is not inside an app bundle (\(self.executablePath, privacy: .public))")
+            return false
+        }
 
         newConnection.setCodeSigningRequirement(
             EqualizerPrivilegedHelperIdentity.clientRequirement
@@ -196,12 +226,17 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         newConnection.exportedObject = service
         let identifier = ObjectIdentifier(newConnection)
         store(service, for: identifier)
+        let pid = newConnection.processIdentifier
         newConnection.invalidationHandler = { [weak self] in
+            helperLog.info("Connection from pid \(pid, privacy: .public) ended")
             self?.removeService(for: identifier)
         }
         newConnection.interruptionHandler = { [weak self] in
             self?.removeService(for: identifier)
         }
+        // A caller that fails the code requirement is cut off by XPC after this point; its
+        // connection then ends without an install line.
+        helperLog.info("Accepted a connection from pid \(newConnection.processIdentifier, privacy: .public), checking its signature")
         newConnection.resume()
         return true
     }

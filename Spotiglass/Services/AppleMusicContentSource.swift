@@ -90,55 +90,83 @@ struct MusicKitContentSource: AppleMusicContentSource {
     /// MusicKit caps a catalog search page at 25 items per type.
     static let catalogSearchPageLimit = 25
 
+    /// Set while a read runs under ``logged(_:_:)``, so a read made inside another one is
+    /// logged once, by the outermost.
+    @TaskLocal static var isInsideLoggedRead = false
+
+    /// A failed read used to reach the screen only (#602): this puts what was read and
+    /// MusicKit's error in the log too. No search terms or item IDs.
+    static func logged<T>(_ read: @autoclosure () -> String, _ body: () async throws -> T) async throws -> T {
+        if isInsideLoggedRead { return try await body() }
+        return try await $isInsideLoggedRead.withValue(true) {
+            do {
+                return try await body()
+            } catch {
+                if !(error is CancellationError) {
+                    SpotiglassLog.error(.api, "Apple Music \(read()) failed: \(error); passed to the screen")
+                }
+                throw error
+            }
+        }
+    }
+
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
-        var request = MusicLibraryRequest<Playlist>()
-        request.limit = limit
-        request.offset = offset
-        // No `sort(by:)`: on macOS MusicKit's library backend aborts the process on sort
-        // descriptors it does not support (seen on macOS 27 with `lastPlayedDate`).
-        return Array(try await request.response().items)
+        try await Self.logged("library playlists read (offset \(offset))") { () async throws -> [Playlist] in
+            var request = MusicLibraryRequest<Playlist>()
+            request.limit = limit
+            request.offset = offset
+            // No `sort(by:)`: on macOS MusicKit's library backend aborts the process on sort
+            // descriptors it does not support (seen on macOS 27 with `lastPlayedDate`).
+            return Array(try await request.response().items)
+        }
     }
 
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
-        guard !playlistIDs.isEmpty else { return [:] }
-        // One local library query for the whole batch: each playlist comes back as a section
-        // holding its tracks, which follow MusicKit's batches like every other read here, up to
-        // the same bound as opening the playlist.
-        var request = MusicLibrarySectionedRequest<Playlist, Track>()
-        request.filterSections(matching: \.id, memberOf: playlistIDs.map { MusicItemID($0) })
-        let sections = try await request.response().sections
-        var tracks: [String: [Track]] = [:]
-        for section in sections where !section.items.isEmpty {
-            tracks[section.id.rawValue] = try await Self.collect(section.items, limit: Self.maxCountedPlaylistTracks)
+        try await Self.logged("library playlist tracks read (\(playlistIDs.count) playlists)") { () async throws -> [String: [Track]] in
+            guard !playlistIDs.isEmpty else { return [:] }
+            // One local library query for the whole batch: each playlist comes back as a section
+            // holding its tracks, which follow MusicKit's batches like every other read here, up to
+            // the same bound as opening the playlist.
+            var request = MusicLibrarySectionedRequest<Playlist, Track>()
+            request.filterSections(matching: \.id, memberOf: playlistIDs.map { MusicItemID($0) })
+            let sections = try await request.response().sections
+            var tracks: [String: [Track]] = [:]
+            for section in sections where !section.items.isEmpty {
+                tracks[section.id.rawValue] = try await Self.collect(section.items, limit: Self.maxCountedPlaylistTracks)
+            }
+            return tracks
         }
-        return tracks
     }
 
     func libraryPlaylist(id: String) async throws -> Playlist? {
-        var request = MusicLibraryRequest<Playlist>()
-        request.filter(matching: \.id, equalTo: MusicItemID(id))
-        return try await request.response().items.first
+        try await Self.logged("library playlist lookup") { () async throws -> Playlist? in
+            var request = MusicLibraryRequest<Playlist>()
+            request.filter(matching: \.id, equalTo: MusicItemID(id))
+            return try await request.response().items.first
+        }
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
-        let id = MusicItemID(playlistID)
-        if let libraryPlaylist = try await libraryPlaylist(id: playlistID) {
-            let detailed = try await libraryPlaylist.with([.tracks])
-            return try await Self.collect(detailed.tracks, limit: limit)
+        try await Self.logged("playlist tracks read") { () async throws -> [Track]? in
+            let id = MusicItemID(playlistID)
+            if let libraryPlaylist = try await libraryPlaylist(id: playlistID) {
+                let detailed = try await libraryPlaylist.with([.tracks])
+                return try await Self.collect(detailed.tracks, limit: limit)
+            }
+            if Self.isLibraryPlaylistID(playlistID) {
+                // A library playlist this Mac doesn't list yet (created moments ago). The catalog
+                // answers its ID with an error, which took over the whole page (#395).
+                return nil
+            }
+            let catalog = try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: id)
+                .response().items.first
+            guard let detailed = try await catalog?.with([.tracks]) else { return nil }
+            return try await collectCatalog(
+                detailed.tracks,
+                limit: limit,
+                relationship: AppleMusicCatalogRelationship(kind: "playlists", id: playlistID, name: "tracks")
+            )
         }
-        if Self.isLibraryPlaylistID(playlistID) {
-            // A library playlist this Mac doesn't list yet (created moments ago). The catalog
-            // answers its ID with an error, which took over the whole page (#395).
-            return nil
-        }
-        let catalog = try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: id)
-            .response().items.first
-        guard let detailed = try await catalog?.with([.tracks]) else { return nil }
-        return try await collectCatalog(
-            detailed.tracks,
-            limit: limit,
-            relationship: AppleMusicCatalogRelationship(kind: "playlists", id: playlistID, name: "tracks")
-        )
     }
 
     /// Library playlists are `p.…` (cloud library) or a persistent ID; catalog ones are `pl.…`.
@@ -147,11 +175,13 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] {
-        var request = MusicLibraryRequest<Song>()
-        request.limit = limit
-        request.offset = offset
-        request.sort(by: \.libraryAddedDate, ascending: false)
-        return Array(try await request.response().items)
+        try await Self.logged("library songs read (offset \(offset))") { () async throws -> [Song] in
+            var request = MusicLibraryRequest<Song>()
+            request.limit = limit
+            request.offset = offset
+            request.sort(by: \.libraryAddedDate, ascending: false)
+            return Array(try await request.response().items)
+        }
     }
 
     func isInLibrary(_ song: Song) -> Bool {
@@ -159,10 +189,12 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] {
-        var request = MusicRecentlyPlayedRequest<Song>()
-        request.limit = min(limit, 30)
-        let songs = Array(try await request.response().items)
-        return await Self.withAlbums(songs)
+        try await Self.logged("recently played read") { () async throws -> [Song] in
+            var request = MusicRecentlyPlayedRequest<Song>()
+            request.limit = min(limit, 30)
+            let songs = Array(try await request.response().items)
+            return await Self.withAlbums(songs)
+        }
     }
 
     /// Recently played songs arrive without their album and artists. Home groups them by album
@@ -172,7 +204,13 @@ struct MusicKitContentSource: AppleMusicContentSource {
         guard !songs.isEmpty else { return songs }
         var request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: songs.map(\.id))
         request.properties = [.albums, .artists]
-        guard let detailed = try? await request.response().items else { return songs }
+        let detailed: MusicItemCollection<Song>
+        do {
+            detailed = try await request.response().items
+        } catch {
+            SpotiglassLog.info(.api, "Apple Music recently played album details failed (\(error)); Home shows those songs without them")
+            return songs
+        }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return songs.map { byID[$0.id] ?? $0 }
     }
@@ -184,63 +222,79 @@ struct MusicKitContentSource: AppleMusicContentSource {
         guard !albums.isEmpty else { return albums }
         var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: albums.map(\.id))
         request.properties = [.artists]
-        guard let detailed = try? await request.response().items else { return albums }
+        let detailed: MusicItemCollection<Album>
+        do {
+            detailed = try await request.response().items
+        } catch {
+            SpotiglassLog.info(.api, "Apple Music search album artists failed (\(error)); those albums keep their plain artist name")
+            return albums
+        }
         let byID = Dictionary(detailed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return albums.map { byID[$0.id] ?? $0 }
     }
 
     func recommendedPlaylists() async throws -> [Playlist] {
-        let response = try await MusicPersonalRecommendationsRequest().response()
-        return response.recommendations.flatMap { Array($0.playlists) }
+        try await Self.logged("recommendations read") { () async throws -> [Playlist] in
+            let response = try await MusicPersonalRecommendationsRequest().response()
+            return response.recommendations.flatMap { Array($0.playlists) }
+        }
     }
 
     func album(id: String) async throws -> Album? {
-        let itemID = MusicItemID(id)
-        var libraryRequest = MusicLibraryRequest<Album>()
-        libraryRequest.filter(matching: \.id, equalTo: itemID)
-        if let album = try await libraryRequest.response().items.first {
-            return try await album.with([.tracks])
+        try await Self.logged("album read") { () async throws -> Album? in
+            let itemID = MusicItemID(id)
+            var libraryRequest = MusicLibraryRequest<Album>()
+            libraryRequest.filter(matching: \.id, equalTo: itemID)
+            if let album = try await libraryRequest.response().items.first {
+                return try await album.with([.tracks])
+            }
+            let catalog = try await MusicCatalogResourceRequest<Album>(matching: \.id, equalTo: itemID)
+                .response().items.first
+            return try await catalog?.with([.tracks])
         }
-        let catalog = try await MusicCatalogResourceRequest<Album>(matching: \.id, equalTo: itemID)
-            .response().items.first
-        return try await catalog?.with([.tracks])
     }
 
     func artist(id: String) async throws -> Artist? {
-        let itemID = MusicItemID(id)
-        var libraryRequest = MusicLibraryRequest<Artist>()
-        libraryRequest.filter(matching: \.id, equalTo: itemID)
-        if let artist = try await libraryRequest.response().items.first {
-            return try await artist.with([.albums])
+        try await Self.logged("artist read") { () async throws -> Artist? in
+            let itemID = MusicItemID(id)
+            var libraryRequest = MusicLibraryRequest<Artist>()
+            libraryRequest.filter(matching: \.id, equalTo: itemID)
+            if let artist = try await libraryRequest.response().items.first {
+                return try await artist.with([.albums])
+            }
+            let catalog = try await MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: itemID)
+                .response().items.first
+            return try await catalog?.with([.albums])
         }
-        let catalog = try await MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: itemID)
-            .response().items.first
-        return try await catalog?.with([.albums])
     }
 
     /// `with([.tracks])` loads only the relationship's first batch; the rest is read the way
     /// its kind of album allows (see `collectCatalog`).
     func tracks(of album: Album, limit: Int) async throws -> [Track] {
-        guard Self.needsMore(album.tracks, limit: limit), !(try await isLibraryAlbum(album.id)) else {
-            return try await Self.collect(album.tracks, limit: limit)
+        try await Self.logged("album tracks read") { () async throws -> [Track] in
+            guard Self.needsMore(album.tracks, limit: limit), !(try await isLibraryAlbum(album.id)) else {
+                return try await Self.collect(album.tracks, limit: limit)
+            }
+            return try await collectCatalog(
+                album.tracks,
+                limit: limit,
+                relationship: AppleMusicCatalogRelationship(kind: "albums", id: album.id.rawValue, name: "tracks")
+            )
         }
-        return try await collectCatalog(
-            album.tracks,
-            limit: limit,
-            relationship: AppleMusicCatalogRelationship(kind: "albums", id: album.id.rawValue, name: "tracks")
-        )
     }
 
     /// Like album tracks, an artist's albums arrive one batch at a time.
     func albums(of artist: Artist, limit: Int) async throws -> [Album] {
-        guard Self.needsMore(artist.albums, limit: limit), !(try await isLibraryArtist(artist.id)) else {
-            return try await Self.collect(artist.albums, limit: limit)
+        try await Self.logged("artist albums read") { () async throws -> [Album] in
+            guard Self.needsMore(artist.albums, limit: limit), !(try await isLibraryArtist(artist.id)) else {
+                return try await Self.collect(artist.albums, limit: limit)
+            }
+            return try await collectCatalog(
+                artist.albums,
+                limit: limit,
+                relationship: AppleMusicCatalogRelationship(kind: "artists", id: artist.id.rawValue, name: "albums")
+            )
         }
-        return try await collectCatalog(
-            artist.albums,
-            limit: limit,
-            relationship: AppleMusicCatalogRelationship(kind: "artists", id: artist.id.rawValue, name: "albums")
-        )
     }
 
     /// Whether a relationship has more to read than its first batch.
@@ -274,17 +328,21 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     func artistTopSongs(artistID: String) async throws -> [Song] {
-        // Top songs exist for catalog artists only; a library artist has none.
-        let catalog = try await MusicCatalogResourceRequest<Artist>(
-            matching: \.id,
-            equalTo: MusicItemID(artistID)
-        ).response().items.first
-        guard let artist = try await catalog?.with([.topSongs]) else { return [] }
-        return Array(artist.topSongs ?? [])
+        try await Self.logged("artist top songs read") { () async throws -> [Song] in
+            // Top songs exist for catalog artists only; a library artist has none.
+            let catalog = try await MusicCatalogResourceRequest<Artist>(
+                matching: \.id,
+                equalTo: MusicItemID(artistID)
+            ).response().items.first
+            guard let artist = try await catalog?.with([.topSongs]) else { return [] }
+            return Array(artist.topSongs ?? [])
+        }
     }
 
     func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
-        try await Self.catalogSongRatings(catalogIDs: catalogIDs)
+        try await Self.logged("catalog song ratings read (\(catalogIDs.count) songs)") { () async throws -> [String: Bool] in
+            try await Self.catalogSongRatings(catalogIDs: catalogIDs)
+        }
     }
 
     static func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
@@ -296,53 +354,61 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool] {
-        let request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
-        return Dictionary(
-            try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        try await Self.logged("catalog album ratings read (\(catalogIDs.count) albums)") { () async throws -> [String: Bool] in
+            let request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
+            return Dictionary(
+                try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
     }
 
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems {
-        var request = MusicCatalogSearchRequest(
-            term: term,
-            types: [Song.self, Album.self, Artist.self, Playlist.self]
-        )
-        request.limit = min(limit, Self.catalogSearchPageLimit)
-        request.offset = offset
-        let response = try await request.response()
-        var items = AppleMusicSearchItems(
-            songs: Array(response.songs),
-            albums: await Self.withArtists(Array(response.albums)),
-            artists: Array(response.artists),
-            playlists: Array(response.playlists)
-        )
-        items.moreSongs = response.songs.hasNextBatch
-        items.moreAlbums = response.albums.hasNextBatch
-        items.moreArtists = response.artists.hasNextBatch
-        items.morePlaylists = response.playlists.hasNextBatch
-        return items
+        try await Self.logged("catalog search (offset \(offset))") { () async throws -> AppleMusicSearchItems in
+            var request = MusicCatalogSearchRequest(
+                term: term,
+                types: [Song.self, Album.self, Artist.self, Playlist.self]
+            )
+            request.limit = min(limit, Self.catalogSearchPageLimit)
+            request.offset = offset
+            let response = try await request.response()
+            var items = AppleMusicSearchItems(
+                songs: Array(response.songs),
+                albums: await Self.withArtists(Array(response.albums)),
+                artists: Array(response.artists),
+                playlists: Array(response.playlists)
+            )
+            items.moreSongs = response.songs.hasNextBatch
+            items.moreAlbums = response.albums.hasNextBatch
+            items.moreArtists = response.artists.hasNextBatch
+            items.morePlaylists = response.playlists.hasNextBatch
+            return items
+        }
     }
 
     /// MusicKit's library search has no offset, so it can't page like the catalog. This asks
     /// for MusicKit's page size and follows its batches up to `limit` per type.
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems {
-        var request = MusicLibrarySearchRequest(
-            term: term,
-            types: [Song.self, Album.self, Artist.self, Playlist.self]
-        )
-        request.limit = min(limit, Self.catalogSearchPageLimit)
-        let response = try await request.response()
-        return AppleMusicSearchItems(
-            songs: try await Self.collect(response.songs, limit: limit),
-            albums: try await Self.collect(response.albums, limit: limit),
-            artists: try await Self.collect(response.artists, limit: limit),
-            playlists: try await Self.collect(response.playlists, limit: limit)
-        )
+        try await Self.logged("library search") { () async throws -> AppleMusicSearchItems in
+            var request = MusicLibrarySearchRequest(
+                term: term,
+                types: [Song.self, Album.self, Artist.self, Playlist.self]
+            )
+            request.limit = min(limit, Self.catalogSearchPageLimit)
+            let response = try await request.response()
+            return AppleMusicSearchItems(
+                songs: try await Self.collect(response.songs, limit: limit),
+                albums: try await Self.collect(response.albums, limit: limit),
+                artists: try await Self.collect(response.artists, limit: limit),
+                playlists: try await Self.collect(response.playlists, limit: limit)
+            )
+        }
     }
 
     func storefrontCountryCode() async throws -> String {
-        try await MusicDataRequest.currentCountryCode
+        try await Self.logged("storefront read") { () async throws -> String in
+            try await MusicDataRequest.currentCountryCode
+        }
     }
 
     /// Follows MusicKit batches until `limit` items are collected or the collection ends.
@@ -415,7 +481,7 @@ enum AppleMusicCatalogPages {
         do {
             return try await MusicDataRequest(urlRequest: request).response().data
         } catch {
-            if !(error is CancellationError) {
+            if !(error is CancellationError), !MusicKitContentSource.isInsideLoggedRead {
                 SpotiglassLog.error(.api, "Apple Music GET \(request.url?.path ?? "") failed: \(error)")
             }
             throw error

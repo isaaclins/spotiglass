@@ -5,8 +5,13 @@ import os
 ///   1. Apple's unified log (Console.app, subsystem `com.isaaclins.spotiglass`).
 ///   2. A plain-text file under `Application Support/Spotiglass/Logs/spotiglass.log`.
 ///      Each launch starts a fresh `spotiglass.log` and rotates the prior session
-///      to `spotiglass.previous.log`, so the file never grows without bound while one
-///      previous session is kept for bug reports.
+///      to `spotiglass.previous.log`. Inside a session the file is capped at
+///      ``FileLogSink/defaultMaxBytes``: when it fills up, it moves to
+///      `spotiglass.earlier.log` and a new `spotiglass.log` continues, so at most three
+///      capped files exist and the newest lines are never the ones dropped.
+///
+/// Under the unit-test host the files go to a temporary folder, so `make test` never
+/// rotates away or fills the log a user would attach to a bug report.
 ///
 /// Never log tokens, refresh credentials, or raw OAuth callbacks.
 enum SpotiglassLog {
@@ -42,6 +47,33 @@ enum SpotiglassLog {
     /// are no-ops.
     static func boot() {
         FileLogSink.shared.boot()
+        installFlushOnExit()
+    }
+
+    private static var flushObserver: NSObjectProtocol?
+
+    /// Info and debug lines are written in the background; a quit or an uncaught exception
+    /// must not leave the last of them in the queue (#602). Errors are written at once anyway.
+    private static func installFlushOnExit() {
+        guard flushObserver == nil else { return }
+        flushObserver = NotificationCenter.default.addObserver(
+            forName: Notification.Name("NSApplicationWillTerminateNotification"),
+            object: nil,
+            queue: nil
+        ) { _ in
+            SpotiglassLog.info(.persistence, "Wax quitting")
+            SpotiglassLog.flush()
+        }
+        NSSetUncaughtExceptionHandler { exception in
+            SpotiglassLog.error(.persistence, "Uncaught exception \(exception.name.rawValue): \(exception.reason ?? "no reason")")
+            SpotiglassLog.flush()
+        }
+    }
+
+    /// Waits until every line handed to the log so far is in the file. Lines go straight
+    /// to the file descriptor, so once this returns they survive a crash.
+    static func flush() {
+        FileLogSink.shared.flush()
     }
 
     static func debug(_ category: Category, _ message: String) {
@@ -49,24 +81,61 @@ enum SpotiglassLog {
         FileLogSink.shared.write(level: "DEBUG", category: category.rawValue, message: message)
     }
 
+    /// Errors are written before this returns: they are the lines a crash right after
+    /// must not lose.
     static func error(_ category: Category, _ message: String) {
         osLoggers[category]?.error("\(message, privacy: .public)")
-        FileLogSink.shared.write(level: "ERROR", category: category.rawValue, message: message)
+        FileLogSink.shared.write(level: "ERROR", category: category.rawValue, message: message, synchronously: true)
     }
 
     static func info(_ category: Category, _ message: String) {
         osLoggers[category]?.info("\(message, privacy: .public)")
         FileLogSink.shared.write(level: "INFO", category: category.rawValue, message: message)
     }
+
+    /// The folder the log files go to: the real `Logs` folder for the app, a per-run
+    /// temporary folder under the unit-test host.
+    static func logDirectory(
+        isRunningUnitTests: Bool = AppMetadata.isRunningUnitTests,
+        applicationSupport: () throws -> URL = {
+            try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+        }
+    ) throws -> URL {
+        if isRunningUnitTests {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("SpotiglassTestLogs-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+        }
+        return try applicationSupport()
+            .appendingPathComponent("\(AppMetadata.storageDirectoryName)/Logs", isDirectory: true)
+    }
 }
 
-private final class FileLogSink {
+final class FileLogSink {
     static let shared = FileLogSink()
 
+    /// About an hour of detailed playback lines; three files of this size at most.
+    static let defaultMaxBytes: UInt64 = 8 * 1024 * 1024
+
+    static let currentFileName = "spotiglass.log"
+    static let earlierFileName = "spotiglass.earlier.log"
+    static let previousFileName = "spotiglass.previous.log"
+
     private let queue = DispatchQueue(label: "com.isaaclins.spotiglass.filelog", qos: .utility)
+    private let directory: () throws -> URL
+    private let maxBytes: UInt64
+    private let moveItem: (URL, URL) throws -> Void
+    private let diagnostics = Logger(subsystem: AppMetadata.bundleIdentifier, category: "log-file")
     private var handle: FileHandle?
+    private var bytesWritten: UInt64 = 0
     private var booted = false
-    private(set) var fileURL: URL?
+    private var _fileURL: URL?
+
+    var fileURL: URL? { queue.sync { _fileURL } }
 
     private static let formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -74,48 +143,132 @@ private final class FileLogSink {
         return formatter
     }()
 
+    init(
+        directory: @escaping () throws -> URL = { try SpotiglassLog.logDirectory() },
+        maxBytes: UInt64 = FileLogSink.defaultMaxBytes,
+        moveItem: @escaping (URL, URL) throws -> Void = { try FileManager.default.moveItem(at: $0, to: $1) }
+    ) {
+        self.directory = directory
+        self.maxBytes = maxBytes
+        self.moveItem = moveItem
+    }
+
     func boot() {
         queue.sync {
             guard !booted else { return }
             booted = true
-            guard let dir = Self.logDirectory() else { return }
-            let url = dir.appendingPathComponent("spotiglass.log")
-            // Preserve the previous session's log so a crash followed by a relaunch
-            // does not wipe the evidence users are asked to attach to bug reports.
-            // We keep exactly one prior log (`spotiglass.previous.log`) before
-            // starting the current session fresh.
-            let previousURL = dir.appendingPathComponent("spotiglass.previous.log")
-            if FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: previousURL)
-                try? FileManager.default.moveItem(at: url, to: previousURL)
+            let dir: URL
+            do {
+                dir = try directory()
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            } catch {
+                diagnostics.error("Log folder unavailable, the log file stays off this session: \(String(describing: error), privacy: .public)")
+                return
             }
-            FileManager.default.createFile(atPath: url.path, contents: nil)
-            guard let handle = try? FileHandle(forWritingTo: url) else { return }
+            let url = dir.appendingPathComponent(Self.currentFileName)
+            // Keep the previous session's log: a crash followed by a relaunch must not wipe
+            // the evidence users are asked to attach to bug reports.
+            var rotationNote: String?
+            if FileManager.default.fileExists(atPath: url.path) {
+                let previousURL = dir.appendingPathComponent(Self.previousFileName)
+                let earlierURL = dir.appendingPathComponent(Self.earlierFileName)
+                do {
+                    if FileManager.default.fileExists(atPath: previousURL.path) {
+                        try FileManager.default.removeItem(at: previousURL)
+                    }
+                    try moveItem(url, previousURL)
+                    // The previous session's overflow belongs to a session that is now two back.
+                    try? FileManager.default.removeItem(at: earlierURL) // A leftover only costs one capped file.
+                } catch {
+                    // Appending keeps the previous session's lines; the size cap below still holds.
+                    rotationNote = "Could not move the previous session's log aside (\(error)); appending to it instead"
+                    diagnostics.error("\(rotationNote ?? "", privacy: .public)")
+                }
+            }
+            guard open(url, header: "=== Wax log started \(Self.formatter.string(from: Date())) ===\n") else { return }
+            if let rotationNote {
+                append(Self.line(level: "ERROR", category: "log-file", message: rotationNote))
+            }
+        }
+    }
+
+    func write(level: String, category: String, message: String, synchronously: Bool = false) {
+        let line = Self.line(level: level, category: category, message: message)
+        if synchronously {
+            queue.sync { append(line) }
+        } else {
+            queue.async { [weak self] in self?.append(line) }
+        }
+    }
+
+    func flush() {
+        queue.sync {
+            try? handle?.synchronize() // Lines are already in the kernel; this only adds fsync.
+        }
+    }
+
+    private static func line(level: String, category: String, message: String) -> String {
+        "\(formatter.string(from: Date())) [\(level)] [\(category)] \(message)\n"
+    }
+
+    /// Opens `url` for appending (creating it when missing). Says in Console when it can't.
+    private func open(_ url: URL, header: String) -> Bool {
+        if !FileManager.default.fileExists(atPath: url.path) {
+            guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                diagnostics.error("Could not create the log file at \(url.path, privacy: .public)")
+                return false
+            }
+        }
+        do {
+            let handle = try FileHandle(forWritingTo: url)
+            bytesWritten = try handle.seekToEnd()
             self.handle = handle
-            self.fileURL = url
-            let header = "=== Wax log started \(Self.formatter.string(from: Date())) ===\n"
-            try? handle.write(contentsOf: Data(header.utf8))
+            _fileURL = url
+        } catch {
+            diagnostics.error("Could not open the log file at \(url.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            return false
+        }
+        append(header)
+        return true
+    }
+
+    private func append(_ line: String) {
+        guard handle != nil else { return }
+        let data = Data(line.utf8)
+        if bytesWritten + UInt64(data.count) > maxBytes, bytesWritten > 0 {
+            rotateWithinSession()
+        }
+        guard let handle else { return }
+        do {
+            try handle.write(contentsOf: data)
+            bytesWritten += UInt64(data.count)
+        } catch {
+            diagnostics.error("Writing to the log file failed: \(String(describing: error), privacy: .public)")
         }
     }
 
-    func write(level: String, category: String, message: String) {
-        let timestamp = Self.formatter.string(from: Date())
-        let line = "\(timestamp) [\(level)] [\(category)] \(message)\n"
-        queue.async { [weak self] in
-            guard let handle = self?.handle else { return }
-            try? handle.write(contentsOf: Data(line.utf8))
+    /// The current file is full: it becomes `spotiglass.earlier.log` (replacing an older
+    /// part of this session) and a fresh file continues under the same name.
+    private func rotateWithinSession() {
+        guard let url = _fileURL else { return }
+        let earlierURL = url.deletingLastPathComponent().appendingPathComponent(Self.earlierFileName)
+        try? handle?.close() // The file is moved next; a failed close only leaks a descriptor.
+        handle = nil
+        let stamp = Self.formatter.string(from: Date())
+        let header: String
+        do {
+            if FileManager.default.fileExists(atPath: earlierURL.path) {
+                try FileManager.default.removeItem(at: earlierURL)
+            }
+            try moveItem(url, earlierURL)
+            header = "=== Log continued \(stamp), earlier lines in \(Self.earlierFileName) ===\n"
+        } catch {
+            // Without the move the only way to stay under the cap is to start this session's
+            // file over; the previous session's file is never touched here.
+            diagnostics.error("Could not move the full log aside (\(String(describing: error), privacy: .public)); starting it over")
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            header = "=== Log started over \(stamp): the full log could not be moved aside (\(error)) ===\n"
         }
-    }
-
-    private static func logDirectory() -> URL? {
-        guard let base = try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ) else { return nil }
-        let logs = base.appendingPathComponent("Spotiglass/Logs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
-        return logs
+        _ = open(url, header: header)
     }
 }

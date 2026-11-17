@@ -335,7 +335,10 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {
         let (data, response) = try await performGET(path: path, queryItems: queryItems)
         guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+            let error = mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+            // Successful polls stay out of the log; a failed one is what a stuck player bar needs.
+            SpotiglassLog.error(.api, "Spotify GET \(path) -> status=\(response.statusCode) (\(error)); passed to the player")
+            throw error
         }
         return data
     }
@@ -361,15 +364,26 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
                 if shouldRetryGET(statusCode: response.statusCode, path: path, attempt: attempt) {
                     let retryAfter = retryAfterSeconds(fromRawHeader: response.value(forHTTPHeaderField: "Retry-After"))
                     let delay = retryDelaySeconds(retryAfter: retryAfter, attempt: attempt)
+                    SpotiglassLog.info(
+                        .api,
+                        "Spotify GET \(path) -> status=\(response.statusCode) on attempt \(attempt); retrying in \(String(format: "%.1f", delay)) s"
+                    )
                     try await Task.sleep(for: .seconds(delay))
                     continue
                 }
                 return (data, response)
             } catch {
                 guard shouldRetryGET(error: error, path: path, attempt: attempt) else {
+                    if !(error is CancellationError) {
+                        SpotiglassLog.error(.api, "Spotify GET \(path) failed on attempt \(attempt): \(error); passed to the player")
+                    }
                     throw error
                 }
                 let delay = retryDelaySeconds(retryAfter: nil, attempt: attempt)
+                SpotiglassLog.info(
+                    .api,
+                    "Spotify GET \(path) failed on attempt \(attempt) (\(error)); retrying in \(String(format: "%.1f", delay)) s"
+                )
                 try await Task.sleep(for: .seconds(delay))
             }
         }
@@ -431,7 +445,16 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
 
         let queryString = queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
         SpotiglassLog.info(.api, "Spotify \(method) \(path)\(queryString.isEmpty ? "" : "?\(queryString)") body=\(bodyPreview)")
-        let (data, response) = try await httpClient.data(for: request)
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await httpClient.data(for: request)
+        } catch {
+            if !(error is CancellationError) {
+                SpotiglassLog.error(.api, "Spotify \(method) \(path) failed: \(error); passed to the caller")
+            }
+            throw error
+        }
         SpotiglassLog.info(.api, "Spotify \(method) \(path) -> status=\(response.statusCode)")
         guard (200..<300).contains(response.statusCode) || response.statusCode == 204 else {
             throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)

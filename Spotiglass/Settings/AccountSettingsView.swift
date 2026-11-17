@@ -131,10 +131,13 @@ struct AccountSettingsView: View {
                                 NSPasteboard.general.setString(url.path, forType: .string)
                             }
                             Button(SpotiglassL10n.string("settings.account.diagnostics.revealInFinder")) {
-                                // The previous launch's log too: a report is often sent after a relaunch.
-                                let previous = url.deletingLastPathComponent().appendingPathComponent("spotiglass.previous.log")
-                                let logs = FileManager.default.fileExists(atPath: previous.path) ? [url, previous] : [url]
-                                NSWorkspace.shared.activateFileViewerSelecting(logs)
+                                // The earlier part of this launch and the previous launch's log too:
+                                // a report is often sent after a relaunch.
+                                let folder = url.deletingLastPathComponent()
+                                let others = [FileLogSink.earlierFileName, FileLogSink.previousFileName]
+                                    .map { folder.appendingPathComponent($0) }
+                                    .filter { FileManager.default.fileExists(atPath: $0.path) }
+                                NSWorkspace.shared.activateFileViewerSelecting([url] + others)
                             }
                         }
                     } else {

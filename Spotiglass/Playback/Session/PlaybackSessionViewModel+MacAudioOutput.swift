@@ -17,7 +17,13 @@ extension PlaybackSessionViewModel {
         }
         hardwareDevicesListener = listener
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, listener)
+        let status = AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, listener)
+        if status != noErr {
+            SpotiglassLog.error(
+                .playback,
+                "Could not watch the Mac's output devices (OSStatus \(status)); the output list won't update when one is plugged in"
+            )
+        }
     }
 
     func refreshMacAudioOutputDevices() {
@@ -38,7 +44,16 @@ extension PlaybackSessionViewModel {
         }
 
         let status = MacAudioOutputHardware.setDefaultOutputDevice(audioDeviceID)
-        guard status == noErr else { return }
+        guard status == noErr else {
+            // Usually the device went away after the menu was built: the refreshed list drops it.
+            SpotiglassLog.error(
+                .playback,
+                "Choosing Mac output device \(audioDeviceID) failed (OSStatus \(status)); the output stays as it was and the list is refreshed"
+            )
+            refreshMacAudioOutputDevices()
+            refreshTrayOutputSymbol()
+            return
+        }
         refreshMacAudioOutputDevices()
         refreshTrayOutputSymbol()
     }
@@ -103,7 +118,10 @@ extension PlaybackSessionViewModel {
             mElement: kAudioObjectPropertyElementMain
         )
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block)
+        let status = AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block)
+        if status != noErr {
+            SpotiglassLog.error(.playback, "Could not stop watching the Mac's output devices (OSStatus \(status))")
+        }
         hardwareDevicesListener = nil
     }
 }
