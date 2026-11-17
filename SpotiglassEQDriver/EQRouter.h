@@ -53,8 +53,15 @@ void EQRouter_PublishReadyStatus(const char* target_uid);
 void EQRouter_PublishFailureStatus(const char* target_uid, int reason_code);
 
 // Push interleaved stereo Float32 frames from the EQ device's IO callback
-// into the router's lock-free ring. Drops oldest frames if the ring is full.
+// into the router's lock-free ring (see EQRouterRing_Push).
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames);
+
+// Frames the router's ring has thrown away (overrun) or played as silence
+// after it first had sound (underrun), since the router opened.
+uint64_t EQRouter_DroppedFrames(EQRouter* router);
+// The rate the router's target plays at, which sizes the ring's margin.
+void EQRouter_SetRate(EQRouter* router, uint32_t rate_hz);
+uint64_t EQRouter_SilentFrames(EQRouter* router);
 
 // Returns the UID the router is currently forwarding to. Buffer is owned by
 // the router and stable until the router is closed. Used by the watcher
@@ -71,6 +78,64 @@ uint32_t EQRouter_TargetDevice(EQRouter* router);
 void EQRouter_Close(EQRouter* router);
 
 #ifdef __cplusplus
+}
+
+#include <atomic>
+
+// 65536 stereo frames (512 KB). The consumer keeps the low point of the fill a
+// pull, a push and a margin above empty; pushes and pulls are capped at a
+// quarter of the ring each, so the worst case (a start fill of a pull, two
+// pushes and a margin) still leaves the overrun check room.
+constexpr size_t kEQRouterRingFrames = 65536;
+constexpr size_t kEQRouterRingMaxChunk = kEQRouterRingFrames / 8;
+/// The least margin, in frames; at high rates it is ~10.7 ms instead (see
+/// EQRouterRing_Margin), since the timing jitter of an IO cycle is in time,
+/// not frames.
+constexpr size_t kEQRouterRingFillMargin = 512;
+/// Output cycles over which the fill's low point is measured.
+constexpr size_t kEQRouterRingWindow = 128;
+
+/// The single-producer / single-consumer ring between the EQ device's IO
+/// callback (producer, EQRouterRing_Push) and the target device's IOProc
+/// (consumer, EQRouterRing_Pull). Only the consumer moves read_pos.
+struct EQRouterRing {
+    float buffer[kEQRouterRingFrames * 2] = {};
+    std::atomic<size_t> read_pos{0};
+    std::atomic<size_t> write_pos{0};
+    /// The largest push and pull seen, which set the target fill.
+    std::atomic<size_t> max_push{0};
+    /// The rate the ring plays at (the target's), which sizes its margin.
+    std::atomic<uint32_t> rate_hz{48000};
+    size_t max_pull = 0;  // consumer only
+    // Consumer-only state.
+    bool priming = true;
+    size_t window_cycles = 0;
+    size_t window_low = 0;
+    long pending_slips = 0;   // > 0: frames to skip, < 0: frames to repeat
+    bool skip_window = true;  // the window after a correction (or a start) isn't judged
+    bool has_last_frame = false;
+    float last_frame[2] = {0.0f, 0.0f};
+    // Counters for diagnostics and tests.
+    std::atomic<uint64_t> dropped_frames{0};
+    std::atomic<uint64_t> silent_frames{0};
+    std::atomic<uint64_t> slipped_frames{0};
+};
+
+extern "C" {
+void EQRouterRing_Reset(EQRouterRing* ring);
+// The low point the consumer steers the fill to: the largest pull and push
+// plus a margin, so a pull at the fill's lowest still finds a whole cycle
+// even after the low point steps down by a push.
+size_t EQRouterRing_TargetFill(const EQRouterRing* ring);
+// The margin above a pull and a push: 512 frames, or ~10.7 ms at the ring's
+// rate if that is more. Frames slip once the low point is half of it off.
+size_t EQRouterRing_Margin(const EQRouterRing* ring);
+// Producer side. Overrunning the ring loses the oldest frames; the consumer
+// then starts over at the target fill.
+void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames);
+// Consumer side: fills one output cycle. Returns nonzero when the output
+// layout is unsupported.
+int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data);
 }
 
 #include <atomic>

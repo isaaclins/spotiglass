@@ -83,18 +83,7 @@ void WriteRouterStatus(const char* state, const char* target_uid, int reason_cod
     }
 }
 
-// 32 KiB of stereo float32 frames = 4096 frames = ~85 ms at 48 kHz. Large
-// enough to absorb a few IO cycles of skew between the EQ device and the
-// target device, but small enough that audio falls behind clearly if the
-// pipeline stalls (rather than masking a stuck producer).
-constexpr size_t kRingFrames = 4096;
 constexpr size_t kChannels = 2;
-
-struct Ring {
-    float buffer[kRingFrames * kChannels];
-    std::atomic<size_t> read_pos{0};
-    std::atomic<size_t> write_pos{0};
-};
 
 AudioObjectID FindDeviceByUID(const char* uid) {
     if (!uid) return kAudioObjectUnknown;
@@ -205,51 +194,9 @@ OSStatus OutputCallback(AudioObjectID /*inDevice*/,
                         AudioBufferList* outOutputData,
                         const AudioTimeStamp* /*inOutputTime*/,
                         void* inClientData) {
-    Ring* ring = static_cast<Ring*>(inClientData);
+    EQRouterRing* ring = static_cast<EQRouterRing*>(inClientData);
     if (!ring || !outOutputData) return noErr;
-
-    const EQRouterOutputLayout layout = EQRouter_ClassifyOutputLayout(outOutputData);
-    if (layout == EQRouterOutputLayoutUnsupported) {
-        return kAudioHardwareUnsupportedOperationError;
-    }
-    size_t frame_count = 0;
-    if (!OutputFrameCount(outOutputData, layout, &frame_count)) {
-        return kAudioHardwareUnsupportedOperationError;
-    }
-    if (frame_count == 0) return noErr;
-
-    const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
-    const size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
-    const size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
-    const size_t to_copy = avail < frame_count ? avail : frame_count;
-    if (to_copy > 0) {
-        const size_t first_index = read_pos % kRingFrames;
-        const size_t first_count =
-            (to_copy < kRingFrames - first_index) ? to_copy : kRingFrames - first_index;
-        if (EQRouter_WriteFrames(
-                ring->buffer + first_index * kChannels,
-                first_count,
-                outOutputData,
-                0
-            ) != 0) {
-            return kAudioHardwareUnsupportedOperationError;
-        }
-        if (first_count < to_copy && EQRouter_WriteFrames(
-                ring->buffer,
-                to_copy - first_count,
-                outOutputData,
-                first_count
-            ) != 0) {
-            return kAudioHardwareUnsupportedOperationError;
-        }
-    }
-    if (to_copy < frame_count) {
-        ZeroOutputFrames(outOutputData, layout, to_copy, frame_count);
-    }
-    // The whole output cycle consumed one frame range, regardless of whether
-    // CoreAudio represented its two channels as one or two buffers.
-    ring->read_pos.store(read_pos + to_copy, std::memory_order_release);
-    return noErr;
+    return EQRouterRing_Pull(ring, outOutputData) == 0 ? noErr : kAudioHardwareUnsupportedOperationError;
 }
 
 } // namespace
@@ -258,7 +205,7 @@ struct EQRouter {
     AudioObjectID device = kAudioObjectUnknown;
     AudioDeviceIOProcID ioProc = nullptr;
     bool started = false;
-    Ring ring;
+    EQRouterRing ring;
     // Copy of the target UID used to open this router. The watcher thread
     // compares this against the contents of the target file to decide whether
     // to swap routers on the fly. Owned by the EQRouter, lives until close.
@@ -429,24 +376,252 @@ uint32_t EQRouter_TargetDevice(EQRouter* router) {
 }
 
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames) {
-    if (!router || !frames || n_frames == 0) return;
-    Ring& ring = router->ring;
+    if (!router) return;
+    EQRouterRing_Push(&router->ring, frames, n_frames);
+}
 
-    const size_t write_pos = ring.write_pos.load(std::memory_order_relaxed);
-    size_t read_pos = ring.read_pos.load(std::memory_order_acquire);
+void EQRouter_SetRate(EQRouter* router, uint32_t rate_hz) {
+    if (router && rate_hz > 0) router->ring.rate_hz.store(rate_hz, std::memory_order_relaxed);
+}
+
+uint64_t EQRouter_DroppedFrames(EQRouter* router) {
+    return router ? router->ring.dropped_frames.load(std::memory_order_relaxed) : 0;
+}
+
+uint64_t EQRouter_SilentFrames(EQRouter* router) {
+    return router ? router->ring.silent_frames.load(std::memory_order_relaxed) : 0;
+}
+
+// MARK: - Ring
+
+// The EQ device runs on the Mac's host clock and the target device on its own
+// hardware clock. Even at the same nominal rate the two drift apart by a few
+// parts per million, and before #590 the ring absorbed that by throwing away a
+// whole IO buffer when it overflowed and playing silence when it ran dry: a
+// cut every so often, and a song that sped up while frames were dropped.
+//
+// The consumer now keeps the ring near kRingTargetFill: it slips one frame
+// (skips or repeats one) per output cycle while the averaged fill is off by
+// more than kRingFillTolerance. One frame in a cycle of a few hundred is
+// inaudible and corrects up to ~0.2 %, far more than clock drift. Only a ring
+// that runs completely dry (the producer stopped) or completely full (the
+// consumer stopped) still drops or pads, and it then starts over at the
+// target fill instead of staying on the edge.
+
+void EQRouterRing_Reset(EQRouterRing* ring) {
+    if (!ring) return;
+    ring->read_pos.store(0, std::memory_order_relaxed);
+    ring->write_pos.store(0, std::memory_order_relaxed);
+    ring->max_push.store(0, std::memory_order_relaxed);
+    ring->max_pull = 0;
+    ring->priming = true;
+    ring->window_cycles = 0;
+    ring->window_low = 0;
+    ring->pending_slips = 0;
+    ring->skip_window = true;
+    ring->has_last_frame = false;
+    ring->last_frame[0] = 0.0f;
+    ring->last_frame[1] = 0.0f;
+    ring->dropped_frames.store(0, std::memory_order_relaxed);
+    ring->silent_frames.store(0, std::memory_order_relaxed);
+    ring->slipped_frames.store(0, std::memory_order_relaxed);
+}
+
+size_t EQRouterRing_TargetFill(const EQRouterRing* ring) {
+    // The low point moves in whole pushes (when a push lands just after a
+    // pull instead of just before it), so it keeps a push of room above a pull.
+    return ring->max_pull + ring->max_push.load(std::memory_order_relaxed) + EQRouterRing_Margin(ring);
+}
+
+size_t EQRouterRing_Margin(const EQRouterRing* ring) {
+    const size_t byTime = static_cast<size_t>(ring->rate_hz.load(std::memory_order_relaxed)) * 107 / 10000;
+    return byTime > kEQRouterRingFillMargin ? byTime : kEQRouterRingFillMargin;
+}
+
+void EQRouterRing_Push(EQRouterRing* ring, const float* frames, size_t n_frames) {
+    if (!ring || !frames || n_frames == 0) return;
+    // Never write more than half the ring at once: keep the newest frames.
+    constexpr size_t kMaxPush = kEQRouterRingMaxChunk;
+    if (n_frames > kMaxPush) {
+        ring->dropped_frames.fetch_add(n_frames - kMaxPush, std::memory_order_relaxed);
+        frames += (n_frames - kMaxPush) * kChannels;
+        n_frames = kMaxPush;
+    }
+    if (n_frames > ring->max_push.load(std::memory_order_relaxed)) {
+        ring->max_push.store(n_frames, std::memory_order_relaxed);
+    }
+    const size_t write_pos = ring->write_pos.load(std::memory_order_relaxed);
+    const size_t read_pos = ring->read_pos.load(std::memory_order_acquire);
     const size_t in_ring = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
-    // If the new push would overflow the ring, advance the read pointer so
-    // the oldest frames are dropped rather than blocking the IO thread.
-    if (in_ring + n_frames > kRingFrames) {
-        const size_t overflow = (in_ring + n_frames) - kRingFrames;
-        ring.read_pos.store(read_pos + overflow, std::memory_order_relaxed);
+    if (in_ring + n_frames > kEQRouterRingFrames) {
+        // The consumer isn't keeping up at all (stopped, or far off rate): the
+        // unread frames this push overwrites are lost. Only the consumer moves
+        // the read position; it notices the overrun from the positions.
+        const size_t overwritten = in_ring + n_frames - kEQRouterRingFrames;
+        ring->dropped_frames.fetch_add(overwritten < n_frames ? overwritten : n_frames,
+                                       std::memory_order_relaxed);
     }
     for (size_t i = 0; i < n_frames; ++i) {
-        const size_t idx = (write_pos + i) % kRingFrames;
-        ring.buffer[idx * kChannels + 0] = frames[i * kChannels + 0];
-        ring.buffer[idx * kChannels + 1] = frames[i * kChannels + 1];
+        const size_t idx = (write_pos + i) % kEQRouterRingFrames;
+        ring->buffer[idx * kChannels + 0] = frames[i * kChannels + 0];
+        ring->buffer[idx * kChannels + 1] = frames[i * kChannels + 1];
     }
-    ring.write_pos.store(write_pos + n_frames, std::memory_order_release);
+    ring->write_pos.store(write_pos + n_frames, std::memory_order_release);
+}
+
+namespace {
+
+void ReadRingFrame(const EQRouterRing* ring, size_t position, float* out) {
+    const size_t idx = position % kEQRouterRingFrames;
+    out[0] = ring->buffer[idx * kChannels + 0];
+    out[1] = ring->buffer[idx * kChannels + 1];
+}
+
+void PutOutputFrame(AudioBufferList* output_data, EQRouterOutputLayout layout, size_t frame, const float* value) {
+    if (layout == EQRouterOutputLayoutInterleavedStereo) {
+        float* output = static_cast<float*>(output_data->mBuffers[0].mData);
+        output[frame * kChannels + 0] = value[0];
+        output[frame * kChannels + 1] = value[1];
+        return;
+    }
+    static_cast<float*>(output_data->mBuffers[0].mData)[frame] = value[0];
+    static_cast<float*>(output_data->mBuffers[1].mData)[frame] = value[1];
+}
+
+} // namespace
+
+int EQRouterRing_Pull(EQRouterRing* ring, AudioBufferList* output_data) {
+    if (!ring || !output_data) return 1;
+    const EQRouterOutputLayout layout = EQRouter_ClassifyOutputLayout(output_data);
+    if (layout == EQRouterOutputLayoutUnsupported) return 1;
+    size_t frame_count = 0;
+    if (!OutputFrameCount(output_data, layout, &frame_count)) return 1;
+    if (frame_count == 0) return 0;
+
+    // A pull larger than the ring allows is played as silence beyond its cap.
+    if (frame_count > kEQRouterRingMaxChunk) {
+        ZeroOutputFrames(output_data, layout, kEQRouterRingMaxChunk, frame_count);
+        frame_count = kEQRouterRingMaxChunk;
+    }
+    if (frame_count > ring->max_pull) ring->max_pull = frame_count;
+    const size_t target = EQRouterRing_TargetFill(ring);
+    const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
+    size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
+    // A push raises the fill by its whole size at once, so the fill swings
+    // between a low point and a push above it. Playing starts (and an overrun
+    // resumes) a push above the target low point.
+    const size_t push = ring->max_push.load(std::memory_order_relaxed);
+    const size_t start_fill = target + push;
+    // The producer overran the ring: frames older than one push before the
+    // oldest slot it may be writing right now are gone or going. Start over
+    // with the newest sound.
+    // Checked against the largest push allowed, not the largest seen: the
+    // first larger push may be landing right now.
+    if (write_pos > read_pos && write_pos - read_pos > kEQRouterRingFrames - kEQRouterRingMaxChunk &&
+        write_pos >= start_fill) {
+        read_pos = write_pos - start_fill;
+        ring->window_cycles = 0;
+        ring->pending_slips = 0;
+        ring->skip_window = true;
+    }
+    size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
+
+    // After running dry, wait until the start fill is back before playing
+    // again, so one late producer cycle doesn't become a stutter of tiny gaps.
+    if (ring->priming) {
+        if (avail < start_fill) {
+            ZeroOutputFrames(output_data, layout, 0, frame_count);
+            if (ring->has_last_frame) {
+                ring->silent_frames.fetch_add(frame_count, std::memory_order_relaxed);
+            }
+            ring->read_pos.store(read_pos, std::memory_order_release);
+            return 0;
+        }
+        // Coming out of silence, so dropping what piled up meanwhile is
+        // inaudible: start at exactly the start fill.
+        if (avail > start_fill) {
+            read_pos = write_pos - start_fill;
+            avail = start_fill;
+        }
+        ring->priming = false;
+        ring->window_cycles = 0;
+        ring->pending_slips = 0;
+        ring->skip_window = true;
+    }
+
+    // Steer the fill's low point, measured over a window of cycles, toward the
+    // target. The low point doesn't depend on where in the push/pull sawtooth
+    // a cycle happens to land, so matched clocks never slip a frame; drift is
+    // made up once it moves the low point past the dead band, one frame per
+    // cycle, and the window after a correction isn't judged so the correction
+    // is never counted twice.
+    if (ring->window_cycles == 0 || avail < ring->window_low) ring->window_low = avail;
+    if (++ring->window_cycles >= kEQRouterRingWindow) {
+        if (ring->pending_slips != 0) {
+            // Still correcting: this window's low point is out of date.
+        } else if (ring->skip_window) {
+            ring->skip_window = false;
+        } else {
+            // Below the target risks running dry; up to a push above it is only
+            // latency (where the low point settles depends on how pushes and
+            // pulls interleave), so that range is left alone.
+            const long error = static_cast<long>(ring->window_low) - static_cast<long>(target);
+            const long deadBand = static_cast<long>(EQRouterRing_Margin(ring) / 2);
+            const long above = static_cast<long>(push) + deadBand;
+            if (error > above || error < -deadBand) {
+                ring->pending_slips = error > 0 ? error - static_cast<long>(push / 2) : error;
+                ring->skip_window = true;
+            }
+        }
+        ring->window_cycles = 0;
+    }
+    size_t consume = frame_count;
+    if (ring->pending_slips > 0 && avail > frame_count + 1) {
+        consume = frame_count + 1; // skip one frame
+        ring->pending_slips -= 1;
+    } else if (ring->pending_slips < 0 && frame_count > 1) {
+        consume = frame_count - 1; // repeat one frame
+        ring->pending_slips += 1;
+    }
+    if (consume != frame_count && ring->pending_slips == 0) {
+        // The correction is done: measure afresh from here.
+        ring->window_cycles = 0;
+        ring->skip_window = false;
+    }
+
+    // Map `frame_count` output frames onto `consume` ring frames. The slip
+    // lands in the middle of the cycle; every other frame is copied as is.
+    const size_t slip_at = frame_count / 2;
+    size_t source = read_pos;
+    size_t produced = 0;
+    for (size_t frame = 0; frame < frame_count; ++frame) {
+        if (consume == frame_count + 1 && frame == slip_at) {
+            source += 1; // skip
+        }
+        if (source >= write_pos) break;
+        float value[2];
+        ReadRingFrame(ring, source, value);
+        PutOutputFrame(output_data, layout, frame, value);
+        ring->last_frame[0] = value[0];
+        ring->last_frame[1] = value[1];
+        ring->has_last_frame = true;
+        produced = frame + 1;
+        if (consume == frame_count - 1 && frame == slip_at) {
+            continue; // repeat: the next output frame reads the same source frame
+        }
+        source += 1;
+    }
+    if (consume != frame_count && produced == frame_count) {
+        ring->slipped_frames.fetch_add(1, std::memory_order_relaxed);
+    }
+    if (produced < frame_count) {
+        // Ran dry: pad with silence and wait for the target fill again.
+        ZeroOutputFrames(output_data, layout, produced, frame_count);
+        ring->silent_frames.fetch_add(frame_count - produced, std::memory_order_relaxed);
+        ring->priming = true;
+    }
+    ring->read_pos.store(source, std::memory_order_release);
+    return 0;
 }
 
 void EQRouter_Close(EQRouter* router) {

@@ -120,8 +120,10 @@ struct EQCoefficientFrame {
         gainDb: Double,
         sampleRateHz: Double
     ) -> BiquadCoeffs {
-        // 0 dB shortcut keeps the cascade bit-exact identity at flat positions.
-        if abs(gainDb) < 1e-9 {
+        // 0 dB shortcut keeps the cascade bit-exact identity at flat positions. A band at or
+        // above ~Nyquist (the 16 kHz band on a 24 kHz headset, which the EQ device now follows,
+        // #590) has no audio to shape, and its biquad would be unstable: it passes through.
+        if abs(gainDb) < 1e-9 || centerHz >= sampleRateHz * 0.45 {
             return BiquadCoeffs(b0: 1, b1: 0, b2: 0, a1: 0, a2: 0)
         }
         // swift-format-ignore: AlwaysUseLowerCamelCase
