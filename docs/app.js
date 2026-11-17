@@ -246,7 +246,7 @@
   const inline = Palette(document.getElementById("inline-slot"), { quiet: true });
   let demoOn = !reduce;
   const stopDemo = () => { demoOn = false; inline.root.querySelector(".pal-status").setAttribute("aria-live", "polite"); };
-  ["pointerdown", "focus", "keydown", "wheel"].forEach(ev => inline.root.addEventListener(ev, stopDemo, { passive: true, capture: true }));
+  ["click", "focus", "keydown"].forEach(ev => inline.root.addEventListener(ev, stopDemo, { passive: true, capture: true }));
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   let inView = false;
