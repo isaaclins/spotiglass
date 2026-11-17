@@ -108,19 +108,19 @@ SMAppService registrations. It does not enable login launch for anyone who had i
 A failed move or relaunch leaves the original login items unchanged.
 
 The final replay installed successfully through Sparkle, and the renamed signed bundle passed
-strict/deep signature verification. Pressing the original pinned Dock tile returned `AXPress 0`
-and launched a fresh process from `Wax.app/Contents/MacOS/Wax` (PID 54863). The preserved native
-login item resolved to `Wax.app`; launching that resolved item returned `noErr` and started a
-second fresh Wax process (PID 56327). Its hidden setting and list position were unchanged.
-No logout was required or performed. The complete Dock domain
-and original login-item list are compared with the backups after cleanup. The session stays
-muted, Bluetooth off; testing does not log out or restart the machine.
+strict/deep signature verification. Clicking the original pinned Dock tile launched Wax from
+`Wax.app`. The preserved login item pointed at `Wax.app` and launching it started Wax too, with
+its hidden setting and list position unchanged. After cleanup, the Dock preferences and the
+login-item list matched the backups taken before the test.
+
+The rename now runs first thing at launch, before the equalizer, the updater, playback or the
+sound-output log start, and the old copy waits there until the renamed copy is open. I checked it
+with a signed build copied in as `Spotiglass.app` and an isolated home: it renamed itself to
+`Wax.app` and quit, its log holds only its launch line, and the renamed copy started 80 ms later
+and did the whole startup.
 
 ## Automated checks
 
 Five migration tests pass. They cover bookmark/file identity, occupied destination, custom name,
 App Translocation, failed moves, relaunch success, relaunch failure and rollback. The migration
-file has 98.44% line coverage (63/64 executable lines). The broader CI run passed its tests before
-failing the initial migration coverage gate; the refactor and additional tests address that failure.
-All 37 Python script tests pass, with one skipped. The signed candidate passed notarization,
-stapling and Gatekeeper. No release was published and the repository has not been renamed.
+file has 98.44% line coverage (63/64 executable lines). The Python script tests pass. The signed candidate passed notarization, stapling and Gatekeeper.

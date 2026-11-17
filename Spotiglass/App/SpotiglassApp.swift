@@ -40,6 +40,9 @@ struct SpotiglassApp: App {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         SpotiglassLog.info(.persistence, "Wax launching (version=\(version) build=\(build))")
         if !AppMetadata.isRunningUnitTests {
+            // Before anything starts: a copy about to rename itself must not touch the equalizer,
+            // the updater or playback, because it quits as soon as the renamed copy is running.
+            LegacyBundleRelaunch.relaunchFromRenamedBundleIfNeeded()
             AudioOutputTrace.shared.start()
         }
         // Under the unit-test host, point the store at a throwaway file so running
@@ -313,28 +316,8 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
     /// people using it, so the host must never come to the front or take keyboard focus (#418).
     /// Setting the policy before launch finishes is what stops the launch-time activation.
     func applicationWillFinishLaunching(_ notification: Notification) {
-        if AppMetadata.isRunningUnitTests {
-            NSApp.setActivationPolicy(.prohibited)
-        } else {
-            guard Bundle.main.bundleIdentifier == "com.isaaclins.spotiglass" else { return }
-            let loginItems = LegacyLoginItemSnapshot(source: Bundle.main.bundleURL)
-            AppBundleMigration.migrate(
-                source: Bundle.main.bundleURL,
-                register: { LSRegisterURL($0 as CFURL, true) },
-                relaunch: { destination, completion in
-                    let configuration = NSWorkspace.OpenConfiguration()
-                    configuration.createsNewApplicationInstance = true
-                    configuration.arguments = Array(CommandLine.arguments.dropFirst())
-                    configuration.environment = ProcessInfo.processInfo.environment
-                    NSWorkspace.shared.openApplication(at: destination, configuration: configuration) { app, _ in
-                        if app != nil { loginItems.commit(destination: destination) }
-                        completion(app != nil)
-                    }
-                },
-                finish: { exit(EXIT_SUCCESS) },
-                log: { SpotiglassLog.info(.persistence, $0) }
-            )
-        }
+        guard AppMetadata.isRunningUnitTests else { return }
+        NSApp.setActivationPolicy(.prohibited)
     }
 
     /// Clicking the Dock icon with no main window open brings one back. The pop-out lyrics window
@@ -462,6 +445,43 @@ private final class MacOSColorScheme: ObservableObject {
 private func captureLegacyLoginItems(_: UnsafePointer<CChar>) -> UnsafeMutableRawPointer?
 @_silgen_name("WaxFinishLegacyLoginItems")
 private func finishLegacyLoginItems(_: UnsafeMutableRawPointer?, _: UnsafePointer<CChar>?)
+
+/// Sparkle installs an update under the installed filename, so an update from Spotiglass lands in
+/// `Spotiglass.app`. That copy renames itself to `Wax.app`, opens the renamed copy and quits. It
+/// waits for the open to finish first: the old copy must not go on launching while the new one
+/// starts. If the open fails, the rename is undone and this copy carries on as before.
+private enum LegacyBundleRelaunch {
+    static func relaunchFromRenamedBundleIfNeeded() {
+        guard Bundle.main.bundleIdentifier == "com.isaaclins.spotiglass" else { return }
+        let source = Bundle.main.bundleURL
+        let loginItems = LegacyLoginItemSnapshot(source: source)
+        let opened = DispatchSemaphore(value: 0)
+        var isOpening = false
+        AppBundleMigration.migrate(
+            source: source,
+            register: { LSRegisterURL($0 as CFURL, true) },
+            relaunch: { destination, completion in
+                isOpening = true
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.createsNewApplicationInstance = true
+                configuration.arguments = Array(CommandLine.arguments.dropFirst())
+                configuration.environment = ProcessInfo.processInfo.environment
+                // AppKit calls this on a concurrent queue, so waiting on the main thread below is safe.
+                NSWorkspace.shared.openApplication(at: destination, configuration: configuration) { app, _ in
+                    if app != nil { loginItems.commit(destination: destination) }
+                    completion(app != nil)
+                    opened.signal()
+                }
+            },
+            finish: { exit(EXIT_SUCCESS) },
+            log: { SpotiglassLog.info(.persistence, $0) }
+        )
+        guard isOpening else { return }
+        if opened.wait(timeout: .now() + 30) == .timedOut {
+            SpotiglassLog.info(.persistence, "Wax rename relaunch did not answer within 30 s")
+        }
+    }
+}
 
 /// A failed move/relaunch leaves the user's original login item untouched.
 private final class LegacyLoginItemSnapshot {

@@ -107,7 +107,7 @@
 
 ### Fixed
 
-- Resizing the Wax window with a window manager is now as fast as resizing a Finder window.
+- Resizing the Spotiglass window with a window manager is now as fast as resizing a Finder window.
 
 ## [0.8.32] - 2026-11-11
 
@@ -242,7 +242,7 @@
 
 ### Fixed
 
-- The back button now uses a normal label that says where it goes, instead of tiny "Wax" text.
+- The back button now uses a normal label that says where it goes, instead of tiny "Spotiglass" text.
 
 ## [0.8.10] - 2026-11-09
 
@@ -312,7 +312,7 @@
 
 ### Added
 
-- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Wax then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playing needs an Apple Music subscription. Some library edits go through the Music app, so the first of those asks once whether Wax may control Music. In Apple Music, Liked Songs is your library, so unliking a song takes it out of your playlists on all your devices too; Wax asks before it does that.
+- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Spotiglass then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playing needs an Apple Music subscription. Some library edits go through the Music app, so the first of those asks once whether Spotiglass may control Music. In Apple Music, Liked Songs is your library, so unliking a song takes it out of your playlists on all your devices too; Spotiglass asks before it does that.
 - A **service switcher** at the top left of the sidebar, like profiles in Arc. Spotify and Apple Music sit side by side, each with its own sign-in, pins and place, and switching never signs anything out. ⌃1 switches to Apple Music and ⌃2 to Spotify; both can be rebound in Settings › Keyboard, and the command palette has **Switch to Spotify** and **Switch to Apple Music**.
 - Apple Music playlists show their track counts in the sidebar.
 - The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
@@ -324,15 +324,15 @@
 ### Fixed
 
 - The progress bar seeks on the first click while a song plays. The first click used to be lost.
-- Playback no longer keeps a CPU core busy. With a playlist open and a song playing, Wax now redraws only the progress bar instead of the whole window.
+- Playback no longer keeps a CPU core busy. With a playlist open and a song playing, Spotiglass now redraws only the progress bar instead of the whole window.
 - The play bar and Space control the music you actually hear, even when it comes from the other service, and signing out of Apple Music stops its music.
-- The queue panel fits at every window width, shows the queue while Wax is in the background, and says "Next 20 tracks" instead of a wrong exact count when more are queued.
+- The queue panel fits at every window width, shows the queue while Spotiglass is in the background, and says "Next 20 tracks" instead of a wrong exact count when more are queued.
 - German and Spanish no longer show English or misspelled text in several places, and Apple Music mode names Apple Music on screen and shows calm errors instead of raw MusicKit messages.
 - ⌃1 and ⌃2 work while lyrics are open, and while another service is added, a Spotify session that lapsed can be removed without signing in again first.
 - Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and a library album on an artist page counts the songs it really has in your library.
 - After a language switch your own playlists keep **Edit playlist name**, and the sidebar collapses in a narrow window instead of getting cut off.
 - In Apple Music, adding songs from your playlists and library albums to a playlist works, **New playlist…** never leaves an empty playlist behind, and a failed add takes back what it added.
-- An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Wax said it failed. Wax waits for Music and reports what really happened.
+- An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Spotiglass said it failed. Spotiglass waits for Music and reports what really happened.
 - In Apple Music, songs that are only in a playlist, not in your library, no longer show as liked.
 - The Spotify response and lyrics caches on disk now have size limits and drop what they no longer need.
 - Clicking a track with shuffle on played a different one, the transport could stay stuck on "Transferring playback...", and picking an album in the command palette did nothing.
@@ -341,7 +341,7 @@
 - Enabling the equalizer without permission to run in the background flipped the switch back with nothing on screen. Install failures are deliberately kept out of the settings pane, which is right for every case except the one only you can resolve. It now says what happened and offers the trip to Login Items.
 - The equalizer reported itself live as soon as it selected the virtual output device, long before the driver had opened a route to real speakers, so a missing or disconnected target left the pane green with audio going nowhere.
 - Disabling the equalizer discarded the saved output device even when restoring it failed, and the pre-equalizer device was held only in memory, so it did not survive a relaunch.
-- External edits to the settings file did not reach the running equalizer engine, and a default-output change made outside Wax was ignored rather than reconciled.
+- External edits to the settings file did not reach the running equalizer engine, and a default-output change made outside Spotiglass was ignored rather than reconciled.
 - Preamp values were clamped where they were drawn instead of where they were saved, and the equalizer editor accepted edits while the equalizer was off.
 - A second window could not play anything, because the playback host belonged to the first one.
 - Playback started elsewhere on Spotify Connect did not appear in the transport, volume changed on another device did not come back, and the scrubber could seek the wrong track across a track change.
@@ -454,7 +454,7 @@
 
 ### Removed
 
-- The duplicate **Wax** menu was removed.
+- The duplicate **Spotiglass** menu was removed.
 
 ## [0.3.0] - 2026-06-23
 
