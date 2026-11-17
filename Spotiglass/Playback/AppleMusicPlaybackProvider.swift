@@ -54,6 +54,8 @@ protocol AppleMusicPlayerControlling: AnyObject {
     /// Spotify's "Add to queue". `isCurrent` is asked once the lookup is done: an add from a
     /// session that ended meanwhile leaves the queue alone.
     func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws
+    /// Adds an item at the very end of the queue, after everything queued (Autoplay, #613).
+    func append(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws
     func readState() -> AppleMusicPlayerState
     /// The entries after the current one, in play order.
     func readUpcoming() -> [MusicTrack]
@@ -201,6 +203,14 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func enqueue(uri: String, deviceID: String) async throws {
+        try await add(uri: uri, atEnd: false)
+    }
+
+    func appendToQueueEnd(uri: String, deviceID: String) async throws {
+        try await add(uri: uri, atEnd: true)
+    }
+
+    private func add(uri: String, atEnd: Bool) async throws {
         // The session refuses an add while nothing is loaded. An add that still slips in after
         // a sign-out (made before it, or racing it) leaves the queue alone: it waits for the
         // play before it, and once its lookup is done it checks that the session is still the
@@ -211,10 +221,15 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         let add = Task { @MainActor [player] in
             await pendingPlay?.value
             await previous?.value
-            try await player.enqueue(uri: uri, isCurrent: { [weak self] in
+            let isCurrent: @MainActor () -> Bool = { [weak self] in
                 guard let self else { return false }
                 return self.session == session && !self.isSessionEnded
-            })
+            }
+            if atEnd {
+                try await player.append(uri: uri, isCurrent: isCurrent)
+            } else {
+                try await player.enqueue(uri: uri, isCurrent: isCurrent)
+            }
         }
         enqueueTail = Task { _ = await add.result }
         try await perform { try await add.value }
@@ -484,6 +499,23 @@ struct AppleMusicQueueBook: Equatable {
         rows = []
         added = nil
         generation &+= 1
+    }
+
+    /// Where Autoplay puts `row`: at the very end, after everything queued, so the songs the
+    /// listener queued keep their places (#613). The added run stays as it is: it sits before
+    /// the end. With nothing current it starts a queue, like ``planAdd``.
+    func planAppend(_ row: Row, currentIndex: Int?, entryCount: Int) -> AddPlan {
+        guard let currentIndex else { return planAdd(row, currentIndex: nil, entryCount: entryCount) }
+        let index = max(entryCount, currentIndex + 1)
+        return AddPlan(
+            index: index,
+            isAfterCurrent: index == currentIndex + 1,
+            row: row,
+            entryCount: entryCount,
+            rowsMatchQueue: rows.count == entryCount,
+            added: added,
+            generation: generation
+        )
     }
 
     /// Where "Add to queue" puts `row`: after the current entry and after the added songs

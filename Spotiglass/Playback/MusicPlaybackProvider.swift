@@ -108,6 +108,10 @@ protocol MusicPlaybackProvider: AnyObject {
     func setShuffle(enabled: Bool, deviceID: String) async throws
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws
     func enqueue(uri: String, deviceID: String) async throws
+    /// Adds an item at the very end of the queue, after everything queued (Autoplay, #613).
+    /// The default is ``enqueue(uri:deviceID:)``, for a service whose queue has only one place
+    /// to add to.
+    func appendToQueueEnd(uri: String, deviceID: String) async throws
 
     // MARK: - Commands for the in-app player
 
@@ -140,4 +144,8 @@ extension MusicPlaybackProvider {
     var isQueueSettling: Bool { false }
 
     func didStartLocalPlayback(uri: String) async throws {}
+
+    func appendToQueueEnd(uri: String, deviceID: String) async throws {
+        try await enqueue(uri: uri, deviceID: deviceID)
+    }
 }

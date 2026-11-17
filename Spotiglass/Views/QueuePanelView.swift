@@ -52,8 +52,10 @@ struct QueuePanelView: View {
                 Text(subtitleText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                QueueAutoplayStatusLine(autoplay: queueViewModel.autoplay)
             }
             Spacer()
+            QueueAutoplayButton(autoplay: queueViewModel.autoplay)
             Button {
                 Task { await queueViewModel.toggleShuffle() }
             } label: {
@@ -223,6 +225,55 @@ struct QueuePanelView: View {
             return SpotiglassL10n.string("queue.upNext.empty.repeat")
         }
         return SpotiglassL10n.string("queue.upNext.empty.default")
+    }
+}
+
+/// The ∞ button beside Shuffle, like Autoplay at the top of the Music app's Playing Next
+/// (#613): accent coloured while on. Hidden where the service offers no suggestions.
+struct QueueAutoplayButton: View {
+    @ObservedObject var autoplay: QueueAutoplay
+
+    var body: some View {
+        if autoplay.isAvailable {
+            Button {
+                autoplay.setEnabled(!autoplay.isEnabled)
+            } label: {
+                Image(systemName: "infinity")
+                    .foregroundStyle(
+                        autoplay.isEnabled
+                            ? AnyShapeStyle(SpotiglassAccentStyle())
+                            : AnyShapeStyle(.primary)
+                    )
+            }
+            .accessibilityLabel(SpotiglassL10n.string("queue.autoplay.label"))
+            .accessibilityValue(SpotiglassL10n.string(autoplay.isEnabled ? "queue.autoplay.on" : "queue.autoplay.off"))
+            .help(SpotiglassL10n.string(autoplay.isEnabled ? "queue.autoplay.help.on" : "queue.autoplay.help.off"))
+        }
+    }
+}
+
+/// One line under the queue's title while Autoplay is on, saying what it does right now.
+struct QueueAutoplayStatusLine: View {
+    @ObservedObject var autoplay: QueueAutoplay
+
+    var body: some View {
+        if let key = Self.key(for: autoplay.status), autoplay.isEnabled {
+            Label(SpotiglassL10n.string(key), systemImage: "infinity")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    static func key(for status: QueueAutoplay.Status) -> String? {
+        switch status {
+        case .off: nil
+        case .on: "queue.autoplay.status.on"
+        case .finding: "queue.autoplay.status.finding"
+        case .noMatches: "queue.autoplay.status.noMatches"
+        case .failed: "queue.autoplay.status.failed"
+        }
     }
 }
 

@@ -285,6 +285,16 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: uri, atEnd: false, isCurrent: isCurrent)
+    }
+
+    func append(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: uri, atEnd: true, isCurrent: isCurrent)
+    }
+
+    /// Add to Queue (`atEnd` false) goes after the current song and the songs added before it;
+    /// Autoplay (`atEnd` true) goes after everything queued (#613).
+    private func add(uri: String, atEnd: Bool, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
         let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
         if explicitBlocked { await Self.lookUpRatings([resolved.entry]) }
@@ -300,12 +310,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }
         }
-        let plan = book.planAdd(
-            AppleMusicQueueBook.Row(uri: uri, title: resolved.entry.title),
-            currentIndex: currentIndex,
-            entryCount: entries.count
-        )
-        PlaybackTrace.shared.command("addToQueue", "at \(plan.index.map(String.init) ?? "after current")")
+        let row = AppleMusicQueueBook.Row(uri: uri, title: resolved.entry.title)
+        let plan = atEnd
+            ? book.planAppend(row, currentIndex: currentIndex, entryCount: entries.count)
+            : book.planAdd(row, currentIndex: currentIndex, entryCount: entries.count)
+        PlaybackTrace.shared.command(atEnd ? "appendToQueue" : "addToQueue", "at \(plan.index.map(String.init) ?? "after current")")
         if let index = plan.index, !plan.isAfterCurrent {
             player.queue.entries.insert(resolved.entry, at: index)
         } else {

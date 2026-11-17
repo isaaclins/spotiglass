@@ -11842,6 +11842,204 @@
         }
       }
     },
+    "queue.autoplay.help.off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay: Die Warteschlange mit ähnlichen Titeln weiterführen, auch mit neuen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay: keep the queue going with similar songs, new ones included"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción automática: sigue llenando la cola con canciones parecidas, también nuevas"
+          }
+        }
+      }
+    },
+    "queue.autoplay.help.on": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay ist ein: Am Ende der Warteschlange kommen laufend ähnliche Titel dazu. Klicken zum Ausschalten, die Titel in der Warteschlange bleiben."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay is on: similar songs keep coming at the end of the queue. Click to turn it off; queued songs stay."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La reproducción automática está activada: se siguen añadiendo canciones parecidas al final de la cola. Haz clic para desactivarla; las canciones en cola se quedan."
+          }
+        }
+      }
+    },
+    "queue.autoplay.label": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción automática"
+          }
+        }
+      }
+    },
+    "queue.autoplay.off": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivada"
+          }
+        }
+      }
+    },
+    "queue.autoplay.on": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activada"
+          }
+        }
+      }
+    },
+    "queue.autoplay.status.failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel konnten nicht hinzugefügt werden. Beim nächsten Titel wird es erneut versucht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn’t add songs. Trying again with the next song."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron añadir canciones. Se volverá a intentar con la siguiente."
+          }
+        }
+      }
+    },
+    "queue.autoplay.status.finding": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ähnliche Titel werden gesucht …"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding similar songs…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando canciones parecidas…"
+          }
+        }
+      }
+    },
+    "queue.autoplay.status.noMatches": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerade keine weiteren ähnlichen Titel gefunden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No more similar songs found for now"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por ahora no hay más canciones parecidas"
+          }
+        }
+      }
+    },
+    "queue.autoplay.status.on": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay fügt am Ende ähnliche Titel hinzu"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Autoplay adds similar songs at the end"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La reproducción automática añade canciones parecidas al final"
+          }
+        }
+      }
+    },
     "queue.copyURI": {
       "extractionState": "stale",
       "localizations": {

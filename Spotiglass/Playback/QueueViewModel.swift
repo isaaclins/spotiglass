@@ -15,6 +15,9 @@ final class QueueViewModel: ObservableObject {
     /// The music service's player; the queue is read from and added to through it.
     let provider: any MusicPlaybackProvider
     let playbackSession: PlaybackSessionViewModel
+    /// Keeps the queue going in the style of its recent songs while it is on (#613).
+    let autoplay: QueueAutoplay
+    private let autoplayPlayer: ProviderQueueAutoplayPlayer
     var lastFetchedQueue: MusicPlaybackQueue?
     /// Immediate queue projection used while waiting for Spotify queue
     /// reconciliation (e.g. optimistic shuffle UX).
@@ -120,10 +123,16 @@ final class QueueViewModel: ObservableObject {
         enqueueSuccessCooldown: Duration = .seconds(2),
         enqueueUnknownOutcomeCooldown: Duration = .seconds(5),
         enqueueMinimumRetryDelay: Duration = .seconds(1),
-        clock: any PlaybackClock = ContinuousClock()
+        clock: any PlaybackClock = ContinuousClock(),
+        autoplay: QueueAutoplay? = nil
     ) {
         self.provider = provider
         self.playbackSession = playbackSession
+        let autoplay = autoplay ?? QueueAutoplay(source: Self.autoplaySource(for: provider.service))
+        self.autoplay = autoplay
+        autoplayPlayer = ProviderQueueAutoplayPlayer(provider: provider) { [weak playbackSession] in
+            playbackSession?.commandDeviceID
+        }
         self.pollIntervalNanoseconds = pollIntervalNanoseconds
         self.pausedPollIntervalNanoseconds = pausedPollIntervalNanoseconds
         self.reconnectingPollIntervalNanoseconds = reconnectingPollIntervalNanoseconds
@@ -138,6 +147,19 @@ final class QueueViewModel: ObservableObject {
         self.enqueueUnknownOutcomeCooldown = enqueueUnknownOutcomeCooldown
         self.enqueueMinimumRetryDelay = enqueueMinimumRetryDelay
         self.clock = clock
+        autoplay.player = autoplayPlayer
+        autoplay.onQueueChanged = { [weak self] in
+            await self?.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+        }
+    }
+
+    /// Where each service's Autoplay songs come from. Spotify closed its recommendation and
+    /// related-artist endpoints to apps like this one in November 2024, so it has none yet.
+    static func autoplaySource(for service: MusicService) -> (any QueueAutoplaySource)? {
+        switch service {
+        case .appleMusic: AppleMusicAutoplaySource()
+        case .spotify: nil
+        }
     }
 
     var isPlaybackPlaying: Bool {
@@ -199,6 +221,7 @@ final class QueueViewModel: ObservableObject {
 
     func handlePlaybackStateChange() {
         publishMergedState()
+        noteNowPlayingForAutoplay()
         let pollingKey = queuePollingKey(for: playbackSession.connectionState)
         let pollingKeyChanged = pollingKey != lastQueuePollingKey
         lastQueuePollingKey = pollingKey
@@ -215,6 +238,20 @@ final class QueueViewModel: ObservableObject {
         default:
             pollTask?.cancel()
             pollTask = nil
+        }
+    }
+}
+
+extension QueueViewModel {
+    /// Tells Autoplay which song plays, so each new one adds a song and steers the next ones.
+    func noteNowPlayingForAutoplay() {
+        switch playbackSession.connectionState {
+        case let .playing(item), let .paused(.some(item)):
+            autoplay.nowPlayingChanged(QueueAutoplaySeed(uri: item.uri, title: item.name, artists: item.artists))
+        case .disconnected, .unavailable:
+            autoplay.sessionEnded()
+        case .connecting, .ready, .transferring, .paused(.none), .error:
+            break
         }
     }
 }

@@ -1816,6 +1816,8 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     var authorized = true
     var failure: Error?
+    /// Songs the player refuses to add (not in the storefront).
+    var refusedURIs: Set<String> = []
     /// A skip MusicKit refuses; the song that was playing keeps playing.
     var skipFailure: MusicPlaybackError?
     /// Sends whenever a command is recorded, a lookup starts or stops waiting, or the repeat
@@ -1967,6 +1969,17 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         let current = queue.indices.contains(index) ? index : nil
         let plan = book.planAdd(AppleMusicQueueBook.Row(uri: uri, title: uri), currentIndex: current, entryCount: queue.count)
         queue.insert(uri, at: min(plan.index ?? current.map { $0 + 1 } ?? queue.count, queue.count))
+        book.finishAdd(plan)
+    }
+
+    func append(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        await lookup("append \(uri)")
+        guard isCurrent() else { throw CancellationError() }
+        if refusedURIs.contains(uri) { throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "not available") }
+        commands.append("append \(uri)")
+        let current = queue.indices.contains(index) ? index : nil
+        let plan = book.planAppend(AppleMusicQueueBook.Row(uri: uri, title: uri), currentIndex: current, entryCount: queue.count)
+        queue.insert(uri, at: min(plan.index ?? queue.count, queue.count))
         book.finishAdd(plan)
     }
 
