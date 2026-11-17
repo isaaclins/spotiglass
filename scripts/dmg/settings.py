@@ -5,6 +5,7 @@ application = defines['app']
 files = [application]
 symlinks = {'Applications': '/Applications'}
 icon = os.path.join(application, 'Contents', 'Resources', 'AppIcon.icns')
+# dmgbuild picks up background@2x.png next to it and combines both into one Retina image.
 background = os.path.join(defines['assets'], 'background.png')
 # Finder counts its 32 pt title bar inside this size, so the window is 32 pt
 # taller than the 720 x 460 background to show all of it.

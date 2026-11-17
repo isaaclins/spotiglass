@@ -92,6 +92,10 @@ The app checks the feed automatically about once per day, or via **Wax → Check
    as `NOTARY_KEYCHAIN=<path>` (and `NOTARY_PROFILE=<name>` for another profile name)
    to the release script, which hands it to every `notarytool` call. Unlock that
    keychain first when running over ssh.
+   Python 3.11 or newer must be installed (`brew install python`): the script builds
+   the installer with dmgbuild, which it installs before the build into
+   `build/dmg-tools` from the hash-pinned wheels in `scripts/dmg/requirements.txt`.
+   The system Python 3.9 is too old for it.
 3. Validate the version and release notes without building or writing files:
    ```sh
    SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
