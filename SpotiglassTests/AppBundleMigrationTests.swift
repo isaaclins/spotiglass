@@ -52,19 +52,47 @@ final class AppBundleMigrationTests: XCTestCase {
             AppBundleMigration.migrate(source: source, register: { registered = $0 }, relaunch: { url, completion in
                 XCTAssertEqual(url, registered)
                 XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
-                completion(succeeds)
-            }, finish: { finished = true }, log: { messages.append($0) })
+                XCTAssertTrue(completion(succeeds))
+            }, finish: { url in
+                XCTAssertEqual(url, registered)
+                finished = true
+            }, log: { messages.append($0) })
             XCTAssertEqual(finished, succeeds)
             XCTAssertEqual(FileManager.default.fileExists(atPath: source.path), !succeeds)
             XCTAssertEqual(messages.isEmpty, succeeds)
         }
     }
 
+    /// LaunchServices normally answers within a second. If it doesn't, this copy can't keep
+    /// launching from a bundle that has moved: the rename is undone, and an answer that turns up
+    /// later is refused, so it neither quits this copy nor touches the bundle again.
+    func testARelaunchThatDoesNotAnswerIsUndoneAndItsLateAnswerRefused() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("Spotiglass.app")
+        try Data("payload".utf8).write(to: source)
+        var pending: ((Bool) -> Bool)?
+        var finished = false
+        var messages: [String] = []
+        AppBundleMigration.migrate(source: source, register: { _ in }, relaunch: { _, completion in
+            pending = completion
+        }, finish: { _ in finished = true }, log: { messages.append($0) }, timeout: .milliseconds(50))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Wax.app").path))
+        XCTAssertEqual(messages.count, 1)
+        XCTAssertFalse(try XCTUnwrap(pending)(true))
+        XCTAssertFalse(finished)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertEqual(messages.count, 1)
+    }
+
     func testMigrationFailureDoesNotRelaunch() {
         var messages: [String] = []
-        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/missing/Spotiglass.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { XCTFail() }, log: { messages.append($0) })
+        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/missing/Spotiglass.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { _ in XCTFail() }, log: { messages.append($0) })
         XCTAssertEqual(messages.count, 1)
-        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/Applications/Wax.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { XCTFail() }, log: { _ in XCTFail() })
+        AppBundleMigration.migrate(source: URL(fileURLWithPath: "/Applications/Wax.app"), register: { _ in XCTFail() }, relaunch: { _, _ in XCTFail() }, finish: { _ in XCTFail() }, log: { _ in XCTFail() })
     }
 
 }

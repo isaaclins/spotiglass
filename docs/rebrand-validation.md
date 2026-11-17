@@ -113,8 +113,11 @@ strict/deep signature verification. Clicking the original pinned Dock tile launc
 its hidden setting and list position unchanged. After cleanup, the Dock preferences and the
 login-item list matched the backups taken before the test.
 
-The rename now runs first thing at launch, before the equalizer, the updater, playback or the
-sound-output log start, and the old copy waits there until the renamed copy is open. I checked it
+The rename now runs first thing at launch, before the equalizer, playback or the sound-output log
+start, and the old copy waits there until the renamed copy is open. (The updater object exists by
+then, but its first check needs the run loop, which the old copy never reaches.) If the open fails
+or hasn't answered within 30 seconds, the rename is undone and that copy carries on; a late answer
+is refused, and a copy that opens late is closed again. I checked it
 with a signed build copied in as `Spotiglass.app` and an isolated home: it renamed itself to
 `Wax.app` and quit, its log holds only its launch line, and the renamed copy started 80 ms later
 and did the whole startup.
