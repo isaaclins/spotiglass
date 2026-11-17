@@ -308,6 +308,39 @@ ZIP_NAME="Wax-${MARKETING_VERSION}.zip"
 DMG_NAME="Wax-${MARKETING_VERSION}.dmg"
 DOWNLOAD_PREFIX="https://github.com/isaaclins/spotiglass/releases/download/${TAG}/"
 
+# The installer layout is written by dmgbuild, which needs Python 3.11 or newer
+# (its ds-store and mac-alias dependencies require it). The PATH above puts the
+# system python3 (3.9 on current macOS) first, so look for a newer one by name.
+# Set this up before the build: a missing Python or package index then stops the
+# release in seconds instead of after the app has already been notarized.
+python_is_new_enough() {
+  "$1" -c 'import sys; sys.exit(sys.version_info < (3, 11))' >/dev/null 2>&1
+}
+setup_dmg_tools() {
+  DMG_TOOLS="$ROOT/build/dmg-tools"
+  if [[ -x "$DMG_TOOLS/bin/python" ]] && python_is_new_enough "$DMG_TOOLS/bin/python"; then
+    :
+  else
+    local candidate python=""
+    for candidate in python3.15 python3.14 python3.13 python3.12 python3.11 python3 \
+      /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+      if command -v "$candidate" >/dev/null 2>&1 && python_is_new_enough "$(command -v "$candidate")"; then
+        python="$(command -v "$candidate")"
+        break
+      fi
+    done
+    if [[ -z "$python" ]]; then
+      echo "ERROR: building the installer needs Python 3.11 or newer (brew install python)." >&2
+      exit 1
+    fi
+    "$python" -m venv --clear "$DMG_TOOLS"
+  fi
+  # Pinned by version and hash, so a release never runs code it hasn't seen before.
+  "$DMG_TOOLS/bin/python" -m pip install --quiet --no-cache-dir --disable-pip-version-check \
+    --require-hashes --only-binary :all: -r "$ROOT/scripts/dmg/requirements.txt"
+}
+setup_dmg_tools
+
 echo "==> Building Release ${MARKETING_VERSION} (${BUILD_NUMBER})"
 xcodebuild \
   -project Spotiglass.xcodeproj \
@@ -483,16 +516,12 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ZIP_PATH"
 
 mkdir -p "$DMG_DIR"
 DMG_PATH="$DMG_DIR/$DMG_NAME"
-DMG_STAGE="$(mktemp -d)"
-cp -R "$APP_SOURCE" "$DMG_STAGE/Wax.app"
-ln -s /Applications "$DMG_STAGE/Applications"
-rm -f "$DMG_PATH"
-hdiutil create \
-  -volname "Wax ${MARKETING_VERSION}" \
-  -srcfolder "$DMG_STAGE" \
-  -ov -format UDZO \
-  "$DMG_PATH"
-rm -rf "$DMG_STAGE"
+# dmgbuild writes Finder's .DS_Store directly; no GUI session or Finder clicks.
+# Its environment was prepared before the build (setup_dmg_tools above).
+"$DMG_TOOLS/bin/dmgbuild" \
+  -s "$ROOT/scripts/dmg/settings.py" \
+  -D app="$APP_SOURCE" -D assets="$ROOT/scripts/dmg" \
+  "Wax" "$DMG_PATH"
 
 # The disk image is a separate distributed artifact, so it carries its own
 # signature and ticket. Without this a user who downloads the .dmg rather than

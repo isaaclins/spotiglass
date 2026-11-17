@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="720" height="460" viewBox="0 0 720 460">
+<defs><image id="engraving" width="2000" height="1400" xlink:href="arch.png"/><clipPath id="key"><path d="M933,203H1067L1034,428H966Z"/></clipPath><mask id="stone"><rect width="2000" height="1400" fill="white"/><path d="M933,203H1067L1034,428H966Z" fill="black"/></mask><filter id="seal" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 0 0 0 0.91 0 0 0 0 0.32 0 0 0 0 0.17 0 0 0 1 0"/></filter></defs>
+<rect width="720" height="460" fill="#F5F3EE"/>
+<g transform="translate(328 87) scale(.20)"><use xlink:href="#engraving" mask="url(#stone)"/><use xlink:href="#engraving" clip-path="url(#key)" filter="url(#seal)"/></g>
+<text x="46" y="77" font-family="Helvetica Neue" font-size="38" font-weight="500" letter-spacing="-2" fill="#15238f">Wax<tspan fill="#E8522B">.</tspan></text>
+<path d="M278 230c27-17 52-17 80 0m-10-13l11 13-17 3" fill="none" stroke="#E8522B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="360" y="414" text-anchor="middle" font-family="Helvetica Neue" font-size="13" fill="#15238f">Drag Wax into Applications</text></svg>
