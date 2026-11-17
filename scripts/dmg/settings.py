@@ -6,7 +6,9 @@ files = [application]
 symlinks = {'Applications': '/Applications'}
 icon = os.path.join(application, 'Contents', 'Resources', 'AppIcon.icns')
 background = os.path.join(defines['assets'], 'background.png')
-window_rect = ((180, 120), (720, 460))
+# Finder counts its 32 pt title bar inside this size, so the window is 32 pt
+# taller than the 720 x 460 background to show all of it.
+window_rect = ((180, 120), (720, 492))
 icon_locations = {'Wax.app': (174, 230), 'Applications': (528, 230)}
 icon_size = 96
 text_size = 14

@@ -583,7 +583,7 @@ trap - EXIT
 echo "==> Wrote docs/appcast.xml"
 
 # Deliberately last: everything above can fail (clean build, driver signing, the
-# codesign identity and TeamIdentifier checks, hdiutil, fetching the Sparkle
+# codesign identity and TeamIdentifier checks, building the disk image, fetching the Sparkle
 # tools), and this is the only step that writes to a tracked file. Mutating the
 # project file earlier meant a transient failure left the new build number
 # recorded, so re-running the same command was refused by the guard and the
