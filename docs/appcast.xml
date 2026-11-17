@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.47</title>
-            <pubDate>Tue, 17 Nov 2026 00:51:22 +0100</pubDate>
-            <sparkle:version>58</sparkle:version>
-            <sparkle:shortVersionString>0.8.47</sparkle:shortVersionString>
+            <title>0.8.48</title>
+            <pubDate>Tue, 17 Nov 2026 01:18:17 +0100</pubDate>
+            <sparkle:version>59</sparkle:version>
+            <sparkle:shortVersionString>0.8.48</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
+            <description sparkle:format="plain-text"><![CDATA[• Apple Music playback no longer stops, cuts out or speeds up.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.47/Spotiglass-0.8.47.zip" length="14178767" type="application/octet-stream" sparkle:edSignature="nL6quKJxANO+7EzYFs6nocyA7O8HJlA8uJmTNAi2ilQdrzu2nIQe0B3zsGBqGGqduQU2m8/CsQGMUs02oKesBA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.48/Spotiglass-0.8.48.zip" length="14183664" type="application/octet-stream" sparkle:edSignature="3PBA5VWTHwFvKUgsEsPMlnpB9VgJueFMuxSzQoJNUHQqWPRw3mQXNRrzDC1uhoEoz2TDuHl16BXHnPWz4M7ICw=="/>
         </item>
     </channel>
 </rss>

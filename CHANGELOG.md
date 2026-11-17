@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.48] - 2026-11-17
+
+### Fixed
+
+- Apple Music playback no longer stops, cuts out or speeds up.
+
 ## [0.8.47] - 2026-11-17
 
 ### Fixed
