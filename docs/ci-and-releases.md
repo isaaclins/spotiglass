@@ -177,4 +177,9 @@ therefore retains it across portfolio deployments. The release publisher runs
 this after uploading the archives and pushing the current appcast. This copy is
 independent of project Pages routing and requires no HTTP or cross-domain redirect.
 Never rename the repository until the domain Pages deployment contains the copy.
+
+The website's link previews (`og:url`, `og:image`) point at `https://isaaclins.com/wax/`,
+which exists only once the repository is renamed. Rename it right after the rename
+branch reaches `main` and the legacy feed copy is live, so shared links never show
+a missing preview image for long.
 Historical release asset URLs retain their original filenames; new archives use Wax.
