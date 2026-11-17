@@ -319,6 +319,16 @@ final class QueueAutoplayTests: XCTestCase {
     }
 }
 
+extension QueueAutoplay {
+    /// Waits until Autoplay has nothing left to do.
+    func settle() async {
+        while let worker {
+            await worker.value
+            if self.worker == worker { break }
+        }
+    }
+}
+
 /// Suggests sample songs `new-1`, `new-2`, … best first, spread over five artists, plus the
 /// seeds themselves (which Autoplay must never add again). Records every request.
 @MainActor

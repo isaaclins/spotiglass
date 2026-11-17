@@ -204,7 +204,8 @@ final class QueueAutoplay: ObservableObject {
     private var owed = 0
     /// Set when Autoplay is turned on: fill up to ``fillTarget`` even if no song started yet.
     private var needsFill = false
-    private var worker: Task<Void, Never>?
+    /// The running fill, if any; tests wait for it.
+    private(set) var worker: Task<Void, Never>?
     private var workerGeneration: UInt64 = 0
 
     init(
@@ -274,14 +275,6 @@ final class QueueAutoplay: ObservableObject {
         owed = 0
         needsFill = isEnabled
         if isEnabled { status = .on }
-    }
-
-    /// Waits until Autoplay has nothing left to do. For tests.
-    func settle() async {
-        while let worker {
-            await worker.value
-            if self.worker == worker { break }
-        }
     }
 
     private func kick() {
