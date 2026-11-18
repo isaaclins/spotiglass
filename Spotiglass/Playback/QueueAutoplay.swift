@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// A song in the recent queue that steers Autoplay (#613).
@@ -156,7 +157,7 @@ enum QueueAutoplayRanking {
 /// never runs out. It fills the queue up to ``fillTarget`` songs from the recent queue's style,
 /// then adds one new song at the end each time a new song starts. Songs only ever go at the
 /// end, so what the listener queued stays where it was, and turning it off leaves the queue
-/// as it is.
+/// as it is. Each service's playback host owns one (``forService(_:session:provider:)``).
 @MainActor
 final class QueueAutoplay: ObservableObject {
     enum Status: Equatable {
@@ -175,7 +176,9 @@ final class QueueAutoplay: ObservableObject {
 
     /// `nil` when the service has nothing to build Autoplay from; the control is then hidden.
     private let source: (any QueueAutoplaySource)?
-    weak var player: (any QueueAutoplayPlayer)?
+    /// The queue it reads and adds to. Holds the provider, never this object, so no cycle.
+    var player: (any QueueAutoplayPlayer)?
+    private var sessionChanges: AnyCancellable?
     private let flag: StoredFlag
     /// Songs kept queued after the current one while Autoplay is on.
     let fillTarget: Int
@@ -183,8 +186,8 @@ final class QueueAutoplay: ObservableObject {
     let windowSize: Int
     /// The weight of a song Autoplay added itself, against 1 for one the listener picked.
     let addedSongWeight: Double
-    /// Called after songs were added, so the panel shows them.
-    var onQueueChanged: (() async -> Void)?
+    /// Sends after songs were added, so every window's queue panel shows them.
+    let queueChanged = PassthroughSubject<Void, Never>()
 
     /// Songs that started playing this session, oldest first, at most ``historyLimit``.
     private var played: [QueueAutoplaySeed] = []
@@ -222,6 +225,50 @@ final class QueueAutoplay: ObservableObject {
         self.addedSongWeight = addedSongWeight
         status = source != nil && flag.isOn ? .on : .off
         needsFill = source != nil && flag.isOn
+    }
+
+    /// The service's one Autoplay follows its player for the whole app, with or without a
+    /// window open: every window's queue panel shows this same object, so two windows never
+    /// add a song each for the same new song.
+    static func forService(
+        _ service: MusicService,
+        session: PlaybackSessionViewModel,
+        provider: any MusicPlaybackProvider
+    ) -> QueueAutoplay {
+        let autoplay = QueueAutoplay(source: source(for: service))
+        autoplay.follow(session, provider: provider)
+        return autoplay
+    }
+
+    /// Where each service's Autoplay songs come from. Spotify closed its recommendation and
+    /// related-artist endpoints to apps like this one in November 2024, so it has none yet.
+    static func source(for service: MusicService) -> (any QueueAutoplaySource)? {
+        switch service {
+        case .appleMusic: AppleMusicAutoplaySource()
+        case .spotify: nil
+        }
+    }
+
+    /// Tells Autoplay about every song the session plays, so each new one adds a song and
+    /// steers the next ones.
+    func follow(_ session: PlaybackSessionViewModel, provider: any MusicPlaybackProvider) {
+        guard isAvailable else { return }
+        player = ProviderQueueAutoplayPlayer(provider: provider) { [weak session] in
+            session?.commandDeviceID
+        }
+        sessionChanges = session.connectionStatePublisher
+            .sink { [weak self] state in self?.connectionChanged(state) }
+    }
+
+    private func connectionChanged(_ state: PlaybackConnectionState) {
+        switch state {
+        case let .playing(item), let .paused(.some(item)):
+            nowPlayingChanged(QueueAutoplaySeed(uri: item.uri, title: item.name, artists: item.artists))
+        case .disconnected, .unavailable:
+            sessionEnded()
+        case .connecting, .ready, .transferring, .paused(.none), .error:
+            break
+        }
     }
 
     var isAvailable: Bool { source != nil }
@@ -361,7 +408,7 @@ final class QueueAutoplay: ObservableObject {
                     failedKeys.formUnion(QueueAutoplayIdentity.keys(track))
                 }
             }
-            if added > 0 { await onQueueChanged?() }
+            if added > 0 { queueChanged.send() }
             guard isEnabled, !Task.isCancelled else { return }
             owed = max(0, owed - owedNow)
             if added == 0 {

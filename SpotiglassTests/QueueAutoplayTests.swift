@@ -45,10 +45,7 @@ final class QueueAutoplayTests: XCTestCase {
     }
 
     private func upcoming(_ h: Harness) async throws -> [String] {
-        try await h.provider.fetchQueue().queue.compactMap { item in
-            if case let .track(track) = item { return track.uri }
-            return nil
-        }
+        try await upcomingURIs(h.provider)
     }
 
     private func current(_ h: Harness) -> String? {
@@ -239,6 +236,65 @@ final class QueueAutoplayTests: XCTestCase {
         XCTAssertEqual(h.autoplay.status, .noMatches)
         let queue8 = try await upcoming(h)
         XCTAssertEqual(queue8.count, 4, "nothing is added twice")
+    }
+
+    /// Autoplay belongs to the service's player, not to a window: two windows show the same
+    /// switch, and each new song the session plays adds one song, not one per window. The session
+    /// drives it, so it also runs with every queue panel closed.
+    func testOneAutoplayForTheAppAddsOneSongPerNewSongWithTwoWindowsOpen() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.setActivePlaybackDeviceID(deviceID)
+        let source = SampleAutoplaySource()
+        let autoplay = QueueAutoplay(
+            source: source,
+            flag: StoredFlag(key: "test.autoplay", defaultValue: false, defaults: nil)
+        )
+        autoplay.follow(session, provider: provider)
+        let windows = (0..<2).map { _ in
+            QueueViewModel(provider: provider, playbackSession: session, autoplay: autoplay)
+        }
+        XCTAssertTrue(windows.allSatisfy { $0.autoplay === autoplay })
+
+        func sessionPlays() async {
+            let track = player.readState().current
+            session.connectionState = .playing(PlaybackNowPlaying(
+                name: track?.name ?? "",
+                artists: track?.artists ?? [],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 200_000,
+                positionMilliseconds: 0,
+                uri: track?.uri
+            ))
+            await autoplay.settle()
+        }
+
+        try await provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        await sessionPlays()
+        autoplay.setEnabled(true)
+        await autoplay.settle()
+        let filled = try await upcomingURIs(provider)
+        XCTAssertEqual(filled.count, 8)
+
+        for _ in 0..<3 {
+            try await provider.skipToNext(deviceID: deviceID)
+            player.advance(by: 1)
+            await sessionPlays()
+            let queue = try await upcomingURIs(provider)
+            XCTAssertEqual(queue.count, 8, "one song added for the new song, however many windows are open")
+            XCTAssertEqual(Set(queue).count, queue.count, "no song queued twice")
+        }
+        XCTAssertEqual(source.requests.count, 4, "one request for the fill, one per new song")
+    }
+
+    private func upcomingURIs(_ provider: AppleMusicPlaybackProvider) async throws -> [String] {
+        try await provider.fetchQueue().queue.compactMap { item in
+            if case let .track(track) = item { return track.uri }
+            return nil
+        }
     }
 
     // MARK: - Queue book
