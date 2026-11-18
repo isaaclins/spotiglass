@@ -1,0 +1,255 @@
+import AppKit
+import XCTest
+@testable import Spotiglass
+
+/// Taking songs out of the queue and putting them back (#628), on the Apple Music provider with
+/// the scripted MusicKit player: the cases from the issue (one song, a selection from the middle,
+/// Clear, Undo of each) and what has to stay true around them (the song is gone from what
+/// actually plays next, Add to Queue keeps its order, a queue that moved on meanwhile).
+@MainActor
+final class QueueRemovalTests: XCTestCase {
+    private let deviceID = AppleMusicPlaybackProvider.deviceID
+    private let songs = (1...8).map { "applemusic:song:\($0)" }
+
+    private struct Harness {
+        let player: ScriptedAppleMusicPlayer
+        let provider: AppleMusicPlaybackProvider
+        let session: PlaybackSessionViewModel
+        let queue: QueueViewModel
+    }
+
+    private func playing(_ uris: [String]) async throws -> Harness {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = deviceID
+        session.setActivePlaybackDeviceID(deviceID)
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+        try await provider.play(.items(uris: uris, startURI: nil), deviceID: deviceID)
+        player.advance(by: 1)
+        await session.syncTransportFromSpotify()
+        queue.isPanelVisible = true
+        await queue.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+        return Harness(player: player, provider: provider, session: session, queue: queue)
+    }
+
+    /// The panel's ids of the upcoming rows showing these songs.
+    private func ids(_ h: Harness, _ uris: [String]) -> Set<QueueItem.ID> {
+        Set(h.queue.upcomingItems.filter { uris.contains($0.uri ?? "") }.map(\.id))
+    }
+
+    private func next(_ h: Harness) async throws {
+        try await h.provider.skipToNext(deviceID: deviceID)
+        h.player.advance(by: 1)
+    }
+
+    // MARK: - Remove
+
+    /// A selection from the middle of the queue: the songs leave the panel and the player's
+    /// queue, and the next songs that play skip them.
+    func testRemovingASelectionFromTheMiddleTakesItOutOfWhatPlaysNext() async throws {
+        let h = try await playing(songs)
+
+        let receipt = await h.queue.removeItems(withIDs: ids(h, [songs[3], songs[4]]))
+
+        XCTAssertEqual(receipt?.count, 2)
+        XCTAssertEqual(h.player.upcomingURIs, [songs[1], songs[2], songs[5], songs[6], songs[7]])
+        XCTAssertEqual(h.queue.upcomingItems.map(\.uri), [songs[1], songs[2], songs[5], songs[6], songs[7]])
+        XCTAssertEqual(h.queue.lastRemoval?.count, 2, "the Undo bar offers the removal")
+
+        try await next(h)
+        try await next(h)
+        try await next(h)
+        XCTAssertEqual(h.player.readState().current?.uri, songs[5], "song 4 and 5 never play")
+    }
+
+    /// Undo puts the songs back in the same spot.
+    func testUndoPutsARemovedSelectionBackWhereItWas() async throws {
+        let h = try await playing(songs)
+        let receiptResult = await h.queue.removeItems(withIDs: ids(h, [songs[2], songs[5]]))
+        let receipt = try XCTUnwrap(receiptResult)
+
+        await h.queue.undoRemoval(receipt)
+
+        XCTAssertEqual(h.player.upcomingURIs, Array(songs.dropFirst()))
+        XCTAssertEqual(h.queue.upcomingItems.map(\.uri), Array(songs.dropFirst()))
+        XCTAssertNil(h.queue.lastRemoval, "nothing left to undo")
+    }
+
+    /// Clear takes out everything after the current song (also what the panel doesn't list), the
+    /// current song keeps playing, and Undo brings it all back.
+    func testClearRemovesEverythingAfterTheCurrentSongAndUndoBringsItBack() async throws {
+        let long = (1...40).map { "applemusic:song:\($0)" }
+        let h = try await playing(long)
+        XCTAssertEqual(h.queue.upcomingItems.count, h.queue.maxUpcomingItems, "the panel lists 20 of 39")
+
+        let receiptResult = await h.queue.clearUpcoming()
+        let receipt = try XCTUnwrap(receiptResult)
+
+        XCTAssertEqual(receipt.count, 39)
+        XCTAssertEqual(h.player.upcomingURIs, [])
+        XCTAssertEqual(h.queue.upcomingItems, [])
+        XCTAssertEqual(h.player.readState().current?.uri, long[0])
+        XCTAssertEqual(h.player.readState().status, .playing)
+
+        await h.queue.undoRemoval(receipt)
+        XCTAssertEqual(h.player.upcomingURIs, Array(long.dropFirst()))
+    }
+
+    /// The panel was read, then a song ended before the listener's Remove reached the player:
+    /// the song the listener picked goes, not the one that moved into its place.
+    func testARemovalAfterTheQueueMovedOnStillTakesThePickedSong() async throws {
+        let h = try await playing(songs)
+        let picked = ids(h, [songs[3]])
+        try await next(h) // song 2 plays now; the panel hasn't read the queue again
+
+        _ = await h.queue.removeItems(withIDs: picked)
+
+        XCTAssertEqual(h.player.upcomingURIs, [songs[2], songs[4], songs[5], songs[6], songs[7]])
+    }
+
+    /// The playing row isn't upcoming, so a selection that includes it removes only the rest.
+    func testTheCurrentSongIsNeverRemoved() async throws {
+        let h = try await playing(songs)
+        var selection = ids(h, [songs[1]])
+        selection.insert(try XCTUnwrap(h.queue.nowPlayingItem?.id))
+
+        _ = await h.queue.removeItems(withIDs: selection)
+
+        XCTAssertEqual(h.player.readState().current?.uri, songs[0])
+        XCTAssertEqual(h.player.upcomingURIs, Array(songs.dropFirst(2)))
+    }
+
+    // MARK: - Add to Queue keeps working around removals
+
+    /// Songs added with Add to Queue play in the order added, before the rest. Taking one of
+    /// them out must not make the next add land among the playlist's songs.
+    func testAnAddAfterRemovingAnAddedSongStillGoesAfterTheOtherAddedSongs() async throws {
+        let h = try await playing(songs)
+        await h.queue.addToQueue(uris: ["applemusic:song:a", "applemusic:song:b", "applemusic:song:c"])
+        await h.queue.requestQueueRefresh(trigger: .manual, allowsHiddenPanel: true)
+
+        _ = await h.queue.removeItems(withIDs: ids(h, ["applemusic:song:b"]))
+        await h.queue.addToQueue(uris: ["applemusic:song:d"])
+
+        XCTAssertEqual(
+            Array(h.player.upcomingURIs.prefix(4)),
+            ["applemusic:song:a", "applemusic:song:c", "applemusic:song:d", songs[1]]
+        )
+    }
+
+    /// Undo of an added song puts it back among the added songs, so a later add still goes
+    /// after all of them.
+    func testUndoOfAnAddedSongKeepsItAmongTheAddedSongs() async throws {
+        let h = try await playing(songs)
+        await h.queue.addToQueue(uris: ["applemusic:song:a", "applemusic:song:b"])
+        await h.queue.requestQueueRefresh(trigger: .manual, allowsHiddenPanel: true)
+        let receiptResult = await h.queue.removeItems(withIDs: ids(h, ["applemusic:song:a"]))
+        let receipt = try XCTUnwrap(receiptResult)
+
+        await h.queue.undoRemoval(receipt)
+        await h.queue.addToQueue(uris: ["applemusic:song:c"])
+
+        XCTAssertEqual(
+            Array(h.player.upcomingURIs.prefix(4)),
+            ["applemusic:song:a", "applemusic:song:b", "applemusic:song:c", songs[1]]
+        )
+    }
+
+    // MARK: - Spotify
+
+    /// Spotify's Web API has no endpoint that removes a queued song: the queue offers no Remove
+    /// that would do nothing, and a removal asked for anyway changes nothing.
+    func testSpotifyOffersNoRemoval() async {
+        let provider = SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI())
+        let queue = QueueViewModel(provider: provider, playbackSession: PlaybackSessionViewModel(provider: provider))
+        queue.upcomingItems = [QueueItem(id: "queue:rest:occurrence:0", name: "Song", subtitle: "Artist", albumArtURL: nil, durationMilliseconds: 1, uri: "spotify:track:1")]
+
+        XCTAssertNil(provider.queueEditing)
+        XCTAssertFalse(queue.canEditQueue)
+        let receipt = await queue.removeItems(withIDs: ["queue:rest:occurrence:0"])
+        XCTAssertNil(receipt)
+        XCTAssertEqual(queue.upcomingItems.count, 1)
+    }
+
+    // MARK: - Planning a removal
+
+    func testARemovalTakesThePlaceThatStillShowsItsSong() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 1, uri: "b"), QueueRemoval(position: 2, uri: "c")],
+            upcomingURIs: ["a", "b", "c", "d"]
+        )
+        XCTAssertEqual(positions, [1, 2])
+    }
+
+    /// The same song queued twice: the copy the listener picked goes, not the first one.
+    func testARemovalOfADuplicateTakesThePickedCopy() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 3, uri: "a")],
+            upcomingURIs: ["a", "b", "c", "a"]
+        )
+        XCTAssertEqual(positions, [3])
+    }
+
+    func testASongThatLeftTheQueueIsLeftOut() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 0, uri: "gone"), QueueRemoval(position: 1, uri: "c")],
+            upcomingURIs: ["b", "c"]
+        )
+        XCTAssertEqual(positions, [1])
+    }
+}
+
+/// Selection in the track stacks that have no table (search results, Home's top tracks).
+final class TrackStackSelectionTests: XCTestCase {
+    private let order = ["a", "b", "c", "d", "e"]
+
+    func testClickSelectsOneShiftClickExtendsCommandClickToggles() {
+        var selection = TrackStackSelection()
+        selection.click("b", in: order, modifiers: [])
+        XCTAssertEqual(selection.ids, ["b"])
+
+        selection.click("d", in: order, modifiers: .shift)
+        XCTAssertEqual(selection.ids, ["b", "c", "d"])
+
+        selection.click("a", in: order, modifiers: .command)
+        XCTAssertEqual(selection.ids, ["a", "b", "c", "d"])
+        selection.click("c", in: order, modifiers: .command)
+        XCTAssertEqual(selection.ids, ["a", "b", "d"])
+
+        selection.click("e", in: order, modifiers: [])
+        XCTAssertEqual(selection.ids, ["e"])
+    }
+
+    /// Right-click on a selected row acts on the whole selection, in list order; on another row
+    /// only on that row.
+    func testMenuTargetsAreTheSelectionWhenTheClickedRowIsInIt() {
+        let tracks = order.map { TrackStackSelectionTests.row($0) }
+        var selection = TrackStackSelection()
+        selection.click("d", in: order, modifiers: [])
+        selection.click("b", in: order, modifiers: .command)
+
+        XCTAssertEqual(selection.menuTargets(for: tracks[3], in: tracks).map(\.id), ["b", "d"])
+        XCTAssertEqual(selection.menuTargets(for: tracks[0], in: tracks).map(\.id), ["a"])
+    }
+
+    func testNewResultsDropRowsThatAreGone() {
+        var selection = TrackStackSelection()
+        selection.click("a", in: order, modifiers: [])
+        selection.click("c", in: order, modifiers: .shift)
+        selection.keep(only: ["b", "x"])
+        XCTAssertEqual(selection.ids, ["b"])
+        XCTAssertNil(selection.anchor)
+    }
+
+    /// The menu says how many tracks it acts on once there is more than one.
+    @MainActor
+    func testTheMenuNamesTheSelectionCount() {
+        XCTAssertNil(TrackOpsMenuItems.selectionLabel(count: 1))
+        XCTAssertEqual(TrackOpsMenuItems.selectionLabel(count: 4), SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(4)))
+    }
+
+    private static func row(_ id: String) -> TrackRowViewModel {
+        TrackRowViewModel(queueItem: QueueItem(id: id, name: id, subtitle: "", albumArtURL: nil, durationMilliseconds: 1, uri: "applemusic:song:\(id)"))
+    }
+}

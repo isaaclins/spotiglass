@@ -202,6 +202,9 @@ final class QueueAutoplay: ObservableObject {
     private var addedKeys: Set<String> = []
     /// Songs that could not be added (not in the storefront, blocked as explicit).
     private var failedKeys: Set<String> = []
+    /// Songs the listener took out of the queue this session (#628): Autoplay doesn't bring
+    /// them back.
+    private var removedKeys: Set<String> = []
     private var currentKeys: Set<String> = []
     private var currentSeed: QueueAutoplaySeed?
     /// The tracks the last queue read returned and the ones added since, by URI, so a song that
@@ -317,6 +320,16 @@ final class QueueAutoplay: ObservableObject {
         kick()
     }
 
+    /// The listener took these songs out of the queue.
+    func listenerRemoved(_ tracks: [MusicTrack]) {
+        for track in tracks { removedKeys.formUnion(QueueAutoplayIdentity.keys(track)) }
+    }
+
+    /// The listener's Undo put these songs back, so they count as queued again, not removed.
+    func listenerRestored(_ tracks: [MusicTrack]) {
+        for track in tracks { removedKeys.subtract(QueueAutoplayIdentity.keys(track)) }
+    }
+
     /// Playback disconnected or the service changed: the next session starts fresh.
     func sessionEnded() {
         stopWorker()
@@ -324,6 +337,7 @@ final class QueueAutoplay: ObservableObject {
         heardKeys = []
         addedKeys = []
         failedKeys = []
+        removedKeys = []
         currentKeys = []
         currentSeed = nil
         knownTracks = [:]
@@ -391,7 +405,7 @@ final class QueueAutoplay: ObservableObject {
                 return
             }
             guard isEnabled, !Task.isCancelled else { return }
-            var excluded = heardKeys.union(addedKeys).union(failedKeys).union(currentKeys)
+            var excluded = heardKeys.union(addedKeys).union(failedKeys).union(currentKeys).union(removedKeys)
             for track in upcoming { excluded.formUnion(QueueAutoplayIdentity.keys(track)) }
             let lastArtist = upcoming.last.map(QueueAutoplayIdentity.artistKey)
                 ?? currentSeed.flatMap { $0.artists.first }.map(QueueAutoplayIdentity.normalized)
@@ -414,7 +428,7 @@ final class QueueAutoplay: ObservableObject {
                 // meanwhile, or a new song playing, isn't added again.
                 if let queuedNow = try? await player.autoplayUpcomingTracks() {
                     guard isEnabled, !Task.isCancelled else { return }
-                    let taken = queuedNow.reduce(into: heardKeys.union(currentKeys)) {
+                    let taken = queuedNow.reduce(into: heardKeys.union(currentKeys).union(removedKeys)) {
                         $0.formUnion(QueueAutoplayIdentity.keys($1))
                     }
                     if !taken.isDisjoint(with: QueueAutoplayIdentity.keys(track)) { continue }

@@ -93,6 +93,7 @@
 		D40000000000000000000004 /* QueuePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000014 /* QueuePanelView.swift */; };
 		D40000000000000000000005 /* TrackListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000015 /* TrackListRow.swift */; };
 		SRC000000000000000000001B /* TrackListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001B /* TrackListView.swift */; };
+		F62800000000000000000004 /* TrackStackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F62800000000000000000003 /* TrackStackSelection.swift */; };
 		D40000000000000000000006 /* ArtistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000016 /* ArtistDetailView.swift */; };
 		D40000000000000000000008 /* BrowserToolbarPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000018 /* BrowserToolbarPresentation.swift */; };
 		D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000019 /* NavigationToolbarChrome.swift */; };
@@ -255,6 +256,7 @@
 		PRO00000000000000000000EB /* QueueViewModel+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000FA /* QueueViewModel+Fetch.swift */; };
 		PRO00000000000000000000EC /* QueueViewModel+Enqueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000FB /* QueueViewModel+Enqueue.swift */; };
 		PRO00000000000000000000ED /* QueueViewModel+Shuffle.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000FC /* QueueViewModel+Shuffle.swift */; };
+		F62800000000000000000002 /* QueueViewModel+Remove.swift in Sources */ = {isa = PBXBuildFile; fileRef = F62800000000000000000001 /* QueueViewModel+Remove.swift */; };
 		F61300000000000000000001 /* QueueAutoplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61300000000000000000101 /* QueueAutoplay.swift */; };
 		R50000000000000000000001 /* ImmersiveLyricsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */; };
 		SPKL00000000000000000001 /* SparkleConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = SPKL00000000000000000011 /* SparkleConfiguration.swift */; };
@@ -335,6 +337,7 @@
 		TST00000000000000000000FD /* PlaybackSessionViewModelCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FD /* PlaybackSessionViewModelCoreTests.swift */; };
 		TST00000000000000000000FE /* QueueViewModelCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FE /* QueueViewModelCoreTests.swift */; };
 		F61300000000000000000003 /* QueueAutoplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61300000000000000000103 /* QueueAutoplayTests.swift */; };
+		F62800000000000000000006 /* QueueRemovalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F62800000000000000000005 /* QueueRemovalTests.swift */; };
 		TST00000000000000000000FF /* PlaylistBrowserDisplayErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */; };
 		TST00000000000000000001 /* TestTemporaryDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000051 /* TestTemporaryDirectories.swift */; };
 		F5100000000000000000001 /* ManualPlaybackClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5100000000000000000002 /* ManualPlaybackClock.swift */; };
@@ -582,6 +585,7 @@
 		D40000000000000000000014 /* QueuePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuePanelView.swift; sourceTree = "<group>"; };
 		D40000000000000000000015 /* TrackListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListRow.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001B /* TrackListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListView.swift; sourceTree = "<group>"; };
+		F62800000000000000000003 /* TrackStackSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackStackSelection.swift; sourceTree = "<group>"; };
 		D40000000000000000000016 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
 		D40000000000000000000018 /* BrowserToolbarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserToolbarPresentation.swift; sourceTree = "<group>"; };
 		D40000000000000000000019 /* NavigationToolbarChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationToolbarChrome.swift; sourceTree = "<group>"; };
@@ -742,6 +746,7 @@
 		PRO00000000000000000000FA /* QueueViewModel+Fetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QueueViewModel+Fetch.swift"; sourceTree = "<group>"; };
 		PRO00000000000000000000FB /* QueueViewModel+Enqueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QueueViewModel+Enqueue.swift"; sourceTree = "<group>"; };
 		PRO00000000000000000000FC /* QueueViewModel+Shuffle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QueueViewModel+Shuffle.swift"; sourceTree = "<group>"; };
+		F62800000000000000000001 /* QueueViewModel+Remove.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QueueViewModel+Remove.swift"; sourceTree = "<group>"; };
 		F61300000000000000000101 /* QueueAutoplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueAutoplay.swift; sourceTree = "<group>"; };
 		R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsViewModelTests.swift; sourceTree = "<group>"; };
 		SPKL00000000000000000011 /* SparkleConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleConfiguration.swift; sourceTree = "<group>"; };
@@ -880,6 +885,7 @@
 		TST00000000000000000100FD /* PlaybackSessionViewModelCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModelCoreTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100FE /* QueueViewModelCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueViewModelCoreTests.swift; sourceTree = "<group>"; };
 		F61300000000000000000103 /* QueueAutoplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueAutoplayTests.swift; sourceTree = "<group>"; };
+		F62800000000000000000005 /* QueueRemovalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueRemovalTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserDisplayErrorTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarOrderTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsOverlayControllerTests.swift; sourceTree = "<group>"; };
@@ -1032,6 +1038,7 @@
 				D40000000000000000000014 /* QueuePanelView.swift */,
 				D40000000000000000000015 /* TrackListRow.swift */,
 				SRC000000000000000008001B /* TrackListView.swift */,
+				F62800000000000000000003 /* TrackStackSelection.swift */,
 				D40000000000000000000016 /* ArtistDetailView.swift */,
 				H80000000000000000000011 /* PlayingWaveformIcon.swift */,
 				A10000000000000000000012 /* RootView.swift */,
@@ -1123,6 +1130,7 @@
 				PRO00000000000000000000FA /* QueueViewModel+Fetch.swift */,
 				PRO00000000000000000000FB /* QueueViewModel+Enqueue.swift */,
 				PRO00000000000000000000FC /* QueueViewModel+Shuffle.swift */,
+				F62800000000000000000001 /* QueueViewModel+Remove.swift */,
 				F61300000000000000000101 /* QueueAutoplay.swift */,
 				E50000000000000000000050 /* Session */,
 				H80000000000000000000012 /* ScrubberView.swift */,
@@ -1251,6 +1259,7 @@
 				TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */,
 				TST00000000000000000100FE /* QueueViewModelCoreTests.swift */,
 				F61300000000000000000103 /* QueueAutoplayTests.swift */,
+				F62800000000000000000005 /* QueueRemovalTests.swift */,
 				TST00000000000000000100FD /* PlaybackSessionViewModelCoreTests.swift */,
 				TST00000000000000000100FC /* PlaylistBrowserLikedSongsCoverageTests.swift */,
 				TST00000000000000000100FB /* CommandPaletteViewModelActionsTests.swift */,
@@ -1768,6 +1777,7 @@
 				PRO00000000000000000000EB /* QueueViewModel+Fetch.swift in Sources */,
 				PRO00000000000000000000EC /* QueueViewModel+Enqueue.swift in Sources */,
 				PRO00000000000000000000ED /* QueueViewModel+Shuffle.swift in Sources */,
+				F62800000000000000000002 /* QueueViewModel+Remove.swift in Sources */,
 				F61300000000000000000001 /* QueueAutoplay.swift in Sources */,
 				A10000000000000000000001 /* SpotiglassApp.swift in Sources */,
 				SRC0000000000000000000019 /* SpotiglassMenuCommands.swift in Sources */,
@@ -1918,6 +1928,7 @@
 				D40000000000000000000004 /* QueuePanelView.swift in Sources */,
 				D40000000000000000000005 /* TrackListRow.swift in Sources */,
 				SRC000000000000000000001B /* TrackListView.swift in Sources */,
+				F62800000000000000000004 /* TrackStackSelection.swift in Sources */,
 				D40000000000000000000006 /* ArtistDetailView.swift in Sources */,
 				E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
@@ -2109,6 +2120,7 @@
 				TST00000000000000000000FF /* PlaylistBrowserDisplayErrorTests.swift in Sources */,
 				TST00000000000000000000FE /* QueueViewModelCoreTests.swift in Sources */,
 				F61300000000000000000003 /* QueueAutoplayTests.swift in Sources */,
+				F62800000000000000000006 /* QueueRemovalTests.swift in Sources */,
 				TST00000000000000000000FD /* PlaybackSessionViewModelCoreTests.swift in Sources */,
 				TST00000000000000000000FC /* PlaylistBrowserLikedSongsCoverageTests.swift in Sources */,
 				TST00000000000000000000FB /* CommandPaletteViewModelActionsTests.swift in Sources */,

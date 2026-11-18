@@ -21,6 +21,8 @@ struct CatalogSearchView: View {
     let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     @FocusState private var isQueryFieldFocused: Bool
+    /// Several result rows can be selected and acted on together, like any track list (#628).
+    @State private var trackSelection = TrackStackSelection()
     /// The palette searches too: while it is open this page's field steps aside, so the window
     /// never shows two search fields stacked (#472). It keeps its place, so nothing moves.
     @Environment(\.isCommandPalettePresented) private var isCommandPalettePresented
@@ -226,7 +228,8 @@ struct CatalogSearchView: View {
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {
-        LazyVStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
+        let order = tracks.map(\.id)
+        return LazyVStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
             let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
@@ -252,9 +255,10 @@ struct CatalogSearchView: View {
                         openArtist: { artist in
                             Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
                         },
+                        isSelected: trackSelection.contains(track.id),
                         trackOpsMenuItems: {
                             AnyView(TrackOpsMenuItems(
-                                targets: [track],
+                                targets: trackSelection.menuTargets(for: track, in: tracks),
                                 browserViewModel: viewModel,
                                 sourcePlaylistID: nil,
                                 onRequestCreatePlaylist: onRequestCreatePlaylist,
@@ -272,9 +276,11 @@ struct CatalogSearchView: View {
                             ))
                         }
                     )
+                    .trackStackSelectable(track.id, in: order, selection: $trackSelection)
                 }
             }
         }
+        .onChange(of: order) { trackSelection.keep(only: order) }
     }
 
     private func artistSection(_ artists: [MusicArtist]) -> some View {

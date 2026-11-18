@@ -1,24 +1,31 @@
+import AppKit
 import SwiftUI
 
 struct QueuePanelView: View {
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     let openArtist: (ArtistTapTarget) -> Void
-    /// Builds the shared Spotify track-operations menu for a queue row. The
-    /// browser owns the mutation model, while the queue keeps its row design
-    /// and selection logic independent of it.
-    let trackOpsMenuItems: ((QueueItem) -> AnyView)?
+    /// Builds the shared track-operations menu for the rows a right-click acts on: the
+    /// selection when the clicked row is in it, else the clicked row. The browser owns the
+    /// mutation model, while the queue keeps its row design and selection logic independent of it.
+    let trackOpsMenuItems: (([QueueItem]) -> AnyView)?
 
     /// Drives the list's own selection, which is what makes the rows reachable
     /// with the arrow keys and gives them a de-emphasized highlight when the
-    /// panel is not focused. Return plays whatever is selected (#123).
-    @State private var selectedItemID: QueueItem.ID?
+    /// panel is not focused. Return plays the first selected row (#123); several rows can be
+    /// selected like in every other track list (click, shift-click, command-click, command-A),
+    /// and Delete takes them out of the queue (#628).
+    @State private var selectedItemIDs: Set<QueueItem.ID> = []
+    /// A click on a row selects it without focusing the list (the row's double-click gesture
+    /// takes the mouse-down), which left the selection grey and the keys unheard (#628).
+    @FocusState private var isListFocused: Bool
+    @Environment(\.undoManager) private var undoManager
 
     init(
         queueViewModel: QueueViewModel,
         playbackViewModel: PlaybackSessionViewModel,
         openArtist: @escaping (ArtistTapTarget) -> Void,
-        trackOpsMenuItems: ((QueueItem) -> AnyView)? = nil
+        trackOpsMenuItems: (([QueueItem]) -> AnyView)? = nil
     ) {
         _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
         _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
@@ -38,10 +45,26 @@ struct QueuePanelView: View {
             }
 
             queueList
+                // Floats over the top of the list, right under Clear: at the panel's bottom the
+                // player bar floating over that edge covered it. Over the list, so nothing
+                // moves when it comes and goes.
+                .overlay(alignment: .top) {
+                    if let removal = queueViewModel.lastRemoval {
+                        QueueRemovalNotice(removal: removal) {
+                            undo(removal)
+                        } dismiss: {
+                            queueViewModel.dismissRemovalNotice()
+                        }
+                        .padding(.horizontal, SpotiglassDesign.Layout.panelMargin)
+                        .padding(.top, SpotiglassDesign.spacingXS)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: queueViewModel.lastError?.id)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: queueViewModel.lastRemoval?.id)
     }
 
     private var header: some View {
@@ -64,6 +87,13 @@ struct QueuePanelView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if queueViewModel.canEditQueue {
+                Button(SpotiglassL10n.string("queue.clear")) {
+                    remove { await queueViewModel.clearUpcoming() }
+                }
+                .disabled(queueViewModel.upcomingItems.isEmpty)
+                .help(SpotiglassL10n.string("queue.clear.help"))
+            }
             QueueAutoplayButton(autoplay: queueViewModel.autoplay)
             Button {
                 Task { await queueViewModel.toggleShuffle() }
@@ -141,18 +171,98 @@ struct QueuePanelView: View {
     /// no selection, no keyboard traversal and no row semantics for VoiceOver
     /// (#112, #123).
     private var queueList: some View {
-        List(selection: $selectedItemID) {
+        List(selection: $selectedItemIDs) {
             nowPlayingSection
             upNextSection
         }
         .listStyle(.inset)
+        .focused($isListFocused)
+        .onChange(of: selectedItemIDs) {
+            if !selectedItemIDs.isEmpty { isListFocused = true }
+        }
         .onKeyPress(.return) {
-            guard let selectedItemID,
-                let item = queueViewModel.item(forSelectionID: selectedItemID),
-                item.playableURI != nil
-            else { return .ignored }
+            guard let item = selectedItemsInOrder.first, item.playableURI != nil else { return .ignored }
             Task { await queueViewModel.playItem(item) }
             return .handled
+        }
+        .onDeleteCommand {
+            removeSelection(including: nil)
+        }
+        // Rows are known by their place in the queue, so once the queue changed (a song ended,
+        // a removal) a kept selection would point at other songs. Polls that find the same
+        // queue keep it.
+        .onChange(of: queueViewModel.upcomingItems.map(\.uri)) {
+            selectedItemIDs = []
+        }
+    }
+
+    /// The selected rows in list order, the playing row first.
+    private var selectedItemsInOrder: [QueueItem] {
+        ([queueViewModel.nowPlayingItem].compactMap { $0 } + queueViewModel.upcomingItems)
+            .filter { selectedItemIDs.contains($0.id) }
+    }
+
+    /// The rows a right-click on `item` acts on: the whole selection when the row is part of
+    /// it, else the row alone, like a Finder or Music list.
+    private func menuTargets(for item: QueueItem) -> [QueueItem] {
+        selectedItemIDs.contains(item.id) && selectedItemIDs.count > 1 ? selectedItemsInOrder : [item]
+    }
+
+    /// The upcoming rows Remove takes out for a right-click on `item` (or the selection for
+    /// the Delete key, `item` nil).
+    private func removalIDs(for item: QueueItem?) -> Set<QueueItem.ID> {
+        let targets = item.map(menuTargets(for:)) ?? selectedItemsInOrder
+        let upcoming = Set(queueViewModel.upcomingItems.map(\.id))
+        return Set(targets.map(\.id)).intersection(upcoming)
+    }
+
+    private func removeSelection(including item: QueueItem?) {
+        let ids = removalIDs(for: item)
+        guard queueViewModel.canEditQueue, !ids.isEmpty else { return }
+        selectedItemIDs.subtract(ids)
+        remove { await queueViewModel.removeItems(withIDs: ids) }
+    }
+
+    /// Runs a removal and offers its Undo in the Edit menu (⌘Z) too. The undo is registered
+    /// right away, inside the click or key press, on the undo manager of the window the Edit
+    /// menu asks: registered after the player answered, it missed that event and ⌘Z found
+    /// nothing to undo.
+    private func remove(_ removal: @escaping () async -> QueueRemovalReceipt?) {
+        let manager = windowUndoManager
+        let pending = PendingQueueRemoval()
+        manager?.registerUndo(withTarget: queueViewModel) { queue in
+            guard let receipt = pending.receipt else { return }
+            Task { @MainActor in await queue.undoRemoval(receipt) }
+        }
+        manager?.setActionName(SpotiglassL10n.string("queue.remove.undoName"))
+        Task {
+            pending.receipt = await removal()
+            if pending.receipt == nil { manager?.removeAllActions(withTarget: queueViewModel) }
+        }
+    }
+
+    private var windowUndoManager: UndoManager? {
+        NSApp.keyWindow?.firstResponder?.undoManager ?? NSApp.keyWindow?.undoManager ?? undoManager
+    }
+
+    private func undo(_ receipt: QueueRemovalReceipt) {
+        // The button and ⌘Z undo the same removal; whichever comes first, the other has nothing left.
+        windowUndoManager?.removeAllActions(withTarget: queueViewModel)
+        Task { await queueViewModel.undoRemoval(receipt) }
+    }
+
+    /// Remove for the queue's own rows: the item when the service can, else a line saying it
+    /// can't, so there's no Remove that does nothing (Spotify, #628).
+    @ViewBuilder
+    private func removeMenuItem(for item: QueueItem) -> some View {
+        if queueViewModel.canEditQueue {
+            let count = removalIDs(for: item).count
+            Button(SpotiglassL10n.format("queue.remove.selection", Int64(count))) {
+                removeSelection(including: item)
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+        } else {
+            Text(SpotiglassL10n.format("queue.remove.unavailable", queueViewModel.provider.service.displayName))
         }
     }
 
@@ -170,7 +280,7 @@ struct QueuePanelView: View {
                         },
                         openArtist: openArtist,
                         trackOpsMenuItems: trackOpsMenuItems.map { builder in
-                            { builder(item) }
+                            { builder(menuTargets(for: item)) }
                         }
                     )
                     .id("now-playing-row:\(item.id)")
@@ -211,8 +321,9 @@ struct QueuePanelView: View {
                             Task { await queueViewModel.playItem(item) }
                         },
                         openArtist: openArtist,
+                        removeMenuItem: { AnyView(removeMenuItem(for: item)) },
                         trackOpsMenuItems: trackOpsMenuItems.map { builder in
-                            { builder(item) }
+                            { builder(menuTargets(for: item)) }
                         }
                     )
                     .tag(item.id)
@@ -294,6 +405,8 @@ private struct QueueRowView: View {
     let isPlaying: Bool
     let onSelect: () -> Void
     let openArtist: (ArtistTapTarget) -> Void
+    /// Remove from Queue for an upcoming row; `nil` for the playing one.
+    var removeMenuItem: (() -> AnyView)? = nil
     let trackOpsMenuItems: (() -> AnyView)?
 
     var body: some View {
@@ -336,6 +449,10 @@ private struct QueueRowView: View {
         .contextMenu {
             if item.playableURI != nil {
                 Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
+            }
+            if let removeMenuItem {
+                Divider()
+                removeMenuItem()
             }
             if let trackOpsMenuItems {
                 Divider()
@@ -405,6 +522,46 @@ private struct QueueRowPlayInteractionModifier: ViewModifier {
                 .accessibilityAction(named: Text(accessibilityLabel), action)
         } else {
             content
+        }
+    }
+}
+
+/// The receipt of a removal whose undo was registered before the player answered.
+@MainActor
+private final class PendingQueueRemoval {
+    var receipt: QueueRemovalReceipt?
+}
+
+/// The bar that says what a removal took out of the queue, with its Undo (#628). It goes by
+/// itself after a while; ⌘Z still undoes it then.
+struct QueueRemovalNotice: View {
+    let removal: QueueRemovalReceipt
+    let undo: () -> Void
+    let dismiss: () -> Void
+
+    static let visibleDuration: Duration = .seconds(6)
+
+    var body: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text(SpotiglassL10n.format("queue.removed.count", Int64(removal.count)))
+                .font(.callout.weight(.medium))
+                .lineLimit(1)
+            Spacer(minLength: SpotiglassDesign.spacingS)
+            Button(SpotiglassL10n.string("queue.undo"), action: undo)
+                .buttonStyle(.borderless)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.spotiglassAccent)
+                .help(SpotiglassL10n.string("queue.undo.help"))
+        }
+        .padding(.horizontal, SpotiglassDesign.spacingM)
+        .padding(.vertical, SpotiglassDesign.spacingS)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+        .accessibilityElement(children: .contain)
+        .task(id: removal.id) {
+            try? await Task.sleep(for: Self.visibleDuration)
+            guard !Task.isCancelled else { return }
+            dismiss()
         }
     }
 }

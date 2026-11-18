@@ -12,6 +12,8 @@ final class QueueViewModel: ObservableObject {
     @Published var upcomingItems: [QueueItem] = []
     @Published var isLoading = false
     @Published var lastError: BrowsingDisplayError?
+    /// The latest removal from the queue, while its Undo is offered (#628).
+    @Published var lastRemoval: QueueRemovalReceipt?
 
     /// The music service's player; the queue is read from and added to through it.
     let provider: any MusicPlaybackProvider
@@ -184,11 +186,6 @@ final class QueueViewModel: ObservableObject {
 
     func syncFromPlaybackSession() {
         publishMergedState()
-    }
-
-    func item(forSelectionID id: QueueItem.ID) -> QueueItem? {
-        upcomingItems.first(where: { $0.id == id })
-            ?? nowPlayingItem.flatMap { $0.id == id ? $0 : nil }
     }
 
     /// Web Playback SDK updated `track_window.next_tracks` (e.g. track advanced, queue context changed).

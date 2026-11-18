@@ -50,6 +50,68 @@ protocol MusicPlaybackDeviceTransfer: AnyObject {
     func transferPlayback(to deviceID: String, play: Bool) async throws
 }
 
+/// Taking songs out of the queue and putting them back (#628).
+@MainActor
+protocol MusicQueueEditing: AnyObject {
+    /// Takes the songs out of what plays next. Each removal names the song's place in the
+    /// upcoming list the listener saw and its URI: when the queue moved on meanwhile (a song
+    /// ended), the song is found by its URI instead, and one that is gone is left out.
+    func removeFromQueue(_ removals: [QueueRemoval]) async throws -> QueueRemovalReceipt
+    /// Takes out everything after the current song.
+    func clearUpcomingQueue() async throws -> QueueRemovalReceipt
+    /// Puts the songs of a removal back where they were, counted from the current song.
+    func restoreToQueue(_ receipt: QueueRemovalReceipt) async throws
+}
+
+/// One song to take out of the queue: its place in the upcoming list (0 is the song right
+/// after the current one) and its URI.
+struct QueueRemoval: Equatable, Sendable {
+    let position: Int
+    let uri: String?
+}
+
+/// What a removal took out, so Undo can put it back. `positions` are each song's place in
+/// the upcoming list before the removal, in ascending order, one per track.
+struct QueueRemovalReceipt: Equatable {
+    let id: UUID
+    let positions: [Int]
+    let tracks: [MusicTrack]
+
+    init(id: UUID = UUID(), positions: [Int], tracks: [MusicTrack]) {
+        self.id = id
+        self.positions = positions
+        self.tracks = tracks
+    }
+
+    var count: Int { tracks.count }
+}
+
+/// Which upcoming songs a removal takes out, worked out on the queue as it is now.
+enum QueueRemovalPlan {
+    /// The upcoming positions to remove, ascending. A removal whose position still holds its
+    /// URI takes that position; otherwise the nearest upcoming song with that URI that isn't
+    /// taken yet; otherwise nothing (the song played or left the queue meanwhile).
+    static func positions(for removals: [QueueRemoval], upcomingURIs: [String?]) -> [Int] {
+        var taken: Set<Int> = []
+        for removal in removals.sorted(by: { $0.position < $1.position }) {
+            let wanted = MusicPlayableURI.canonical(removal.uri) ?? removal.uri
+            func matches(_ index: Int) -> Bool {
+                guard upcomingURIs.indices.contains(index), !taken.contains(index) else { return false }
+                return (MusicPlayableURI.canonical(upcomingURIs[index]) ?? upcomingURIs[index]) == wanted
+            }
+            if matches(removal.position) {
+                taken.insert(removal.position)
+                continue
+            }
+            let nearest = upcomingURIs.indices
+                .filter(matches)
+                .min { abs($0 - removal.position) < abs($1 - removal.position) }
+            if let nearest { taken.insert(nearest) }
+        }
+        return taken.sorted()
+    }
+}
+
 /// Everything the playback session sends to, and reads from, a music service's
 /// player: starting items or a context, pause / resume, seek, skip, shuffle,
 /// repeat, volume, the queue, and the player's state.
@@ -84,6 +146,10 @@ protocol MusicPlaybackProvider: AnyObject {
 
     /// Spotify Connect style device transfer, or `nil` when the service has none.
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { get }
+
+    /// Taking songs out of what plays next, or `nil` when the service can't (#628). Spotify's
+    /// Web API has no endpoint that removes a queued song, so Spotify has none.
+    var queueEditing: (any MusicQueueEditing)? { get }
 
     /// Receives every player event. The session installs it when it is created;
     /// the provider calls it on the main actor, synchronously, in event order.
@@ -141,6 +207,8 @@ protocol MusicPlaybackProvider: AnyObject {
 
 extension MusicPlaybackProvider {
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { nil }
+
+    var queueEditing: (any MusicQueueEditing)? { nil }
 
     var isQueueSettling: Bool { false }
 

@@ -59,6 +59,11 @@ protocol AppleMusicPlayerControlling: AnyObject {
     func readState() -> AppleMusicPlayerState
     /// The entries after the current one, in play order.
     func readUpcoming() -> [MusicTrack]
+    /// Takes the entries at these places in ``readUpcoming()`` out of the queue (#628) and keeps
+    /// them under the receipt's id for ``restoreUpcoming(_:)``. Places past the end are left out.
+    func removeUpcoming(at positions: [Int]) -> QueueRemovalReceipt
+    /// Puts the entries of a removal back at their places, counted from the current entry.
+    func restoreUpcoming(_ receipt: QueueRemovalReceipt) throws
 }
 
 /// Apple Music behind ``MusicPlaybackProvider``, played by MusicKit's `ApplicationMusicPlayer`.
@@ -247,6 +252,27 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         try await perform { try await add.value }
     }
 
+    // MARK: - Queue editing
+
+    /// Edits wait for the play and the adds before them, like an add, so they work on the
+    /// queue the listener saw once those are in.
+    private func edit<Result>(_ change: @escaping @MainActor () throws -> Result) async throws -> Result {
+        let previous = enqueueTail
+        let pendingPlay = latestPlay
+        let session = session
+        let run = Task { @MainActor [weak self] () throws -> Result in
+            await pendingPlay?.value
+            await previous?.value
+            guard let self, self.session == session, !self.isSessionEnded else { throw CancellationError() }
+            return try change()
+        }
+        enqueueTail = Task { _ = await run.result }
+        var result: Result?
+        try await perform { result = try await run.value }
+        guard let result else { throw CancellationError() }
+        return result
+    }
+
     // MARK: - Commands for the in-app player
 
     /// The session uses explicit pause / resume for a player without pushed state; this is
@@ -389,6 +415,31 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         } catch {
             throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: String(describing: error))
         }
+    }
+}
+
+/// Apple Music can take songs out of its queue: MusicKit's queue entries are a mutable list.
+extension AppleMusicPlaybackProvider: MusicQueueEditing {
+    var queueEditing: (any MusicQueueEditing)? { self }
+
+    func removeFromQueue(_ removals: [QueueRemoval]) async throws -> QueueRemovalReceipt {
+        try await edit { [player] in
+            let positions = QueueRemovalPlan.positions(
+                for: removals,
+                upcomingURIs: player.readUpcoming().map(\.uri)
+            )
+            return player.removeUpcoming(at: positions)
+        }
+    }
+
+    func clearUpcomingQueue() async throws -> QueueRemovalReceipt {
+        try await edit { [player] in
+            player.removeUpcoming(at: Array(player.readUpcoming().indices))
+        }
+    }
+
+    func restoreToQueue(_ receipt: QueueRemovalReceipt) async throws {
+        try await edit { [player] in try player.restoreUpcoming(receipt) }
     }
 }
 
@@ -575,6 +626,72 @@ struct AppleMusicQueueBook: Equatable {
         } else {
             rows = []
         }
+    }
+
+    /// What the book held for the entries a removal took out, so ``restore(_:)`` puts it back.
+    struct Removal: Equatable {
+        /// Each removed entry's row, when the book knew it.
+        let rows: [Row?]
+        /// Which of the removed entries were songs added with Add to Queue.
+        let wereAdded: [Bool]
+    }
+
+    /// The entries at `indices` (queue positions, any order) were taken out of a queue of
+    /// `entryCount` entries (#628). Rows after them move up, and the run of added songs
+    /// shrinks by the ones that were in it.
+    @discardableResult
+    mutating func remove(at indices: [Int], entryCount: Int) -> Removal {
+        let sorted = Array(Set(indices)).sorted()
+        let rowsMatchQueue = rows.count == entryCount
+        let removal = Removal(
+            rows: sorted.map { rowsMatchQueue && rows.indices.contains($0) ? rows[$0] : nil },
+            wereAdded: sorted.map { index in added.map { $0.start <= index && index < $0.start + $0.count } ?? false }
+        )
+        for index in sorted.reversed() {
+            if rowsMatchQueue, rows.indices.contains(index) { rows.remove(at: index) }
+            if var run = added {
+                if index < run.start {
+                    run.start -= 1
+                } else if index < run.start + run.count {
+                    run.count -= 1
+                }
+                added = run.count > 0 ? run : nil
+            }
+        }
+        if !rowsMatchQueue { rows = [] }
+        // An add planned before this would land on a stale position.
+        generation &+= 1
+        return removal
+    }
+
+    /// Undo of ``remove(at:entryCount:)``: the entries went back in at `indices` (ascending,
+    /// positions after the insert) into a queue that had `entryCount` entries before it.
+    mutating func restore(_ removal: Removal, at indices: [Int], entryCount: Int) {
+        let rowsMatchQueue = rows.count == entryCount
+        for (offset, index) in indices.enumerated() {
+            let row = removal.rows.indices.contains(offset) ? removal.rows[offset] : nil
+            if rowsMatchQueue, let row, index <= rows.count {
+                rows.insert(row, at: index)
+            } else {
+                rows = []
+            }
+            let wasAdded = removal.wereAdded.indices.contains(offset) && removal.wereAdded[offset]
+            guard var run = added else {
+                if wasAdded { added = AddedRun(start: index, count: 1) }
+                continue
+            }
+            if wasAdded, index >= run.start - 1, index <= run.start + run.count {
+                // Back next to (or inside) the run it was part of.
+                run.count += 1
+                run.start = min(run.start, index)
+            } else if index <= run.start {
+                run.start += 1
+            } else if index < run.start + run.count {
+                run.count += 1
+            }
+            added = run
+        }
+        generation &+= 1
     }
 
     /// The row of a queue entry: by its id when it was noted, else by its position when the

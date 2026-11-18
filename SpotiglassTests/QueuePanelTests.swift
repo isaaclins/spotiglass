@@ -435,7 +435,9 @@ final class QueuePanelTests: XCTestCase {
         await queue.refreshQueue()
         let selectedID = queue.upcomingItems[1].id
 
-        XCTAssertEqual(queue.item(forSelectionID: selectedID)?.name, "Duplicate two")
+        XCTAssertEqual(queue.upcomingItems.first { $0.id == selectedID }?.name, "Duplicate two")
+        // A removal of the selected copy names its own place, not the first copy's (#628).
+        XCTAssertEqual(queue.removals(for: [selectedID]), [QueueRemoval(position: 1, uri: "spotify:track:duplicate")])
     }
 
     func testQueueViewModelMergesSDKTracksWithAPIQueueSources() async {

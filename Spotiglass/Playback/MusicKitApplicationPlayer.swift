@@ -207,6 +207,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         book = AppleMusicQueueBook()
         uriByEntryKey = [:]
         uriMapGeneration += 1
+        removals = []
     }
 
     func seek(toMilliseconds milliseconds: Int) {
@@ -415,6 +416,62 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
               let currentIndex = entries.firstIndex(where: { $0.id == currentID })
         else { return [] }
         return entries.indices.dropFirst(currentIndex + 1).compactMap { track(for: entries[$0], at: $0) }
+    }
+
+    // MARK: - Removing (#628)
+
+    /// What each removal took out, for Undo: the entries and what the book knew about them.
+    /// Only the latest few are kept; an older one can't be undone.
+    private var removals: [(receipt: UUID, entries: [MusicPlayer.Queue.Entry], book: AppleMusicQueueBook.Removal)] = []
+    private static let removalUndoLimit = 10
+
+    func removeUpcoming(at positions: [Int]) -> QueueRemovalReceipt {
+        guard !starts.hidesRefusedQueue else { return QueueRemovalReceipt(positions: [], tracks: []) }
+        noteEntries()
+        let entries = Array(player.queue.entries)
+        guard let currentID = player.queue.currentEntry?.id,
+              let currentIndex = entries.firstIndex(where: { $0.id == currentID })
+        else { return QueueRemovalReceipt(positions: [], tracks: []) }
+        // The same places ``readUpcoming()`` counts: entries it shows, after the current one.
+        let upcoming = entries.indices.dropFirst(currentIndex + 1).compactMap { index in
+            track(for: entries[index], at: index).map { (index: index, track: $0) }
+        }
+        let chosen = Array(Set(positions)).sorted().filter(upcoming.indices.contains).map { (position: $0, entry: upcoming[$0]) }
+        guard !chosen.isEmpty else { return QueueRemovalReceipt(positions: [], tracks: []) }
+        let indices = chosen.map(\.entry.index)
+        PlaybackTrace.shared.command("removeFromQueue", "\(indices.count) at \(indices)")
+        for index in indices.reversed() {
+            player.queue.entries.remove(at: index)
+        }
+        let bookRemoval = book.remove(at: indices, entryCount: entries.count)
+        let receipt = QueueRemovalReceipt(positions: chosen.map(\.position), tracks: chosen.map(\.entry.track))
+        removals.append((receipt.id, indices.map { entries[$0] }, bookRemoval))
+        if removals.count > Self.removalUndoLimit { removals.removeFirst(removals.count - Self.removalUndoLimit) }
+        return receipt
+    }
+
+    func restoreUpcoming(_ receipt: QueueRemovalReceipt) throws {
+        guard let found = removals.firstIndex(where: { $0.receipt == receipt.id }) else {
+            throw MusicPlaybackError(service: .appleMusic, reason: .notFound, detail: "That removal can no longer be undone")
+        }
+        let removal = removals.remove(at: found)
+        noteEntries()
+        let entries = Array(player.queue.entries)
+        let currentIndex = player.queue.currentEntry.flatMap { current in entries.firstIndex { $0.id == current.id } }
+        guard let currentIndex else {
+            throw MusicPlaybackError(service: .appleMusic, reason: .notFound, detail: "Nothing plays to put the songs back after")
+        }
+        var count = entries.count
+        var indices: [Int] = []
+        // Ascending, so each song lands where it was with the ones before it back in place.
+        for (position, entry) in zip(receipt.positions, AppleMusicQueueStarts<RestorePoint>.fresh(removal.entries)) {
+            let index = min(currentIndex + 1 + position, count)
+            player.queue.entries.insert(entry, at: index)
+            indices.append(index)
+            count += 1
+        }
+        PlaybackTrace.shared.command("restoreToQueue", "\(indices.count) at \(indices)")
+        book.restore(removal.book, at: indices, entryCount: entries.count)
     }
 
     // MARK: - Mapping

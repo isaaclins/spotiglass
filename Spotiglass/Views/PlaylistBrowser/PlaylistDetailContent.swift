@@ -533,6 +533,11 @@ struct TrackOpsMenuItems: View {
         return actions
     }
 
+    /// The line at the top of the menu for a selection of several tracks; `nil` for one.
+    static func selectionLabel(count: Int) -> String? {
+        count > 1 ? SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(count)) : nil
+    }
+
     /// The URI behind "Copy Spotify URI", only when it really is one. Other services' items
     /// (`applemusic:song:…`) have no Spotify URI, so the item is hidden for them.
     static func copyableSpotifyURI(_ uri: String?) -> String? {
@@ -615,6 +620,13 @@ struct TrackOpsMenuItems: View {
         let destinations = browserViewModel.userOwnedPlaylistsForMenu(
             excludingPlaylistID: sourcePlaylistID
         )
+
+        // A right-click on a selected row acts on the whole selection: the menu says how many
+        // tracks that is, so it's clear the items below aren't for the clicked row alone (#628).
+        if let selectionLabel = Self.selectionLabel(count: targets.count) {
+            Text(selectionLabel)
+            Divider()
+        }
 
         if menuActionKinds.contains(.openArtist), let openArtist {
             Menu(SpotiglassL10n.string("browser.track.openArtist")) {

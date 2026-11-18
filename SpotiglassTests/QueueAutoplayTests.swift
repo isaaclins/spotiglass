@@ -725,3 +725,47 @@ extension QueueAutoplayRanking {
         return picks
     }
 }
+
+// MARK: - Removing from the queue (#628)
+
+extension QueueAutoplayTests {
+    /// A song the listener takes out of the queue while Autoplay is on, then the next song
+    /// starts: Autoplay fills the queue up again, but never with the removed song, even when
+    /// the suggestions rank it first.
+    func testARemovedSongIsNotAddedBack() async throws {
+        let h = makeHarness()
+        let removed = seeds[2]
+        h.source.fixed = [Self.candidate(removed, score: 9_000)]
+            + (1...30).map { Self.candidate("applemusic:song:new-\($0)", score: Double(1_000 - $0)) }
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.autoplay.setEnabled(true)
+        await h.autoplay.settle()
+        let before = try await upcoming(h)
+        XCTAssertEqual(before.filter { $0 == removed }.count, 1)
+
+        // What the queue panel sends for the row the listener removed.
+        let removal = QueueRemoval(position: try XCTUnwrap(before.firstIndex(of: removed)), uri: removed)
+        let receipt = try await h.provider.removeFromQueue([removal])
+        h.autoplay.listenerRemoved(receipt.tracks)
+        let rightAfter = try await upcoming(h)
+        XCTAssertFalse(rightAfter.contains(removed))
+
+        for _ in 0..<3 { try await next(h) }
+
+        let after = try await upcoming(h)
+        XCTAssertFalse(after.contains(removed), "Autoplay brought back the removed song: \(after)")
+        XCTAssertNotEqual(current(h), removed)
+        XCTAssertEqual(after.count, 8, "the queue is filled up again")
+    }
+
+    private static func candidate(_ uri: String, score: Double) -> QueueAutoplayCandidate {
+        QueueAutoplayCandidate(
+            track: MusicTrack(
+                id: uri, name: uri, artists: ["Artist \(uri.suffix(1))"], albumArtworkURL: nil, durationMilliseconds: 200_000,
+                isExplicit: false, isPlayable: true, linkedFromID: nil, uri: uri
+            ),
+            score: score
+        )
+    }
+}
