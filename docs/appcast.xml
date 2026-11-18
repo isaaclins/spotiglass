@@ -3,16 +3,14 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.56</title>
-            <pubDate>Wed, 18 Nov 2026 16:22:49 +0100</pubDate>
-            <sparkle:version>67</sparkle:version>
-            <sparkle:shortVersionString>0.8.56</sparkle:shortVersionString>
+            <title>0.8.57</title>
+            <pubDate>Wed, 18 Nov 2026 17:23:18 +0100</pubDate>
+            <sparkle:version>68</sparkle:version>
+            <sparkle:shortVersionString>0.8.57</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• You can now remove songs from the queue.
-• You can select several songs at once in every list and act on them together.
-• Removed songs can be brought back with undo.
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.56/Wax-0.8.56.zip" length="16415499" type="application/octet-stream" sparkle:edSignature="kjxJvcKZ6hNIsicbCZdFwbVTsmN0OecRcOl2XwivKn8quryWsZfwHiwamEht4w7TSbxsgIG5rp06yj82ATVJBA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.57/Wax-0.8.57.zip" length="16548291" type="application/octet-stream" sparkle:edSignature="bXp8ED1onlpH2iU8qT6VUQycOcXZ8ucT0g7hvbi1kJU3sF018mQap8YtncsX3epB0fhBjXWZZ7kem+dH8dg6Dg=="/>
         </item>
     </channel>
 </rss>
