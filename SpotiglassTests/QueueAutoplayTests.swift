@@ -275,6 +275,73 @@ final class QueueAutoplayTests: XCTestCase {
         XCTAssertEqual(queue.first, "applemusic:song:new-1", "it stays where Add to Queue put it")
     }
 
+    /// A failure that isn't about the song (no network) stops the round after one try and
+    /// rules nothing out: once the network is back, the next song adds those same songs.
+    func testANetworkFailureRetriesOnTheNextSongWithoutRulingSongsOut() async throws {
+        let h = makeHarness()
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.player.appendError = MusicPlaybackError(service: .appleMusic, reason: .network("offline"), detail: "offline")
+        h.autoplay.setEnabled(true)
+        await h.autoplay.settle()
+        XCTAssertEqual(h.player.appendAttempts, 1, "it doesn't run through every suggestion")
+        XCTAssertEqual(h.autoplay.status, .failed)
+
+        h.player.appendError = nil
+        try await next(h)
+
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue.count, 8)
+        XCTAssertTrue(queue.contains("applemusic:song:new-1"), "the song that failed offline is still a candidate")
+        XCTAssertEqual(h.autoplay.status, .on)
+    }
+
+    /// When the player refuses a song, the next one is chosen against the artist that really
+    /// went in last, so the same artist doesn't play twice in a row while another is left.
+    func testARefusedSongDoesntPutTheSameArtistTwiceInARow() async throws {
+        let h = makeHarness(fillTarget: 4)
+        h.source.fixed = [
+            QueueAutoplayCandidate(track: Self.track("b1", title: "B One", artist: "Band B"), score: 3),
+            QueueAutoplayCandidate(track: Self.track("a1", title: "A One", artist: "Artist"), score: 2),
+            QueueAutoplayCandidate(track: Self.track("b2", title: "B Two", artist: "Band B"), score: 1),
+        ]
+        h.player.refusedURIs = ["applemusic:song:b1"]
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.autoplay.setEnabled(true)
+        await h.autoplay.settle()
+
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue.last, "applemusic:song:b2", "the queue ends with Artist; B Two goes in, not A One")
+    }
+
+    /// An add at the end that waited its turn behind the same song added by hand finds it
+    /// queued and leaves it out.
+    func testAnAddWaitingBehindTheSameSongAddedByHandIsLeftOut() async throws {
+        let h = makeHarness()
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        let song = "applemusic:song:new-1"
+        h.player.holdLookups = true
+        let byHand = Task { try await h.provider.enqueue(uri: song, deviceID: deviceID) }
+        await waitUntil("the hand-added song looking up", changes: h.player.changes) {
+            h.player.waitingLookups.contains("enqueue \(song)")
+        }
+        h.player.holdLookups = false
+        let autoplayAdd = Task { try await h.provider.appendToQueueEnd(uri: song, deviceID: deviceID, isWanted: { true }) }
+        h.player.releaseLookups()
+        try await byHand.value
+
+        do {
+            try await autoplayAdd.value
+            XCTFail("the song is queued already")
+        } catch let error as QueueAppendSkipped {
+            XCTAssertEqual(error, .alreadyQueued)
+            XCTAssertTrue(QueueAutoplay.refusesSong(error), "Autoplay moves on to the next suggestion")
+        }
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue.filter { $0 == song }.count, 1)
+    }
+
     /// With nothing new left in this style, Autoplay says so instead of repeating songs.
     func testRunningOutOfSuggestionsSaysSo() async throws {
         let h = makeHarness()
@@ -562,6 +629,8 @@ extension QueueAutoplay {
 @MainActor
 final class SampleAutoplaySource: QueueAutoplaySource {
     var poolSize = 200
+    /// Suggestions to give instead of the sample pool.
+    var fixed: [QueueAutoplayCandidate]?
     /// Runs while a request is out, as if the listener did something meanwhile.
     var duringRequest: (@MainActor () async -> Void)?
     private(set) var requests: [[QueueAutoplaySeed]] = []
@@ -572,6 +641,7 @@ final class SampleAutoplaySource: QueueAutoplaySource {
             self.duringRequest = nil
             await duringRequest()
         }
+        if let fixed { return fixed }
         let fresh = (1...max(1, poolSize)).prefix(poolSize).map { index in
             QueueAutoplayCandidate(
                 track: MusicTrack(
@@ -625,5 +695,26 @@ final class SampleAutoplayCatalog: AppleMusicAutoplayCatalog, @unchecked Sendabl
                 AppleMusicAutoplayCatalogArtist(id: $0.id, similarArtistIDs: includeSimilar ? $0.similarArtistIDs : [], topSongs: $0.topSongs)
             }
         }
+    }
+}
+
+extension QueueAutoplayRanking {
+    /// The songs Autoplay would add in a row when the player takes every one: the order of
+    /// ``ordered(_:excluded:)`` spread over artists by ``ArtistSpread``, as the add loop does.
+    static func pick(
+        _ candidates: [QueueAutoplayCandidate],
+        count: Int,
+        excluded: Set<String>,
+        lastArtistKey: String?
+    ) -> [MusicTrack] {
+        var remaining = ordered(candidates, excluded: excluded)
+        var picks: [MusicTrack] = []
+        var spread = ArtistSpread(lastArtistKey: lastArtistKey)
+        while picks.count < count, let index = spread.nextIndex(in: remaining) {
+            let track = remaining.remove(at: index)
+            spread.queued(track)
+            picks.append(track)
+        }
+        return picks
     }
 }

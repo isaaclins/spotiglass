@@ -151,3 +151,9 @@ extension MusicPlaybackProvider {
         try await enqueue(uri: uri, deviceID: deviceID)
     }
 }
+
+/// An add to the end of the queue that was left out on purpose.
+enum QueueAppendSkipped: Error, Equatable {
+    /// The song was queued meanwhile (added by hand while Autoplay waited its turn).
+    case alreadyQueued
+}

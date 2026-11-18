@@ -105,18 +105,11 @@ enum QueueAutoplayIdentity {
     }
 }
 
-/// Picks which suggested songs Autoplay adds. Pure: the same input always gives the same songs.
+/// Orders the suggested songs Autoplay adds. Pure: the same input always gives the same order.
 enum QueueAutoplayRanking {
-    /// Highest score first, never a song in `excluded` (heard, queued or added before), never
-    /// the same song twice, and no artist twice in a row (nor right after `lastArtistKey`)
-    /// while another artist is left.
-    static func pick(
-        _ candidates: [QueueAutoplayCandidate],
-        count: Int,
-        excluded: Set<String>,
-        lastArtistKey: String?
-    ) -> [MusicTrack] {
-        guard count > 0 else { return [] }
+    /// Playable suggestions, highest score first, without `excluded` songs and without the same
+    /// song twice.
+    static func ordered(_ candidates: [QueueAutoplayCandidate], excluded: Set<String>) -> [MusicTrack] {
         let ordered = candidates.enumerated()
             .filter { $0.element.track.isPlayable != false && MusicPlayableURI.canonical($0.element.track.uri) != nil }
             .sorted { lhs, rhs in
@@ -134,24 +127,34 @@ enum QueueAutoplayRanking {
             taken.formUnion(keys)
             remaining.append(track)
         }
+        return remaining
+    }
 
-        var picks: [MusicTrack] = []
-        var previousArtist = lastArtistKey
-        var pickedArtists: [String: Int] = [:]
-        while picks.count < count, !remaining.isEmpty {
-            // The best song by an artist not just played and not picked yet in this batch; then
-            // one only not just played; then the best left.
-            let index = remaining.firstIndex { track in
-                let artist = QueueAutoplayIdentity.artistKey(track)
-                return artist != previousArtist && pickedArtists[artist] == nil
-            } ?? remaining.firstIndex { QueueAutoplayIdentity.artistKey($0) != previousArtist } ?? 0
-            let track = remaining.remove(at: index)
-            let artist = QueueAutoplayIdentity.artistKey(track)
-            pickedArtists[artist, default: 0] += 1
-            previousArtist = artist
-            picks.append(track)
+    /// Spreads artists over the songs queued one after another: the best song by an artist not
+    /// just queued and not queued yet in this batch; then one only not just queued; then the
+    /// best left. Moves on only for songs that really went in, so a refused song doesn't
+    /// count.
+    struct ArtistSpread {
+        private var lastArtist: String?
+        private var batchArtists: Set<String> = []
+
+        init(lastArtistKey: String?) {
+            lastArtist = lastArtistKey
         }
-        return picks
+
+        func nextIndex(in remaining: [MusicTrack]) -> Int? {
+            guard !remaining.isEmpty else { return nil }
+            return remaining.firstIndex { track in
+                let artist = QueueAutoplayIdentity.artistKey(track)
+                return artist != lastArtist && !batchArtists.contains(artist)
+            } ?? remaining.firstIndex { QueueAutoplayIdentity.artistKey($0) != lastArtist } ?? 0
+        }
+
+        mutating func queued(_ track: MusicTrack) {
+            let artist = QueueAutoplayIdentity.artistKey(track)
+            batchArtists.insert(artist)
+            lastArtist = artist
+        }
     }
 }
 
@@ -392,21 +395,20 @@ final class QueueAutoplay: ObservableObject {
             for track in upcoming { excluded.formUnion(QueueAutoplayIdentity.keys(track)) }
             let lastArtist = upcoming.last.map(QueueAutoplayIdentity.artistKey)
                 ?? currentSeed.flatMap { $0.artists.first }.map(QueueAutoplayIdentity.normalized)
-            // Every suggestion in order: the next one stands in for a song the player refuses.
-            let picks = QueueAutoplayRanking.pick(
-                candidates,
-                count: candidates.count,
-                excluded: excluded,
-                lastArtistKey: lastArtist
-            )
-            guard !picks.isEmpty else {
+            // Every suggestion in order: the next one stands in for a song the player refuses,
+            // chosen against the artist that really went in last.
+            var remaining = QueueAutoplayRanking.ordered(candidates, excluded: excluded)
+            guard !remaining.isEmpty else {
                 status = .noMatches
                 owed = 0
                 return
             }
 
             var added = 0
-            for track in picks where added < want {
+            var spread = QueueAutoplayRanking.ArtistSpread(lastArtistKey: lastArtist)
+            var stalled = false
+            while added < want, let index = spread.nextIndex(in: remaining) {
+                let track = remaining.remove(at: index)
                 guard isEnabled, !Task.isCancelled else { return }
                 // The queue may have changed while the suggestions loaded: a song added by hand
                 // meanwhile, or a new song playing, isn't added again.
@@ -421,16 +423,24 @@ final class QueueAutoplay: ObservableObject {
                     try await player.autoplayAppend(uri: track.uri, isWanted: isWanted)
                     addedKeys.formUnion(QueueAutoplayIdentity.keys(track))
                     knownTracks[track.uri] = track
+                    spread.queued(track)
                     added += 1
                 } catch {
                     guard !Task.isCancelled, !(error is CancellationError) else { return }
+                    // Only a refusal of this song rules it out. Anything else (no network, a
+                    // server error) stops here and the next song tries again, the same songs
+                    // included, instead of running through every suggestion.
+                    guard Self.refusesSong(error) else {
+                        stalled = true
+                        break
+                    }
                     failedKeys.formUnion(QueueAutoplayIdentity.keys(track))
                 }
             }
             if added > 0 { queueChanged.send() }
             guard isEnabled, !Task.isCancelled else { return }
             owed = max(0, owed - owedNow)
-            if added == 0 {
+            if added == 0 || stalled {
                 status = .failed
                 owed = 0
                 return
@@ -439,6 +449,17 @@ final class QueueAutoplay: ObservableObject {
             if added < want { owed = 0 }
         }
         if isEnabled, status == .finding { status = .on }
+    }
+
+    /// Whether the player turned down this one song (not in the storefront, blocked as explicit,
+    /// queued meanwhile), so the next suggestion takes its place.
+    static func refusesSong(_ error: Error) -> Bool {
+        if error is QueueAppendSkipped { return true }
+        guard let error = error as? MusicPlaybackError else { return false }
+        switch error.reason {
+        case .notFound, .explicitContentRestricted: return true
+        default: return false
+        }
     }
 
     /// The last ``windowSize`` songs of played, playing and queued, in order. A song the

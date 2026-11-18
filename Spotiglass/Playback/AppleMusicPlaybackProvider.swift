@@ -226,6 +226,10 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
                 return self.session == session && !self.isSessionEnded && isWanted()
             }
             if atEnd {
+                // An add waiting its turn behind one made by hand finds that one queued now.
+                if player.readUpcoming().contains(where: { $0.uri == uri }) {
+                    throw QueueAppendSkipped.alreadyQueued
+                }
                 try await player.append(uri: uri, isCurrent: isCurrent)
             } else {
                 try await player.enqueue(uri: uri, isCurrent: isCurrent)
@@ -372,6 +376,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
             throw error
         } catch is CancellationError {
             throw CancellationError()
+        } catch let skipped as QueueAppendSkipped {
+            throw skipped
         } catch {
             throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: String(describing: error))
         }
