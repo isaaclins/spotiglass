@@ -296,7 +296,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             return nil
         }
         guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+            throw loggedGETFailure(path: "/v1/me/player", data: data, response: response)
         }
         let dto = try decoder.decode(SpotifyPlayerSnapshotDTO.self, from: data)
         return dto.domainModel()
@@ -335,12 +335,16 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {
         let (data, response) = try await performGET(path: path, queryItems: queryItems)
         guard (200..<300).contains(response.statusCode) else {
-            let error = mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
-            // Successful polls stay out of the log; a failed one is what a stuck player bar needs.
-            SpotiglassLog.error(.api, "Spotify GET \(path) -> status=\(response.statusCode) (\(error)); passed to the player")
-            throw error
+            throw loggedGETFailure(path: path, data: data, response: response)
         }
         return data
+    }
+
+    /// Successful polls stay out of the log; a failed one is what a stuck player bar needs.
+    private func loggedGETFailure(path: String, data: Data, response: HTTPURLResponse) -> Error {
+        let error = mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+        SpotiglassLog.error(.api, "Spotify GET \(path) -> status=\(response.statusCode) (\(error)); passed to the player")
+        return error
     }
 
     private func performGET(path: String, queryItems: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {

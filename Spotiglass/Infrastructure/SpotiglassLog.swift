@@ -46,8 +46,26 @@ enum SpotiglassLog {
     /// `spotiglass.previous.log`. Safe to call once at app launch; subsequent calls
     /// are no-ops.
     static func boot() {
+        if AppMetadata.isRunningUnitTests {
+            removeFinishedTestLogFolders()
+        }
         FileLogSink.shared.boot()
         installFlushOnExit()
+    }
+
+    private static let testLogFolderPrefix = "SpotiglassTestLogs-"
+
+    /// Each test run logs to its own folder (runs from several checkouts may overlap); the
+    /// folders of runs whose process has ended go, so they don't pile up.
+    static func removeFinishedTestLogFolders(
+        in parent: URL = FileManager.default.temporaryDirectory,
+        isRunning: (pid_t) -> Bool = { kill($0, 0) == 0 || errno == EPERM }
+    ) {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: parent.path) else { return }
+        for name in names where name.hasPrefix(testLogFolderPrefix) {
+            guard let pid = pid_t(name.dropFirst(testLogFolderPrefix.count)), !isRunning(pid) else { continue }
+            try? FileManager.default.removeItem(at: parent.appendingPathComponent(name)) // Test leftovers only.
+        }
     }
 
     private static var flushObserver: NSObjectProtocol?
@@ -135,7 +153,7 @@ enum SpotiglassLog {
     ) throws -> URL {
         if isRunningUnitTests {
             return FileManager.default.temporaryDirectory
-                .appendingPathComponent("SpotiglassTestLogs-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+                .appendingPathComponent("\(testLogFolderPrefix)\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
         }
         return try applicationSupport()
             .appendingPathComponent("\(AppMetadata.storageDirectoryName)/Logs", isDirectory: true)

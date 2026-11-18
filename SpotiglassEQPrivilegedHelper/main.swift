@@ -66,9 +66,12 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
             reply(Self.response(status: 0, message: ""))
         } catch {
             let status: Int32 = error is HelperOperationError && isRejected(error) ? 64 : 74
-            helperLog.error(
-                "Driver install from \(sourcePath, privacy: .public) to \(destinationPath, privacy: .public) failed (reply status \(status)): \(String(describing: error), privacy: .public)"
-            )
+            // A refused request already logged which check refused it.
+            if !isRejected(error) {
+                helperLog.error(
+                    "Driver install from \(sourcePath, privacy: .public) to \(destinationPath, privacy: .public) failed (reply status \(status)): \(String(describing: error), privacy: .public)"
+                )
+            }
             reply(Self.response(status: status, message: String(describing: error)))
         }
     }
@@ -175,7 +178,6 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
         guard process.terminationStatus == 0 else {
             throw HelperOperationError.restartFailed(status: process.terminationStatus)
         }
-        helperLog.notice("Restarted coreaudiod")
     }
 
     private func isRejected(_ error: Error) -> Bool {

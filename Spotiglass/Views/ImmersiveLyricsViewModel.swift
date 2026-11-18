@@ -167,11 +167,19 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             Self.noLyricsCooldownUntil[trackId] = nil
             Self.backoffMetadata[trackId] = nil
             Self.inFlight[trackId] = nil
+            // Separate, so a failed save still clears the song's old wait on disk.
             do {
                 try diskCache?.save(trackKey: trackId, lyrics: value)
-                try diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
             } catch {
                 SpotiglassLog.error(.persistence, "Saving lyrics to the disk cache failed: \(SpotiglassLog.describe(error)); they are fetched again next launch")
+            }
+            do {
+                try diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
+            } catch {
+                SpotiglassLog.error(
+                    .persistence,
+                    "Clearing the lyrics wait in the disk cache failed: \(SpotiglassLog.describe(error)); after a relaunch the song may wait once more"
+                )
             }
             return value
         } catch {

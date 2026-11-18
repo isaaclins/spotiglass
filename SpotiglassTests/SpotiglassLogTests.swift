@@ -44,6 +44,20 @@ final class SpotiglassLogTests: XCTestCase {
         )
     }
 
+    func testFoldersOfFinishedTestRunsAreRemovedAndRunningOnesKept() throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for name in ["SpotiglassTestLogs-111", "SpotiglassTestLogs-222", "SomethingElse-111"] {
+            try FileManager.default.createDirectory(
+                at: directory.appendingPathComponent(name), withIntermediateDirectories: true
+            )
+        }
+
+        SpotiglassLog.removeFinishedTestLogFolders(in: directory, isRunning: { $0 == 222 })
+
+        let left = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        XCTAssertEqual(left, ["SomethingElse-111", "SpotiglassTestLogs-222"])
+    }
+
     func testAFullFileMovesToTheEarlierFileAndTheNewestLinesStay() throws {
         let sink = FileLogSink(directory: { self.directory }, maxBytes: 400)
         sink.boot()
