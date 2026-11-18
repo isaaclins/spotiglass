@@ -480,7 +480,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify can't be reached right now. Wax tries again by itself."
+            "value": "Spotify can't be reached right now. It reconnects by itself as soon as it answers."
           }
         },
         "es": {

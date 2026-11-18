@@ -168,7 +168,9 @@ final class AuthViewModel: ObservableObject {
 
     /// Stops an in-progress browser sign-in and closes the loopback listener. Safe to call when not signing in.
     func cancelSignIn() {
-        guard signInTask != nil else { return }
+        // Once the new grant is saved, the sign-in finishes: cancelling then would leave the new
+        // token saved but nothing signed in (#593).
+        guard signInTask != nil, !isCommittingSignIn else { return }
         let restorePoint = signInRestorePoint
         _ = invalidateAuthOperations()
         signInRestorePoint = restorePoint
@@ -176,6 +178,9 @@ final class AuthViewModel: ObservableObject {
             restoreStateBeforeSignIn()
         }
     }
+
+    /// Set while a saved new grant clears the old caches; Cancel waits it out.
+    private var isCommittingSignIn = false
 
     /// What a cancelled or failed reconnect goes back to; `nil` for a first sign-in.
     private var signInRestorePoint: (state: AppConnectionState, session: AuthenticatedSession?)?
@@ -209,7 +214,10 @@ final class AuthViewModel: ObservableObject {
             // The refresh it was waiting on was cancelled by the sign-in: try it again.
             state = .signedOut
             Task { await self.restoreSessionIfAvailable() }
-        case .signedOut, .signingIn, .failed:
+        case .failed:
+            // Back to the same error and Connect, not to a blank signed-out screen.
+            state = restorePoint.state
+        case .signedOut, .signingIn:
             state = .signedOut
         }
     }
@@ -236,21 +244,29 @@ final class AuthViewModel: ObservableObject {
             )
             try ensureAuthTransitionIsCurrent(generation)
 
+            let session = grant.authenticatedSession
+            // A reconnect keeps the sign-in from before unless the new one can browse the library.
+            if signInRestorePoint != nil {
+                try validateBrowsingScopes(in: session)
+            }
+
             // Only now does the new grant replace the old one, and it is saved first: a save that
-            // fails leaves the old sign-in and its caches as they were.
+            // fails leaves the old sign-in and its caches as they were. From here on the sign-in
+            // finishes: Cancel has nothing left to go back to.
             if let refreshToken = grant.refreshToken {
                 try refreshTokenStore.saveRefreshToken(refreshToken)
             } else {
                 try refreshTokenStore.deleteRefreshToken()
             }
             signInRestorePoint = nil
+            isCommittingSignIn = true
+            defer { isCommittingSignIn = false }
             // It may be a different account, so the library caches of the sign-in before go before
             // its session is shown (#233, #234).
             if replacesSavedSignIn {
                 await clearSignOutData()
                 try ensureAuthTransitionIsCurrent(generation)
             }
-            let session = grant.authenticatedSession
             // Persist the server's scope result before validation. A newly
             // authorized token can legitimately omit an optional feature
             // scope; the feature gate needs to remember that fact instead of
@@ -276,12 +292,14 @@ final class AuthViewModel: ObservableObject {
                 return
             }
             signInRetryCooldownUntil = now().addingTimeInterval(2)
-            if signInRestorePoint != nil {
+            if let restorePoint = signInRestorePoint, restorePoint.state.hasSpotifySession {
                 // The reason still reaches the log; the session from before keeps working.
                 SpotiglassLog.error(.auth, "Reconnect failed, keeping the previous sign-in: \(error)")
                 reconnectFailure = Self.displayError(for: error)
                 restoreStateBeforeSignIn()
             } else {
+                // Nothing was working before (a failed refresh): show why this sign-in failed.
+                signInRestorePoint = nil
                 state = .failed(Self.displayError(for: error))
             }
         }

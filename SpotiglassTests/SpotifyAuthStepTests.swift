@@ -1117,6 +1117,114 @@ extension SpotifyAuthStepTests {
         XCTAssertEqual(token, "working")
     }
 
+    /// A reconnect whose new grant can't browse the library (scopes missing) keeps the sign-in
+    /// from before, its token and its caches, and says so in Settings.
+    @MainActor
+    func testReconnectWithoutBrowsingScopesKeepsTheOldSignIn() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let cleaner = SignOutCacheCleanerSpy()
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json("""
+        { "access_token": "narrow", "token_type": "Bearer", "expires_in": 3600, "scope": "user-read-email", "refresh_token": "narrow-token" }
+        """))
+        let viewModel = makeReconnectingViewModel(store: store, http: http, cleaner: cleaner)
+        guard case let .signedIn(session) = viewModel.state else { return XCTFail("Expected signed in, got \(viewModel.state)") }
+
+        await viewModel.signIn()
+
+        XCTAssertEqual(viewModel.state, .signedIn(session))
+        XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
+        XCTAssertEqual(cleaner.callCount, 0)
+        XCTAssertNotNil(viewModel.reconnectFailure)
+    }
+
+    /// Cancel pressed while a saved new grant clears the old caches: the sign-in finishes instead
+    /// of leaving the new token saved and nothing signed in.
+    @MainActor
+    func testCancelWhileTheNewSignInIsBeingCommittedLetsItFinish() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(Self.grantJSON("new-account", refreshToken: "new-account-token")))
+        let cleanupStarted = AsyncSignal()
+        let finishCleanup = AsyncSignal()
+        let viewModel = makeReconnectingViewModel(store: store, http: http, cleaner: SignOutCacheCleanerSpy()) {
+            cleanupStarted.signal()
+            await finishCleanup.wait()
+        }
+
+        let reconnect = Task { @MainActor in await viewModel.signIn() }
+        await cleanupStarted.wait()
+        viewModel.cancelSignIn()
+        finishCleanup.signal()
+        await reconnect.value
+
+        guard case let .signedIn(session) = viewModel.state else { return XCTFail("Expected signed in, got \(viewModel.state)") }
+        XCTAssertEqual(session.accessToken, "new-account")
+        XCTAssertEqual(try store.loadRefreshToken(), "new-account-token")
+    }
+
+    /// A refresh failed for a reason that isn't temporary, so Connect is on screen with the old
+    /// session still in memory. If that sign-in fails too, the screen says why; it doesn't claim
+    /// I'm still signed in.
+    @MainActor
+    func testFailedSignInAfterAFailedRefreshShowsItsReason() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(#"{"error":"invalid_request"}"#, statusCode: 400))
+        let expired = AuthenticatedSession(
+            accessToken: "old", tokenType: "Bearer", scope: Self.browsingScope, expiresAt: Date(timeIntervalSince1970: 1_000)
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: FailingAuthorizationFlow(error: LoopbackOAuthCallbackError.socketSetupFailed("bind")),
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedIn(expired),
+            recoverySignals: AsyncStream { _ in }
+        )
+        _ = try? await viewModel.accessToken()
+        guard case .failed = viewModel.state else { return XCTFail("Expected failed, got \(viewModel.state)") }
+
+        await viewModel.signIn()
+
+        guard case .failed = viewModel.state else { return XCTFail("Expected the new failure on screen, got \(viewModel.state)") }
+        XCTAssertNil(viewModel.reconnectFailure, "Nothing was signed in before, so Settings mustn't say it still is.")
+        XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
+    }
+
+    @MainActor
+    private func makeReconnectingViewModel(
+        store: InMemoryRefreshTokenStore,
+        http: ScriptedTokenHTTPClient,
+        cleaner: SignOutCacheCleanerSpy,
+        artworkCacheClearer: @escaping () async -> Void = {}
+    ) -> AuthViewModel {
+        let redirect = URL(string: "http://127.0.0.1:43824/callback")!
+        let codeVerifier = (try? PKCE.makeCodeVerifier()) ?? "verifier"
+        let flow = TwoStepAuthorizationFlow {
+            SpotifyAuthorizationCode(code: "auth-code", codeVerifier: codeVerifier, redirectURI: redirect)
+        }
+        flow.advance()
+        let session = AuthenticatedSession(
+            accessToken: "working", tokenType: "Bearer", scope: Self.browsingScope, expiresAt: Date().addingTimeInterval(3_600)
+        )
+        return AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: artworkCacheClearer,
+            initialState: .signedIn(session),
+            recoverySignals: AsyncStream { _ in }
+        )
+    }
+
     /// The new grant arrives but the Keychain won't save it: the old sign-in and its library caches
     /// must still be there, since nothing replaced them.
     @MainActor
