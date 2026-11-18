@@ -3,14 +3,14 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.50</title>
-            <pubDate>Wed, 18 Nov 2026 01:39:43 +0100</pubDate>
-            <sparkle:version>61</sparkle:version>
-            <sparkle:shortVersionString>0.8.50</sparkle:shortVersionString>
+            <title>0.8.51</title>
+            <pubDate>Wed, 18 Nov 2026 03:54:20 +0100</pubDate>
+            <sparkle:version>62</sparkle:version>
+            <sparkle:shortVersionString>0.8.51</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• When the equalizer can't start, Wax now tells you why it's off.
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.50/Wax-0.8.50.zip" length="15793979" type="application/octet-stream" sparkle:edSignature="zguiy5gdTzSX9moX31DYvMqafZsVU9ZgZgKBOw/0BCqMJTO/LyV8qUk4QRTfqi/y18d8JqvLq31r/389U1+vAQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.51/Wax-0.8.51.zip" length="15793994" type="application/octet-stream" sparkle:edSignature="D2OJVQ/ef9nYFbHNWp1b3JsLhS+p/qn6lzwsxQD2F4av91tAj4URn+T1tGssd5OHboXmvsEV/FW9zspvxQHkAQ=="/>
         </item>
     </channel>
 </rss>
