@@ -1,5 +1,7 @@
 import AppKit
 import Combine
+import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
@@ -183,6 +185,55 @@ final class QueueRemovalTests: XCTestCase {
             Array(h.player.upcomingURIs.prefix(4)),
             ["applemusic:song:a", "applemusic:song:b", "applemusic:song:c", songs[1]]
         )
+    }
+
+    // MARK: - The queue panel
+
+    private func panel(_ h: Harness) -> QueuePanelView {
+        let view = QueuePanelView(queueViewModel: h.queue, playbackViewModel: h.session, openArtist: { _ in })
+        ViewTestHost.host(view, size: CGSize(width: 420, height: 640))
+        return view
+    }
+
+    /// Clear in the panel's header empties what plays next; the bar then says what went, and
+    /// its Undo button puts every song back.
+    func testClearInThePanelAndTheBarsUndo() async throws {
+        let h = try await playing(songs)
+        let view = panel(h)
+        let removed = QueueRestoreWatch(full: Array(songs.dropFirst()), removed: songs[1])
+        let cleared = expectation(description: "the removal is answered")
+        let restored = expectation(description: "the songs are back")
+        let removalWatch = h.queue.$lastRemoval.sink { if $0 != nil { cleared.fulfill() } }
+        removed.onRestored = { restored.fulfill() }
+        let queueWatch = h.queue.$upcomingItems.sink { removed.saw($0.map(\.uri)) }
+
+        try view.inspect().find(button: SpotiglassL10n.string("queue.clear")).tap()
+        await fulfillment(of: [cleared], timeout: 5)
+        removalWatch.cancel()
+
+        XCTAssertEqual(h.player.upcomingURIs, [])
+        XCTAssertEqual(h.player.readState().current?.uri, songs[0], "the playing song keeps playing")
+        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.format("queue.removed.count", Int64(songs.count - 1))))
+
+        try view.inspect().find(button: SpotiglassL10n.string("queue.undo")).tap()
+        await fulfillment(of: [restored], timeout: 5)
+        queueWatch.cancel()
+
+        XCTAssertEqual(h.player.upcomingURIs, Array(songs.dropFirst()))
+        XCTAssertNil(h.queue.lastRemoval, "the bar is gone once its songs are back")
+    }
+
+    /// Spotify's Web API can't remove a queued song: its panel offers no Clear.
+    func testSpotifyPanelOffersNoClear() async throws {
+        let api = MockPlaybackAPI()
+        let provider = SpotifyPlaybackProvider(playbackAPI: api)
+        let session = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: provider, playbackSession: session, pollIntervalNanoseconds: 60_000_000_000)
+        queue.upcomingItems = [QueueItem(id: "queue:rest:occurrence:0", name: "Song", subtitle: "Artist", albumArtURL: nil, durationMilliseconds: 1, uri: "spotify:track:1")]
+        let view = QueuePanelView(queueViewModel: queue, playbackViewModel: session, openArtist: { _ in })
+        ViewTestHost.host(view, size: CGSize(width: 420, height: 640))
+
+        XCTAssertThrowsError(try view.inspect().find(button: SpotiglassL10n.string("queue.clear")))
     }
 
     // MARK: - ⌘Z
