@@ -146,14 +146,14 @@ final class AuthViewModel: ObservableObject {
         // another account's: those caches go too once the new grant arrives (#233, #234).
         let replacesSavedSignIn = isReconnect || (try? refreshTokenStore.loadRefreshToken()) != nil
         let generation = invalidateAuthOperations()
+        // Set before the task starts, so a Cancel that comes first still goes back to it.
+        signInRestorePoint = isReconnect ? (stateBeforeSignIn, sessionBeforeSignIn) : nil
         state = .signingIn
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.performSignIn(
                 generation: generation,
-                isReconnect: isReconnect,
-                replacesSavedSignIn: replacesSavedSignIn,
-                restoring: (stateBeforeSignIn, sessionBeforeSignIn)
+                replacesSavedSignIn: replacesSavedSignIn
             )
         }
         signInTask = task
@@ -216,11 +216,8 @@ final class AuthViewModel: ObservableObject {
 
     private func performSignIn(
         generation: Int,
-        isReconnect: Bool,
-        replacesSavedSignIn: Bool,
-        restoring restorePoint: (AppConnectionState, AuthenticatedSession?)
+        replacesSavedSignIn: Bool
     ) async {
-        signInRestorePoint = isReconnect ? (restorePoint.0, restorePoint.1) : nil
         do {
             try ensureAuthTransitionIsCurrent(generation)
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)

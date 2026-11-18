@@ -525,8 +525,9 @@ struct RootView: View {
                 case .signedIn, .refreshing(.some), .paused:
                     // Signing in to Spotify (welcome screen, "Add a service…" or Settings) adds it.
                     serviceStore.completeAddition(of: .spotify)
-                    // The player couldn't get a token while the sign-in was paused; now it can (#593).
-                    if case .paused = oldState, case .signedIn = newState {
+                    // The player couldn't get a token while the sign-in was paused; now it can, whether
+                    // the pause ended by itself or through a reconnect (#593).
+                    if case .signedIn = newState, oldState.isPausedOrSigningIn {
                         playbackHosts.spotify.playbackViewModel.start(recoveryCause: .signInResumed)
                         spotifySignInResumptions += 1
                     }
@@ -780,4 +781,13 @@ struct RootView: View {
         .environmentObject(SpotiglassSettingsStore(fileURL: settingsURL))
         .environmentObject(auth)
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+}
+
+private extension AppConnectionState {
+    var isPausedOrSigningIn: Bool {
+        switch self {
+        case .paused, .signingIn: true
+        case .signedOut, .signedIn, .refreshing, .failed: false
+        }
+    }
 }
