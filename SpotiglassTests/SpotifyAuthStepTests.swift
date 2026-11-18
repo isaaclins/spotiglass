@@ -1138,6 +1138,181 @@ extension SpotifyAuthStepTests {
         XCTAssertEqual(viewModel.state, .signedIn(session))
     }
 
+    /// A refresh error that is neither a dead grant nor temporary keeps the token and the library
+    /// caches and shows Connect. Signing in from there may be another account, so the caches of the
+    /// sign-in before must go once the new grant arrives (#233, #234).
+    @MainActor
+    func testConnectAfterAFailedRefreshClearsTheEarlierSignInsCaches() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("first-account-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(#"{"error":"invalid_request"}"#, statusCode: 400))
+        let cleaner = SignOutCacheCleanerSpy()
+        let redirect = URL(string: "http://127.0.0.1:43824/callback")!
+        let codeVerifier = try PKCE.makeCodeVerifier()
+        let flow = TwoStepAuthorizationFlow {
+            SpotifyAuthorizationCode(code: "auth-code", codeVerifier: codeVerifier, redirectURI: redirect)
+        }
+        flow.advance()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: {},
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+        guard case .failed = viewModel.state else { return XCTFail("Expected failed, got \(viewModel.state)") }
+        XCTAssertEqual(try store.loadRefreshToken(), "first-account-token")
+        XCTAssertEqual(cleaner.callCount, 0)
+
+        http.enqueue(.json(Self.grantJSON("second-account", refreshToken: "second-account-token")))
+        await viewModel.signIn()
+
+        guard case let .signedIn(session) = viewModel.state else { return XCTFail("Expected signed in, got \(viewModel.state)") }
+        XCTAssertEqual(session.accessToken, "second-account")
+        XCTAssertEqual(try store.loadRefreshToken(), "second-account-token")
+        XCTAssertEqual(cleaner.callCount, 1, "The library cached for the sign-in before must not show under the new one.")
+    }
+
+    /// While Reconnect waits in the browser, a request that needs a new token must not refresh the
+    /// old grant: that put the library back on screen mid-sign-in and left Cancel nothing to undo.
+    @MainActor
+    func testRequestDuringReconnectDoesNotRefreshTheOldGrant() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(Self.grantJSON("refreshed-mid-sign-in")))
+        let flow = HangUntilCancelledAuthorizationFlow()
+        let expiring = AuthenticatedSession(
+            accessToken: "expiring", tokenType: "Bearer", scope: Self.browsingScope, expiresAt: Date().addingTimeInterval(10)
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedIn(expiring),
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        let reconnect = await startSignIn(viewModel, untilLaunched: flow.launch.started)
+        guard reconnect.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
+
+        do {
+            _ = try await viewModel.accessToken()
+            XCTFail("A request during the browser step must not get a refreshed token")
+        } catch let error as SpotifyAPIError {
+            guard case .unauthorized = error else { return XCTFail("Expected unauthorized, got \(error)") }
+        }
+        XCTAssertEqual(http.requestCount, 0, "The old grant is not refreshed while the sign-in runs.")
+        XCTAssertEqual(viewModel.state, .signingIn)
+
+        viewModel.cancelSignIn()
+        await reconnect.finished.value
+        XCTAssertEqual(viewModel.state, .signedIn(expiring))
+        XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
+    }
+
+    /// While Spotify is busy, the library's requests are cancelled whenever a screen reloads. A
+    /// cancelled request must leave the pause alone: it used to turn it into "failed", after which
+    /// the next request ignored the Retry-After and asked Spotify again, over and over.
+    @MainActor
+    func testCancelledRequestDuringACooldownKeepsThePauseAndDoesNotAskSpotify() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "90"]))
+        let clock = TestClock(Date(timeIntervalSince1970: 90_000))
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: http, now: { clock.now }, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            now: { clock.now },
+            sleep: { _ in try await Task.sleep(for: .seconds(3_600)) },
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+        guard case let .paused(pause) = viewModel.state else { return XCTFail("Expected paused, got \(viewModel.state)") }
+
+        let cancelledRequest = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await viewModel.accessToken()
+        }
+        _ = try? await cancelledRequest.value
+
+        XCTAssertEqual(viewModel.state, .paused(pause), "A cancelled request says nothing about the sign-in.")
+        do {
+            _ = try await viewModel.accessToken()
+            XCTFail("Expected the cooldown to answer the request")
+        } catch let error as SpotifySignInPausedError {
+            XCTAssertEqual(error.pause.reason, .busy)
+        }
+        XCTAssertEqual(http.requestCount, 1, "Spotify is not asked again before its Retry-After ends.")
+    }
+
+    func testTemporaryFailureCooldownDoublesUpToFiveMinutes() {
+        let waits = (0..<7).map { AuthViewModel.temporaryFailureCooldown(afterFailures: $0) }
+        XCTAssertEqual(waits, [30, 60, 120, 240, 300, 300, 300])
+        XCTAssertEqual(AuthViewModel.temporaryFailureCooldown(afterFailures: 1_000), 300)
+    }
+
+    /// Offline for a long time: each failed try waits twice as long as the one before, and a
+    /// refresh that works starts over at 30 s.
+    @MainActor
+    func testPausedRetriesBackOffAndStartOverAfterARefreshThatWorks() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.failure(URLError(.notConnectedToInternet)), count: 3)
+        let clock = TestClock(Date(timeIntervalSince1970: 80_000))
+        let sleeper = ManualSleeper()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: http, now: { clock.now }, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            now: { clock.now },
+            sleep: { try await sleeper.sleep($0) },
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+        let firstWait = await sleeper.nextSleep()
+        XCTAssertEqual(firstWait, 30)
+
+        clock.now += 30
+        http.enqueue(.failure(URLError(.notConnectedToInternet)), count: 3)
+        await sleeper.wake()
+        let secondWait = await sleeper.nextSleep()
+        XCTAssertEqual(secondWait, 60)
+
+        // The next request after that wait signs back in. It awaits the refresh itself, so the
+        // refresh has fully settled when it returns.
+        clock.now += 60
+        http.enqueue(.json(Self.grantJSON("back")))
+        let token = try await viewModel.accessToken()
+        XCTAssertEqual(token, "back")
+
+        // The network drops again and Spotify rejects the token in use: a fresh failure.
+        http.enqueue(.failure(URLError(.notConnectedToInternet)), count: 3)
+        do {
+            _ = try await viewModel.refreshAccessTokenAfterUnauthorized(rejectedToken: "back")
+            XCTFail("Expected the refresh to fail while offline")
+        } catch is SpotifySignInPausedError {}
+        let waitAfterSuccess = await sleeper.nextSleep()
+        XCTAssertEqual(waitAfterSuccess, 30)
+    }
+
     @MainActor
     private func signedInSession(of viewModel: AuthViewModel) async -> AuthenticatedSession {
         for await state in viewModel.$state.values {

@@ -64,6 +64,8 @@ final class AuthViewModel: ObservableObject {
     private var inFlightRefreshTask: Task<String, Error>?
     private var authTransitionGeneration = 0
     private var refreshCooldownUntil: Date?
+    /// Temporary failures in a row without a refresh that worked; each one doubles the wait.
+    private var temporaryFailureStreak = 0
     /// Tries a paused sign-in again once Spotify's Retry-After (or the busy cooldown) is over.
     private var pausedRetryTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
@@ -140,6 +142,9 @@ final class AuthViewModel: ObservableObject {
         let stateBeforeSignIn = state
         let sessionBeforeSignIn = currentSession ?? state.pausedOrLiveSession
         let isReconnect = state.isConnectedOrRefreshing || currentSession != nil
+        // A sign-in that failed for another reason keeps its token and library caches, and may be
+        // another account's: those caches go too once the new grant arrives (#233, #234).
+        let replacesSavedSignIn = isReconnect || (try? refreshTokenStore.loadRefreshToken()) != nil
         let generation = invalidateAuthOperations()
         state = .signingIn
         let task = Task { @MainActor [weak self] in
@@ -147,6 +152,7 @@ final class AuthViewModel: ObservableObject {
             await self.performSignIn(
                 generation: generation,
                 isReconnect: isReconnect,
+                replacesSavedSignIn: replacesSavedSignIn,
                 restoring: (stateBeforeSignIn, sessionBeforeSignIn)
             )
         }
@@ -200,6 +206,7 @@ final class AuthViewModel: ObservableObject {
     private func performSignIn(
         generation: Int,
         isReconnect: Bool,
+        replacesSavedSignIn: Bool,
         restoring restorePoint: (AppConnectionState, AuthenticatedSession?)
     ) async {
         signInRestorePoint = isReconnect ? (restorePoint.0, restorePoint.1) : nil
@@ -216,9 +223,9 @@ final class AuthViewModel: ObservableObject {
             )
             try ensureAuthTransitionIsCurrent(generation)
 
-            // Only now does the new grant replace the old one. A reconnect may be a different
-            // account, so its library caches go first (#233, #234).
-            if isReconnect {
+            // Only now does the new grant replace the old one. It may be a different account, so
+            // the library caches of the sign-in before go first (#233, #234).
+            if replacesSavedSignIn {
                 await clearSignOutData()
                 try ensureAuthTransitionIsCurrent(generation)
             }
@@ -317,6 +324,7 @@ final class AuthViewModel: ObservableObject {
         currentSession = session
         pausedRetryTask?.cancel()
         pausedRetryTask = nil
+        temporaryFailureStreak = 0
         state = .signedIn(session)
     }
 
@@ -377,6 +385,7 @@ final class AuthViewModel: ObservableObject {
         pausedRetryTask?.cancel()
         pausedRetryTask = nil
         refreshCooldownUntil = nil
+        temporaryFailureStreak = 0
         signInRestorePoint = nil
         return authTransitionGeneration
     }
@@ -397,6 +406,12 @@ final class AuthViewModel: ObservableObject {
         if let pausedError = error as? SpotifySignInPausedError {
             return pausedError
         }
+        // The request that asked went away (its screen reloaded or closed) before the refresh
+        // started. Nothing about the sign-in changed: counting it as a failure dropped a paused
+        // sign-in to "failed", and the next request then ignored Spotify's Retry-After.
+        if error is CancellationError || error is AuthTransitionInvalidatedError {
+            return error
+        }
         switch Self.refreshFailureKind(error) {
         case .deadGrant:
             let generation = authTransitionGeneration
@@ -408,8 +423,13 @@ final class AuthViewModel: ObservableObject {
             state = .failed(Self.displayError(for: error))
             return SpotifyAPIError.unauthorized
         case let .temporary(reason, retryAfter):
+            // Every request waiting on the same refresh lands here; the first one settled it.
+            if let refreshCooldownUntil, refreshCooldownUntil > now(), case let .paused(pause) = state {
+                return SpotifySignInPausedError(pause: pause)
+            }
             SpotiglassLog.error(.auth, "Sign-in refresh failed for now, keeping the sign-in: \(error)")
-            let cooldown = retryAfter ?? Self.temporaryFailureCooldown
+            let cooldown = retryAfter ?? Self.temporaryFailureCooldown(afterFailures: temporaryFailureStreak)
+            temporaryFailureStreak += 1
             refreshCooldownUntil = now().addingTimeInterval(cooldown)
             let pause = SpotifySignInPause(
                 session: previousSession ?? state.pausedOrLiveSession,
@@ -420,6 +440,7 @@ final class AuthViewModel: ObservableObject {
             schedulePausedRetry(after: cooldown)
             return SpotifySignInPausedError(pause: pause)
         case .other:
+            SpotiglassLog.error(.auth, "Sign-in refresh failed, keeping the saved sign-in: \(error)")
             state = .failed(Self.displayError(for: error))
             return SpotifyAPIError.unauthorized
         }
@@ -428,6 +449,14 @@ final class AuthViewModel: ObservableObject {
     /// How long a temporary failure holds back the next refresh, unless the network comes back
     /// or the Mac wakes first. Spotify's own Retry-After replaces it when it sends one.
     static let temporaryFailureCooldown: TimeInterval = 30
+    /// The longest a temporary failure waits before trying again by itself.
+    static let longestTemporaryFailureCooldown: TimeInterval = 300
+
+    /// 30 s after the first temporary failure, doubling with each one after it up to 5 min, so a
+    /// long time offline or a long Spotify outage isn't asked about every 30 s.
+    nonisolated static func temporaryFailureCooldown(afterFailures failures: Int) -> TimeInterval {
+        min(temporaryFailureCooldown * pow(2, Double(min(failures, 10))), longestTemporaryFailureCooldown)
+    }
 
     private func schedulePausedRetry(after delay: TimeInterval) {
         pausedRetryTask?.cancel()
@@ -581,6 +610,10 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
     }
 
     func refreshedPlaybackAccessToken() async throws -> String {
+        // While a browser sign-in runs, the old grant isn't refreshed: that would put the library
+        // back on screen in the middle of the sign-in, and a dead-grant answer would delete the
+        // token the reconnect falls back to (#593).
+        guard signInTask == nil else { throw SpotifyAPIError.unauthorized }
         guard let refreshToken = try refreshTokenStore.loadRefreshToken() else {
             throw SpotifyAPIError.unauthorized
         }

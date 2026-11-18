@@ -78,6 +78,22 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         }
     }
 
+    /// #593: a player that can't get a token because the sign-in is paused says why and offers
+    /// Reconnect, never "Your Spotify session has expired" with a way to sign in again.
+    func testPausedSignInShowsItsReasonAndOffersReconnectNotSignIn() {
+        let message = SpotiglassL10n.string("app.connection.paused.offline")
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+
+        viewModel.handle(.signInPaused(message))
+
+        guard case let .error(shown) = viewModel.connectionState else {
+            return XCTFail("Expected the pause on the player, got \(viewModel.connectionState)")
+        }
+        XCTAssertEqual(shown.title, SpotiglassL10n.string("app.connection.paused.title"))
+        XCTAssertEqual(shown.message, message)
+        XCTAssertEqual(shown.recoveryAction, .reconnect)
+    }
+
     /// #470: a failure that is neither Spotify's nor a URLError (WebKit's "web content process
     /// terminated" while the player page connects) showed its own text, which follows the Mac's
     /// language, and losing the device showed a hard-coded English line.

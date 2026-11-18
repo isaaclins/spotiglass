@@ -80,7 +80,8 @@ extension PlaybackSessionViewModel {
         case .connecting, .ready, .transferring, .playing, .paused:
             return
         }
-        let enforceHardReloadBudget = recoveryCause != .manualReconnect
+        // A press, or the sign-in coming back after a pause (once per pause), always gets through.
+        let enforceHardReloadBudget = recoveryCause != .manualReconnect && recoveryCause != .signInResumed
         guard registerHardReloadAttempt(cause: recoveryCause, enforceBudget: enforceHardReloadBudget) else {
             return
         }

@@ -84,6 +84,8 @@ struct PlaylistBrowserView: View {
     let disconnectSwitchesTo: MusicService?
     /// Drawn above the sidebar list: the service switcher (#373).
     let sidebarHeader: AnyView?
+    /// Goes up each time a paused sign-in comes back: what failed while it was paused loads again.
+    let signInResumptions: Int
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
         newPlaylistInitialRows = rows
@@ -109,6 +111,7 @@ struct PlaylistBrowserView: View {
         canDisconnect: Bool = true,
         disconnectSwitchesTo: MusicService? = nil,
         sidebarHeader: AnyView? = nil,
+        signInResumptions: Int = 0,
         widthSampler: BrowserWidthSampler = BrowserWidthSampler()
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
@@ -129,6 +132,7 @@ struct PlaylistBrowserView: View {
         self.canDisconnect = canDisconnect
         self.disconnectSwitchesTo = disconnectSwitchesTo
         self.sidebarHeader = sidebarHeader
+        self.signInResumptions = signInResumptions
         _browserWidthSampler = State(initialValue: widthSampler)
     }
 
@@ -421,6 +425,18 @@ struct PlaylistBrowserView: View {
         }
         .task {
             await bindPinnedStoreToCurrentUser()
+        }
+        .onChange(of: signInResumptions) { _, _ in
+            // While the sign-in was paused, the pins couldn't find the account and Home couldn't
+            // load; the library itself came from the cache (#593).
+            Task {
+                if pinnedStore.didFailToBind {
+                    await bindPinnedStoreToCurrentUser()
+                }
+                if case .loaded(.home) = viewModel.detailState {
+                    await viewModel.reloadHomeSections()
+                }
+            }
         }
         .onAppear {
             unifiedRefreshFocus = .mainContent

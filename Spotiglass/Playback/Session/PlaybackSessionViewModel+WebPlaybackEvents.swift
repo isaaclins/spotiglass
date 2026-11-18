@@ -207,6 +207,17 @@ extension PlaybackSessionViewModel {
                 message: SpotiglassL10n.string("error.playback.signInAgain.message"),
                 recoveryAction: .reauthenticate
             )))
+        case let .signInPaused(message):
+            cancelPlaybackHostConnectTimeout()
+            SpotiglassLog.info(.playback, "Spotify playback SDK waiting for the sign-in: \(message)")
+            clearPushedPlayStateExpectation()
+            // Reconnect, never "sign in again": the sign-in still works and the app starts the
+            // player again by itself once it has refreshed (#593).
+            setConnectionState(.error(PlaybackDisplayError(
+                title: SpotiglassL10n.string("app.connection.paused.title"),
+                message: message,
+                recoveryAction: .reconnect
+            )))
         case let .accountError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK account error: \(message)")

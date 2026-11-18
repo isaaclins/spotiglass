@@ -263,6 +263,9 @@ struct RootView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var sceneHost: SpotiglassSceneHost
+    /// Counts the times a paused Spotify sign-in came back, so the library reloads what failed
+    /// meanwhile (#593).
+    @State private var spotifySignInResumptions = 0
     private let sceneRegistry: SpotiglassSceneRegistry?
     /// The app-scoped players, one per service (#373); Spotify's owns the single Web Playback SDK host.
     private let playbackHosts: SpotiglassPlaybackHosts
@@ -517,11 +520,16 @@ struct RootView: View {
                     sceneHost.resetTransientState()
                 }
             }
-            .onChange(of: viewModel.state) { _, newState in
+            .onChange(of: viewModel.state) { oldState, newState in
                 switch newState {
                 case .signedIn, .refreshing(.some), .paused:
                     // Signing in to Spotify (welcome screen, "Add a service…" or Settings) adds it.
                     serviceStore.completeAddition(of: .spotify)
+                    // The player couldn't get a token while the sign-in was paused; now it can (#593).
+                    if case .paused = oldState, case .signedIn = newState {
+                        playbackHosts.spotify.playbackViewModel.start(recoveryCause: .signInResumed)
+                        spotifySignInResumptions += 1
+                    }
                     guard serviceStore.active == .spotify else {
                         commandPaletteManager.switchableServices = serviceStore.switchTargets
                         return
@@ -649,7 +657,8 @@ struct RootView: View {
                 commandPaletteManager: commandPaletteManager,
                 signOut: signOutAction,
                 disconnectSwitchesTo: spotifyDisconnectSwitchesTo,
-                sidebarHeader: AnyView(spotifySidebarHeader)
+                sidebarHeader: AnyView(spotifySidebarHeader),
+                signInResumptions: spotifySignInResumptions
             )
             .id(MusicService.spotify)
         case .refreshing(.none):

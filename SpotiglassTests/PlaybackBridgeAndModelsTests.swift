@@ -314,6 +314,21 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertNotNil(result.error)
     }
 
+    /// #593: while the sign-in is paused the page hears why and waits, instead of reporting an
+    /// authentication error that reads "Your Spotify session has expired".
+    func testTokenBridgeTellsThePageWhenTheSignInIsPaused() async throws {
+        let pause = SpotifySignInPause(session: nil, reason: .offline, retryAt: nil)
+        let bridge = PlaybackTokenBridge(provider: PausedPlaybackTokenProvider(error: SpotifySignInPausedError(pause: pause)))
+
+        let response = try await bridge.tokenResponse(refresh: false)
+
+        XCTAssertEqual(response, ["signInPaused": pause.message])
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse(["name": "sign_in_paused", "payload": ["message": pause.message]]),
+            .signInPaused(pause.message)
+        )
+    }
+
     func testTokenBridgeOnlyReturnsAccessToken() async throws {
         let provider = MockPlaybackTokenProvider(accessToken: "access", refreshedAccessToken: "refreshed")
         let bridge = PlaybackTokenBridge(provider: provider)
@@ -325,4 +340,12 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertEqual(provider.refreshCount, 1)
     }
 
+}
+
+@MainActor
+private final class PausedPlaybackTokenProvider: PlaybackAccessTokenProviding {
+    let error: Error
+    init(error: Error) { self.error = error }
+    func playbackAccessToken() async throws -> String { throw error }
+    func refreshedPlaybackAccessToken() async throws -> String { throw error }
 }

@@ -28,6 +28,12 @@
           getOAuthToken: async callback => {
             try {
               const response = await requestToken(false);
+              if (response.signInPaused) {
+                // Offline or Spotify busy: the sign-in tries again by itself and the app reconnects
+                // the player once it has, so this is not an authentication error.
+                post('sign_in_paused', { message: response.signInPaused });
+                return;
+              }
               callback(response.accessToken);
             } catch (error) {
               post('authentication_error', { message: String(error && error.message ? error.message : error) });
