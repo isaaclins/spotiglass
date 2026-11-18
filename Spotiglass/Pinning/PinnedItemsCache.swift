@@ -15,6 +15,8 @@ protocol PinnedItemsCache {
     /// Copies the account's pins file as it is now next to it, before anything is saved over
     /// it (#597). `nil` when there is no file to keep.
     func preservePinnedItemsFile(userID: String) throws -> URL?
+    /// Where the account's pins live, for the log; `nil` for caches without a file.
+    func pinnedItemsFileURL(userID: String) -> URL?
 }
 
 /// Pins read from storage, with the rows that could not be read.
@@ -32,6 +34,8 @@ extension PinnedItemsCache {
     }
 
     func preservePinnedItemsFile(userID: String) throws -> URL? { nil }
+
+    func pinnedItemsFileURL(userID: String) -> URL? { nil }
 }
 
 /// Drop-in cache used when the on-disk cache cannot be created (e.g. the cache

@@ -465,6 +465,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let store = SpotiglassSettingsStore(fileURL: url)
 
         XCTAssertNotNil(store.saveFailure)
+        XCTAssertNotNil(store.lastError, "Settings also says the file can't be read")
         XCTAssertNil(store.backupNotice)
         XCTAssertEqual(try Data(contentsOf: url), original)
     }

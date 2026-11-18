@@ -596,6 +596,8 @@ final class SpotiglassSettingsStore: ObservableObject {
         } catch {
             // Nothing in it could be used. Saving the defaults keeps a copy of it first, and
             // the copy is named in Settings.
+            // Until that save works (it clears this), Settings says the file can't be read.
+            lastError = error.localizedDescription
             lastKnownDiskSettings = nil
             settings = Self.bootstrapDefaults()
             try? persist(settings)

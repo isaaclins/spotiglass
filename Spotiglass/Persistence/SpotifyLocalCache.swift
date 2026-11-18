@@ -228,6 +228,10 @@ struct SpotifyLocalCache {
         return load
     }
 
+    func pinnedItemsFileURL(userID: String) -> URL? {
+        pinnedURL(userID: userID)
+    }
+
     func preservePinnedItemsFile(userID: String) throws -> URL? {
         let url = pinnedURL(userID: userID)
         guard fileManager.fileExists(atPath: url.path) else { return nil }

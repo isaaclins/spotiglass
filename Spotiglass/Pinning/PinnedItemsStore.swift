@@ -118,7 +118,11 @@ final class PinnedItemsStore: ObservableObject {
             // Nothing in it could be read. The list starts empty, and the next pin is only
             // saved once a copy of the file has been kept.
             loaded = []
-            keepCopyOfPinsFile(userID: userID, file: nil, problems: [UnreadableFileBackup.describe(error)])
+            keepCopyOfPinsFile(
+                userID: userID,
+                file: cache.pinnedItemsFileURL(userID: userID),
+                problems: [UnreadableFileBackup.describe(error)]
+            )
         }
         let migrated = mergingSameItems(PinnedItem.migrateLegacyTrackPins(loaded))
         let filled = fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
@@ -134,7 +138,10 @@ final class PinnedItemsStore: ObservableObject {
     private func keepCopyOfPinsFile(userID: String, file: URL?, problems: [String]) {
         let location = file?.path ?? "the pins file"
         do {
-            guard let copy = try cache?.preservePinnedItemsFile(userID: userID) else { return }
+            guard let copy = try cache?.preservePinnedItemsFile(userID: userID) else {
+                SpotiglassLog.error(SpotiglassLog.pinning, "Pins in \(location) could not be fully read. \(problems.joined(separator: "; "))")
+                return
+            }
             SpotiglassLog.error(
                 SpotiglassLog.pinning,
                 "Pins in \(location) could not be fully read; kept a copy at \(copy.path). \(problems.joined(separator: "; "))"
