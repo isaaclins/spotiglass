@@ -74,12 +74,21 @@
         return images.reduce((best, image) => (edge(image) > edge(best) ? image : best)).url;
       }
 
+      // Each artist with its URI, so a click opens that artist instead of a search for the
+      // credit's text (#637).
+      function artistRefs(artists) {
+        return (artists || [])
+          .filter(artist => artist && artist.name && artist.uri)
+          .map(artist => ({ name: String(artist.name), uri: String(artist.uri) }));
+      }
+
       function mapNextTrack(t) {
         const albumName = t.album && t.album.name ? String(t.album.name) : null;
         const albumURI = t.album && t.album.uri ? String(t.album.uri) : null;
         return {
           name: t.name || '',
           artists: (t.artists || []).map(artist => artist.name).filter(Boolean),
+          artistRefs: artistRefs(t.artists),
           albumName: albumName && albumName.length ? albumName : null,
           albumURI: albumURI && albumURI.length ? albumURI : null,
           albumArtURL: largestImageURL(t.album),
@@ -106,6 +115,7 @@
           track: {
             name: track.name || '',
             artists: (track.artists || []).map(artist => artist.name).filter(Boolean),
+            artistRefs: artistRefs(track.artists),
             albumName: albumName && albumName.length ? albumName : null,
             albumURI: albumURI && albumURI.length ? albumURI : null,
             albumArtURL: largestImageURL(track.album),

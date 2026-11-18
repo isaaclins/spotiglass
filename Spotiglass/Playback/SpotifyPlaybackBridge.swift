@@ -66,6 +66,19 @@ enum SpotifyPlaybackBridgeParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    /// The player's artists with their IDs (`spotify:artist:<id>`); an artist without a usable
+    /// URI is left out, and a track with none falls back to its names (#637).
+    static func spotifyArtistRefs(from value: Any?) -> [MusicArtistRef] {
+        guard let artists = value as? [[String: Any]] else { return [] }
+        return artists.compactMap { artist in
+            guard let uri = artist["uri"] as? String, uri.hasPrefix("spotify:artist:"),
+                  let name = artist["name"] as? String
+            else { return nil }
+            let id = String(uri.dropFirst("spotify:artist:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return id.isEmpty ? nil : MusicArtistRef(id: id, name: name)
+        }
+    }
+
     static func parse(_ body: Any) throws -> MusicPlaybackEvent {
         guard let dictionary = body as? [String: Any],
               let name = dictionary["name"] as? String else {
@@ -132,6 +145,7 @@ enum SpotifyPlaybackBridgeParser {
         return PlaybackNowPlaying(
             name: track["name"] as? String ?? "",
             artists: track["artists"] as? [String] ?? [],
+            artistRefs: Self.spotifyArtistRefs(from: track["artistRefs"]),
             albumName: albumName,
             albumID: Self.spotifyAlbumID(fromAlbumURI: albumURI),
             albumArtURL: (track["albumArtURL"] as? String).flatMap(URL.init(string:)),

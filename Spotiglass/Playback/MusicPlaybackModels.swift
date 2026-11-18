@@ -25,10 +25,14 @@ struct PlaybackNowPlaying: Equatable {
     let durationMilliseconds: Int
     let positionMilliseconds: Int
     let uri: String?
+    /// The song's own artists with the service's IDs, when it sent them. A click on an artist
+    /// opens exactly that one instead of searching for the credit's text (#637).
+    let artistRefs: [MusicArtistRef]
 
     init(
         name: String,
         artists: [String],
+        artistRefs: [MusicArtistRef] = [],
         albumName: String?,
         albumID: String?,
         albumArtURL: URL?,
@@ -38,6 +42,7 @@ struct PlaybackNowPlaying: Equatable {
     ) {
         self.storedName = name
         self.storedArtists = artists
+        self.artistRefs = artistRefs
         self.albumName = albumName
         self.albumID = albumID
         self.albumArtURL = albumArtURL
@@ -62,7 +67,10 @@ struct PlaybackNowPlaying: Equatable {
     }
 
     var artistTapTargets: [ArtistTapTarget] {
-        Self.artistTapTargets(fromNames: artists)
+        if !artistRefs.isEmpty {
+            return artistRefs.map { ArtistTapTarget(id: $0.id, name: $0.name) }
+        }
+        return Self.artistTapTargets(fromNames: artists)
     }
 
     static func durationText(milliseconds: Int) -> String {
@@ -79,6 +87,7 @@ struct PlaybackNowPlaying: Equatable {
         PlaybackNowPlaying(
             name: storedName,
             artists: storedArtists,
+            artistRefs: artistRefs,
             albumName: albumName,
             albumID: albumID,
             albumArtURL: albumArtURL,
@@ -506,6 +515,7 @@ extension MusicPlaybackSnapshot {
             nowPlaying = PlaybackNowPlaying(
                 name: track.name,
                 artists: track.artists,
+                artistRefs: track.artistRefs,
                 albumName: track.albumName,
                 albumID: track.albumID,
                 albumArtURL: track.albumArtworkURL,
