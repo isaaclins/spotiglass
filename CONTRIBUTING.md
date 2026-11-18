@@ -77,6 +77,17 @@ Coordinate before editing `Spotiglass.xcodeproj/project.pbxproj`.
    from [docs/README.md](docs/README.md), the doc index).
 3. Do not commit secrets, `.env` files, or Keychain exports.
 4. Confirm `make build` (and `make test` when you change testable logic).
+5. Fill in the [pull request template](.github/pull_request_template.md): the
+   issue it fixes, what changed for the user, how you tested it, and before and
+   after screenshots in light and dark mode for anything visible.
+6. Keep VoiceOver labels, keyboard access and Reduce Motion working when you
+   touch the UI. [ACCESSIBILITY.md](ACCESSIBILITY.md) says what the app
+   supports today.
+
+## Accessibility
+
+See [ACCESSIBILITY.md](ACCESSIBILITY.md) for what Wax supports, what doesn't
+work yet, and how to report a barrier.
 
 ## Security
 

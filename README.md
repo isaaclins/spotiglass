@@ -97,6 +97,7 @@ The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsi
 | [Pinning](docs/pinning.md) | Sidebar pins and drag targets |
 | [Screenshots](docs/screenshots.md) | Screenshot mode: capture the real UI with sample data |
 | [Limitations](docs/limitations.md) | Premium, signing, API limits |
+| [Accessibility](ACCESSIBILITY.md) | VoiceOver, keyboard, Reduce Motion, known gaps, reporting a barrier |
 
 ## Regenerate README logo
 
@@ -116,7 +117,7 @@ If Wax has been useful and you want to support ongoing development:
 
 ## Contributing
 
-Open an issue describing the change you want to make before opening a pull request so scope and direction stay aligned.
+Open an issue describing the change you want to make before opening a pull request so scope and direction stay aligned. [CONTRIBUTING.md](CONTRIBUTING.md) covers building, testing and the pull request template.
 
 ## License
 
