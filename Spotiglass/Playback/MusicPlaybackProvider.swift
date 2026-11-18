@@ -108,6 +108,11 @@ protocol MusicPlaybackProvider: AnyObject {
     func setShuffle(enabled: Bool, deviceID: String) async throws
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws
     func enqueue(uri: String, deviceID: String) async throws
+    /// Adds `track` at the very end of the queue, after everything queued (Autoplay, #613).
+    /// The default is ``enqueue(uri:deviceID:)``, for a service whose queue has only one place
+    /// to add to. `isWanted` is asked right before the queue changes: an add the caller no
+    /// longer wants (Autoplay turned off while it waited) leaves the queue alone.
+    func appendToQueueEnd(_ track: MusicTrack, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws
 
     // MARK: - Commands for the in-app player
 
@@ -140,4 +145,16 @@ extension MusicPlaybackProvider {
     var isQueueSettling: Bool { false }
 
     func didStartLocalPlayback(uri: String) async throws {}
+
+    func appendToQueueEnd(_ track: MusicTrack, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws {
+        guard isWanted() else { throw CancellationError() }
+        try await enqueue(uri: track.uri, deviceID: deviceID)
+    }
+}
+
+/// An add to the end of the queue that was left out on purpose.
+enum QueueAppendSkipped: Error, Equatable {
+    /// The song was queued meanwhile (added by hand while Autoplay waited its turn), also as
+    /// another copy of it, like the library copy of a catalog song.
+    case alreadyQueued
 }

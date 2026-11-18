@@ -285,6 +285,16 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: uri, atEnd: false, isCurrent: isCurrent)
+    }
+
+    func append(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: uri, atEnd: true, isCurrent: isCurrent)
+    }
+
+    /// Add to Queue (`atEnd` false) goes after the current song and the songs added before it;
+    /// Autoplay (`atEnd` true) goes after everything queued (#613).
+    private func add(uri: String, atEnd: Bool, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
         let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
         if explicitBlocked { await Self.lookUpRatings([resolved.entry]) }
@@ -300,18 +310,22 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }
         }
-        let plan = book.planAdd(
-            AppleMusicQueueBook.Row(uri: uri, title: resolved.entry.title),
-            currentIndex: currentIndex,
-            entryCount: entries.count
-        )
-        PlaybackTrace.shared.command("addToQueue", "at \(plan.index.map(String.init) ?? "after current")")
-        if let index = plan.index, !plan.isAfterCurrent {
+        let row = AppleMusicQueueBook.Row(uri: uri, title: resolved.entry.title)
+        let plan = atEnd
+            ? book.planAppend(row, currentIndex: currentIndex, entryCount: entries.count)
+            : book.planAdd(row, currentIndex: currentIndex, entryCount: entries.count)
+        PlaybackTrace.shared.command(atEnd ? "appendToQueue" : "addToQueue", "at \(plan.index.map(String.init) ?? "after current")")
+        // Entries still waiting for their id before this add aren't this add's to wait for.
+        let stuckBefore = Set(player.queue.entries.map(\.id).filter { UUID(uuidString: $0) != nil })
+        if let index = plan.index, !plan.isAfterCurrent, !atEnd {
             player.queue.entries.insert(resolved.entry, at: index)
         } else {
+            // Autoplay's songs go in through MusicKit's own end of the queue.
+            let position: MusicPlayer.Queue.EntryInsertionPosition =
+                atEnd && !plan.isAfterCurrent ? .tail : .afterCurrentEntry
             do {
                 try await Self.mapped {
-                    try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+                    try await self.player.queue.insert(resolved.entry, position: position)
                 }
             } catch {
                 // The song never joined the queue, so a later song with the same keys must
@@ -323,7 +337,28 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             }
         }
         book.finishAdd(plan)
+        if atEnd { await waitForAddedEntries(besides: stuckBefore) }
     }
+
+    /// MusicKit takes an added entry in after `insert` returns: the entry keeps a stand-in UUID
+    /// as its id until MusicKit gives it its own (measured in #389). Autoplay adds several songs
+    /// in a row, and five adds within 3 ms stopped the playing song (#613, macOS 27), so each
+    /// of its adds waits until MusicKit has taken in what it added (entries already waiting before
+    /// it don't hold it up), at most ``addSettleLimit``.
+    private func waitForAddedEntries(besides stuck: Set<String>) async {
+        let start = ContinuousClock.now
+        func pending() -> Bool {
+            player.queue.entries.contains { UUID(uuidString: $0.id) != nil && !stuck.contains($0.id) }
+        }
+        while pending(), ContinuousClock.now - start < Self.addSettleLimit, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        PlaybackTrace.shared.command(
+            "appendToQueue settled", "after \(ContinuousClock.now - start)\(pending() ? " (limit reached)" : "")"
+        )
+    }
+
+    private static let addSettleLimit: Duration = .seconds(2)
 
     func readState() -> AppleMusicPlayerState {
         // Media keys and Control Center reach MusicKit without the app: a refused queue that

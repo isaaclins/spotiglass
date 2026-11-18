@@ -114,7 +114,8 @@ struct PlaylistBrowserView: View {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
             provider: playbackHost.playbackProvider,
-            playbackSession: playbackViewModel
+            playbackSession: playbackViewModel,
+            autoplay: playbackHost.queueAutoplay
         )
 
         _viewModel = StateObject(wrappedValue: viewModel)

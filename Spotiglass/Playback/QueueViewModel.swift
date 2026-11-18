@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 struct QueueEnqueueResult: Equatable {
@@ -15,6 +16,10 @@ final class QueueViewModel: ObservableObject {
     /// The music service's player; the queue is read from and added to through it.
     let provider: any MusicPlaybackProvider
     let playbackSession: PlaybackSessionViewModel
+    /// Keeps the queue going in the style of its recent songs while it is on (#613). The
+    /// playback host's, shared by every window.
+    let autoplay: QueueAutoplay
+    private var autoplayAdds: AnyCancellable?
     var lastFetchedQueue: MusicPlaybackQueue?
     /// Immediate queue projection used while waiting for Spotify queue
     /// reconciliation (e.g. optimistic shuffle UX).
@@ -120,10 +125,12 @@ final class QueueViewModel: ObservableObject {
         enqueueSuccessCooldown: Duration = .seconds(2),
         enqueueUnknownOutcomeCooldown: Duration = .seconds(5),
         enqueueMinimumRetryDelay: Duration = .seconds(1),
-        clock: any PlaybackClock = ContinuousClock()
+        clock: any PlaybackClock = ContinuousClock(),
+        autoplay: QueueAutoplay? = nil
     ) {
         self.provider = provider
         self.playbackSession = playbackSession
+        self.autoplay = autoplay ?? QueueAutoplay(source: nil)
         self.pollIntervalNanoseconds = pollIntervalNanoseconds
         self.pausedPollIntervalNanoseconds = pausedPollIntervalNanoseconds
         self.reconnectingPollIntervalNanoseconds = reconnectingPollIntervalNanoseconds
@@ -138,6 +145,9 @@ final class QueueViewModel: ObservableObject {
         self.enqueueUnknownOutcomeCooldown = enqueueUnknownOutcomeCooldown
         self.enqueueMinimumRetryDelay = enqueueMinimumRetryDelay
         self.clock = clock
+        autoplayAdds = self.autoplay.queueChanged.sink { [weak self] in
+            Task { await self?.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false) }
+        }
     }
 
     var isPlaybackPlaying: Bool {

@@ -45,6 +45,16 @@ struct QueuePanelView: View {
     }
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            headerRow
+            // The panel's whole width, on one line, so its height stays the same while the
+            // status changes on every new song.
+            QueueAutoplayStatusLine(autoplay: queueViewModel.autoplay)
+        }
+        .padding(SpotiglassDesign.Layout.panelMargin)
+    }
+
+    private var headerRow: some View {
         HStack {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
                 Text(SpotiglassL10n.string("queue.title"))
@@ -54,6 +64,7 @@ struct QueuePanelView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            QueueAutoplayButton(autoplay: queueViewModel.autoplay)
             Button {
                 Task { await queueViewModel.toggleShuffle() }
             } label: {
@@ -73,7 +84,6 @@ struct QueuePanelView: View {
             .accessibilityHint(PlaybackControlsView.serviceString("queue.shuffle.hint", appleMusic: "queue.shuffle.appleMusic.hint"))
             .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
-        .padding(SpotiglassDesign.Layout.panelMargin)
     }
 
     private var subtitleText: String {
@@ -223,6 +233,58 @@ struct QueuePanelView: View {
             return SpotiglassL10n.string("queue.upNext.empty.repeat")
         }
         return SpotiglassL10n.string("queue.upNext.empty.default")
+    }
+}
+
+/// The ∞ button beside Shuffle, like Autoplay at the top of the Music app's Playing Next
+/// (#613): accent coloured while on. Hidden where the service offers no suggestions.
+struct QueueAutoplayButton: View {
+    @ObservedObject var autoplay: QueueAutoplay
+
+    var body: some View {
+        if autoplay.isAvailable {
+            Button {
+                autoplay.setEnabled(!autoplay.isEnabled)
+            } label: {
+                Image(systemName: "infinity")
+                    .foregroundStyle(
+                        autoplay.isEnabled
+                            ? AnyShapeStyle(SpotiglassAccentStyle())
+                            : AnyShapeStyle(.primary)
+                    )
+            }
+            .accessibilityLabel(SpotiglassL10n.string("queue.autoplay.label"))
+            .accessibilityValue(SpotiglassL10n.string(autoplay.isEnabled ? "queue.autoplay.on" : "queue.autoplay.off"))
+            .help(SpotiglassL10n.string(autoplay.isEnabled ? "queue.autoplay.help.on" : "queue.autoplay.help.off"))
+        }
+    }
+}
+
+/// One line under the queue's header while Autoplay is on, saying what it does right now.
+/// Always one line: the status changes on every new song, and the list below mustn't move.
+struct QueueAutoplayStatusLine: View {
+    @ObservedObject var autoplay: QueueAutoplay
+
+    var body: some View {
+        if let key = Self.key(for: autoplay.status), autoplay.isEnabled {
+            let text = SpotiglassL10n.string(key)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(text)
+        }
+    }
+
+    static func key(for status: QueueAutoplay.Status) -> String? {
+        switch status {
+        case .off: nil
+        case .on: "queue.autoplay.status.on"
+        case .finding: "queue.autoplay.status.finding"
+        case .noMatches: "queue.autoplay.status.noMatches"
+        case .failed: "queue.autoplay.status.failed"
+        }
     }
 }
 

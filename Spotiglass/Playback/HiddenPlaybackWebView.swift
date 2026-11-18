@@ -254,6 +254,9 @@ final class SpotiglassPlaybackHost: ObservableObject {
     let playbackViewModel: PlaybackSessionViewModel
     let playbackProvider: any MusicPlaybackProvider
     let commander: WebPlaybackViewCommander
+    /// Autoplay for this service's queue (#613): one for the app, so every window shows the
+    /// same switch and a new song adds one song however many windows are open.
+    let queueAutoplay: QueueAutoplay
 
     /// The Web Playback SDK page. `nil` for a service whose player needs no web view.
     private let webView: AccessibilityHiddenPlaybackWebView?
@@ -289,6 +292,7 @@ final class SpotiglassPlaybackHost: ObservableObject {
         self.playbackProvider = playbackProvider
         self.commander = commander
         self.webView = webView
+        queueAutoplay = .forService(playbackProvider.service, session: playbackViewModel, provider: playbackProvider)
     }
 
     /// A host for a service whose player runs without a web view (Apple Music's
@@ -298,14 +302,16 @@ final class SpotiglassPlaybackHost: ObservableObject {
         equalizerEngine: AudioEqualizerEngine? = nil,
         clock: any PlaybackClock = ContinuousClock()
     ) {
-        self.playbackProvider = provider
-        self.playbackViewModel = PlaybackSessionViewModel(
+        let playbackViewModel = PlaybackSessionViewModel(
             provider: provider,
             equalizerEngine: equalizerEngine,
             clock: clock
         )
+        self.playbackProvider = provider
+        self.playbackViewModel = playbackViewModel
         self.commander = WebPlaybackViewCommander()
         self.webView = nil
+        queueAutoplay = .forService(provider.service, session: playbackViewModel, provider: provider)
     }
 
     /// Mounts the retained SDK web view into the first live scene container.
