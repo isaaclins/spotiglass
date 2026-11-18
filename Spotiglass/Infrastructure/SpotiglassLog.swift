@@ -69,6 +69,7 @@ enum SpotiglassLog {
     }
 
     private static var flushObserver: NSObjectProtocol?
+    private static var previousExceptionHandler: (@convention(c) (NSException) -> Void)?
 
     /// Info and debug lines are written in the background; a quit or an uncaught exception
     /// must not leave the last of them in the queue (#602). Errors are written at once anyway.
@@ -82,9 +83,13 @@ enum SpotiglassLog {
             SpotiglassLog.info(.persistence, "Wax quitting")
             SpotiglassLog.flush()
         }
+        // Exceptions AppKit catches on the main thread don't come here; errors are written
+        // at once anyway. A handler installed earlier still runs after this one.
+        previousExceptionHandler = NSGetUncaughtExceptionHandler()
         NSSetUncaughtExceptionHandler { exception in
             SpotiglassLog.error(.persistence, "Uncaught exception \(exception.name.rawValue): \(exception.reason ?? "no reason")")
             SpotiglassLog.flush()
+            SpotiglassLog.previousExceptionHandler?(exception)
         }
     }
 

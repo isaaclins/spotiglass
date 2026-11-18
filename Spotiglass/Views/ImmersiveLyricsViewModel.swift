@@ -316,11 +316,15 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         Self.backoffMetadata = Self.backoffMetadata.filter { $0.value.nextEligibleFetchAt > now.addingTimeInterval(-24 * 60 * 60) }
         Self.backoffMetadata[trackId] = metadata
         // `LrcLibClient` logged the failure itself; this is what the app does about it.
-        SpotiglassLog.info(
-            .api,
-            "Lyrics failed \(nextCount) time(s) for this song; showed the error, "
-                + "no new fetch for \(Int(metadata.nextEligibleFetchAt.timeIntervalSince(now).rounded())) s"
-        )
+        let wait = Int(metadata.nextEligibleFetchAt.timeIntervalSince(now).rounded())
+        if case .noLyrics = failure {
+            SpotiglassLog.info(.api, "LRCLIB has no lyrics for this song; showed that, no new fetch for \(wait) s")
+        } else {
+            SpotiglassLog.info(
+                .api,
+                "Lyrics failed \(nextCount) time(s) for this song; showed the error, no new fetch for \(wait) s"
+            )
+        }
         do {
             try diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
         } catch {

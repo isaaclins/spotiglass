@@ -236,11 +236,30 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         newConnection.interruptionHandler = { [weak self] in
             self?.removeService(for: identifier)
         }
-        // A caller that fails the code requirement is cut off by XPC after this point; its
-        // connection then ends without an install line.
-        helperLog.notice("Accepted a connection from pid \(newConnection.processIdentifier, privacy: .public), checking its signature")
+        // XPC enforces the requirement and cuts a failing caller off without telling this side,
+        // so the same requirement is checked here only to say so in Console.
+        switch Self.callerMeetsRequirement(pid: pid) {
+        case .some(true):
+            helperLog.notice("Accepted a connection from pid \(pid, privacy: .public)")
+        case .some(false):
+            helperLog.error("Rejected a connection from pid \(pid, privacy: .public): its signature does not meet the app requirement, XPC refuses its requests")
+        case .none:
+            helperLog.notice("Accepted a connection from pid \(pid, privacy: .public); its signature could not be read here, XPC checks it")
+        }
         newConnection.resume()
         return true
+    }
+
+    /// For the log only: a pid can be reused, so the decision stays with XPC's own check.
+    private static func callerMeetsRequirement(pid: pid_t) -> Bool? {
+        var code: SecCode?
+        let attributes = [kSecGuestAttributePid: pid] as CFDictionary
+        guard SecCodeCopyGuestWithAttributes(nil, attributes, [], &code) == errSecSuccess, let code else { return nil }
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            EqualizerPrivilegedHelperIdentity.clientRequirement as CFString, [], &requirement
+        ) == errSecSuccess, let requirement else { return nil }
+        return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
     }
 
     private func store(_ service: EqualizerPrivilegedService, for identifier: ObjectIdentifier) {
