@@ -48,6 +48,11 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
             artists = [artist("rainao", "RaiNao")]
         case "Simon & Garfunkel":
             artists = [artist("paul", "Paul Simon"), artist("sg", "Simon & Garfunkel")]
+        case "Tyler, The Creator & Kali Uchis":
+            artists = [artist("kali", "Kali Uchis"), artist("tyler-tc", "Tyler, The Creator")]
+        case "Tyler":
+            // Someone else who is called just that.
+            artists = [artist("tyler", "Tyler")]
         default:
             artists = [artist("mora", "Mora")]
         }
@@ -61,8 +66,31 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
             return Self.catalogSearch(query)
         }
         XCTAssertEqual(id, "bad-bunny")
-        // Plain names: Apple Music reads Spotify's `artist:"…"` filter as words to search.
-        XCTAssertEqual(queries, ["Bad Bunny & RaiNao", "Bad Bunny"])
+        // Plain names: Apple Music reads Spotify's `artist:"…"` filter as words to search. The
+        // credit's own search already lists Bad Bunny, so no second search runs.
+        XCTAssertEqual(queries, ["Bad Bunny & RaiNao"])
+    }
+
+    /// "Tyler" alone is someone else: the credit's search lists the real artist with the comma.
+    func testANameWithACommaInACombinedCreditIsNotCutAtTheComma() async throws {
+        var queries: [String] = []
+        let id = try await PlaylistBrowserTapTargetResolver.resolveArtistID(forName: "Tyler, The Creator & Kali Uchis") { query, _ in
+            queries.append(query)
+            return Self.catalogSearch(query)
+        }
+        XCTAssertEqual(id, "tyler-tc")
+        XCTAssertEqual(queries, ["Tyler, The Creator & Kali Uchis"])
+    }
+
+    /// When the credit's search lists none of its artists, each name is searched on its own.
+    func testEachNameIsSearchedWhenTheCreditsSearchListsNoneOfThem() async throws {
+        var queries: [String] = []
+        let id = try await PlaylistBrowserTapTargetResolver.resolveArtistID(forName: "Nobody & RaiNao") { query, _ in
+            queries.append(query)
+            return Self.catalogSearch(query)
+        }
+        XCTAssertEqual(id, "rainao")
+        XCTAssertEqual(queries, ["Nobody & RaiNao", "Nobody", "RaiNao"])
     }
 
     func testAnArtistNamedWithAnAmpersandOpensThatArtist() async throws {
@@ -90,6 +118,18 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
         )
         XCTAssertEqual(PlaylistBrowserTapTargetResolver.creditNames("Florence and the Machine"), ["Florence and the Machine"])
         XCTAssertEqual(PlaylistBrowserTapTargetResolver.creditNames("  "), [])
+    }
+
+    func testCreditRunsKeepTheSeparatorsBetweenNames() {
+        XCTAssertEqual(
+            PlaylistBrowserTapTargetResolver.creditRuns("Tyler, The Creator & Kali Uchis"),
+            [
+                "Tyler, The Creator & Kali Uchis", "Tyler, The Creator", "Tyler",
+                "The Creator & Kali Uchis", "The Creator",
+                "Kali Uchis",
+            ]
+        )
+        XCTAssertEqual(PlaylistBrowserTapTargetResolver.creditRuns("  "), [])
     }
 
     /// The player bar's click on the combined credit, the whole way from the tap target.
