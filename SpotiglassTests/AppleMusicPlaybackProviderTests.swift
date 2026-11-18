@@ -2007,6 +2007,44 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         return queue[(index + 1)...].map(Self.track)
     }
 
+    /// The URIs queued after the current song, as the player holds them.
+    var upcomingURIs: [String] {
+        queue.indices.contains(index) ? Array(queue[(index + 1)...]) : []
+    }
+
+    private var removed: [UUID: (uris: [String], book: AppleMusicQueueBook.Removal)] = [:]
+
+    /// The live player's removal, on this queue.
+    func removeUpcoming(at positions: [Int]) -> QueueRemovalReceipt {
+        guard queue.indices.contains(index) else { return QueueRemovalReceipt(positions: [], tracks: []) }
+        let upcomingCount = queue.count - index - 1
+        let chosen = Array(Set(positions)).sorted().filter { (0..<upcomingCount).contains($0) }
+        let indices = chosen.map { index + 1 + $0 }
+        let uris = indices.map { queue[$0] }
+        commands.append("remove \(uris.joined(separator: ","))")
+        let entryCount = queue.count
+        for absolute in indices.reversed() { queue.remove(at: absolute) }
+        let bookRemoval = book.remove(at: indices, entryCount: entryCount)
+        let receipt = QueueRemovalReceipt(positions: chosen, tracks: uris.map(Self.track))
+        removed[receipt.id] = (uris, bookRemoval)
+        return receipt
+    }
+
+    func restoreUpcoming(_ receipt: QueueRemovalReceipt) throws {
+        guard let entry = removed.removeValue(forKey: receipt.id), queue.indices.contains(index) else {
+            throw MusicPlaybackError(service: .appleMusic, reason: .notFound)
+        }
+        commands.append("restore \(entry.uris.joined(separator: ","))")
+        let entryCount = queue.count
+        var indices: [Int] = []
+        for (position, uri) in zip(receipt.positions, entry.uris) {
+            let absolute = min(index + 1 + position, queue.count)
+            queue.insert(uri, at: absolute)
+            indices.append(absolute)
+        }
+        book.restore(entry.book, at: indices, entryCount: entryCount)
+    }
+
     private static func track(_ uri: String) -> MusicTrack {
         MusicTrack(
             id: uri,

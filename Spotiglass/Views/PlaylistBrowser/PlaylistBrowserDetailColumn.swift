@@ -62,19 +62,18 @@ struct QueuePanelColumn: View {
             queueViewModel: queueViewModel,
             playbackViewModel: playbackViewModel,
             openArtist: openArtist,
-            trackOpsMenuItems: { item in
+            trackOpsMenuItems: { items in
                 AnyView(TrackOpsMenuItems(
-                    targets: [TrackRowViewModel(queueItem: item)],
+                    targets: items.map { TrackRowViewModel(queueItem: $0) },
                     browserViewModel: browserViewModel,
                     sourcePlaylistID: nil,
                     onRequestCreatePlaylist: onRequestCreatePlaylist,
                     onRequestLibraryContinuation: onRequestLibraryContinuation,
                     openArtist: openArtist,
-                    artistTargetsOverride: item.artistTapTargets,
-                    // Spotify exposes no Web API endpoint to remove a queue
-                    // item, so do not add a misleading Remove from Queue action;
-                    // Add to Queue is also meaningless for an existing row.
-                    copyableURI: item.uri
+                    artistTargetsOverride: items.flatMap(\.artistTapTargets),
+                    // Remove from Queue is the queue panel's own item (#628); Add to Queue is
+                    // meaningless for a row already in it.
+                    copyableURI: items.first?.uri
                 ))
             }
         )

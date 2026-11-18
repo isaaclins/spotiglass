@@ -16,6 +16,8 @@ enum TrackRowMetrics {
     static let currentTintOpacity: Double = 0.10
     /// Pointer feedback, only on surfaces that draw their own highlights.
     static let hoverTintOpacity: Double = 0.05
+    /// A selected row in a stack (search results, Home), where no table paints the selection.
+    static let selectedTintOpacity: Double = 0.16
 }
 
 enum TrackRowVisualState: Equatable {
@@ -384,6 +386,11 @@ struct TrackListRow: View {
                 if drawsRowHighlights, isHovering {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                         .fill(Color.primary.opacity(TrackRowMetrics.hoverTintOpacity))
+                }
+                // Stacked rows have no table to paint their selection (#628).
+                if drawsRowHighlights, isSelected {
+                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                        .fill(.spotiglassAccent.opacity(TrackRowMetrics.selectedTintOpacity))
                 }
             }
         }

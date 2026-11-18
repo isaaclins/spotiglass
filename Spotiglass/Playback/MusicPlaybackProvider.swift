@@ -50,6 +50,115 @@ protocol MusicPlaybackDeviceTransfer: AnyObject {
     func transferPlayback(to deviceID: String, play: Bool) async throws
 }
 
+/// Taking songs out of the queue and putting them back (#628).
+@MainActor
+protocol MusicQueueEditing: AnyObject {
+    /// Takes the songs out of what plays next. Each removal names the song's place in the
+    /// upcoming list of the queue the listener saw (`seen`) and its URI: when the queue moved
+    /// on meanwhile (a song ended), the places are counted again from what still follows, and
+    /// a song that started playing or left the queue is left out.
+    func removeFromQueue(_ removals: [QueueRemoval], seen: QueueSnapshot) async throws -> QueueRemovalReceipt
+    /// Takes out everything after the current song.
+    func clearUpcomingQueue() async throws -> QueueRemovalReceipt
+    /// Puts the songs of a removal back where they were, counted from the current song.
+    func restoreToQueue(_ receipt: QueueRemovalReceipt) async throws
+}
+
+/// One song to take out of the queue: its place in the upcoming list (0 is the song right
+/// after the current one) and its URI.
+struct QueueRemoval: Equatable, Sendable {
+    let position: Int
+    let uri: String?
+}
+
+/// The queue as the listener saw it: the playing song and what follows, by URI.
+struct QueueSnapshot: Equatable, Sendable {
+    let current: String?
+    let upcoming: [String?]
+
+    /// The playing song (when there is one) followed by the upcoming ones.
+    var all: [String?] { (current.map { [$0] } ?? []) + upcoming }
+}
+
+/// What a removal took out, so Undo can put it back. `positions` are each song's place in
+/// the upcoming list before the removal, in ascending order, one per track.
+struct QueueRemovalReceipt: Equatable {
+    let id: UUID
+    let positions: [Int]
+    let tracks: [MusicTrack]
+
+    init(id: UUID = UUID(), positions: [Int], tracks: [MusicTrack]) {
+        self.id = id
+        self.positions = positions
+        self.tracks = tracks
+    }
+
+    var count: Int { tracks.count }
+}
+
+/// Which upcoming songs a removal takes out, worked out on the queue as it is now.
+enum QueueRemovalPlan {
+    /// The upcoming positions to remove, ascending.
+    ///
+    /// When the queue the listener saw (`seen`, playing song included) still lines up with the
+    /// queue now after songs ended (all of what's left of it starts the queue now), each place
+    /// moves up by the songs that ended, and a song that ended or started playing is left out:
+    /// a later copy of the same song is never taken in its stead. Otherwise a removal whose
+    /// position still holds its URI takes that position, else the nearest upcoming song with
+    /// that URI that isn't taken yet, else nothing (the song played or left the queue meanwhile).
+    static func positions(
+        for removals: [QueueRemoval],
+        upcomingURIs: [String?],
+        currentURI: String? = nil,
+        seen: QueueSnapshot? = nil
+    ) -> [Int] {
+        // The playing song is compared only when both sides know it.
+        let now = QueueSnapshot(current: seen?.current == nil ? nil : currentURI, upcoming: upcomingURIs)
+        let before = seen.map { QueueSnapshot(current: now.current == nil ? nil : $0.current, upcoming: $0.upcoming) }
+        if let before, let ended = endedCount(seen: before.all, now: now.all) {
+            let shift = ended + (now.current == nil ? 0 : 1) - (before.current == nil ? 0 : 1)
+            return Array(Set(removals.compactMap { removal -> Int? in
+                let position = removal.position - shift
+                guard position >= 0, upcomingURIs.indices.contains(position),
+                      same(upcomingURIs[position], removal.uri)
+                else { return nil }
+                return position
+            })).sorted()
+        }
+        var taken: Set<Int> = []
+        for removal in removals.sorted(by: { $0.position < $1.position }) {
+            let wanted = MusicPlayableURI.canonical(removal.uri) ?? removal.uri
+            func matches(_ index: Int) -> Bool {
+                guard upcomingURIs.indices.contains(index), !taken.contains(index) else { return false }
+                return (MusicPlayableURI.canonical(upcomingURIs[index]) ?? upcomingURIs[index]) == wanted
+            }
+            if matches(removal.position) {
+                taken.insert(removal.position)
+                continue
+            }
+            let nearest = upcomingURIs.indices
+                .filter(matches)
+                .min { abs($0 - removal.position) < abs($1 - removal.position) }
+            if let nearest { taken.insert(nearest) }
+        }
+        return taken.sorted()
+    }
+
+    /// How many songs at the front of `seen` ended since: the fewest whose removal leaves all
+    /// of the rest of `seen` as the start of `now` (songs added at the end since don't
+    /// matter). `nil` when none does: the queue changed some other way.
+    static func endedCount(seen: [String?], now: [String?]) -> Int? {
+        (0..<seen.count).first { ended in
+            let rest = seen.dropFirst(ended)
+            return rest.count <= now.count && zip(rest, now).allSatisfy { same($0, $1) }
+        }
+    }
+
+    private static func same(_ lhs: String?, _ rhs: String?) -> Bool {
+        (MusicPlayableURI.canonical(lhs) ?? lhs) == (MusicPlayableURI.canonical(rhs) ?? rhs)
+    }
+}
+
 /// Everything the playback session sends to, and reads from, a music service's
 /// player: starting items or a context, pause / resume, seek, skip, shuffle,
 /// repeat, volume, the queue, and the player's state.
@@ -84,6 +193,10 @@ protocol MusicPlaybackProvider: AnyObject {
 
     /// Spotify Connect style device transfer, or `nil` when the service has none.
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { get }
+
+    /// Taking songs out of what plays next, or `nil` when the service can't (#628). Spotify's
+    /// Web API has no endpoint that removes a queued song, so Spotify has none.
+    var queueEditing: (any MusicQueueEditing)? { get }
 
     /// Receives every player event. The session installs it when it is created;
     /// the provider calls it on the main actor, synchronously, in event order.
@@ -141,6 +254,8 @@ protocol MusicPlaybackProvider: AnyObject {
 
 extension MusicPlaybackProvider {
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { nil }
+
+    var queueEditing: (any MusicQueueEditing)? { nil }
 
     var isQueueSettling: Bool { false }
 

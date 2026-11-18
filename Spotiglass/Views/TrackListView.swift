@@ -66,6 +66,10 @@ struct TrackListView<Row: View>: View {
     /// view state would invalidate the body on each report, re-walking the whole
     /// track array to redraw nothing. Nobody observes this bookkeeping.
     @State private var realizedRows = TrackListRealizedRows()
+    /// A click selects a row but left the table without keyboard focus: the row's own tap
+    /// gestures take the mouse-down, so the selection stayed grey (the inactive look) and the
+    /// arrow keys, Delete and ⌘A never reached the table (#628). A new selection focuses it.
+    @FocusState private var isListFocused: Bool
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -109,6 +113,10 @@ struct TrackListView<Row: View>: View {
                 }
             }
             .listStyle(.inset)
+            .focused($isListFocused)
+            .onChange(of: selection) {
+                if !selection.isEmpty { isListFocused = true }
+            }
             .onKeyPress(.return) {
                 guard let playSelection, !selection.isEmpty else { return .ignored }
                 playSelection(selection)
