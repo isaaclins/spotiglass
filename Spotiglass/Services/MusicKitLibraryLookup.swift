@@ -154,6 +154,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     var registry: AppleMusicSongReferenceRegistry = .shared
 
     func songs(ids: [String]) async throws -> [AppleMusicSongReference] {
+        try await MusicKitContentSource.logged("library editor songs lookup (\(ids.count) songs)") { () async throws in
+            try await unloggedSongs(ids: ids)
+        }
+    }
+
+    private func unloggedSongs(ids: [String]) async throws -> [AppleMusicSongReference] {
         var librarySongs: [Song] = []
         for batch in Self.batches(Array(Set(ids))) {
             var request = MusicLibraryRequest<Song>()
@@ -179,6 +185,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     }
 
     func catalogTracks(ids: [String]) async throws -> [MusicTrack] {
+        try await MusicKitContentSource.logged("library editor catalog songs read (\(ids.count) songs)") { () async throws in
+            try await unloggedCatalogTracks(ids: ids)
+        }
+    }
+
+    private func unloggedCatalogTracks(ids: [String]) async throws -> [MusicTrack] {
         let catalogIDs = ids.filter(Self.isCatalogID)
         guard !catalogIDs.isEmpty else { return [] }
         var tracks: [MusicTrack] = []
@@ -191,6 +203,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     }
 
     func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] {
+        try await MusicKitContentSource.logged("library editor catalog album tracks read (\(albumIDs.count) albums)") { () async throws in
+            try await unloggedCatalogAlbumTracks(albumIDs: albumIDs)
+        }
+    }
+
+    private func unloggedCatalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] {
         let catalogIDs = albumIDs.filter(Self.isCatalogID)
         guard !catalogIDs.isEmpty else { return [] }
         var tracks: [MusicTrack] = []
@@ -211,6 +229,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     }
 
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] {
+        try await MusicKitContentSource.logged("library editor albums lookup (\(ids.count) albums)") { () async throws in
+            try await unloggedAlbums(ids: ids)
+        }
+    }
+
+    private func unloggedAlbums(ids: [String]) async throws -> [AppleMusicAlbumReference] {
         var references: [AppleMusicAlbumReference] = []
         for id in ids {
             var request = MusicLibraryRequest<Album>()
@@ -245,6 +269,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     }
 
     func playlist(id: String) async throws -> AppleMusicPlaylistReference? {
+        try await MusicKitContentSource.logged("library editor playlist lookup") { () async throws in
+            try await unloggedPlaylist(id: id)
+        }
+    }
+
+    private func unloggedPlaylist(id: String) async throws -> AppleMusicPlaylistReference? {
         var request = MusicLibraryRequest<Playlist>()
         request.filter(matching: \.id, equalTo: MusicItemID(id))
         guard let playlist = try await request.response().items.first else { return nil }
@@ -273,6 +303,12 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
     /// A song that is only in a playlist has such an entry too, and only that entry carries its
     /// catalog ID (#401); its title finds it, its persistent ID tells it from namesakes.
     func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
+        try await MusicKitContentSource.logged("library editor song identity lookup") { () async throws in
+            try await unloggedLibraryIdentity(of: reference)
+        }
+    }
+
+    private func unloggedLibraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
         guard let title = reference.title, !title.isEmpty, let persistentID = reference.musicKitPersistentID else { return nil }
         var request = MusicLibraryRequest<Song>()
         request.filter(matching: \.title, equalTo: title)

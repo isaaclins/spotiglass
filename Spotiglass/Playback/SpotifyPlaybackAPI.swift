@@ -296,7 +296,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             return nil
         }
         guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+            throw loggedGETFailure(path: "/v1/me/player", data: data, response: response)
         }
         let dto = try decoder.decode(SpotifyPlayerSnapshotDTO.self, from: data)
         return dto.domainModel()
@@ -335,9 +335,16 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {
         let (data, response) = try await performGET(path: path, queryItems: queryItems)
         guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+            throw loggedGETFailure(path: path, data: data, response: response)
         }
         return data
+    }
+
+    /// Successful polls stay out of the log; a failed one is what a stuck player bar needs.
+    private func loggedGETFailure(path: String, data: Data, response: HTTPURLResponse) -> Error {
+        let error = mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+        SpotiglassLog.error(.api, "Spotify GET \(path) -> status=\(response.statusCode) (\(error)); passed to the player")
+        return error
     }
 
     private func performGET(path: String, queryItems: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
@@ -361,15 +368,26 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
                 if shouldRetryGET(statusCode: response.statusCode, path: path, attempt: attempt) {
                     let retryAfter = retryAfterSeconds(fromRawHeader: response.value(forHTTPHeaderField: "Retry-After"))
                     let delay = retryDelaySeconds(retryAfter: retryAfter, attempt: attempt)
+                    SpotiglassLog.info(
+                        .api,
+                        "Spotify GET \(path) -> status=\(response.statusCode) on attempt \(attempt); retrying in \(String(format: "%.1f", delay)) s"
+                    )
                     try await Task.sleep(for: .seconds(delay))
                     continue
                 }
                 return (data, response)
             } catch {
                 guard shouldRetryGET(error: error, path: path, attempt: attempt) else {
+                    if !(error is CancellationError) {
+                        SpotiglassLog.error(.api, "Spotify GET \(path) failed on attempt \(attempt): \(SpotiglassLog.describe(error)); passed to the player")
+                    }
                     throw error
                 }
                 let delay = retryDelaySeconds(retryAfter: nil, attempt: attempt)
+                SpotiglassLog.info(
+                    .api,
+                    "Spotify GET \(path) failed on attempt \(attempt) (\(SpotiglassLog.describe(error))); retrying in \(String(format: "%.1f", delay)) s"
+                )
                 try await Task.sleep(for: .seconds(delay))
             }
         }
@@ -431,7 +449,16 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
 
         let queryString = queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
         SpotiglassLog.info(.api, "Spotify \(method) \(path)\(queryString.isEmpty ? "" : "?\(queryString)") body=\(bodyPreview)")
-        let (data, response) = try await httpClient.data(for: request)
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await httpClient.data(for: request)
+        } catch {
+            if !(error is CancellationError) {
+                SpotiglassLog.error(.api, "Spotify \(method) \(path) failed: \(SpotiglassLog.describe(error)); passed to the caller")
+            }
+            throw error
+        }
         SpotiglassLog.info(.api, "Spotify \(method) \(path) -> status=\(response.statusCode)")
         guard (200..<300).contains(response.statusCode) || response.statusCode == 204 else {
             throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)

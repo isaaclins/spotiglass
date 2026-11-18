@@ -1,6 +1,12 @@
 import Darwin
 import Foundation
+import os
 import Security
+
+/// Console › subsystem `com.isaaclins.spotiglass`, category `eq-helper`: every refused caller,
+/// install and `coreaudiod` restart leaves a line there (#602). Paths and statuses are public;
+/// they name system folders and this app's bundle, nothing about the user.
+private let helperLog = Logger(subsystem: "com.isaaclins.spotiglass", category: "eq-helper")
 
 @objc private protocol EqualizerPrivilegedHelperProtocol {
     func installDriver(
@@ -56,15 +62,23 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
                 sourceURL: URL(fileURLWithPath: sourcePath),
                 destinationURL: URL(fileURLWithPath: destinationPath)
             )
+            helperLog.notice("Driver installed at \(destinationPath, privacy: .public) and coreaudiod restarted")
             reply(Self.response(status: 0, message: ""))
         } catch {
             let status: Int32 = error is HelperOperationError && isRejected(error) ? 64 : 74
+            // A refused request already logged which check refused it.
+            if !isRejected(error) {
+                helperLog.error(
+                    "Driver install from \(sourcePath, privacy: .public) to \(destinationPath, privacy: .public) failed (reply status \(status)): \(String(describing: error), privacy: .public)"
+                )
+            }
             reply(Self.response(status: status, message: String(describing: error)))
         }
     }
 
     private func install(sourceURL: URL, destinationURL: URL) throws {
         guard isExpectedSource(sourceURL), destinationURL == expectedDestinationURL else {
+            helperLog.error("Refused an install outside this app's driver and the HAL folder")
             throw HelperOperationError.invalidRequest
         }
         guard fileManager.fileExists(atPath: sourceURL.path) else {
@@ -74,6 +88,7 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
             // Path checks prevent arbitrary filesystem writes. Signature
             // validation prevents a modified app bundle from becoming a
             // root-loaded CoreAudio plug-in.
+            helperLog.error("Refused a driver whose signature does not meet the driver requirement")
             throw HelperOperationError.invalidRequest
         }
 
@@ -83,7 +98,16 @@ private final class EqualizerPrivilegedService: NSObject, EqualizerPrivilegedHel
             ".\(destinationURL.lastPathComponent).install-\(UUID().uuidString)",
             isDirectory: true
         )
-        defer { try? fileManager.removeItem(at: temporaryURL) }
+        defer {
+            // Left behind only after a failed copy or move; the next install uses a new name.
+            if fileManager.fileExists(atPath: temporaryURL.path) {
+                do {
+                    try fileManager.removeItem(at: temporaryURL)
+                } catch {
+                    helperLog.error("Could not remove the temporary copy \(temporaryURL.path, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
+            }
+        }
 
         // COPYFILE_ALL retains the signed bundle's metadata, including the
         // executable mtime that CoreAudio checks against its code signature.
@@ -175,7 +199,10 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
     private let lock = NSLock()
     private let service: EqualizerPrivilegedService?
 
+    private let executablePath: String
+
     init(executableURL: URL) {
+        executablePath = executableURL.path
         service = EqualizerPrivilegedService(executableURL: executableURL)
     }
 
@@ -183,9 +210,14 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         _ listener: NSXPCListener,
         shouldAcceptNewConnection newConnection: NSXPCConnection
     ) -> Bool {
-        guard newConnection.effectiveUserIdentifier != 0,
-            let service
-        else { return false }
+        guard newConnection.effectiveUserIdentifier != 0 else {
+            helperLog.error("Rejected a connection from root (pid \(newConnection.processIdentifier, privacy: .public))")
+            return false
+        }
+        guard let service else {
+            helperLog.error("Rejected a connection: this helper is not inside an app bundle (\(self.executablePath, privacy: .public))")
+            return false
+        }
 
         newConnection.setCodeSigningRequirement(
             EqualizerPrivilegedHelperIdentity.clientRequirement
@@ -196,14 +228,38 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         newConnection.exportedObject = service
         let identifier = ObjectIdentifier(newConnection)
         store(service, for: identifier)
+        let pid = newConnection.processIdentifier
         newConnection.invalidationHandler = { [weak self] in
+            helperLog.notice("Connection from pid \(pid, privacy: .public) ended")
             self?.removeService(for: identifier)
         }
         newConnection.interruptionHandler = { [weak self] in
             self?.removeService(for: identifier)
         }
+        // XPC enforces the requirement and cuts a failing caller off without telling this side,
+        // so the same requirement is checked here only to say so in Console.
+        switch Self.callerMeetsRequirement(pid: pid) {
+        case .some(true):
+            helperLog.notice("Accepted a connection from pid \(pid, privacy: .public)")
+        case .some(false):
+            helperLog.error("Rejected a connection from pid \(pid, privacy: .public): its signature does not meet the app requirement, XPC refuses its requests")
+        case .none:
+            helperLog.notice("Accepted a connection from pid \(pid, privacy: .public); its signature could not be read here, XPC checks it")
+        }
         newConnection.resume()
         return true
+    }
+
+    /// For the log only: a pid can be reused, so the decision stays with XPC's own check.
+    private static func callerMeetsRequirement(pid: pid_t) -> Bool? {
+        var code: SecCode?
+        let attributes = [kSecGuestAttributePid: pid] as CFDictionary
+        guard SecCodeCopyGuestWithAttributes(nil, attributes, [], &code) == errSecSuccess, let code else { return nil }
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString(
+            EqualizerPrivilegedHelperIdentity.clientRequirement as CFString, [], &requirement
+        ) == errSecSuccess, let requirement else { return nil }
+        return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
     }
 
     private func store(_ service: EqualizerPrivilegedService, for identifier: ObjectIdentifier) {

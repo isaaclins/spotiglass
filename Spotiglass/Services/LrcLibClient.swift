@@ -195,23 +195,41 @@ struct LrcLibClient: Sendable {
         request.setValue(AppMetadata.spotiglassHTTPUserAgent, forHTTPHeaderField: "User-Agent")
         request.timeoutInterval = 45
 
-        let (data, response) = try await session.data(for: request)
+        // The log names the endpoint, never the song: the query is the user's listening (#603).
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            if !(error is CancellationError) {
+                SpotiglassLog.error(.api, "LRCLIB \(endpoint) failed: \(SpotiglassLog.describe(error))")
+            }
+            throw error
+        }
         guard let http = response as? HTTPURLResponse else {
+            SpotiglassLog.error(.api, "LRCLIB \(endpoint) answered without an HTTP response")
             throw Failure.http(-1)
         }
         if http.statusCode == 404 {
+            SpotiglassLog.debug(.api, "LRCLIB \(endpoint) -> status=404 (no lyrics)")
             return nil
         }
         if http.statusCode == 429 {
             let retryAfter = parseRetryAfterSeconds(from: http)
+            SpotiglassLog.error(
+                .api,
+                "LRCLIB \(endpoint) -> status=429 (Retry-After \(retryAfter.map { "\(Int($0.rounded())) s" } ?? "not sent"))"
+            )
             throw Failure.rateLimited(retryAfter: retryAfter)
         }
         guard (200 ... 299).contains(http.statusCode) else {
+            SpotiglassLog.error(.api, "LRCLIB \(endpoint) -> status=\(http.statusCode)")
             throw Failure.http(http.statusCode)
         }
         do {
             return try JSONDecoder().decode(LrcLibResponseDTO.self, from: data)
         } catch {
+            SpotiglassLog.error(.api, "LRCLIB \(endpoint) -> status=\(http.statusCode), \(SpotiglassLog.describe(error))")
             throw Failure.decoding
         }
     }

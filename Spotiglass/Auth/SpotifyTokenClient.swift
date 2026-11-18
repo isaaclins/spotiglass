@@ -26,7 +26,8 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
         case .invalidResponse:
             return SpotiglassL10n.string("auth.token.invalidResponse")
         // The HTTP status is a developer fact and stays on the error case for
-        // the log; the sentence says what happened and what to do (#157).
+        // the log (`AuthFailureDescription`); the sentence says what happened and what
+        // to do (#157).
         case let .httpError(_, description, oauthError, _):
             if let description, !description.isEmpty {
                 return SpotiglassL10n.format("auth.token.rejectedWithDescription", description)
@@ -35,6 +36,43 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
                 return SpotiglassL10n.format("auth.token.rejectedWithDescription", oauthError)
             }
             return SpotiglassL10n.string("auth.token.rejected")
+        }
+    }
+}
+
+/// The facts about an auth failure a bug report needs (status, OAuth code, Retry-After,
+/// URLError code, Keychain status), without the user-facing sentence and never a token.
+enum AuthFailureDescription {
+    static func describe(_ error: Error) -> String {
+        switch error {
+        case let tokenError as SpotifyTokenClientError:
+            switch tokenError {
+            case .invalidResponse:
+                return "token endpoint sent no HTTP response"
+            case let .httpError(status, description, oauthError, retryAfter):
+                var parts = ["token endpoint HTTP \(status)"]
+                if let oauthError, !oauthError.isEmpty { parts.append(oauthError) }
+                if let description, !description.isEmpty, description != oauthError { parts.append("\"\(description)\"") }
+                if let retryAfter { parts.append("Retry-After \(Int(retryAfter.rounded())) s") }
+                return parts.joined(separator: " ")
+            }
+        case let keychainError as KeychainRefreshTokenStoreError:
+            switch keychainError {
+            case let .unexpectedStatus(status):
+                return "Keychain OSStatus \(status)"
+            case .invalidStoredData:
+                return "Keychain item holds unreadable data"
+            }
+        case let callbackError as LoopbackOAuthCallbackError:
+            return "callback " + (callbackError.diagnosticDetails ?? String(describing: callbackError))
+        case let apiError as SpotifyAPIError:
+            if case let .insufficientScope(requiredScopes, _, details) = apiError {
+                // The missing ones when the thrower knows them, else everything required.
+                return "token lacks " + (details ?? "required scopes \(requiredScopes.sorted().joined(separator: " "))")
+            }
+            return String(describing: apiError)
+        default:
+            return SpotiglassLog.describe(error)
         }
     }
 }
@@ -122,6 +160,7 @@ struct SpotifyTokenClient {
                 return try await sendTokenRequest(body: body)
             } catch {
                 guard attempt < maxAttempts, shouldRetryRefresh(error) else {
+                    // The caller logs the final failure with what it did about it.
                     throw error
                 }
                 // Every request waits on this one refresh, so a long Retry-After is not slept
@@ -129,6 +168,11 @@ struct SpotifyTokenClient {
                 guard let delay = retryDelay(forAttempt: attempt, error: error) else {
                     throw error
                 }
+                SpotiglassLog.info(
+                    .auth,
+                    "Token refresh attempt \(attempt) of \(maxAttempts) failed (\(AuthFailureDescription.describe(error))); "
+                        + "retrying in \(String(format: "%.1f", delay)) s"
+                )
                 try await sleep(delay)
             }
         }

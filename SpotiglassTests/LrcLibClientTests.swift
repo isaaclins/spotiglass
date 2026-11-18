@@ -29,6 +29,27 @@ private final class LRCLIBStubURLProtocol: URLProtocol {
     override func stopLoading() {}
 }
 
+/// Fails every LRCLIB request the way URLSession does offline: a `URLError` whose userInfo
+/// carries the failing URL, query and all.
+private final class LRCLIBOfflineURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.host == "127.0.0.1" && (request.url?.path.contains("/api/") == true)
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let url = request.url!
+        let error = URLError(.notConnectedToInternet, userInfo: [
+            NSURLErrorFailingURLErrorKey: url,
+            NSURLErrorFailingURLStringErrorKey: url.absoluteString
+        ])
+        client?.urlProtocol(self, didFailWithError: error)
+    }
+
+    override func stopLoading() {}
+}
+
 final class LrcLibClientTests: XCTestCase {
     override func tearDown() {
         LRCLIBStubURLProtocol.requestCount = 0
@@ -272,6 +293,36 @@ final class LrcLibClientTests: XCTestCase {
             durationMilliseconds: 180_000,
             positionMilliseconds: 0,
             uri: "spotify:track:abc123def456"
+        )
+    }
+
+    /// Offline, `"\(error)"` printed the LRCLIB URL with the song, artist and album, though the
+    /// log says it names the endpoint only (#602, #603).
+    func testAnOfflineFetchLogsTheEndpointAndCodeButNotTheSong() async throws {
+        let marker = "Song\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [LRCLIBOfflineURLProtocol.self] + (config.protocolClasses ?? [])
+        let client = LrcLibClient(session: URLSession(configuration: config), baseURL: URL(string: "http://127.0.0.1:1")!)
+        let track = PlaybackNowPlaying(
+            name: marker,
+            artists: ["A"],
+            albumName: "Album",
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:abc123def456"
+        )
+
+        do {
+            _ = try await client.fetchLyrics(for: track)
+            XCTFail("An offline fetch must fail")
+        } catch {}
+
+        XCTAssertEqual(try SpotiglassLogReader.lines(containing: marker), [], "The song reached the log")
+        XCTAssertFalse(
+            try SpotiglassLogReader.lines(containing: "LRCLIB get-cached failed: URLError \(URLError.notConnectedToInternet.rawValue)").isEmpty,
+            "The endpoint and the URLError code must be in the log"
         )
     }
 

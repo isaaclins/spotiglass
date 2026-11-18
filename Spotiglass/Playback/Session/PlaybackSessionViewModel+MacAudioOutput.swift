@@ -17,7 +17,17 @@ extension PlaybackSessionViewModel {
         }
         hardwareDevicesListener = listener
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, listener)
+        Self.logListenerStatus(
+            AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, listener),
+            "Could not watch the Mac's output devices",
+            consequence: "; the output list won't update when one is plugged in"
+        )
+    }
+
+    /// Core Audio's listener calls return a status that used to be dropped (#602).
+    nonisolated static func logListenerStatus(_ status: OSStatus, _ failure: String, consequence: String = "") {
+        guard status != noErr else { return }
+        SpotiglassLog.error(.playback, "\(failure) (OSStatus \(status))\(consequence)")
     }
 
     func refreshMacAudioOutputDevices() {
@@ -29,7 +39,10 @@ extension PlaybackSessionViewModel {
     /// default: that would route audio around the virtual EQ device. The
     /// selection becomes the EQRouter's forwarding target instead, and the
     /// engine's route state records whether that target actually opened (#253).
-    func setSystemDefaultOutputDevice(_ audioDeviceID: AudioDeviceID) {
+    func setSystemDefaultOutputDevice(
+        _ audioDeviceID: AudioDeviceID,
+        setDefault: (AudioDeviceID) -> OSStatus = MacAudioOutputHardware.setDefaultOutputDevice
+    ) {
         if let equalizerEngine, equalizerEngine.isEngaged {
             equalizerEngine.selectOutputDevice(audioDeviceID)
             refreshMacAudioOutputDevices()
@@ -37,8 +50,14 @@ extension PlaybackSessionViewModel {
             return
         }
 
-        let status = MacAudioOutputHardware.setDefaultOutputDevice(audioDeviceID)
-        guard status == noErr else { return }
+        let status = setDefault(audioDeviceID)
+        if status != noErr {
+            // Usually the device went away after the menu was built: the refreshed list drops it.
+            SpotiglassLog.error(
+                .playback,
+                "Choosing Mac output device \(audioDeviceID) failed (OSStatus \(status)); the output stays as it was and the list is refreshed"
+            )
+        }
         refreshMacAudioOutputDevices()
         refreshTrayOutputSymbol()
     }
@@ -103,7 +122,10 @@ extension PlaybackSessionViewModel {
             mElement: kAudioObjectPropertyElementMain
         )
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block)
+        Self.logListenerStatus(
+            AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block),
+            "Could not stop watching the Mac's output devices"
+        )
         hardwareDevicesListener = nil
     }
 }

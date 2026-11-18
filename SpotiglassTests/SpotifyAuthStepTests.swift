@@ -252,6 +252,63 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(cleaner.callCount, 1, "Cache must be cleared when refresh fails permanently.")
     }
 
+    /// A user's log used to say nothing when a refresh failed and signed them out (#602, #593).
+    @MainActor
+    func testARejectedRefreshLeavesOneAuthLineSayingWhatHappened() async throws {
+        let marker = "revoked-\(UUID().uuidString)"
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("secret-refresh-token-602")
+        let httpClient = MockHTTPClient(
+            data: Data(#"{ "error": "invalid_grant", "error_description": "\#(marker)" }"#.utf8),
+            statusCode: 400
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        let lines = try SpotiglassLogReader.lines(containing: marker)
+        XCTAssertEqual(lines.count, 1, "Expected one log line for the failed refresh, got: \(lines)")
+        let line = try XCTUnwrap(lines.first)
+        XCTAssertTrue(line.contains("[ERROR] [auth]"), line)
+        for fact in ["refresh", "400", "invalid_grant", "signed out"] {
+            XCTAssertTrue(line.contains(fact), "\(fact) is missing from: \(line)")
+        }
+        XCTAssertFalse(line.contains("secret-refresh-token-602"), "The log must never hold the token.")
+    }
+
+    /// A grant missing one browsing scope logged every required scope, so the log never said
+    /// which permission was actually absent (#602).
+    @MainActor
+    func testARefreshMissingAScopeLogsOnlyTheMissingOne() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let marker = "partial-\(UUID().uuidString)"
+        let httpClient = MockHTTPClient(
+            data: Data(#"{ "access_token": "\#(marker)", "token_type": "Bearer", "expires_in": 3600, "scope": "playlist-read-private streaming" }"#.utf8),
+            statusCode: 200
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        let lines = try SpotiglassLogReader.lines(containing: "token lacks missing scopes: playlist-read-collaborative)")
+        XCTAssertEqual(lines.count, 1, "\(lines)")
+        XCTAssertTrue(lines.first?.contains("Token refresh failed") == true, lines.first ?? "")
+        XCTAssertFalse(lines.first?.contains(marker) == true, "The log must never hold the token.")
+    }
+
     @MainActor
     func testRestoreSessionPreservesKeychainOnTransientNetworkError() async throws {
         let store = InMemoryRefreshTokenStore()
@@ -857,6 +914,25 @@ private final class SaveRefusingRefreshTokenStore: RefreshTokenStore {
     func deleteRefreshToken() throws { throw KeychainRefreshTokenStoreError.unexpectedStatus(-25_308) }
 }
 
+/// A store whose reads can start failing, like a Keychain that gets locked.
+private final class LockableRefreshTokenStore: RefreshTokenStore {
+    private var refreshToken: String?
+    var loadError: Error?
+
+    func loadRefreshToken() throws -> String? {
+        if let loadError { throw loadError }
+        return refreshToken
+    }
+
+    func saveRefreshToken(_ refreshToken: String) throws {
+        self.refreshToken = refreshToken
+    }
+
+    func deleteRefreshToken() throws {
+        refreshToken = nil
+    }
+}
+
 private final class InMemoryRefreshTokenStore: RefreshTokenStore {
     private var refreshToken: String?
 
@@ -929,6 +1005,44 @@ extension SpotifyAuthStepTests {
 
         XCTAssertEqual(session.accessToken, "back-online")
         XCTAssertEqual(http.requestCount, 4)
+    }
+
+    /// A paused sign-in that retries by itself reads the Keychain before its refresh starts, so a
+    /// locked Keychain there was never logged: the refresh's own line doesn't cover it (#602).
+    @MainActor
+    func testAPausedSignInsRetryLogsAKeychainThatCantBeRead() async throws {
+        let store = LockableRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.failure(URLError(.notConnectedToInternet)), count: 3)
+        let (signals, network) = AsyncStream<Void>.makeStream()
+        var settings = makeSettings(clientID: "client-id")
+        settings.grantedScope = Self.browsingScope
+        let viewModel = AuthViewModel(
+            settings: settings,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            sleep: { _ in try await Task.sleep(for: .seconds(3_600)) },
+            recoverySignals: signals
+        )
+        await viewModel.restoreSessionIfAvailable()
+        guard case .paused = viewModel.state else {
+            return XCTFail("Offline at launch must pause the sign-in, got \(viewModel.state)")
+        }
+
+        // errSecInteractionNotAllowed: the login Keychain is locked.
+        store.loadError = KeychainRefreshTokenStoreError.unexpectedStatus(-25308)
+        network.yield()
+        for await state in viewModel.$state.values {
+            if case .failed = state { break }
+        }
+
+        let lines = try SpotiglassLogReader.lines(containing: "Retrying the paused sign-in could not read the saved sign-in")
+        XCTAssertEqual(lines.count, 1, "\(lines)")
+        XCTAssertTrue(lines.first?.contains("[ERROR] [auth]") == true)
+        XCTAssertTrue(lines.first?.contains("Keychain OSStatus -25308") == true, lines.first ?? "")
     }
 
     /// A refresh that fails mid-session because the network dropped tells the request so in calm

@@ -13142,19 +13142,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird bei jedem Start neu angelegt; das Protokoll der vorherigen Sitzung bleibt als spotiglass.previous.log erhalten. Hängen Sie beim Melden von Fehlern beide Dateien an."
+            "value": "Wird bei jedem Start neu angelegt; das Protokoll der vorherigen Sitzung bleibt als spotiglass.previous.log erhalten, der ältere Teil einer langen Sitzung in einer Datei, die auf earlier.log endet. Hängen Sie beim Melden von Fehlern alle diese Dateien an."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reset at each launch; the previous session’s log is kept as spotiglass.previous.log. Attach both when filing bug reports."
+            "value": "Reset at each launch; the previous session’s log is kept as spotiglass.previous.log, and the earlier part of a long session in a file ending in earlier.log. Attach all of them when filing bug reports."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se reinicia en cada arranque; el registro de la sesión anterior se conserva como spotiglass.previous.log. Adjunta ambos al reportar errores."
+            "value": "Se reinicia en cada arranque; el registro de la sesión anterior se conserva como spotiglass.previous.log y la parte más antigua de una sesión larga en un archivo que termina en earlier.log. Adjúntalos todos al reportar errores."
           }
         }
       }

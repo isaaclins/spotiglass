@@ -14,7 +14,7 @@ extension LrcLibClient.Failure {
                 )
             }
             return SpotiglassL10n.string("lyrics.error.rateLimitedShortly")
-        // The status code is a developer fact and is already in the log; the
+        // The status code is a developer fact and `LrcLibClient` logs it; the
         // reader only needs to know lyrics did not arrive (#157).
         case .http:
             return SpotiglassL10n.string("lyrics.error.http")
@@ -75,8 +75,12 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         guard !isWithinBackoffCooldown(trackId: tid) else { return }
         do {
             _ = try await fetchWithDedup(trackId: tid, track: track)
+        } catch is CancellationError {
+            return
         } catch {
             // Prefetch is best-effort; failures surface when the user opens lyrics and `load` runs.
+            // `LrcLibClient` logged what failed; this says it was a prefetch.
+            SpotiglassLog.info(.api, "Lyrics prefetch failed; nothing shown, opening lyrics fetches again")
         }
     }
 
@@ -100,6 +104,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             return
         }
         if isWithinBackoffCooldown(trackId: tid) {
+            SpotiglassLog.info(.api, "Lyrics not fetched: this song failed before and waits \(remainingCooldownDescription(trackId: tid)); showed that")
             phase = .failed(cooldownMessage(trackId: tid))
             return
         }
@@ -117,10 +122,10 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             phase = .failed(LocalizedText(failure.userFacingMessage))
         } catch {
             guard isCurrentLoad(generation) else { return }
-            registerFailureBackoff(trackId: tid, failure: nil)
             // localizedDescription here is an URLError or decoding dump, which
-            // is not a sentence for a reader waiting on lyrics (#157).
-            SpotiglassLog.error(.api, "lyrics fetch failed: \(error)")
+            // is not a sentence for a reader waiting on lyrics (#157). `LrcLibClient`
+            // logged it; the backoff logs what the app does about it.
+            registerFailureBackoff(trackId: tid, failure: nil)
             phase = .failed(LocalizedText(SpotiglassL10n.string("lyrics.error.http")))
         }
     }
@@ -162,8 +167,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             Self.noLyricsCooldownUntil[trackId] = nil
             Self.backoffMetadata[trackId] = nil
             Self.inFlight[trackId] = nil
-            try? diskCache?.save(trackKey: trackId, lyrics: value)
-            try? diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
+            // Separate, so a failed save still clears the song's old wait on disk.
+            do {
+                try diskCache?.save(trackKey: trackId, lyrics: value)
+            } catch {
+                SpotiglassLog.error(.persistence, "Saving lyrics to the disk cache failed: \(SpotiglassLog.describe(error)); they are fetched again next launch")
+            }
+            do {
+                try diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
+            } catch {
+                SpotiglassLog.error(
+                    .persistence,
+                    "Clearing the lyrics wait in the disk cache failed: \(SpotiglassLog.describe(error)); after a relaunch the song may wait once more"
+                )
+            }
             return value
         } catch {
             Self.inFlight[trackId] = nil
@@ -209,7 +226,11 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         // Ended cooldowns go, the same way the disk copy drops them.
         Self.noLyricsCooldownUntil = Self.noLyricsCooldownUntil.filter { $0.value > now }
         Self.noLyricsCooldownUntil[trackId] = expiry
-        try? diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
+        do {
+            try diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
+        } catch {
+            SpotiglassLog.error(.persistence, "Saving a lyrics miss to the disk cache failed: \(SpotiglassLog.describe(error)); it is retried after a relaunch")
+        }
     }
 
     /// The wait is taken now; the sentence around it is looked up when shown.
@@ -230,6 +251,15 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             }
         }
         return LocalizedText(LrcLibClient.Failure.noLyrics.userFacingMessage)
+    }
+
+    /// How long the song's lyrics wait before the next fetch, for the log.
+    private func remainingCooldownDescription(trackId: String) -> String {
+        let until = [Self.backoffMetadata[trackId]?.nextEligibleFetchAt, Self.noLyricsCooldownUntil[trackId]]
+            .compactMap { $0 }
+            .max()
+        guard let until else { return "a while" }
+        return "\(Int(max(0, until.timeIntervalSinceNow).rounded())) s more"
     }
 
     private func registerFailureBackoff(trackId: String, failure: LrcLibClient.Failure?) {
@@ -285,6 +315,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         // Kept a day past its cooldown so repeated failures still back off further, like the disk copy.
         Self.backoffMetadata = Self.backoffMetadata.filter { $0.value.nextEligibleFetchAt > now.addingTimeInterval(-24 * 60 * 60) }
         Self.backoffMetadata[trackId] = metadata
-        try? diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
+        // `LrcLibClient` logged the failure itself; this is what the app does about it.
+        let wait = Int(metadata.nextEligibleFetchAt.timeIntervalSince(now).rounded())
+        if case .noLyrics = failure {
+            SpotiglassLog.info(.api, "LRCLIB has no lyrics for this song; showed that, no new fetch for \(wait) s")
+        } else {
+            SpotiglassLog.info(
+                .api,
+                "Lyrics failed \(nextCount) time(s) for this song; showed the error, no new fetch for \(wait) s"
+            )
+        }
+        do {
+            try diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
+        } catch {
+            SpotiglassLog.error(.persistence, "Saving the lyrics wait to the disk cache failed: \(SpotiglassLog.describe(error)); it ends at relaunch")
+        }
     }
 }

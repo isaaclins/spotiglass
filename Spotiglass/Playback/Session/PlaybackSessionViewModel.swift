@@ -918,7 +918,17 @@ final class PlaybackSessionViewModel: ObservableObject {
                   self.volumeMutationVersion == version,
                   self.playbackVolumeSendSerial == serial,
                   !Task.isCancelled else { return }
-            try? await self.provider.setVolume(value, generation: generation)
+            do {
+                try await self.provider.setVolume(value, generation: generation)
+            } catch is CancellationError {
+                return
+            } catch {
+                // The slider keeps the new value; the next player poll shows the real one.
+                SpotiglassLog.error(
+                    .playback,
+                    "Setting the volume to \(Int((value * 100).rounded())) % failed: \(SpotiglassLog.describe(error)); the next player update shows the real volume"
+                )
+            }
         }
     }
 

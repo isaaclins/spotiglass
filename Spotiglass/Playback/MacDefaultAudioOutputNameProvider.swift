@@ -43,7 +43,13 @@ final class MacDefaultAudioOutputNameProvider: MacDefaultAudioOutputProviding {
         }
         listenerBlock = listener
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectAddPropertyListenerBlock(systemObject, &address, callbackQueue, listener)
+        let status = AudioObjectAddPropertyListenerBlock(systemObject, &address, callbackQueue, listener)
+        if status != noErr {
+            SpotiglassLog.error(
+                .playback,
+                "Could not watch the Mac's default output (OSStatus \(status)); the output name won't follow a change"
+            )
+        }
     }
 
     func stopListening() {
@@ -54,7 +60,10 @@ final class MacDefaultAudioOutputNameProvider: MacDefaultAudioOutputProviding {
             mElement: kAudioObjectPropertyElementMain
         )
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        AudioObjectRemovePropertyListenerBlock(systemObject, &address, callbackQueue, listenerBlock)
+        let status = AudioObjectRemovePropertyListenerBlock(systemObject, &address, callbackQueue, listenerBlock)
+        if status != noErr {
+            SpotiglassLog.error(.playback, "Could not stop watching the Mac's default output (OSStatus \(status))")
+        }
         self.listenerBlock = nil
     }
 
