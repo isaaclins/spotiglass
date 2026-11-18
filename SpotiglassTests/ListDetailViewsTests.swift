@@ -291,6 +291,31 @@ final class ListDetailViewsTests: XCTestCase {
         )
     }
 
+    /// A right-click on a selection of several acts on all of them, so it offers no Copy Spotify
+    /// URI: that would copy the clicked track alone. One track keeps it (#628).
+    func testCopyURIIsOnlyOfferedForOneTrack() throws {
+        let browserViewModel = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [], trackResults: [:]), cache: MockBrowsingCache())
+        let rows = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "one"),
+            PlaylistBrowsingTestFixtures.track(id: "two"),
+        ])
+        func menu(_ targets: [TrackRowViewModel]) -> some View {
+            let view = TrackOpsMenuItems(
+                targets: targets,
+                browserViewModel: browserViewModel,
+                sourcePlaylistID: nil,
+                copyableURI: "spotify:track:one"
+            )
+            .environmentObject(pinnedStore())
+            ViewTestHost.host(view)
+            return view
+        }
+        let copy = SpotiglassL10n.string("queue.copyURI")
+
+        XCTAssertNoThrow(try menu([rows[0]]).inspect().find(button: copy))
+        XCTAssertThrowsError(try menu(rows).inspect().find(button: copy))
+    }
+
     func testLikedSongsMenuUsesLocalMembershipWithoutContainsRequest() throws {
         let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
         let browserViewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())

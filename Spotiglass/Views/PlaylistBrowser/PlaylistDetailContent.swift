@@ -524,7 +524,9 @@ struct TrackOpsMenuItems: View {
         case .unavailable:
             break
         }
-        if Self.copyableSpotifyURI(copyableURI) != nil {
+        // One URI to copy only when the menu is for one track: on a selection of several it
+        // would copy the clicked row alone (#628).
+        if targets.count <= 1, Self.copyableSpotifyURI(copyableURI) != nil {
             actions.insert(.copyURI)
         }
         if browserViewModel.canRemoveRows(fromPlaylist: sourcePlaylistForMove) {

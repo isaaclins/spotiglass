@@ -272,8 +272,7 @@ struct CatalogSearchView: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 hasPlaybackDevice: hasPlaybackDevice,
-                                // One URI to copy only when the menu is for one track.
-                                copyableURI: trackSelection.menuTargets(for: track, in: tracks).count == 1 ? track.playableURI : nil
+                                copyableURI: track.playableURI
                             ))
                         }
                     )

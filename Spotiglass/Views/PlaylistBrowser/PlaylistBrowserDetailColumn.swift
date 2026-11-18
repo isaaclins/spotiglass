@@ -73,7 +73,7 @@ struct QueuePanelColumn: View {
                     artistTargetsOverride: items.flatMap(\.artistTapTargets),
                     // Remove from Queue is the queue panel's own item (#628); Add to Queue is
                     // meaningless for a row already in it.
-                    copyableURI: items.count == 1 ? items.first?.uri : nil
+                    copyableURI: items.first?.uri
                 ))
             }
         )
