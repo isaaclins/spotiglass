@@ -203,14 +203,14 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func enqueue(uri: String, deviceID: String) async throws {
-        try await add(uri: uri, atEnd: false)
+        try await add(uri: uri, atEnd: false, isWanted: { true })
     }
 
-    func appendToQueueEnd(uri: String, deviceID: String) async throws {
-        try await add(uri: uri, atEnd: true)
+    func appendToQueueEnd(uri: String, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: uri, atEnd: true, isWanted: isWanted)
     }
 
-    private func add(uri: String, atEnd: Bool) async throws {
+    private func add(uri: String, atEnd: Bool, isWanted: @escaping @MainActor () -> Bool) async throws {
         // The session refuses an add while nothing is loaded. An add that still slips in after
         // a sign-out (made before it, or racing it) leaves the queue alone: it waits for the
         // play before it, and once its lookup is done it checks that the session is still the
@@ -223,7 +223,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
             await previous?.value
             let isCurrent: @MainActor () -> Bool = { [weak self] in
                 guard let self else { return false }
-                return self.session == session && !self.isSessionEnded
+                return self.session == session && !self.isSessionEnded && isWanted()
             }
             if atEnd {
                 try await player.append(uri: uri, isCurrent: isCurrent)

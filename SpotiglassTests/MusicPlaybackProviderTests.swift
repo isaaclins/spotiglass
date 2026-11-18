@@ -43,7 +43,11 @@ final class MusicPlaybackProviderTests: XCTestCase {
         let api = MockPlaybackAPI()
         let provider = SpotifyPlaybackProvider(playbackAPI: api)
 
-        try await provider.appendToQueueEnd(uri: "spotify:track:9", deviceID: "device")
+        try await provider.appendToQueueEnd(uri: "spotify:track:9", deviceID: "device", isWanted: { true })
+        do {
+            try await provider.appendToQueueEnd(uri: "spotify:track:10", deviceID: "device", isWanted: { false })
+            XCTFail("an add the caller no longer wants is refused")
+        } catch is CancellationError {}
 
         XCTAssertEqual(api.actions, ["addToQueue:device:spotify:track:9"])
     }

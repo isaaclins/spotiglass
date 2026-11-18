@@ -220,6 +220,61 @@ final class QueueAutoplayTests: XCTestCase {
         XCTAssertFalse(queue.contains("applemusic:song:new-1"))
     }
 
+    /// More refusals than spare picks: Autoplay keeps going down the suggestions until it has
+    /// added what it wanted, instead of giving up with good songs left.
+    func testManyRefusedSongsDontStopTheFill() async throws {
+        let h = makeHarness()
+        h.player.refusedURIs = Set((1...11).map { "applemusic:song:new-\($0)" })
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.autoplay.setEnabled(true)
+        await h.autoplay.settle()
+
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue.count, 8)
+        XCTAssertTrue(queue.allSatisfy { !h.player.refusedURIs.contains($0) })
+        XCTAssertEqual(h.autoplay.status, .on)
+    }
+
+    /// Turning Autoplay off while one of its songs is still being looked up leaves the queue
+    /// alone: that song doesn't land after Off.
+    func testTurningOffWhileASongIsBeingAddedLeavesTheQueueAlone() async throws {
+        let h = makeHarness()
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.player.holdLookups = true
+        h.autoplay.setEnabled(true)
+        await waitUntil("Autoplay's first add looking up its song", changes: h.player.changes) {
+            h.player.waitingLookups.contains { $0.hasPrefix("append ") }
+        }
+
+        h.autoplay.setEnabled(false)
+        h.player.holdLookups = false
+        h.player.releaseLookups()
+        // Queued behind the held add, so it finishes after it.
+        try await h.provider.enqueue(uri: "applemusic:song:mine", deviceID: deviceID)
+
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue, ["applemusic:song:mine"] + Array(seeds.dropFirst()))
+        XCTAssertFalse(h.player.commands.contains { $0.hasPrefix("append ") })
+    }
+
+    /// A suggested song added by hand while the suggestions load isn't added a second time.
+    func testASongAddedByHandWhileSuggestionsLoadIsntAddedTwice() async throws {
+        let h = makeHarness()
+        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        try await notePlaying(h)
+        h.source.duringRequest = { [provider = h.provider, deviceID = self.deviceID] in
+            try? await provider.enqueue(uri: "applemusic:song:new-1", deviceID: deviceID)
+        }
+        h.autoplay.setEnabled(true)
+        await h.autoplay.settle()
+
+        let queue = try await upcoming(h)
+        XCTAssertEqual(queue.filter { $0 == "applemusic:song:new-1" }.count, 1)
+        XCTAssertEqual(queue.first, "applemusic:song:new-1", "it stays where Add to Queue put it")
+    }
+
     /// With nothing new left in this style, Autoplay says so instead of repeating songs.
     func testRunningOutOfSuggestionsSaysSo() async throws {
         let h = makeHarness()
@@ -288,6 +343,44 @@ final class QueueAutoplayTests: XCTestCase {
             XCTAssertEqual(Set(queue).count, queue.count, "no song queued twice")
         }
         XCTAssertEqual(source.requests.count, 4, "one request for the fill, one per new song")
+    }
+
+    /// Following the session: a paused song doesn't count as a new song, so a song restored
+    /// paused at launch adds nothing until it plays. A disconnect starts a fresh session, so the
+    /// same song played again counts again.
+    func testOnlyAPlayingSongCountsAndADisconnectStartsAFreshSession() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.setActivePlaybackDeviceID(deviceID)
+        let source = SampleAutoplaySource()
+        let autoplay = QueueAutoplay(
+            source: source,
+            flag: StoredFlag(key: "test.autoplay", defaultValue: false, defaults: nil)
+        )
+        autoplay.follow(session, provider: provider)
+        autoplay.setEnabled(true)
+        try await provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        let first = PlaybackNowPlaying(
+            name: "Seed 1", artists: ["Artist"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 200_000, positionMilliseconds: 0, uri: seeds[0]
+        )
+
+        session.connectionState = .paused(first)
+        await autoplay.settle()
+        XCTAssertTrue(source.requests.isEmpty, "a paused song adds nothing")
+
+        session.connectionState = .playing(first)
+        await autoplay.settle()
+        XCTAssertEqual(source.requests.count, 1)
+        let filled = try await upcomingURIs(provider)
+        XCTAssertEqual(filled.count, 8)
+
+        session.connectionState = .disconnected
+        try await provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+        session.connectionState = .playing(first)
+        await autoplay.settle()
+        XCTAssertEqual(source.requests.count, 2, "after a disconnect the same song counts as new")
     }
 
     private func upcomingURIs(_ provider: AppleMusicPlaybackProvider) async throws -> [String] {
@@ -469,10 +562,16 @@ extension QueueAutoplay {
 @MainActor
 final class SampleAutoplaySource: QueueAutoplaySource {
     var poolSize = 200
+    /// Runs while a request is out, as if the listener did something meanwhile.
+    var duringRequest: (@MainActor () async -> Void)?
     private(set) var requests: [[QueueAutoplaySeed]] = []
 
     func candidates(for seeds: [QueueAutoplaySeed]) async throws -> [QueueAutoplayCandidate] {
         requests.append(seeds)
+        if let duringRequest {
+            self.duringRequest = nil
+            await duringRequest()
+        }
         let fresh = (1...max(1, poolSize)).prefix(poolSize).map { index in
             QueueAutoplayCandidate(
                 track: MusicTrack(

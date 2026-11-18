@@ -110,8 +110,9 @@ protocol MusicPlaybackProvider: AnyObject {
     func enqueue(uri: String, deviceID: String) async throws
     /// Adds an item at the very end of the queue, after everything queued (Autoplay, #613).
     /// The default is ``enqueue(uri:deviceID:)``, for a service whose queue has only one place
-    /// to add to.
-    func appendToQueueEnd(uri: String, deviceID: String) async throws
+    /// to add to. `isWanted` is asked right before the queue changes: an add the caller no
+    /// longer wants (Autoplay turned off while it waited) leaves the queue alone.
+    func appendToQueueEnd(uri: String, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws
 
     // MARK: - Commands for the in-app player
 
@@ -145,7 +146,8 @@ extension MusicPlaybackProvider {
 
     func didStartLocalPlayback(uri: String) async throws {}
 
-    func appendToQueueEnd(uri: String, deviceID: String) async throws {
+    func appendToQueueEnd(uri: String, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws {
+        guard isWanted() else { throw CancellationError() }
         try await enqueue(uri: uri, deviceID: deviceID)
     }
 }
