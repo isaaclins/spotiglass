@@ -7,8 +7,10 @@ import os
 ///      Each launch starts a fresh `spotiglass.log` and rotates the prior session
 ///      to `spotiglass.previous.log`. Inside a session the file is capped at
 ///      ``FileLogSink/defaultMaxBytes``: when it fills up, it moves to
-///      `spotiglass.earlier.log` and a new `spotiglass.log` continues, so at most three
-///      capped files exist and the newest lines are never the ones dropped.
+///      `spotiglass.earlier.log` and a new `spotiglass.log` continues. At launch the
+///      earlier part moves along with its session to `spotiglass.previous.earlier.log`,
+///      so at most four capped files exist (two per session) and the newest lines are
+///      never the ones dropped.
 ///
 /// Under the unit-test host the files go to a temporary folder, so `make test` never
 /// rotates away or fills the log a user would attach to a bug report.
@@ -168,12 +170,13 @@ enum SpotiglassLog {
 final class FileLogSink {
     static let shared = FileLogSink()
 
-    /// About an hour of detailed playback lines; three files of this size at most.
+    /// About an hour of detailed playback lines; four files of this size at most.
     static let defaultMaxBytes: UInt64 = 8 * 1024 * 1024
 
     static let currentFileName = "spotiglass.log"
     static let earlierFileName = "spotiglass.earlier.log"
     static let previousFileName = "spotiglass.previous.log"
+    static let previousEarlierFileName = "spotiglass.previous.earlier.log"
 
     private let queue = DispatchQueue(label: "com.isaaclins.spotiglass.filelog", qos: .utility)
     private let directory: () throws -> URL
@@ -224,18 +227,25 @@ final class FileLogSink {
             if FileManager.default.fileExists(atPath: url.path) {
                 let previousURL = dir.appendingPathComponent(Self.previousFileName)
                 let earlierURL = dir.appendingPathComponent(Self.earlierFileName)
+                let previousEarlierURL = dir.appendingPathComponent(Self.previousEarlierFileName)
                 do {
-                    if FileManager.default.fileExists(atPath: previousURL.path) {
-                        try FileManager.default.removeItem(at: previousURL)
+                    for old in [previousURL, previousEarlierURL] where FileManager.default.fileExists(atPath: old.path) {
+                        try FileManager.default.removeItem(at: old)
                     }
                     try moveItem(url, previousURL)
-                    // The previous session's overflow belongs to a session that is now two back.
-                    try? FileManager.default.removeItem(at: earlierURL) // A leftover only costs one capped file.
                 } catch {
                     // Appending keeps the previous session's lines; the size cap below still holds.
                     holdsPreviousSession = true
                     rotationNote = "Could not move the previous session's log aside (\(SpotiglassLog.describe(error))); appending to it instead"
                     diagnostics.error("\(rotationNote ?? "", privacy: .public)")
+                }
+                // The first part of a long session that just ended stays with it.
+                if rotationNote == nil, FileManager.default.fileExists(atPath: earlierURL.path) {
+                    do {
+                        try moveItem(earlierURL, previousEarlierURL)
+                    } catch {
+                        diagnostics.error("Could not keep the previous session's earlier log (\(String(describing: error), privacy: .public)); this session's overflow replaces it")
+                    }
                 }
             }
             guard open(url, header: "=== Wax log started \(Self.formatter.string(from: Date())) ===\n") else { return }

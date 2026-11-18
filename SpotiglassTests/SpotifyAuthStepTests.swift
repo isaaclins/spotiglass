@@ -282,6 +282,33 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertFalse(line.contains("secret-refresh-token-602"), "The log must never hold the token.")
     }
 
+    /// A grant missing one browsing scope logged every required scope, so the log never said
+    /// which permission was actually absent (#602).
+    @MainActor
+    func testARefreshMissingAScopeLogsOnlyTheMissingOne() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let marker = "partial-\(UUID().uuidString)"
+        let httpClient = MockHTTPClient(
+            data: Data(#"{ "access_token": "\#(marker)", "token_type": "Bearer", "expires_in": 3600, "scope": "playlist-read-private streaming" }"#.utf8),
+            statusCode: 200
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        let lines = try SpotiglassLogReader.lines(containing: "token lacks missing scopes: playlist-read-collaborative)")
+        XCTAssertEqual(lines.count, 1, "\(lines)")
+        XCTAssertTrue(lines.first?.contains("Token refresh failed") == true, lines.first ?? "")
+        XCTAssertFalse(lines.first?.contains(marker) == true, "The log must never hold the token.")
+    }
+
     @MainActor
     func testRestoreSessionPreservesKeychainOnTransientNetworkError() async throws {
         let store = InMemoryRefreshTokenStore()

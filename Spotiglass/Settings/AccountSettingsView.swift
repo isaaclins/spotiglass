@@ -134,7 +134,7 @@ struct AccountSettingsView: View {
                                 // The earlier part of this launch and the previous launch's log too:
                                 // a report is often sent after a relaunch.
                                 let folder = url.deletingLastPathComponent()
-                                let others = [FileLogSink.earlierFileName, FileLogSink.previousFileName]
+                                let others = [FileLogSink.earlierFileName, FileLogSink.previousFileName, FileLogSink.previousEarlierFileName]
                                     .map { folder.appendingPathComponent($0) }
                                     .filter { FileManager.default.fileExists(atPath: $0.path) }
                                 NSWorkspace.shared.activateFileViewerSelecting([url] + others)

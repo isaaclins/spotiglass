@@ -673,11 +673,13 @@ final class AuthViewModel: ObservableObject {
     }
 
     private func validateBrowsingScopes(in session: AuthenticatedSession) throws {
-        guard session.includesRequiredBrowsingScopes() else {
+        let missing = session.missingScopes(SpotifyAuthConfiguration.requiredBrowsingScopes)
+        guard missing.isEmpty else {
             throw SpotifyAPIError.insufficientScope(
                 requiredScopes: SpotifyAuthConfiguration.requiredBrowsingScopes,
                 message: SpotiglassL10n.string("auth.insufficientScope.message"),
-                details: nil
+                // Which of them this grant lacks, for the log (#602).
+                details: "missing scopes: \(missing.sorted().joined(separator: " "))"
             )
         }
     }

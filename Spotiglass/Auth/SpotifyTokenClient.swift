@@ -66,8 +66,9 @@ enum AuthFailureDescription {
         case let callbackError as LoopbackOAuthCallbackError:
             return "callback " + (callbackError.diagnosticDetails ?? String(describing: callbackError))
         case let apiError as SpotifyAPIError:
-            if case let .insufficientScope(requiredScopes, _, _) = apiError {
-                return "token lacks required scopes \(requiredScopes.sorted().joined(separator: " "))"
+            if case let .insufficientScope(requiredScopes, _, details) = apiError {
+                // The missing ones when the thrower knows them, else everything required.
+                return "token lacks " + (details ?? "required scopes \(requiredScopes.sorted().joined(separator: " "))")
             }
             return String(describing: apiError)
         default:

@@ -79,6 +79,35 @@ final class SpotiglassLogTests: XCTestCase {
         XCTAssertFalse(earlier.isEmpty)
     }
 
+    /// A long session's earlier part used to be deleted at the next launch, so the lines before
+    /// its last file were gone from the report.
+    func testARelaunchKeepsTheFirstPartOfALongPreviousSession() throws {
+        let first = FileLogSink(directory: { self.directory }, maxBytes: 400)
+        first.boot()
+        first.write(level: "ERROR", category: "auth", message: "start of a long session", synchronously: true)
+        for index in 0..<40 {
+            first.write(level: "INFO", category: "api", message: "line \(index)")
+        }
+        first.flush()
+
+        let second = FileLogSink(directory: { self.directory }, maxBytes: 400)
+        second.boot()
+        second.flush()
+
+        let previous = try String(contentsOf: directory.appendingPathComponent(FileLogSink.previousFileName), encoding: .utf8)
+        let previousEarlier = try String(
+            contentsOf: directory.appendingPathComponent(FileLogSink.previousEarlierFileName), encoding: .utf8
+        )
+        XCTAssertTrue(previous.contains("line 39"))
+        XCTAssertFalse(previousEarlier.isEmpty)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: directory.appendingPathComponent(FileLogSink.earlierFileName).path),
+            "The new session starts without an earlier part"
+        )
+        let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertLessThanOrEqual(names.count, 4)
+    }
+
     func testANewLaunchKeepsThePreviousSessionsLines() throws {
         let first = FileLogSink(directory: { self.directory })
         first.boot()
