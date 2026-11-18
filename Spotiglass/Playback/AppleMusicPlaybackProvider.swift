@@ -422,12 +422,13 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
 extension AppleMusicPlaybackProvider: MusicQueueEditing {
     var queueEditing: (any MusicQueueEditing)? { self }
 
-    func removeFromQueue(_ removals: [QueueRemoval], seenUpcoming: [String?]) async throws -> QueueRemovalReceipt {
+    func removeFromQueue(_ removals: [QueueRemoval], seen: QueueSnapshot) async throws -> QueueRemovalReceipt {
         try await edit { [player] in
             let positions = QueueRemovalPlan.positions(
                 for: removals,
                 upcomingURIs: player.readUpcoming().map(\.uri),
-                seenURIs: seenUpcoming
+                currentURI: player.readState().current?.uri,
+                seen: seen
             )
             return player.removeUpcoming(at: positions)
         }

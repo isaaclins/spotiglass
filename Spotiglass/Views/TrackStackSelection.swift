@@ -12,9 +12,14 @@ struct TrackStackSelection: Equatable {
     private(set) var anchor: String?
     /// The row the arrow keys move from: the last row clicked or reached with an arrow key.
     private(set) var cursor: String?
+    /// Counts the listener's own selection changes (click, ⌘A, arrow keys), so only those give
+    /// the stack keyboard focus: new search results that drop rows mustn't take it from the
+    /// search field while the listener types.
+    private(set) var listenerChanges = 0
 
     /// What a click on `id` does, in `order` (the rows as listed).
     mutating func click(_ id: String, in order: [String], modifiers: NSEvent.ModifierFlags) {
+        listenerChanges &+= 1
         if modifiers.contains(.shift), let anchor,
            let from = order.firstIndex(of: anchor), let to = order.firstIndex(of: id) {
             let range = order[min(from, to)...max(from, to)]
@@ -33,6 +38,7 @@ struct TrackStackSelection: Equatable {
 
     /// ⌘A: every listed row.
     mutating func selectAll(in order: [String]) {
+        listenerChanges &+= 1
         ids = Set(order)
         anchor = order.first
         cursor = order.last
@@ -42,6 +48,7 @@ struct TrackStackSelection: Equatable {
     /// the range from the anchor to it. Without a cursor the first or last row.
     mutating func move(_ step: Int, in order: [String], extending: Bool) {
         guard !order.isEmpty else { return }
+        listenerChanges &+= 1
         let from = cursor.flatMap(order.firstIndex(of:))
         let to = from.map { min(max($0 + step, 0), order.count - 1) } ?? (step > 0 ? 0 : order.count - 1)
         let id = order[to]
@@ -112,7 +119,7 @@ private struct TrackStackKeyboard: ViewModifier {
                 .focusable(interactions: [.activate, .edit])
                 .focusEffectDisabled()
                 .focused($isFocused)
-                .onChange(of: selection.ids) {
+                .onChange(of: selection.listenerChanges) {
                     if !selection.ids.isEmpty { isFocused = true }
                 }
                 .onKeyPress(keys: [.upArrow, .downArrow]) { press in

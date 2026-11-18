@@ -746,7 +746,7 @@ extension QueueAutoplayTests {
 
         // What the queue panel sends for the row the listener removed.
         let removal = QueueRemoval(position: try XCTUnwrap(before.firstIndex(of: removed)), uri: removed)
-        let receipt = try await h.provider.removeFromQueue([removal], seenUpcoming: before)
+        let receipt = try await h.provider.removeFromQueue([removal], seen: QueueSnapshot(current: h.player.readState().current?.uri, upcoming: before))
         h.autoplay.listenerRemoved(receipt.tracks)
         let rightAfter = try await upcoming(h)
         XCTAssertFalse(rightAfter.contains(removed))

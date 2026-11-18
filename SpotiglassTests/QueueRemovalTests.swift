@@ -124,6 +124,19 @@ final class QueueRemovalTests: XCTestCase {
         XCTAssertEqual(h.player.upcomingURIs, [songs[1], a, songs[2]])
     }
 
+    /// The same song back to back, [A, A]: the listener selects the first A, it starts playing
+    /// before Remove reaches the player, and the second A, which wasn't selected, stays queued.
+    func testBackToBackCopiesKeepTheUnselectedOneWhenTheFirstStartedPlaying() async throws {
+        let a = "applemusic:song:a"
+        let h = try await playing([songs[0], a, a, songs[1]])
+        let firstA = try XCTUnwrap(h.queue.upcomingItems.first)
+        try await next(h)
+
+        _ = await h.queue.removeItems(withIDs: [firstA.id])
+
+        XCTAssertEqual(h.player.upcomingURIs, [a, songs[1]])
+    }
+
     /// The playing row isn't upcoming, so a selection that includes it removes only the rest.
     func testTheCurrentSongIsNeverRemoved() async throws {
         let h = try await playing(songs)
@@ -294,20 +307,45 @@ final class QueueRemovalTests: XCTestCase {
     /// The same song twice, [A, B, A, C]: the listener picks the first A, and it starts playing
     /// before the removal runs. The later A, which the listener didn't pick, stays.
     func testAPickedSongThatStartedPlayingLeavesTheLaterCopyAlone() {
-        let seen = ["a", "b", "a", "c"]
+        let seen = QueueSnapshot(current: "x", upcoming: ["a", "b", "a", "c"])
         let positions = QueueRemovalPlan.positions(
             for: [QueueRemoval(position: 0, uri: "a")],
             upcomingURIs: ["b", "a", "c"],
-            seenURIs: seen
+            currentURI: "a",
+            seen: seen
         )
         XCTAssertEqual(positions, [])
 
         let later = QueueRemovalPlan.positions(
             for: [QueueRemoval(position: 2, uri: "a")],
             upcomingURIs: ["b", "a", "c"],
-            seenURIs: seen
+            currentURI: "a",
+            seen: seen
         )
         XCTAssertEqual(later, [1], "picking the later A after the first one ended takes that one")
+    }
+
+    /// The same song back to back, [A, A]: the first one starts playing before the removal
+    /// runs. The second A is a copy the listener didn't pick, and it stays.
+    func testBackToBackCopiesKeepTheOneThatWasNotPicked() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 0, uri: "a")],
+            upcomingURIs: ["a"],
+            currentURI: "a",
+            seen: QueueSnapshot(current: "x", upcoming: ["a", "a"])
+        )
+        XCTAssertEqual(positions, [])
+    }
+
+    /// Nothing moved: the picked place is taken as it is, also among copies of one song.
+    func testAQueueThatDidNotMoveTakesThePickedPlace() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 1, uri: "a")],
+            upcomingURIs: ["a", "a", "a"],
+            currentURI: "a",
+            seen: QueueSnapshot(current: "a", upcoming: ["a", "a", "a"])
+        )
+        XCTAssertEqual(positions, [1])
     }
 
     /// Songs Autoplay added at the end since don't stop the places lining up.
@@ -315,7 +353,8 @@ final class QueueRemovalTests: XCTestCase {
         let positions = QueueRemovalPlan.positions(
             for: [QueueRemoval(position: 2, uri: "c")],
             upcomingURIs: ["b", "c", "d", "x", "y"],
-            seenURIs: ["a", "b", "c", "d"]
+            currentURI: "a",
+            seen: QueueSnapshot(current: "z", upcoming: ["a", "b", "c", "d"])
         )
         XCTAssertEqual(positions, [1])
     }
@@ -371,6 +410,20 @@ final class TrackStackSelectionTests: XCTestCase {
         var fresh = TrackStackSelection()
         fresh.move(1, in: order, extending: false)
         XCTAssertEqual(fresh.ids, ["a"], "down with nothing selected starts at the top")
+    }
+
+    /// Only the listener's own changes count for focus: new results dropping rows don't, so the
+    /// search field keeps focus while the listener types.
+    func testOnlyTheListenersChangesAskForFocus() {
+        var selection = TrackStackSelection()
+        selection.click("b", in: order, modifiers: [])
+        selection.click("d", in: order, modifiers: .command)
+        let afterClicks = selection.listenerChanges
+
+        selection.keep(only: ["a", "b", "c"])
+
+        XCTAssertEqual(selection.ids, ["b"])
+        XCTAssertEqual(selection.listenerChanges, afterClicks)
     }
 
     /// Right-click on a selected row acts on the whole selection, in list order; on another row
