@@ -94,6 +94,26 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), original)
     }
 
+    /// A full disk or a folder that can't be written: a pin change used to look saved and be
+    /// gone after a relaunch. The sidebar now says so, and the next save that works clears it.
+    func testFailedPinsSaveIsShownUntilASaveWorks() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        let folder = url.deletingLastPathComponent().path
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        XCTAssertNil(store.fileNotice)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        store.pin(Self.validPin)
+        XCTAssertEqual(store.fileNotice?.string, SpotiglassL10n.string("browser.pinned.saveFailed"))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder)
+        store.pin(Self.otherPin)
+        XCTAssertNil(store.fileNotice)
+        XCTAssertEqual(Set(try cache.loadPinnedItems(userID: "u1").map(\.id)), [Self.validPin.id, Self.otherPin.id])
+    }
+
     /// Pins made while Apple Music playlists without a picture of their own were listed
     /// without their cover (#444) saved no cover and kept the grey tile for good. The next
     /// listing gives them the cover their playlist has, saved for the next launch, and leaves

@@ -40,6 +40,8 @@ final class PinnedItemsStore: ObservableObject {
     /// True while the pins file could be neither read in full nor copied: nothing is written
     /// over it until the account is bound again.
     private var isSavingHeld = false
+    /// True while ``fileNotice`` says the last save failed; the next save that works clears it.
+    private var isShowingSaveFailure = false
 
     private let cache: PinnedItemsCache?
     private let resolver: PinnedItemAliasResolving?
@@ -95,6 +97,7 @@ final class PinnedItemsStore: ObservableObject {
         didFailToBind = false
         fileNotice = nil
         isSavingHeld = false
+        isShowingSaveFailure = false
         aliasLookup?.cancel()
         pendingPinLookups = []
         guard let userID, let cache else {
@@ -473,14 +476,22 @@ final class PinnedItemsStore: ObservableObject {
         boundUserID = nil
         fileNotice = nil
         isSavingHeld = false
+        isShowingSaveFailure = false
     }
 
     private func persist() {
         guard let userID = boundUserID, let cache, !isSavingHeld else { return }
         do {
             try cache.savePinnedItems(items, userID: userID)
+            if isShowingSaveFailure {
+                isShowingSaveFailure = false
+                fileNotice = nil
+            }
         } catch {
             SpotiglassLog.error(SpotiglassLog.pinning, "Failed to save pinned items: \(UnreadableFileBackup.describe(error))")
+            // A pin change that looks saved but is gone after a relaunch is worse than a line saying so.
+            isShowingSaveFailure = true
+            fileNotice = LocalizedText(SpotiglassL10n.string("browser.pinned.saveFailed"), comparedByKey: "browser.pinned.saveFailed")
         }
     }
 }

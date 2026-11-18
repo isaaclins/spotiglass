@@ -17332,6 +17332,30 @@
         }
       }
     },
+    "browser.pinned.saveFailed": {
+      "comment": "Sidebar notice while saving the pins file fails (a full disk, a folder that can’t be written).",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre angehefteten Einträge konnten nicht gespeichert werden. Änderungen daran gehen beim Beenden verloren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pins couldn’t be saved, so changes to them are lost when you quit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron guardar tus elementos anclados, así que sus cambios se perderán al salir."
+          }
+        }
+      }
+    },
     "keymap.unusableRows": {
       "comment": "Settings › Keyboard notice for stored shortcut rows this build can't read. %lld is how many.",
       "extractionState": "manual",
@@ -17489,25 +17513,25 @@
       }
     },
     "settings.file.reloadFailed": {
-      "comment": "Settings notice while saving settings.json fails.",
+      "comment": "Settings notice while settings.json can’t be read (a hand edit that doesn’t parse, or no permission); the settings in use are kept.",
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ihre Einstellungsdatei kann gerade nicht gelesen werden. Die aktuellen Einstellungen bleiben, und vor dem nächsten Speichern wird eine Kopie der Datei aufbewahrt."
+            "value": "Ihre Einstellungsdatei kann gerade nicht gelesen werden, daher bleiben die aktuellen Einstellungen unverändert."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your settings file can’t be read right now. The settings in use stay, and a copy of the file is kept before the next save."
+            "value": "Your settings file can’t be read right now, so the settings in use stay as they are."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ahora mismo no se puede leer tu archivo de ajustes. Se mantienen los ajustes actuales y se conserva una copia del archivo antes de guardar."
+            "value": "Ahora mismo no se puede leer tu archivo de ajustes, así que los ajustes actuales se mantienen."
           }
         }
       }
