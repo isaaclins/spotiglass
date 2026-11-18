@@ -116,6 +116,17 @@ jobs:
         # permission (#520). These need codesign and PlistBuddy, so they run here.
         run: python3 -m unittest discover -s scripts/tests -p 'test_screenshot_staging.py' -v
 
+      - name: Installer layout test
+        # Builds and mounts a real disk image with the pinned dmgbuild: every
+        # item at its root needs a position, or Finder drops the hidden ones
+        # over the wordmark when hidden files are shown (#633).
+        run: |
+          set -euo pipefail
+          python3 -m venv build/dmg-tools
+          build/dmg-tools/bin/python -m pip install --quiet --disable-pip-version-check \
+            --require-hashes --only-binary :all: -r scripts/dmg/requirements.txt
+          build/dmg-tools/bin/python -m unittest scripts/tests/test_dmg_layout.py -v
+
       - name: Resolve Swift packages
         run: |
           set -euo pipefail
