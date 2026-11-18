@@ -327,14 +327,6 @@ struct EqualizerSettingsView: View {
             }
 
             Spacer()
-
-            if let storeError = settingsStore.lastError {
-                Text(storeError)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
@@ -439,7 +431,7 @@ struct EqualizerSettingsView: View {
         guard let name = settingsStore.settings.equalizer.activePresetName,
               settingsStore.settings.equalizer.userPresets.contains(where: { $0.name == name })
         else { return }
-        try? settingsStore.mutate { file in
+        settingsStore.update { file in
             file.equalizer.userPresets.removeAll { $0.name == name }
             file.equalizer.activePresetName = nil
         }
@@ -451,14 +443,11 @@ struct EqualizerSettingsView: View {
     }
 
     private func mutateEqualizer(_ change: (inout EqualizerSettings) -> Void) {
-        do {
-            try settingsStore.mutate { file in
-                change(&file.equalizer)
-                file.equalizer.bands = EqualizerSettings.normalizedBands(file.equalizer.bands)
-                file.equalizer.preamp = EqualizerSettings.clampPreamp(file.equalizer.preamp)
-            }
-        } catch {
-            settingsStore.lastError = error.localizedDescription
+        // A failed save is logged and shown above the pane by the store.
+        settingsStore.update { file in
+            change(&file.equalizer)
+            file.equalizer.bands = EqualizerSettings.normalizedBands(file.equalizer.bands)
+            file.equalizer.preamp = EqualizerSettings.clampPreamp(file.equalizer.preamp)
         }
     }
 

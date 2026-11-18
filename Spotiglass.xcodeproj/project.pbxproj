@@ -65,6 +65,7 @@
 		C30000000000000000000003 /* SpotifyAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* SpotifyAPIError.swift */; };
 		C30000000000000000000004 /* SpotifyDTOs+Paging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* SpotifyDTOs+Paging.swift */; };
 		C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* SpotifyLocalCache.swift */; };
+		F59700000000000000000001 /* UnreadableFileBackup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59700000000000000000002 /* UnreadableFileBackup.swift */; };
 		C30000000000000000000007 /* SpotifyGETResponseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000017 /* SpotifyGETResponseCache.swift */; };
 		C30000000000000000000008 /* SpotifyRateLimitDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */; };
 		C30000000000000000000009 /* SpotifyAPIClient+CurrentUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000019 /* SpotifyAPIClient+CurrentUser.swift */; };
@@ -553,6 +554,7 @@
 		C30000000000000000000013 /* SpotifyAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIError.swift; sourceTree = "<group>"; };
 		C30000000000000000000014 /* SpotifyDTOs+Paging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+Paging.swift"; sourceTree = "<group>"; };
 		C30000000000000000000015 /* SpotifyLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCache.swift; sourceTree = "<group>"; };
+		F59700000000000000000002 /* UnreadableFileBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadableFileBackup.swift; sourceTree = "<group>"; };
 		C30000000000000000000017 /* SpotifyGETResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyGETResponseCache.swift; sourceTree = "<group>"; };
 		C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyRateLimitDisplay.swift; sourceTree = "<group>"; };
 		C30000000000000000000019 /* SpotifyAPIClient+CurrentUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+CurrentUser.swift"; sourceTree = "<group>"; };
@@ -1348,6 +1350,7 @@
 				KRS0000000000000000000011 /* KeychainRefreshTokenStore.swift */,
 				KSC0000000000000000000011 /* KeychainSecItemClient.swift */,
 				C30000000000000000000015 /* SpotifyLocalCache.swift */,
+				F59700000000000000000002 /* UnreadableFileBackup.swift */,
 				E8AF405F379908B08BBB7E98 /* StoredFlag.swift */,
 				E50000000000000000000023 /* LyricsDiskCache.swift */,
 			);
@@ -1835,6 +1838,7 @@
 				PRO00000000000000000000E6 /* SpotifyDTOs+Search.swift in Sources */,
 				PRO00000000000000000000E7 /* HTTPClient.swift in Sources */,
 				C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */,
+				F59700000000000000000001 /* UnreadableFileBackup.swift in Sources */,
 				BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */,
 				ADAFBBEC5D40C28CB7531EE9 /* StoredFlag.swift in Sources */,
 				BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */,

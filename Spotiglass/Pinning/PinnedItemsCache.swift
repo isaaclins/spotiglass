@@ -9,6 +9,33 @@ import Foundation
 protocol PinnedItemsCache {
     func loadPinnedItems(userID: String) throws -> [PinnedItem]
     func savePinnedItems(_ items: [PinnedItem], userID: String) throws
+    /// The pins read row by row: a row this build can't read is skipped and described, its
+    /// siblings stay. Throws when the file can't be read as a list at all.
+    func loadPinnedItemsRowByRow(userID: String) throws -> PinnedItemsLoad
+    /// Copies the account's pins file as it is now next to it, before anything is saved over
+    /// it (#597). `nil` when there is no file to keep.
+    func preservePinnedItemsFile(userID: String) throws -> URL?
+    /// Where the account's pins live, for the log; `nil` for caches without a file.
+    func pinnedItemsFileURL(userID: String) -> URL?
+}
+
+/// Pins read from storage, with the rows that could not be read.
+struct PinnedItemsLoad {
+    var items: [PinnedItem]
+    /// One line per skipped row: where it is and what was wrong.
+    var unreadableRows: [String] = []
+    /// Where the pins live, for the log.
+    var fileURL: URL?
+}
+
+extension PinnedItemsCache {
+    func loadPinnedItemsRowByRow(userID: String) throws -> PinnedItemsLoad {
+        PinnedItemsLoad(items: try loadPinnedItems(userID: userID))
+    }
+
+    func preservePinnedItemsFile(userID: String) throws -> URL? { nil }
+
+    func pinnedItemsFileURL(userID: String) -> URL? { nil }
 }
 
 /// Drop-in cache used when the on-disk cache cannot be created (e.g. the cache

@@ -17,6 +17,123 @@ private final class RecordingPinnedCache: PinnedItemsCache {
 
 @MainActor
 final class PinnedItemsStoreTests: XCTestCase {
+    // MARK: - A pins file that can't be fully read (#597)
+
+    private func pinsFile(userID: String) throws -> (cache: SpotifyLocalCache, url: URL) {
+        let root = spotiglassTestsTemporaryDirectory()
+        let cache = try SpotifyLocalCache(rootDirectory: root)
+        let url = root.appendingPathComponent("pinned/\(userID).json")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        return (cache, url)
+    }
+
+    private static let validPin = PinnedItem(
+        id: "playlist:abc", kind: .playlist, title: "Road", subtitle: "You",
+        artworkURL: nil, spotifyURI: "spotify:playlist:abc", isStale: false
+    )
+
+    private static let otherPin = PinnedItem(
+        id: "playlist:new", kind: .playlist, title: "New", subtitle: "You",
+        artworkURL: nil, spotifyURI: "spotify:playlist:new", isStale: false
+    )
+
+    /// One pin of a kind from a newer build: the list used to show no pins, and the next pin
+    /// wrote just that one pin over the file (25 pins became 1). Now the good rows load and
+    /// the file as it was is kept before anything is saved over it.
+    func testUnreadablePinsFileIsNeverOverwritten() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let valid = String(decoding: try encoder.encode(Self.validPin), as: UTF8.self)
+        let original = Data("[\(valid),{\"id\":\"podcast:1\",\"kind\":\"podcast\",\"title\":\"Show\",\"subtitle\":\"x\",\"isStale\":false}]".utf8)
+        try original.write(to: url)
+
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        XCTAssertEqual(store.items, [Self.validPin])
+        XCTAssertNotNil(store.fileNotice)
+
+        store.pin(Self.otherPin)
+
+        let copies = UnreadableFileBackup.copies(of: url)
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(copies.first)), original, "the original pins are gone")
+        XCTAssertEqual(try cache.loadPinnedItems(userID: "u1").map(\.id), [Self.validPin.id, Self.otherPin.id])
+        XCTAssertTrue(try XCTUnwrap(store.fileNotice?.string).contains(XCTUnwrap(copies.first?.lastPathComponent)))
+    }
+
+    /// A 0-byte pins file (a sync tool, a crash mid-write) is kept before the next pin is saved.
+    func testEmptyPinsFileIsKeptBeforeTheNextPinIsSaved() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        try Data().write(to: url)
+
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        store.pin(Self.otherPin)
+
+        XCTAssertEqual(UnreadableFileBackup.copies(of: url).count, 1)
+        XCTAssertEqual(try cache.loadPinnedItems(userID: "u1"), [Self.otherPin])
+    }
+
+    /// A pins file that can't be read or copied is never written over: pins work for the
+    /// session and the sidebar says they aren't saved.
+    func testPinsFileThatCantBeReadIsNotSavedOver() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        let original = try JSONEncoder().encode([Self.validPin])
+        try original.write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o200], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        store.pin(Self.otherPin)
+
+        XCTAssertEqual(store.items, [Self.otherPin])
+        XCTAssertEqual(store.fileNotice?.string, SpotiglassL10n.string("browser.pinned.notSaved"))
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    /// A full disk or a folder that can't be written: a pin change used to look saved and be
+    /// gone after a relaunch. The sidebar now says so, and the next save that works clears it.
+    func testFailedPinsSaveIsShownUntilASaveWorks() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        let folder = url.deletingLastPathComponent().path
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        XCTAssertNil(store.fileNotice)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        store.pin(Self.validPin)
+        XCTAssertEqual(store.fileNotice?.string, SpotiglassL10n.string("browser.pinned.saveFailed"))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder)
+        store.pin(Self.otherPin)
+        XCTAssertNil(store.fileNotice)
+        XCTAssertEqual(Set(try cache.loadPinnedItems(userID: "u1").map(\.id)), [Self.validPin.id, Self.otherPin.id])
+    }
+
+    /// A failed save after a copy was kept: the save line shows meanwhile, and once a save
+    /// works the line naming the copy comes back instead of nothing.
+    func testCopyLineComesBackAfterAFailedSaveWorks() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        try Data("[{\"id\":\"podcast:1\",\"kind\":\"podcast\",\"title\":\"Show\",\"subtitle\":\"x\",\"isStale\":false}]".utf8).write(to: url)
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let copyLine = try XCTUnwrap(store.fileNotice?.string)
+        let folder = url.deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        store.pin(Self.validPin)
+        XCTAssertEqual(store.fileNotice?.string, SpotiglassL10n.string("browser.pinned.saveFailed"))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder)
+        store.pin(Self.otherPin)
+        XCTAssertEqual(store.fileNotice?.string, copyLine)
+    }
+
     /// Pins made while Apple Music playlists without a picture of their own were listed
     /// without their cover (#444) saved no cover and kept the grey tile for good. The next
     /// listing gives them the cover their playlist has, saved for the next launch, and leaves

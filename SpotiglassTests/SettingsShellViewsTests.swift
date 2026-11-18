@@ -70,6 +70,47 @@ final class SettingsShellViewsTests: XCTestCase {
         XCTAssertNoThrow(try splitView.sidebarView())
     }
 
+    /// The settings-file lines sit above every pane (#597): the copy kept of a file that
+    /// couldn't be read in full, a hand edit that can't be read right now, and a save that
+    /// failed. Dismiss takes the copy's line away.
+    func testSettingsFileNoticesShowAboveThePaneAndTheCopyCanBeDismissed() throws {
+        let dir = spotiglassTestsTemporaryDirectory()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("settings.json")
+        try Data(#"{"version":1,"keybinds":["#.utf8).write(to: url)
+        let store = SpotiglassSettingsStore(fileURL: url)
+        let copyLine = try XCTUnwrap(store.backupNotice?.string)
+
+        try Data(#"{"version":2,"appearance":{"#.utf8).write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNotNil(store.lastError)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: dir.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path) }
+        store.update { $0.appearance.colorScheme = .dark }
+        let saveLine = try XCTUnwrap(store.saveFailure?.string)
+
+        let manager = CommandPaletteManager()
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore()
+        )
+        let view = SpotiglassSettingsView(
+            keymapStore: manager.keymapStore,
+            settingsStore: store,
+            equalizerEngine: AudioEqualizerEngine()
+        )
+        .environmentObject(auth)
+        ViewTestHost.host(view)
+
+        ViewTestHost.assertFindText(copyLine, in: view)
+        ViewTestHost.assertFindText(saveLine, in: view)
+        ViewTestHost.assertFindLocalizedText("settings.file.reloadFailed", in: view)
+        ViewTestHost.assertFindLocalizedText("settings.file.reveal", in: view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("settings.file.dismiss")).tap()
+        XCTAssertNil(store.backupNotice)
+    }
+
     func testInformationalPlaybackPaneIsNotAdvertised() {
         XCTAssertEqual(
             SpotiglassSettingsSection.allCases,

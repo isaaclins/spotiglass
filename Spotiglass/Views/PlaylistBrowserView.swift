@@ -179,6 +179,7 @@ struct PlaylistBrowserView: View {
                 retryPinnedBinding: {
                     Task { await bindPinnedStoreToCurrentUser() }
                 },
+                pinnedFileNotice: pinnedStore.fileNotice?.string,
                 likedSongsStubRow: likedSongsStubRow,
                 playlistSummaryFromRow: playlistSummaryFromRow,
                 onLibraryAppear: { syncLibraryRowOrder() },

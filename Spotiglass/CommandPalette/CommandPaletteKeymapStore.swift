@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import Foundation
 
-/// Editable view of the keybinds slice of `~/.config/spotiglass/settings.json`.
+/// Editable view of the keybinds slice of `~/Library/Application Support/Spotiglass/settings.json`.
 ///
 /// Storage is delegated to ``SpotiglassSettingsStore`` so that keybinds and other
 /// settings share one on-disk file. The public API (``bindings``, ``setBinding``,
@@ -15,6 +15,16 @@ final class CommandPaletteKeymapStore: ObservableObject {
     /// Looked up when shown, so a message on screen follows a language switch (#571).
     @Published var lastErrorText: LocalizedText?
     var lastError: String? { lastErrorText?.string }
+    /// Stored rows this build can't use: a key token from a newer build, a typo. They are
+    /// left out of the shortcuts in use but stay in the file, so one bad row costs only
+    /// itself and the next shortcut recorded doesn't delete the others (#597).
+    @Published private(set) var unusableRows: [CommandPaletteKeyBinding] = []
+    /// Shown at the top of Settings › Keyboard while ``unusableRows`` isn't empty.
+    var unusableRowsText: LocalizedText? {
+        guard !unusableRows.isEmpty else { return nil }
+        let count = unusableRows.count
+        return LocalizedText(SpotiglassL10n.format("keymap.unusableRows", count), comparedBy: "keymap.unusableRows|\(count)")
+    }
 
     let settingsStore: SpotiglassSettingsStore
 
@@ -160,7 +170,8 @@ final class CommandPaletteKeymapStore: ObservableObject {
         let normalized = normalizedBindingList(bindings)
         // Indexing validates every row and every keystroke. Do it before the settings
         // store writes so an invalid advanced edit cannot partially replace the file.
-        let indexed = try Self.indexBindings(normalized)
+        // Rows that were already stored unusable pass through untouched.
+        let indexed = try Self.indexBindings(normalized, keeping: unusableRows)
         try settingsStore.updateKeybinds(normalized)
         // Re-render the focused JSON snippet from the canonical normalized list so the
         // editor view always matches what is on disk.
@@ -242,35 +253,57 @@ final class CommandPaletteKeymapStore: ObservableObject {
         settingsStore.openFileInDefaultEditor()
     }
 
+    /// Uses every stored row that this build can read and sets the others aside, row by row.
+    /// The editor keeps all of them, so a change made in Settings writes the unusable rows
+    /// back as they were instead of replacing the keymap with the defaults (#597).
     private func applyFromStore(_ keybinds: [CommandPaletteKeyBinding]) {
-        do {
-            try indexCurrent(keybinds)
-            editorText = Self.editorTextRepresentation(keybinds)
-            lastErrorText = nil
-        } catch {
-            // Fall back to defaults so the app never runs without a usable keymap.
-            let fallback = SpotiglassSettingsStore.defaultKeybinds()
-            (try? indexCurrent(fallback)) ?? ()
-            editorText = Self.editorTextRepresentation(fallback)
-            let source = fileURL.path
-            lastErrorText = CommandPaletteKeymapErrorPresenter.recoveredDefaultsText(
-                for: error,
-                source: source,
-                operation: "load"
-            )
+        var usable: [CommandShortcut: [CommandPaletteKeyBinding]] = [:]
+        var unusable: [CommandPaletteKeyBinding] = []
+        for (index, binding) in keybinds.enumerated() {
+            do {
+                let shortcuts = try Self.shortcuts(of: binding)
+                for shortcut in shortcuts {
+                    usable[shortcut, default: []].append(binding)
+                }
+            } catch {
+                unusable.append(binding)
+                if !unusableRows.contains(binding) {
+                    SpotiglassLog.error(
+                        SpotiglassLog.settings,
+                        "Shortcut row \(index) in \(fileURL.path) (command \(binding.command), keys \(binding.keystrokes)) can't be used and stays in the file unused: \(error)"
+                    )
+                }
+            }
         }
+        bindings = usable
+        editorText = Self.editorTextRepresentation(keybinds)
+        if unusable != unusableRows {
+            unusableRows = unusable
+        }
+        // A load that worked replaces any earlier error; a failed reload sets its own after this.
+        lastErrorText = nil
     }
 
-    private func indexCurrent(_ list: [CommandPaletteKeyBinding]) throws {
-        bindings = try Self.indexBindings(list)
+    private static func shortcuts(of binding: CommandPaletteKeyBinding) throws -> [CommandShortcut] {
+        try binding.validate()
+        return try binding.keystrokes.map { try CommandShortcut(keystroke: $0) }
     }
 
-    private static func indexBindings(_ bindings: [CommandPaletteKeyBinding]) throws -> [CommandShortcut: [CommandPaletteKeyBinding]] {
+    /// Indexes `bindings`, throwing for a row that can't be used unless it is one of `kept`:
+    /// a row that was already stored that way and is written back unchanged.
+    private static func indexBindings(
+        _ bindings: [CommandPaletteKeyBinding],
+        keeping kept: [CommandPaletteKeyBinding] = []
+    ) throws -> [CommandShortcut: [CommandPaletteKeyBinding]] {
         var output: [CommandShortcut: [CommandPaletteKeyBinding]] = [:]
         for binding in bindings {
-            try binding.validate()
-            for keystroke in binding.keystrokes {
-                let shortcut = try CommandShortcut(keystroke: keystroke)
+            let shortcuts: [CommandShortcut]
+            do {
+                shortcuts = try Self.shortcuts(of: binding)
+            } catch where kept.contains(binding) {
+                continue
+            }
+            for shortcut in shortcuts {
                 output[shortcut, default: []].append(binding)
             }
         }

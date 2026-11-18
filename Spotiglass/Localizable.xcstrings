@@ -6233,29 +6233,6 @@
         }
       }
     },
-    "keymap.error.invalidStored": {
-      "extractionState": "manual",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Tastenkürzel-Einstellungen in %@ sind ungültig: %@ Daher werden die Standard-Tastenkürzel verwendet."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The command palette settings in %@ are invalid: %@ The default shortcuts are being used."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La configuración de la paleta de comandos en %@ no es válida: %@ Se usan los atajos predeterminados."
-          }
-        }
-      }
-    },
     "keymap.error.invalidValue": {
       "extractionState": "manual",
       "localizations": {
@@ -17504,6 +17481,258 @@
         }
       },
       "comment": "Shown when the Settings > Keyboard search matches no command. %@ is the search text."
+    },
+    "browser.pinned.copyKept": {
+      "comment": "Sidebar notice after a pins file that could not be fully read was copied aside. %@ is the copy's file name.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einige angeheftete Einträge konnten nicht gelesen werden. Eine Kopie der alten Liste wurde als „%@“ aufbewahrt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some pins couldn’t be read. A copy of the old list was kept as “%@”."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer algunos elementos anclados. Se conservó una copia de la lista anterior como «%@»."
+          }
+        }
+      }
+    },
+    "browser.pinned.notSaved": {
+      "comment": "Sidebar notice while pins are not saved because their file could not be read or copied.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre angehefteten Einträge konnten weder gelesen noch kopiert werden. Änderungen daran werden nicht gespeichert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pins couldn’t be read or copied, so changes to them aren’t saved."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer ni copiar tus elementos anclados, así que sus cambios no se guardan."
+          }
+        }
+      }
+    },
+    "browser.pinned.saveFailed": {
+      "comment": "Sidebar notice while saving the pins file fails (a full disk, a folder that can’t be written).",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre angehefteten Einträge konnten nicht gespeichert werden. Änderungen daran gehen beim Beenden verloren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pins couldn’t be saved, so changes to them are lost when you quit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron guardar tus elementos anclados, así que sus cambios se perderán al salir."
+          }
+        }
+      }
+    },
+    "keymap.unusableRows": {
+      "comment": "Settings › Keyboard notice for stored shortcut rows this build can't read. %lld is how many.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Ein gespeichertes Tastenkürzel kann diese Version nicht verwenden, daher ist es aus. Es bleibt in Ihrer Einstellungsdatei."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld gespeicherte Tastenkürzel kann diese Version nicht verwenden, daher sind sie aus. Sie bleiben in Ihrer Einstellungsdatei."
+                }
+              }
+            }
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "One saved shortcut can’t be used by this version, so it’s off. It stays in your settings file."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld saved shortcuts can’t be used by this version, so they’re off. They stay in your settings file."
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Esta versión no puede usar un atajo guardado, así que está desactivado. Se queda en tu archivo de ajustes."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Esta versión no puede usar %lld atajos guardados, así que están desactivados. Se quedan en tu archivo de ajustes."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "settings.file.backedUp": {
+      "comment": "Settings notice after a settings.json that could not be fully read was copied aside. %@ is the copy's file name.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Einstellungsdatei konnte nicht vollständig gelesen werden. Vor dem Speichern wurde eine Kopie als „%@“ aufbewahrt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your settings file couldn’t be fully read, so a copy was kept as “%@” before saving."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer por completo tu archivo de ajustes, así que se conservó una copia como «%@» antes de guardar."
+          }
+        }
+      }
+    },
+    "settings.file.dismiss": {
+      "comment": "Button that hides the settings copy notice.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausblenden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar"
+          }
+        }
+      }
+    },
+    "settings.file.reveal": {
+      "comment": "Button next to the settings copy notice that shows the copy in Finder.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Finder zeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reveal in Finder"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar en Finder"
+          }
+        }
+      }
+    },
+    "settings.file.saveFailed": {
+      "comment": "Settings notice while saving settings.json fails.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Einstellungen konnten nicht gespeichert werden. Änderungen gehen beim Beenden verloren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your settings couldn’t be saved, so changes are lost when you quit."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron guardar tus ajustes, así que los cambios se perderán al salir."
+          }
+        }
+      }
+    },
+    "settings.file.reloadFailed": {
+      "comment": "Settings notice while settings.json can’t be read (a hand edit that doesn’t parse, or no permission); the settings in use are kept.",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre Einstellungsdatei kann gerade nicht gelesen werden, daher bleiben die aktuellen Einstellungen unverändert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your settings file can’t be read right now, so the settings in use stay as they are."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora mismo no se puede leer tu archivo de ajustes, así que los ajustes actuales se mantienen."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

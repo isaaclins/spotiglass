@@ -307,18 +307,226 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.settings.appearance, originalAppearance)
     }
 
-    func testInvalidFileFallsBackToDefaultsAndRecordsError() throws {
+    // MARK: - Files the store can't fully read (#597)
+
+    /// A settings.json cut off mid-write (a sync tool, an editor crash) used to be replaced by
+    /// the defaults with no copy. The bytes now survive next to it, and Settings names the copy.
+    func testTruncatedSettingsFileIsKeptAsACopyBeforeDefaultsAreSaved() throws {
         let url = makeTempFileURL()
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try "{not valid json".write(to: url, atomically: true, encoding: .utf8)
+        let original = Data(#"{"version":1,"keybinds":["#.utf8)
+        try original.write(to: url)
 
         let store = SpotiglassSettingsStore(fileURL: url)
-        XCTAssertNotNil(store.lastError)
-        XCTAssertFalse(store.settings.keybinds.isEmpty, "Defaults should be used when file is invalid")
 
-        // The store should have rewritten the file with valid defaults.
+        let copies = UnreadableFileBackup.copies(of: url)
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(copies.first)), original)
+        XCTAssertFalse(store.settings.keybinds.isEmpty, "Defaults should be used when file is invalid")
         let recovered = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
         XCTAssertEqual(recovered.version, SpotiglassSettingsFile.currentVersion)
+        XCTAssertEqual(store.backupURL, copies.first)
+        XCTAssertTrue(try XCTUnwrap(store.backupNotice?.string).contains(XCTUnwrap(copies.first?.lastPathComponent)))
+    }
+
+    /// A hand edit with a syntax error while the app runs: the reload keeps the settings in use,
+    /// and the next change in the app used to write over the half-finished edit.
+    func testBrokenHandEditIsKeptAsACopyBeforeTheNextChangeInTheApp() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+        let edit = Data(#"{"version":2,"appearance":{"colorScheme":"dark",}"#.utf8)
+        try edit.write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNotNil(store.lastError, "Settings says the file can't be read right now")
+
+        try store.mutate { $0.appearance.lyricsTextSize = .large }
+        XCTAssertNil(store.lastError, "once the copy is kept and the file saved, only the copy is named")
+        XCTAssertNotNil(store.backupNotice)
+
+        let copies = UnreadableFileBackup.copies(of: url)
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(copies.first)), edit)
+        let saved = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
+        XCTAssertEqual(saved.appearance.lyricsTextSize, .large)
+    }
+
+    /// One unreadable keybind row is skipped and its siblings stay; the file as it was is
+    /// copied before the repaired one replaces it, and the repair names the row.
+    func testUnreadableRowIsSkippedAndTheFileIsCopiedBeforeTheRepairIsSaved() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let original = Data(#"""
+        {"version":2,"keybindSeedBaselineVersion":1,"seededKeybindCommands":[],
+         "keybinds":[{"keystrokes":["shift-cmd-9"],"command":"app.openSettings","when":"always"},
+                     {"keystrokes":["cmd-j"],"command":"x","when":"somewhereNew"}]}
+        """#.utf8)
+        try original.write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertTrue(store.settings.keybinds.contains { $0.keystrokes == ["shift-cmd-9"] && $0.command == "app.openSettings" })
+        let copies = UnreadableFileBackup.copies(of: url)
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(copies.first)), original)
+
+        let tracker = SpotiglassSettingsDecodeTracker()
+        let decoder = JSONDecoder()
+        decoder.userInfo[.spotiglassSettingsDecodeTracker] = tracker
+        _ = try decoder.decode(SpotiglassSettingsFile.self, from: original)
+        XCTAssertEqual(tracker.repairs.count, 1)
+        XCTAssertTrue(tracker.repairs[0].hasPrefix("keybinds[1]"), tracker.repairs[0])
+    }
+
+    /// A file that can't even be read (no permission) is never replaced: the app runs on the
+    /// defaults, each save fails visibly, and the file is untouched.
+    func testSettingsFileThatCantBeReadIsNeverWrittenOver() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let original = Data(#"{"version":2,"appearance":{"colorScheme":"dark"}}"#.utf8)
+        try original.write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o200], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+        XCTAssertNotNil(store.lastError, "Settings says the file can't be read")
+        XCTAssertNil(store.saveFailure, "nothing was saved yet, so nothing failed to save")
+        XCTAssertThrowsError(try store.mutate { $0.appearance.colorScheme = .light })
+        XCTAssertNotNil(store.saveFailure)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertTrue(UnreadableFileBackup.copies(of: url).isEmpty)
+    }
+
+    /// The file can't be read at launch and is readable again later (permissions fixed): the
+    /// next change in the app goes into the real settings instead of the defaults replacing them.
+    func testFileThatBecomesReadableAgainKeepsItsSettingsOnTheNextChange() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var mine = SpotiglassSettingsStore.bootstrapDefaults()
+        mine.appearance.colorScheme = .dark
+        mine.appearance.lyricsTextSize = .large
+        mine.equalizer.preamp = -3
+        try JSONEncoder().encode(mine).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o200], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try store.mutate { $0.appearance.colorScheme = .light }
+
+        let saved = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
+        XCTAssertEqual(saved.appearance.colorScheme, .light)
+        XCTAssertEqual(saved.appearance.lyricsTextSize, .large, "the real settings were replaced by the defaults")
+        XCTAssertEqual(saved.equalizer.preamp, -3)
+        XCTAssertEqual(store.settings.appearance.lyricsTextSize, .large)
+    }
+
+    /// Settings folder not writable: a change used to fail silently (`try?` in the pane, no log).
+    /// The store now says so, for Appearance and for deleting an equalizer preset alike.
+    func testSaveIntoAFolderThatCantBeWrittenIsReported() throws {
+        let url = makeTempFileURL()
+        var file = SpotiglassSettingsStore.bootstrapDefaults()
+        file.equalizer.userPresets = [EqualizerPreset(name: "Mine", bands: Array(repeating: 1, count: EqualizerSettings.bandCount))]
+        file.equalizer.activePresetName = "Mine"
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(file).write(to: url)
+        let store = SpotiglassSettingsStore(fileURL: url)
+        XCTAssertNil(store.saveFailure)
+        let folder = url.deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        store.update { $0.appearance.colorScheme = .dark }
+        XCTAssertNotNil(store.saveFailure)
+
+        store.update { file in
+            file.equalizer.userPresets.removeAll { $0.name == "Mine" }
+            file.equalizer.activePresetName = nil
+        }
+        XCTAssertNotNil(store.saveFailure)
+        XCTAssertEqual(store.settings.equalizer.userPresets.map(\.name), ["Mine"], "Nothing pretends it was saved")
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder)
+        store.update { $0.appearance.colorScheme = .dark }
+        XCTAssertNil(store.saveFailure, "The next save that works clears it")
+    }
+
+    /// A damaged file in a folder the copy can't be written to stays as it is: no copy, no save.
+    func testDamagedFileIsNotReplacedWhenNoCopyCanBeMade() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let original = Data("{".utf8)
+        try original.write(to: url)
+        let folder = url.deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertNotNil(store.saveFailure)
+        XCTAssertNotNil(store.lastError, "Settings also says the file can't be read")
+        XCTAssertNil(store.backupNotice)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
+    /// Dotfiles: a symlinked settings.json used to become a plain file on the first save.
+    func testSymlinkedSettingsFileStaysALinkAndItsTargetIsUpdated() throws {
+        let dotfiles = makeTempDir()
+        try FileManager.default.createDirectory(at: dotfiles, withIntermediateDirectories: true)
+        let target = dotfiles.appendingPathComponent("settings.json")
+        try JSONEncoder().encode(SpotiglassSettingsStore.bootstrapDefaults()).write(to: target)
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: url, withDestinationURL: target)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.colorScheme = .dark }
+
+        let type = try FileManager.default.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType
+        XCTAssertEqual(type, .typeSymbolicLink)
+        let saved = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: target))
+        XCTAssertEqual(saved.appearance.colorScheme, .dark)
+    }
+
+    /// Moving a relative symlink from ~/.config into Application Support used to break it.
+    func testMigrationKeepsASymlinkedLegacyFilePointingAtItsTarget() throws {
+        let root = makeTempDir()
+        let dotfiles = root.appendingPathComponent("dotfiles", isDirectory: true)
+        let legacyDir = root.appendingPathComponent("config/spotiglass", isDirectory: true)
+        try FileManager.default.createDirectory(at: dotfiles, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: legacyDir, withIntermediateDirectories: true)
+        let target = dotfiles.appendingPathComponent("settings.json")
+        try Data(#"{"version":2}"#.utf8).write(to: target)
+        let legacy = legacyDir.appendingPathComponent("settings.json")
+        try FileManager.default.createSymbolicLink(atPath: legacy.path, withDestinationPath: "../../dotfiles/settings.json")
+        let newURL = root.appendingPathComponent("Application Support/Spotiglass/settings.json")
+
+        SpotiglassSettingsStore.migrateLegacyConfigIfNeeded(fileManager: .default, from: legacy, to: newURL)
+
+        let type = try FileManager.default.attributesOfItem(atPath: newURL.path)[.type] as? FileAttributeType
+        XCTAssertEqual(type, .typeSymbolicLink)
+        XCTAssertEqual(try Data(contentsOf: newURL), try Data(contentsOf: target))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
+    }
+
+    func testCopiesAreMadeOncePerContentAndOnlyTheNewestAreKept() throws {
+        let dir = makeTempDir()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("settings.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = try UnreadableFileBackup.preserve(Data("a".utf8), of: url, now: start)
+        XCTAssertEqual(try UnreadableFileBackup.preserve(Data("a".utf8), of: url, now: start.addingTimeInterval(60)), first)
+
+        for step in 1...7 {
+            try UnreadableFileBackup.preserve(Data("v\(step)".utf8), of: url, now: start.addingTimeInterval(Double(step)))
+        }
+        // Two in the same second get a counter instead of replacing each other.
+        try UnreadableFileBackup.preserve(Data("same second".utf8), of: url, now: start.addingTimeInterval(7))
+
+        let kept = UnreadableFileBackup.copies(of: url)
+        XCTAssertEqual(kept.count, UnreadableFileBackup.keptCopies)
+        XCTAssertEqual(try kept.map { String(decoding: try Data(contentsOf: $0), as: UTF8.self) }, ["v4", "v5", "v6", "v7", "same second"])
     }
 
     func testDefaultFileURLIsApplicationSupportSpotiglassSettingsJSON() {

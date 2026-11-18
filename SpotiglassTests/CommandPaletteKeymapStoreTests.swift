@@ -304,35 +304,93 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         )
     }
 
-    func testInvalidStoredKeymapUsesLocalizedRecoveryMessage() throws {
+    /// A hand edit that doesn't parse, then the fix and Reload again: the reload error under
+    /// the advanced editor goes away with the fixed file instead of staying on screen.
+    func testFixedFileClearsTheReloadErrorOnTheNextReload() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let good = try Data(contentsOf: url)
+
+        try Data(#"{"version":2,"keybinds":["#.utf8).write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNotNil(store.lastError)
+
+        try good.write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNil(store.lastError)
+        XCTAssertNil(settingsStore.lastError)
+    }
+
+    /// Ten custom shortcuts and one row this build can't read (a key token from a newer
+    /// build): the whole keymap used to fall back to the defaults, and recording one new
+    /// shortcut then saved the defaults over every custom row (#597).
+    func testUnusableStoredRowDoesNotCostTheOtherCustomShortcuts() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         var file = SpotiglassSettingsStore.bootstrapDefaults()
-        file.keybinds = [
-            CommandPaletteKeyBinding(
-                keystrokes: ["cmd-unknown"],
-                command: "custom.command",
-                when: .always,
-                args: nil
-            )
-        ]
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        let custom = CommandPaletteKeyBinding(
+            keystrokes: ["shift-cmd-8"],
+            command: CommandPaletteCommandID.toggleQueue,
+            when: .always,
+            args: nil
+        )
+        let fromNewerBuild = CommandPaletteKeyBinding(
+            keystrokes: ["cmd-unknown"],
+            command: "custom.command",
+            when: .always,
+            args: nil
+        )
+        file.keybinds = [custom, fromNewerBuild]
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try encoder.encode(file).write(to: url)
+        try JSONEncoder().encode(file).write(to: url)
 
         let settingsStore = SpotiglassSettingsStore(fileURL: url)
-        let previousL10nStore = SpotiglassL10n.settingsStore
-        SpotiglassL10n.settingsStore = settingsStore
-        defer { SpotiglassL10n.settingsStore = previousL10nStore }
         let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
 
-        let detail = SpotiglassL10n.format("keymap.error.unsupportedToken", "unknown")
-        XCTAssertEqual(
-            store.lastError,
-            SpotiglassL10n.format("keymap.error.invalidStored", url.path, detail)
+        XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.toggleQueue), try CommandShortcut(keystroke: "shift-cmd-8"))
+        XCTAssertEqual(store.unusableRows, [fromNewerBuild])
+        XCTAssertNotNil(store.unusableRowsText)
+        // One row reads as one, not "1 saved shortcuts".
+        for (language, one, other) in [
+            ("en", "One saved shortcut", "2 saved shortcuts"),
+            ("de", "Ein gespeichertes Tastenkürzel", "2 gespeicherte Tastenkürzel"),
+            ("es", "un atajo guardado", "2 atajos guardados"),
+        ] {
+            let locale = Locale(identifier: language)
+            XCTAssertTrue(SpotiglassL10n.format("keymap.unusableRows", locale: locale, 1).contains(one), language)
+            XCTAssertTrue(SpotiglassL10n.format("keymap.unusableRows", locale: locale, 2).contains(other), language)
+        }
+
+        try store.setBinding(
+            commandID: CommandPaletteCommandID.openSettings,
+            shortcut: try CommandShortcut(keystroke: "shift-cmd-9"),
+            replaceConflicting: false
         )
-        XCTAssertFalse(store.lastError?.contains("unsupportedToken") == true)
-        XCTAssertNotNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+
+        let saved = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url)).keybinds
+        XCTAssertTrue(saved.contains(custom), "the custom shortcut is gone")
+        XCTAssertTrue(saved.contains(fromNewerBuild), "the newer build's row is gone")
+        XCTAssertTrue(saved.contains { $0.command == CommandPaletteCommandID.openSettings && $0.keystrokes == ["shift-cmd-9"] })
+        XCTAssertNotNil(store.unusableRowsText, "the notice stays while the row does")
+
+        try store.clearBinding(commandID: CommandPaletteCommandID.openSettings)
+        let afterClear = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url)).keybinds
+        XCTAssertEqual(afterClear, [custom, fromNewerBuild])
+    }
+
+    /// A new row typed into the advanced editor is still checked: only rows that were already
+    /// stored unusable pass through.
+    func testAdvancedEditorStillRejectsANewUnusableRow() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let before = try Data(contentsOf: url)
+
+        store.editorText = #"{"bindings":[{"keystrokes":["cmd-unknown"],"command":"custom.command","when":"always"}]}"#
+        store.applyEditorText()
+
+        XCTAssertNotNil(store.lastError)
+        XCTAssertEqual(try Data(contentsOf: url), before)
     }
 
     func testReloadFromDiskDoesNotExposeRawSettingsDecoderError() throws {
