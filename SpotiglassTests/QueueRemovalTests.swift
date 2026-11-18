@@ -156,6 +156,61 @@ final class QueueRemovalTests: XCTestCase {
         )
     }
 
+    // MARK: - ⌘Z
+
+    /// Two removals, then the Undo button of the second: ⌘Z still offers the first one. Before,
+    /// the button took every queue removal off the Edit menu, so the older one couldn't be undone.
+    func testTheUndoButtonLeavesTheEarlierRemovalOnTheEditMenu() async throws {
+        let h = try await playing(songs)
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+
+        func removal(_ uris: [String]) async -> QueueRemovalReceipt? {
+            let ids = ids(h, uris)
+            var receipt: QueueRemovalReceipt?
+            manager.beginUndoGrouping()
+            let run = QueueRemovalUndo.run(on: manager, queue: h.queue) {
+                receipt = await h.queue.removeItems(withIDs: ids)
+                return receipt
+            }
+            manager.endUndoGrouping()
+            await run.value
+            return receipt
+        }
+
+        let firstResult = await removal([songs[2]])
+        XCTAssertNotNil(firstResult)
+        let secondResult = await removal([songs[5]])
+        let second = try XCTUnwrap(secondResult)
+
+        QueueRemovalUndo.withdraw(second)
+        await h.queue.undoRemoval(second)
+
+        XCTAssertTrue(manager.canUndo, "the first removal is still on the Edit menu")
+        XCTAssertEqual(h.player.upcomingURIs, [songs[1], songs[3], songs[4], songs[5], songs[6], songs[7]])
+    }
+
+    /// A removal that took nothing out leaves no ⌘Z of its own, and keeps the one before it.
+    func testARemovalThatTookNothingKeepsTheEarlierUndo() async throws {
+        let h = try await playing(songs)
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        let ids = ids(h, [songs[2]])
+
+        manager.beginUndoGrouping()
+        let first = QueueRemovalUndo.run(on: manager, queue: h.queue) { await h.queue.removeItems(withIDs: ids) }
+        manager.endUndoGrouping()
+        await first.value
+        manager.beginUndoGrouping()
+        let nothing = QueueRemovalUndo.run(on: manager, queue: h.queue) { nil }
+        manager.endUndoGrouping()
+        await nothing.value
+
+        XCTAssertTrue(manager.canUndo, "the first removal is still on the Edit menu")
+        manager.undo()
+        XCTAssertFalse(manager.canUndo, "only the removal that took something out was there")
+    }
+
     // MARK: - Spotify
 
     /// Spotify's Web API has no endpoint that removes a queued song: the queue offers no Remove

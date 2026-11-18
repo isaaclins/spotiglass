@@ -223,22 +223,9 @@ struct QueuePanelView: View {
         remove { await queueViewModel.removeItems(withIDs: ids) }
     }
 
-    /// Runs a removal and offers its Undo in the Edit menu (⌘Z) too. The undo is registered
-    /// right away, inside the click or key press, on the undo manager of the window the Edit
-    /// menu asks: registered after the player answered, it missed that event and ⌘Z found
-    /// nothing to undo.
+    /// Runs a removal and offers its Undo in the Edit menu (⌘Z) too.
     private func remove(_ removal: @escaping () async -> QueueRemovalReceipt?) {
-        let manager = windowUndoManager
-        let pending = PendingQueueRemoval()
-        manager?.registerUndo(withTarget: queueViewModel) { queue in
-            guard let receipt = pending.receipt else { return }
-            Task { @MainActor in await queue.undoRemoval(receipt) }
-        }
-        manager?.setActionName(SpotiglassL10n.string("queue.remove.undoName"))
-        Task {
-            pending.receipt = await removal()
-            if pending.receipt == nil { manager?.removeAllActions(withTarget: queueViewModel) }
-        }
+        QueueRemovalUndo.run(on: windowUndoManager, queue: queueViewModel, removal)
     }
 
     private var windowUndoManager: UndoManager? {
@@ -247,7 +234,7 @@ struct QueuePanelView: View {
 
     private func undo(_ receipt: QueueRemovalReceipt) {
         // The button and ⌘Z undo the same removal; whichever comes first, the other has nothing left.
-        windowUndoManager?.removeAllActions(withTarget: queueViewModel)
+        QueueRemovalUndo.withdraw(receipt)
         Task { await queueViewModel.undoRemoval(receipt) }
     }
 
@@ -526,10 +513,61 @@ private struct QueueRowPlayInteractionModifier: ViewModifier {
     }
 }
 
-/// The receipt of a removal whose undo was registered before the player answered.
+/// A removal's ⌘Z (#628). The undo is registered right away, inside the click or key press, on
+/// the undo manager of the window the Edit menu asks: registered after the player answered, it
+/// missed that event and ⌘Z found nothing to undo. Each removal is its own undo target, so
+/// taking one back (its Undo button, or a removal that failed) leaves the ⌘Z of the removals
+/// before it in place.
 @MainActor
-private final class PendingQueueRemoval {
-    var receipt: QueueRemovalReceipt?
+final class QueueRemovalUndo {
+    /// Set once the player answered; until then ⌘Z has nothing to put back.
+    private(set) var receipt: QueueRemovalReceipt?
+    private weak var manager: UndoManager?
+
+    /// Removals whose ⌘Z is still registered, so the Undo button (in any window) can take back
+    /// exactly its own. As many as the player keeps for Undo.
+    private static var registered: [QueueRemovalUndo] = []
+    private static let limit = 10
+
+    private init(manager: UndoManager?) {
+        self.manager = manager
+    }
+
+    @discardableResult
+    static func run(
+        on manager: UndoManager?,
+        queue: QueueViewModel,
+        _ removal: @escaping () async -> QueueRemovalReceipt?
+    ) -> Task<Void, Never> {
+        let undo = QueueRemovalUndo(manager: manager)
+        registered.append(undo)
+        if registered.count > limit { registered.removeFirst(registered.count - limit) }
+        // The handler holds the target itself: the undo manager doesn't keep it alive.
+        manager?.registerUndo(withTarget: undo) { [queue, undo] _ in
+            QueueRemovalUndo.forget(undo)
+            guard let receipt = undo.receipt else { return }
+            Task { @MainActor in await queue.undoRemoval(receipt) }
+        }
+        manager?.setActionName(SpotiglassL10n.string("queue.remove.undoName"))
+        return Task {
+            undo.receipt = await removal()
+            if undo.receipt == nil { undo.withdraw() }
+        }
+    }
+
+    /// Takes the ⌘Z of this removal off the Edit menu: its Undo button was used.
+    static func withdraw(_ receipt: QueueRemovalReceipt) {
+        registered.first { $0.receipt?.id == receipt.id }?.withdraw()
+    }
+
+    private func withdraw() {
+        Self.forget(self)
+        manager?.removeAllActions(withTarget: self)
+    }
+
+    private static func forget(_ undo: QueueRemovalUndo) {
+        registered.removeAll { $0 === undo }
+    }
 }
 
 /// The bar that says what a removal took out of the queue, with its Undo (#628). It goes by
