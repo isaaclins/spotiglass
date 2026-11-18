@@ -1197,6 +1197,32 @@ extension SpotifyAuthStepTests {
         XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
     }
 
+    /// Reconnect pressed while the saved sign-in is still being refreshed at launch, and the
+    /// browser step fails: the saved sign-in is refreshed again instead of an error replacing it.
+    @MainActor
+    func testFailedReconnectDuringTheLaunchRefreshTriesTheSavedSignInAgain() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(Self.grantJSON("restored")))
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: FailingAuthorizationFlow(error: LoopbackOAuthCallbackError.socketSetupFailed("bind")),
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .refreshing(nil),
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.signIn()
+        let session = await signedInSession(of: viewModel)
+
+        XCTAssertEqual(session.accessToken, "restored")
+        XCTAssertNil(viewModel.reconnectFailure)
+    }
+
     @MainActor
     private func makeReconnectingViewModel(
         store: InMemoryRefreshTokenStore,

@@ -292,10 +292,14 @@ final class AuthViewModel: ObservableObject {
                 return
             }
             signInRetryCooldownUntil = now().addingTimeInterval(2)
-            if let restorePoint = signInRestorePoint, restorePoint.state.hasSpotifySession {
-                // The reason still reaches the log; the session from before keeps working.
+            if let restorePoint = signInRestorePoint,
+               restorePoint.state.hasSpotifySession || restorePoint.state == .refreshing(nil) {
+                // The reason still reaches the log; the session from before keeps working (or, at
+                // launch, its refresh is tried again).
                 SpotiglassLog.error(.auth, "Reconnect failed, keeping the previous sign-in: \(error)")
-                reconnectFailure = Self.displayError(for: error)
+                if restorePoint.state.hasSpotifySession {
+                    reconnectFailure = Self.displayError(for: error)
+                }
                 restoreStateBeforeSignIn()
             } else {
                 // Nothing was working before (a failed refresh): show why this sign-in failed.
