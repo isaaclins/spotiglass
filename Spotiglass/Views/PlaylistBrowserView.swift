@@ -427,11 +427,17 @@ struct PlaylistBrowserView: View {
             await bindPinnedStoreToCurrentUser()
         }
         .onChange(of: signInResumptions) { _, _ in
-            // While the sign-in was paused, the pins couldn't find the account and Home couldn't
-            // load; the library itself came from the cache (#593).
+            // While the sign-in was paused, the pins couldn't find the account, and the playlist
+            // list and Home could only show the cache or an error (#593).
             Task {
                 if pinnedStore.didFailToBind {
                     await bindPinnedStoreToCurrentUser()
+                }
+                switch viewModel.playlistState {
+                case .error, .staleCache(_, .some):
+                    await viewModel.refreshPlaylists()
+                case .loading, .loaded, .empty, .staleCache(_, .none), .refreshing:
+                    break
                 }
                 if case .loaded(.home) = viewModel.detailState {
                     await viewModel.reloadHomeSections()
