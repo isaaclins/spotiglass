@@ -64,7 +64,7 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
         XCTAssertEqual(httpClient.requestCount, 2)
     }
 
-    func testRefresh429WithLongRetryAfterDoesNotScheduleEarlyRetry() async throws {
+    func testRefresh429WithLongRetryAfterReturnsAtOnceInsteadOfSleeping() async throws {
         let httpClient = SequencedTokenHTTPClientForCoverage([
             .json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "120"]),
             .json("""
@@ -82,14 +82,20 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
             sleep: { delay in await delays.record(delay) }
         )
 
-        let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+        // Every request waits on this refresh, so a wait this long goes back to the sign-in
+        // as a cooldown instead of being slept here (#593).
+        do {
+            _ = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+            XCTFail("Expected the 429 back at once")
+        } catch let error as SpotifyTokenClientError {
+            XCTAssertEqual(error, .httpError(429, "rate_limited", "rate_limited", 120))
+        }
         let recordedDelays = await delays.values
-        XCTAssertEqual(grant.accessToken, "after-long-429")
-        XCTAssertEqual(recordedDelays, [120])
-        XCTAssertEqual(httpClient.requestCount, 2)
+        XCTAssertEqual(recordedDelays, [])
+        XCTAssertEqual(httpClient.requestCount, 1)
     }
 
-    func testRefresh429WithHTTPDateRetryAfterDoesNotScheduleEarlyRetry() async throws {
+    func testRefresh429WithLongHTTPDateRetryAfterReturnsAtOnce() async throws {
         let now = Date(timeIntervalSince1970: 1_000_000_000)
         let httpClient = SequencedTokenHTTPClientForCoverage([
             .json(
@@ -113,11 +119,17 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
             sleep: { delay in await delays.record(delay) }
         )
 
-        let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+        // Every request waits on this refresh, so a wait this long goes back to the sign-in
+        // as a cooldown instead of being slept here (#593).
+        do {
+            _ = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+            XCTFail("Expected the 429 back at once")
+        } catch let error as SpotifyTokenClientError {
+            XCTAssertEqual(error, .httpError(429, "rate_limited", "rate_limited", 120))
+        }
         let recordedDelays = await delays.values
-        XCTAssertEqual(grant.accessToken, "after-date-429")
-        XCTAssertEqual(recordedDelays, [120])
-        XCTAssertEqual(httpClient.requestCount, 2)
+        XCTAssertEqual(recordedDelays, [])
+        XCTAssertEqual(httpClient.requestCount, 1)
     }
 
     func testRefreshDoesNotRetryUnauthorizedClientErrors() async {

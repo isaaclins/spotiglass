@@ -656,6 +656,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     enum PlaybackHostRecoveryCause: String {
         case startupTask = "view_startup"
         case manualReconnect = "manual_reconnect"
+        case signInResumed = "sign_in_resumed"
         case initializationError = "initialization_error"
         case notReady = "not_ready"
         case missingDeviceRetryTransfer = "missing_device_retry_transfer"

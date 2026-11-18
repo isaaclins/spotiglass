@@ -15,8 +15,13 @@ final class PlaybackTokenBridge {
     }
 
     func tokenResponse(refresh: Bool) async throws -> [String: String] {
-        let token = try await (refresh ? provider.refreshedPlaybackAccessToken() : provider.playbackAccessToken())
-        return ["accessToken": token]
+        do {
+            let token = try await (refresh ? provider.refreshedPlaybackAccessToken() : provider.playbackAccessToken())
+            return ["accessToken": token]
+        } catch let paused as SpotifySignInPausedError {
+            // Not a dead session: the page says it's waiting instead of "sign in again" (#593).
+            return ["signInPaused": paused.pause.message]
+        }
     }
 }
 
@@ -100,6 +105,8 @@ enum SpotifyPlaybackBridgeParser {
             return .initializationError(message(from: payload))
         case "authentication_error":
             return .authenticationError(message(from: payload))
+        case "sign_in_paused":
+            return .signInPaused(message(from: payload))
         case "account_error":
             return .accountError(message(from: payload))
         case "playback_error":

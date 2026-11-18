@@ -567,6 +567,9 @@ enum MusicPlaybackEvent: Equatable {
     case playerCommandFailed(command: String, message: String, id: UInt64? = nil)
     case initializationError(String)
     case authenticationError(String)
+    /// The player couldn't get a token because the sign-in is paused (offline, Spotify busy): the
+    /// sentence says why and when it tries again (#593).
+    case signInPaused(String)
     case accountError(String)
     case playbackError(String)
     case log(String)

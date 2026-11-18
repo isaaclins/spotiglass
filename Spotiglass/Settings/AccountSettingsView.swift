@@ -46,6 +46,13 @@ struct AccountSettingsView: View {
                 LabeledContent(SpotiglassL10n.string("settings.account.status")) {
                     Text(viewModel.state.title)
                 }
+                if let reconnectFailure = viewModel.reconnectFailure {
+                    // The reconnect didn't finish, but nothing was lost: say so calmly (#593).
+                    Text(SpotiglassL10n.format("settings.account.reconnectFailed", reconnectFailure.message))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 // When signed in, Status already says so. The token expiry that
                 // used to sit here told the user nothing they could act on and
                 // made a silent refresh look like an expiry; it lives in
@@ -149,7 +156,8 @@ struct AccountSettingsView: View {
             session
         case let .refreshing(.some(session)):
             session
-        case .signedOut, .signingIn, .failed, .refreshing(.none):
+        // Paused shows its "offline" / "Spotify is busy" line under Status.
+        case .signedOut, .signingIn, .failed, .refreshing(.none), .paused:
             nil
         }
     }
