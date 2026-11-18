@@ -43,13 +43,20 @@ final class MusicPlaybackProviderTests: XCTestCase {
         let api = MockPlaybackAPI()
         let provider = SpotifyPlaybackProvider(playbackAPI: api)
 
-        try await provider.appendToQueueEnd(uri: "spotify:track:9", deviceID: "device", isWanted: { true })
+        try await provider.appendToQueueEnd(Self.spotifyTrack("9"), deviceID: "device", isWanted: { true })
         do {
-            try await provider.appendToQueueEnd(uri: "spotify:track:10", deviceID: "device", isWanted: { false })
+            try await provider.appendToQueueEnd(Self.spotifyTrack("10"), deviceID: "device", isWanted: { false })
             XCTFail("an add the caller no longer wants is refused")
         } catch is CancellationError {}
 
         XCTAssertEqual(api.actions, ["addToQueue:device:spotify:track:9"])
+    }
+
+    private static func spotifyTrack(_ id: String) -> MusicTrack {
+        MusicTrack(
+            id: id, name: "Song \(id)", artists: ["Artist"], albumArtworkURL: nil, durationMilliseconds: 200_000,
+            isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:\(id)"
+        )
     }
 
     func testSpotifyProviderRoutesInAppPlayerCommandsToTheSDKPage() async throws {

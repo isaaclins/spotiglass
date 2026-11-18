@@ -316,30 +316,37 @@ final class QueueAutoplayTests: XCTestCase {
     }
 
     /// An add at the end that waited its turn behind the same song added by hand finds it
-    /// queued and leaves it out.
+    /// queued and leaves it out: the very same song, and another copy of it (the library copy
+    /// of a catalog song has another address but the same title and artist).
     func testAnAddWaitingBehindTheSameSongAddedByHandIsLeftOut() async throws {
-        let h = makeHarness()
-        try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
-        let song = "applemusic:song:new-1"
-        h.player.holdLookups = true
-        let byHand = Task { try await h.provider.enqueue(uri: song, deviceID: deviceID) }
-        await waitUntil("the hand-added song looking up", changes: h.player.changes) {
-            h.player.waitingLookups.contains("enqueue \(song)")
-        }
-        h.player.holdLookups = false
-        let autoplayAdd = Task { try await h.provider.appendToQueueEnd(uri: song, deviceID: deviceID, isWanted: { true }) }
-        h.player.releaseLookups()
-        try await byHand.value
+        // The scripted player names each song after its address, by "Artist".
+        let byHandURI = "applemusic:song:new-1"
+        for suggested in [
+            Self.track("new-1", title: byHandURI, artist: "Artist"),
+            Self.track("999", title: byHandURI, artist: "Artist"),
+        ] {
+            let h = makeHarness()
+            try await h.provider.play(.items(uris: seeds, startURI: nil), deviceID: deviceID)
+            h.player.holdLookups = true
+            let byHand = Task { try await h.provider.enqueue(uri: byHandURI, deviceID: deviceID) }
+            await waitUntil("the hand-added song looking up", changes: h.player.changes) {
+                h.player.waitingLookups.contains("enqueue \(byHandURI)")
+            }
+            h.player.holdLookups = false
+            let autoplayAdd = Task { try await h.provider.appendToQueueEnd(suggested, deviceID: deviceID, isWanted: { true }) }
+            h.player.releaseLookups()
+            try await byHand.value
 
-        do {
-            try await autoplayAdd.value
-            XCTFail("the song is queued already")
-        } catch let error as QueueAppendSkipped {
-            XCTAssertEqual(error, .alreadyQueued)
-            XCTAssertTrue(QueueAutoplay.refusesSong(error), "Autoplay moves on to the next suggestion")
+            do {
+                try await autoplayAdd.value
+                XCTFail("\(suggested.uri): the song is queued already")
+            } catch let error as QueueAppendSkipped {
+                XCTAssertEqual(error, .alreadyQueued)
+                XCTAssertTrue(QueueAutoplay.refusesSong(error), "Autoplay moves on to the next suggestion")
+            }
+            let queue = try await upcoming(h)
+            XCTAssertEqual(queue, [byHandURI] + Array(seeds.dropFirst()), "\(suggested.uri) left out")
         }
-        let queue = try await upcoming(h)
-        XCTAssertEqual(queue.filter { $0 == song }.count, 1)
     }
 
     /// With nothing new left in this style, Autoplay says so instead of repeating songs.

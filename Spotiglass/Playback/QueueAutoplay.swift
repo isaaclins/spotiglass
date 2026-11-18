@@ -58,7 +58,7 @@ protocol QueueAutoplayPlayer: AnyObject {
     func autoplayUpcomingTracks() async throws -> [MusicTrack]
     /// `isWanted` is asked right before the queue changes, so an add still waiting when
     /// Autoplay is turned off leaves the queue alone.
-    func autoplayAppend(uri: String, isWanted: @escaping @MainActor () -> Bool) async throws
+    func autoplayAppend(_ track: MusicTrack, isWanted: @escaping @MainActor () -> Bool) async throws
 }
 
 /// The same song under different IDs (a library copy and its catalog song, or another edition)
@@ -420,7 +420,7 @@ final class QueueAutoplay: ObservableObject {
                     if !taken.isDisjoint(with: QueueAutoplayIdentity.keys(track)) { continue }
                 }
                 do {
-                    try await player.autoplayAppend(uri: track.uri, isWanted: isWanted)
+                    try await player.autoplayAppend(track, isWanted: isWanted)
                     addedKeys.formUnion(QueueAutoplayIdentity.keys(track))
                     knownTracks[track.uri] = track
                     spread.queued(track)
@@ -501,11 +501,11 @@ final class ProviderQueueAutoplayPlayer: QueueAutoplayPlayer {
         }
     }
 
-    func autoplayAppend(uri: String, isWanted: @escaping @MainActor () -> Bool) async throws {
+    func autoplayAppend(_ track: MusicTrack, isWanted: @escaping @MainActor () -> Bool) async throws {
         guard let deviceID = deviceID() else {
             throw MusicPlaybackError(service: provider.service, reason: .failed, detail: "No player to add to")
         }
-        try await provider.appendToQueueEnd(uri: uri, deviceID: deviceID, isWanted: isWanted)
+        try await provider.appendToQueueEnd(track, deviceID: deviceID, isWanted: isWanted)
     }
 }
 

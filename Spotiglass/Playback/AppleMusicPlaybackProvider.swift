@@ -206,11 +206,18 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         try await add(uri: uri, atEnd: false, isWanted: { true })
     }
 
-    func appendToQueueEnd(uri: String, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws {
-        try await add(uri: uri, atEnd: true, isWanted: isWanted)
+    func appendToQueueEnd(_ track: MusicTrack, deviceID: String, isWanted: @escaping @MainActor () -> Bool) async throws {
+        try await add(uri: track.uri, atEnd: true, isWanted: isWanted, identity: QueueAutoplayIdentity.keys(track))
     }
 
-    private func add(uri: String, atEnd: Bool, isWanted: @escaping @MainActor () -> Bool) async throws {
+    /// `identity` (Autoplay's adds only): the song's keys, to leave it out when any copy of it
+    /// was queued while this add waited its turn.
+    private func add(
+        uri: String,
+        atEnd: Bool,
+        isWanted: @escaping @MainActor () -> Bool,
+        identity: Set<String> = []
+    ) async throws {
         // The session refuses an add while nothing is loaded. An add that still slips in after
         // a sign-out (made before it, or racing it) leaves the queue alone: it waits for the
         // play before it, and once its lookup is done it checks that the session is still the
@@ -226,8 +233,9 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
                 return self.session == session && !self.isSessionEnded && isWanted()
             }
             if atEnd {
-                // An add waiting its turn behind one made by hand finds that one queued now.
-                if player.readUpcoming().contains(where: { $0.uri == uri }) {
+                // An add waiting its turn behind one made by hand finds that one queued now,
+                // whichever copy of the song it was.
+                if player.readUpcoming().contains(where: { !QueueAutoplayIdentity.keys($0).isDisjoint(with: identity) }) {
                     throw QueueAppendSkipped.alreadyQueued
                 }
                 try await player.append(uri: uri, isCurrent: isCurrent)
