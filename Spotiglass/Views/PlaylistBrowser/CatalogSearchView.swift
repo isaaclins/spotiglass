@@ -280,6 +280,7 @@ struct CatalogSearchView: View {
                 }
             }
         }
+        .trackStackKeyboard(order: order, selection: $trackSelection)
         .onChange(of: order) { trackSelection.keep(only: order) }
     }
 

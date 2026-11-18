@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import XCTest
 @testable import Spotiglass
 
@@ -190,6 +191,35 @@ final class QueueRemovalTests: XCTestCase {
         XCTAssertEqual(h.player.upcomingURIs, [songs[1], songs[3], songs[4], songs[5], songs[6], songs[7]])
     }
 
+    /// ⌘Z pressed before the player answered the removal waits for it and puts the song back,
+    /// instead of using up the Edit menu's undo and doing nothing.
+    func testCommandZBeforeThePlayerAnsweredStillPutsTheSongBack() async throws {
+        let h = try await playing(songs)
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        let ids = ids(h, [songs[2]])
+        let (gate, open) = AsyncStream.makeStream(of: Void.self)
+
+        let watch = QueueRestoreWatch(full: Array(songs.dropFirst()), removed: songs[2])
+        let restored = expectation(description: "the song is back in the queue")
+        watch.onRestored = { restored.fulfill() }
+        let subscription = h.queue.$upcomingItems.sink { watch.saw($0.map(\.uri)) }
+
+        manager.beginUndoGrouping()
+        let run = QueueRemovalUndo.run(on: manager, queue: h.queue) {
+            for await _ in gate { break }
+            return await h.queue.removeItems(withIDs: ids)
+        }
+        manager.endUndoGrouping()
+        manager.undo()
+        open.yield()
+        await run.value
+
+        await fulfillment(of: [restored], timeout: 5)
+        subscription.cancel()
+        XCTAssertEqual(h.player.upcomingURIs, Array(songs.dropFirst()))
+    }
+
     /// A removal that took nothing out leaves no ⌘Z of its own, and keeps the one before it.
     func testARemovalThatTookNothingKeepsTheEarlierUndo() async throws {
         let h = try await playing(songs)
@@ -276,6 +306,29 @@ final class TrackStackSelectionTests: XCTestCase {
         XCTAssertEqual(selection.ids, ["e"])
     }
 
+    /// ⌘A selects every row; the arrow keys move from the last row clicked, and with shift extend
+    /// the range from the anchor, like a table.
+    func testSelectAllAndArrowKeysWorkLikeATable() {
+        var selection = TrackStackSelection()
+        selection.selectAll(in: order)
+        XCTAssertEqual(selection.ids, Set(order))
+
+        selection.click("b", in: order, modifiers: [])
+        selection.move(1, in: order, extending: false)
+        XCTAssertEqual(selection.ids, ["c"])
+        selection.move(1, in: order, extending: true)
+        XCTAssertEqual(selection.ids, ["c", "d"])
+        selection.move(-2, in: order, extending: true)
+        XCTAssertEqual(selection.ids, ["b", "c"], "shift-up past the anchor extends the other way")
+
+        selection.move(-10, in: order, extending: false)
+        XCTAssertEqual(selection.ids, ["a"], "the first row is as far as it goes")
+
+        var fresh = TrackStackSelection()
+        fresh.move(1, in: order, extending: false)
+        XCTAssertEqual(fresh.ids, ["a"], "down with nothing selected starts at the top")
+    }
+
     /// Right-click on a selected row acts on the whole selection, in list order; on another row
     /// only on that row.
     func testMenuTargetsAreTheSelectionWhenTheClickedRowIsInIt() {
@@ -306,5 +359,24 @@ final class TrackStackSelectionTests: XCTestCase {
 
     private static func row(_ id: String) -> TrackRowViewModel {
         TrackRowViewModel(queueItem: QueueItem(id: id, name: id, subtitle: "", albumArtURL: nil, durationMilliseconds: 1, uri: "applemusic:song:\(id)"))
+    }
+}
+
+/// Sees the panel's queue lose a song and get it back.
+@MainActor
+private final class QueueRestoreWatch {
+    let full: [String?]
+    let removed: String
+    var onRestored: (() -> Void)?
+    private var wasRemoved = false
+
+    init(full: [String], removed: String) {
+        self.full = full
+        self.removed = removed
+    }
+
+    func saw(_ uris: [String?]) {
+        if !uris.contains(removed) { wasRemoved = true }
+        if wasRemoved, uris == full { onRestored?(); onRestored = nil }
     }
 }

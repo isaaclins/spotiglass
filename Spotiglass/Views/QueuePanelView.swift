@@ -522,6 +522,8 @@ private struct QueueRowPlayInteractionModifier: ViewModifier {
 final class QueueRemovalUndo {
     /// Set once the player answered; until then ⌘Z has nothing to put back.
     private(set) var receipt: QueueRemovalReceipt?
+    /// The removal itself, so a ⌘Z pressed before the player answered can wait for it.
+    private var result: Task<QueueRemovalReceipt?, Never>?
     private weak var manager: UndoManager?
 
     /// Removals whose ⌘Z is still registered, so the Undo button (in any window) can take back
@@ -545,12 +547,17 @@ final class QueueRemovalUndo {
         // The handler holds the target itself: the undo manager doesn't keep it alive.
         manager?.registerUndo(withTarget: undo) { [queue, undo] _ in
             QueueRemovalUndo.forget(undo)
-            guard let receipt = undo.receipt else { return }
-            Task { @MainActor in await queue.undoRemoval(receipt) }
+            // ⌘Z right after the removal waits for the player's answer instead of doing nothing.
+            Task { @MainActor in
+                guard let receipt = await undo.result?.value else { return }
+                await queue.undoRemoval(receipt)
+            }
         }
         manager?.setActionName(SpotiglassL10n.string("queue.remove.undoName"))
+        let result = Task { await removal() }
+        undo.result = result
         return Task {
-            undo.receipt = await removal()
+            undo.receipt = await result.value
             if undo.receipt == nil { undo.withdraw() }
         }
     }
