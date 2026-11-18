@@ -2,6 +2,13 @@
 
 Wax was called Spotiglass until November 2026. Entries from before the rename use the old name.
 
+## [0.8.55] - 2026-11-18
+
+### Fixed
+
+- Spotify sign-in stays active through brief network drops and Spotify rate limits instead of signing you out.
+- Reconnecting to Spotify no longer discards a sign-in that still works.
+
 ## [0.8.54] - 2026-11-18
 
 ### Fixed

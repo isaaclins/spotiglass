@@ -3,14 +3,15 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.54</title>
-            <pubDate>Wed, 18 Nov 2026 09:52:10 +0100</pubDate>
-            <sparkle:version>65</sparkle:version>
-            <sparkle:shortVersionString>0.8.54</sparkle:shortVersionString>
+            <title>0.8.55</title>
+            <pubDate>Wed, 18 Nov 2026 10:25:06 +0100</pubDate>
+            <sparkle:version>66</sparkle:version>
+            <sparkle:shortVersionString>0.8.55</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
+            <description sparkle:format="plain-text"><![CDATA[• Spotify sign-in stays active through brief network drops and Spotify rate limits instead of signing you out.
+• Reconnecting to Spotify no longer discards a sign-in that still works.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.54/Wax-0.8.54.zip" length="16086350" type="application/octet-stream" sparkle:edSignature="uVMOg/QeMlYrstlq3hVumHIEHx6VUVKmf/hBs/5h8QgZqvM+ZAnti96VR6eOCy+TZJSDOAbNIGxQN+JeGJwdBw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.55/Wax-0.8.55.zip" length="16168747" type="application/octet-stream" sparkle:edSignature="whBsPIg+1HX9YvBAqjLCqVIO3PQKCpAS2mNAlk45edvaBD8s38oUDwrHHw3XmeBw869MNUY7laC0oxo46gOgCA=="/>
         </item>
     </channel>
 </rss>
