@@ -543,7 +543,8 @@ final class QueueRemovalUndo {
     ) -> Task<Void, Never> {
         let undo = QueueRemovalUndo(manager: manager)
         registered.append(undo)
-        if registered.count > limit { registered.removeFirst(registered.count - limit) }
+        // The player keeps as many removals for Undo: an older ⌘Z could only fail, so it goes.
+        while registered.count > limit { registered.first?.withdraw() }
         // The handler holds the target itself: the undo manager doesn't keep it alive.
         manager?.registerUndo(withTarget: undo) { [queue, undo] _ in
             QueueRemovalUndo.forget(undo)

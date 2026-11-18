@@ -109,6 +109,21 @@ final class QueueRemovalTests: XCTestCase {
         XCTAssertEqual(h.player.upcomingURIs, [songs[2], songs[4], songs[5], songs[6], songs[7]])
     }
 
+    /// The same song queued twice, [A, B, A, C]: the listener selects the first A, it starts
+    /// playing before Remove reaches the player, and the later A stays queued.
+    func testARemovedDuplicateThatStartedPlayingKeepsTheLaterCopy() async throws {
+        let a = "applemusic:song:a"
+        let h = try await playing([songs[0], a, songs[1], a, songs[2]])
+        let firstA = try XCTUnwrap(h.queue.upcomingItems.first)
+        XCTAssertEqual(firstA.uri, a)
+        try await next(h) // the first A plays now; the panel hasn't read the queue again
+
+        _ = await h.queue.removeItems(withIDs: [firstA.id])
+
+        XCTAssertEqual(h.player.readState().current?.uri, a)
+        XCTAssertEqual(h.player.upcomingURIs, [songs[1], a, songs[2]])
+    }
+
     /// The playing row isn't upcoming, so a selection that includes it removes only the rest.
     func testTheCurrentSongIsNeverRemoved() async throws {
         let h = try await playing(songs)
@@ -274,6 +289,35 @@ final class QueueRemovalTests: XCTestCase {
             upcomingURIs: ["a", "b", "c", "a"]
         )
         XCTAssertEqual(positions, [3])
+    }
+
+    /// The same song twice, [A, B, A, C]: the listener picks the first A, and it starts playing
+    /// before the removal runs. The later A, which the listener didn't pick, stays.
+    func testAPickedSongThatStartedPlayingLeavesTheLaterCopyAlone() {
+        let seen = ["a", "b", "a", "c"]
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 0, uri: "a")],
+            upcomingURIs: ["b", "a", "c"],
+            seenURIs: seen
+        )
+        XCTAssertEqual(positions, [])
+
+        let later = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 2, uri: "a")],
+            upcomingURIs: ["b", "a", "c"],
+            seenURIs: seen
+        )
+        XCTAssertEqual(later, [1], "picking the later A after the first one ended takes that one")
+    }
+
+    /// Songs Autoplay added at the end since don't stop the places lining up.
+    func testPlacesLineUpWhenSongsWereAddedAtTheEnd() {
+        let positions = QueueRemovalPlan.positions(
+            for: [QueueRemoval(position: 2, uri: "c")],
+            upcomingURIs: ["b", "c", "d", "x", "y"],
+            seenURIs: ["a", "b", "c", "d"]
+        )
+        XCTAssertEqual(positions, [1])
     }
 
     func testASongThatLeftTheQueueIsLeftOut() {

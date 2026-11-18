@@ -87,16 +87,22 @@ extension View {
         )
     }
 
-    /// The keys of a selectable stack of track rows: ⌘A and the arrow keys, like a table. A new
-    /// selection gives the stack keyboard focus, as a click on a table row does.
-    func trackStackKeyboard(order: [String], selection: Binding<TrackStackSelection>) -> some View {
-        modifier(TrackStackKeyboard(order: order, selection: selection))
+    /// The keys of a selectable stack of track rows: ⌘A, the arrow keys and Return (plays the
+    /// first selected row), like a table. A new selection gives the stack keyboard focus, as a
+    /// click on a table row does.
+    func trackStackKeyboard(
+        order: [String],
+        selection: Binding<TrackStackSelection>,
+        play: @escaping (String) -> Void
+    ) -> some View {
+        modifier(TrackStackKeyboard(order: order, selection: selection, play: play))
     }
 }
 
 private struct TrackStackKeyboard: ViewModifier {
     let order: [String]
     @Binding var selection: TrackStackSelection
+    let play: (String) -> Void
     @FocusState private var isFocused: Bool
 
     func body(content: Content) -> some View {
@@ -118,6 +124,11 @@ private struct TrackStackKeyboard: ViewModifier {
                 // doesn't take it, the key press itself arrives.
                 .onCommand(#selector(NSText.selectAll(_:))) {
                     selection.selectAll(in: order)
+                }
+                .onKeyPress(.return) {
+                    guard let first = order.first(where: selection.contains) else { return .ignored }
+                    play(first)
+                    return .handled
                 }
                 .onKeyPress(characters: ["a"]) { press in
                     guard press.modifiers == .command else { return .ignored }

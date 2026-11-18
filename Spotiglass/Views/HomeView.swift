@@ -193,7 +193,8 @@ struct HomeView: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 hasPlaybackDevice: hasPlaybackDevice,
-                                copyableURI: track.playableURI
+                                // One URI to copy only when the menu is for one track.
+                                copyableURI: trackSelection.menuTargets(for: track, in: tracks).count == 1 ? track.playableURI : nil
                             ))
                         }
                     )
@@ -201,7 +202,12 @@ struct HomeView: View {
                 }
             }
         }
-        .trackStackKeyboard(order: order, selection: $trackSelection)
+        .trackStackKeyboard(order: order, selection: $trackSelection) { id in
+            guard let uri = tracks.first(where: { $0.id == id })?.playableURI else { return }
+            Task {
+                await playbackViewModel.playFromPlaylist(clickedURI: uri, playableURIs: playableURIs, playlistID: nil)
+            }
+        }
         .onChange(of: order) { trackSelection.keep(only: order) }
     }
 

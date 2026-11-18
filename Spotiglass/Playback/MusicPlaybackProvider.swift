@@ -54,9 +54,10 @@ protocol MusicPlaybackDeviceTransfer: AnyObject {
 @MainActor
 protocol MusicQueueEditing: AnyObject {
     /// Takes the songs out of what plays next. Each removal names the song's place in the
-    /// upcoming list the listener saw and its URI: when the queue moved on meanwhile (a song
-    /// ended), the song is found by its URI instead, and one that is gone is left out.
-    func removeFromQueue(_ removals: [QueueRemoval]) async throws -> QueueRemovalReceipt
+    /// upcoming list the listener saw (`seenUpcoming`, its URIs) and its URI: when the queue
+    /// moved on meanwhile (a song ended), the places are counted again from what still
+    /// follows, and a song that started playing or left the queue is left out.
+    func removeFromQueue(_ removals: [QueueRemoval], seenUpcoming: [String?]) async throws -> QueueRemovalReceipt
     /// Takes out everything after the current song.
     func clearUpcomingQueue() async throws -> QueueRemovalReceipt
     /// Puts the songs of a removal back where they were, counted from the current song.
@@ -88,10 +89,24 @@ struct QueueRemovalReceipt: Equatable {
 
 /// Which upcoming songs a removal takes out, worked out on the queue as it is now.
 enum QueueRemovalPlan {
-    /// The upcoming positions to remove, ascending. A removal whose position still holds its
-    /// URI takes that position; otherwise the nearest upcoming song with that URI that isn't
-    /// taken yet; otherwise nothing (the song played or left the queue meanwhile).
-    static func positions(for removals: [QueueRemoval], upcomingURIs: [String?]) -> [Int] {
+    /// The upcoming positions to remove, ascending.
+    ///
+    /// When the upcoming list the listener saw (`seenURIs`) still lines up with the queue after
+    /// songs ended (what's left of it starts the queue now), each place moves up by the songs
+    /// that ended, and a song that ended or started playing is left out: a later copy of the
+    /// same song is never taken in its stead. Otherwise a removal whose position still holds its
+    /// URI takes that position, else the nearest upcoming song with that URI that isn't taken
+    /// yet, else nothing (the song played or left the queue meanwhile).
+    static func positions(for removals: [QueueRemoval], upcomingURIs: [String?], seenURIs: [String?]? = nil) -> [Int] {
+        if let seenURIs, let ended = endedCount(seen: seenURIs, upcoming: upcomingURIs) {
+            return Array(Set(removals.compactMap { removal -> Int? in
+                let position = removal.position - ended
+                guard position >= 0, upcomingURIs.indices.contains(position),
+                      same(upcomingURIs[position], removal.uri)
+                else { return nil }
+                return position
+            })).sorted()
+        }
         var taken: Set<Int> = []
         for removal in removals.sorted(by: { $0.position < $1.position }) {
             let wanted = MusicPlayableURI.canonical(removal.uri) ?? removal.uri
@@ -109,6 +124,20 @@ enum QueueRemovalPlan {
             if let nearest { taken.insert(nearest) }
         }
         return taken.sorted()
+    }
+
+    /// How many songs at the front of `seen` ended since: the fewest whose removal leaves the
+    /// rest of `seen` lined up with the start of `upcoming` (songs added or gone at the end
+    /// don't matter). `nil` when none does: the queue changed some other way.
+    static func endedCount(seen: [String?], upcoming: [String?]) -> Int? {
+        guard !upcoming.isEmpty else { return nil }
+        return (0..<seen.count).first { ended in
+            zip(seen.dropFirst(ended), upcoming).allSatisfy { same($0, $1) }
+        }
+    }
+
+    private static func same(_ lhs: String?, _ rhs: String?) -> Bool {
+        (MusicPlayableURI.canonical(lhs) ?? lhs) == (MusicPlayableURI.canonical(rhs) ?? rhs)
     }
 }
 

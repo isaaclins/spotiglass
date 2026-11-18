@@ -422,11 +422,12 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
 extension AppleMusicPlaybackProvider: MusicQueueEditing {
     var queueEditing: (any MusicQueueEditing)? { self }
 
-    func removeFromQueue(_ removals: [QueueRemoval]) async throws -> QueueRemovalReceipt {
+    func removeFromQueue(_ removals: [QueueRemoval], seenUpcoming: [String?]) async throws -> QueueRemovalReceipt {
         try await edit { [player] in
             let positions = QueueRemovalPlan.positions(
                 for: removals,
-                upcomingURIs: player.readUpcoming().map(\.uri)
+                upcomingURIs: player.readUpcoming().map(\.uri),
+                seenURIs: seenUpcoming
             )
             return player.removeUpcoming(at: positions)
         }
@@ -680,7 +681,7 @@ struct AppleMusicQueueBook: Equatable {
                 if wasAdded { added = AddedRun(start: index, count: 1) }
                 continue
             }
-            if wasAdded, index >= run.start - 1, index <= run.start + run.count {
+            if wasAdded, index >= run.start, index <= run.start + run.count {
                 // Back next to (or inside) the run it was part of.
                 run.count += 1
                 run.start = min(run.start, index)
