@@ -2,6 +2,14 @@
 
 Wax was called Spotiglass until November 2026. Entries from before the rename use the old name.
 
+## [0.8.56] - 2026-11-18
+
+### Fixed
+
+- You can now remove songs from the queue.
+- You can select several songs at once in every list and act on them together.
+- Removed songs can be brought back with undo.
+
 ## [0.8.55] - 2026-11-18
 
 ### Fixed

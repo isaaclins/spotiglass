@@ -3,15 +3,16 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.55</title>
-            <pubDate>Wed, 18 Nov 2026 10:25:06 +0100</pubDate>
-            <sparkle:version>66</sparkle:version>
-            <sparkle:shortVersionString>0.8.55</sparkle:shortVersionString>
+            <title>0.8.56</title>
+            <pubDate>Wed, 18 Nov 2026 16:22:49 +0100</pubDate>
+            <sparkle:version>67</sparkle:version>
+            <sparkle:shortVersionString>0.8.56</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Spotify sign-in stays active through brief network drops and Spotify rate limits instead of signing you out.
-• Reconnecting to Spotify no longer discards a sign-in that still works.
+            <description sparkle:format="plain-text"><![CDATA[• You can now remove songs from the queue.
+• You can select several songs at once in every list and act on them together.
+• Removed songs can be brought back with undo.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.55/Wax-0.8.55.zip" length="16168747" type="application/octet-stream" sparkle:edSignature="whBsPIg+1HX9YvBAqjLCqVIO3PQKCpAS2mNAlk45edvaBD8s38oUDwrHHw3XmeBw869MNUY7laC0oxo46gOgCA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.56/Wax-0.8.56.zip" length="16415499" type="application/octet-stream" sparkle:edSignature="kjxJvcKZ6hNIsicbCZdFwbVTsmN0OecRcOl2XwivKn8quryWsZfwHiwamEht4w7TSbxsgIG5rp06yj82ATVJBA=="/>
         </item>
     </channel>
 </rss>
