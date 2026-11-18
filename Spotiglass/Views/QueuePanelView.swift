@@ -268,7 +268,7 @@ struct QueueAutoplayStatusLine: View {
     var body: some View {
         if let key = Self.key(for: autoplay.status), autoplay.isEnabled {
             let text = SpotiglassL10n.string(key)
-            Label(text, systemImage: "infinity")
+            Text(text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)

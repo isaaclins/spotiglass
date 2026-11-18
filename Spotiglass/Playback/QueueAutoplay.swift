@@ -199,7 +199,8 @@ final class QueueAutoplay: ObservableObject {
     private var failedKeys: Set<String> = []
     private var currentKeys: Set<String> = []
     private var currentSeed: QueueAutoplaySeed?
-    /// Tracks the queue reads returned, by URI, so a playing song keeps its artist IDs.
+    /// The tracks the last queue read returned and the ones added since, by URI, so a song that
+    /// starts keeps its artist IDs.
     private var knownTracks: [String: MusicTrack] = [:]
     private let historyLimit = 200
 
@@ -359,7 +360,8 @@ final class QueueAutoplay: ObservableObject {
                 return
             }
             guard isEnabled, !Task.isCancelled else { return }
-            for track in upcoming { knownTracks[track.uri] = track }
+            // Only queued songs can start next, so the table holds no more than the queue.
+            knownTracks = Dictionary(upcoming.map { ($0.uri, $0) }, uniquingKeysWith: { first, _ in first })
             let want = max(owedNow, fillTarget - upcoming.count)
             guard want > 0 else {
                 owed = max(0, owed - owedNow)
