@@ -2,6 +2,12 @@
 
 Wax was called Spotiglass until November 2026. Entries from before the rename use the old name.
 
+## [0.8.52] - 2026-11-18
+
+### Fixed
+
+- When your queue runs out on Apple Music, it keeps playing new songs in the style of what you were just listening to.
+
 ## [0.8.51] - 2026-11-18
 
 ### Fixed
