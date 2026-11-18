@@ -848,6 +848,15 @@ private final class SequencedTokenHTTPClient: HTTPClient {
     }
 }
 
+/// A Keychain that holds a token but refuses to save a new one.
+private final class SaveRefusingRefreshTokenStore: RefreshTokenStore {
+    private let refreshToken: String
+    init(refreshToken: String) { self.refreshToken = refreshToken }
+    func loadRefreshToken() throws -> String? { refreshToken }
+    func saveRefreshToken(_ refreshToken: String) throws { throw KeychainRefreshTokenStoreError.unexpectedStatus(-25_308) }
+    func deleteRefreshToken() throws { throw KeychainRefreshTokenStoreError.unexpectedStatus(-25_308) }
+}
+
 private final class InMemoryRefreshTokenStore: RefreshTokenStore {
     private var refreshToken: String?
 
@@ -1103,8 +1112,46 @@ extension SpotifyAuthStepTests {
         XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
         XCTAssertEqual(cleaner.callCount, 0)
         XCTAssertEqual(viewModel.state, .signedIn(session))
+        XCTAssertNotNil(viewModel.reconnectFailure, "Settings says the reconnect didn't finish instead of nothing happening.")
         let token = try await viewModel.accessToken()
         XCTAssertEqual(token, "working")
+    }
+
+    /// The new grant arrives but the Keychain won't save it: the old sign-in and its library caches
+    /// must still be there, since nothing replaced them.
+    @MainActor
+    func testReconnectWhoseTokenCantBeSavedKeepsTheOldSignInAndCaches() async throws {
+        let store = SaveRefusingRefreshTokenStore(refreshToken: "good-refresh-token")
+        let cleaner = SignOutCacheCleanerSpy()
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(Self.grantJSON("new-account", refreshToken: "new-account-token")))
+        let redirect = URL(string: "http://127.0.0.1:43824/callback")!
+        let codeVerifier = try PKCE.makeCodeVerifier()
+        let flow = TwoStepAuthorizationFlow {
+            SpotifyAuthorizationCode(code: "auth-code", codeVerifier: codeVerifier, redirectURI: redirect)
+        }
+        flow.advance()
+        let session = AuthenticatedSession(
+            accessToken: "working", tokenType: "Bearer", scope: Self.browsingScope, expiresAt: Date().addingTimeInterval(3_600)
+        )
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: {},
+            initialState: .signedIn(session),
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.signIn()
+
+        XCTAssertEqual(http.requestCount, 1, "The new grant did arrive.")
+        XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token")
+        XCTAssertEqual(cleaner.callCount, 0, "The old library caches stay until a new sign-in is saved.")
+        XCTAssertEqual(viewModel.state, .signedIn(session))
+        XCTAssertNotNil(viewModel.reconnectFailure)
     }
 
     /// Settings › Reconnect, then Cancel: still signed in, library still there.

@@ -146,6 +146,7 @@ final class AuthViewModel: ObservableObject {
         // another account's: those caches go too once the new grant arrives (#233, #234).
         let replacesSavedSignIn = isReconnect || (try? refreshTokenStore.loadRefreshToken()) != nil
         let generation = invalidateAuthOperations()
+        reconnectFailure = nil
         // Set before the task starts, so a Cancel that comes first still goes back to it.
         signInRestorePoint = isReconnect ? (stateBeforeSignIn, sessionBeforeSignIn) : nil
         state = .signingIn
@@ -178,6 +179,10 @@ final class AuthViewModel: ObservableObject {
 
     /// What a cancelled or failed reconnect goes back to; `nil` for a first sign-in.
     private var signInRestorePoint: (state: AppConnectionState, session: AuthenticatedSession?)?
+
+    /// Why the last reconnect didn't finish, while the sign-in from before carries on. Settings
+    /// shows it under Status until the next sign-in or sign-out.
+    @Published private(set) var reconnectFailure: AuthDisplayError?
 
     private func restoreStateBeforeSignIn() {
         guard let restorePoint = signInRestorePoint else {
@@ -231,17 +236,19 @@ final class AuthViewModel: ObservableObject {
             )
             try ensureAuthTransitionIsCurrent(generation)
 
-            // Only now does the new grant replace the old one. It may be a different account, so
-            // the library caches of the sign-in before go first (#233, #234).
-            if replacesSavedSignIn {
-                await clearSignOutData()
-                try ensureAuthTransitionIsCurrent(generation)
-            }
-            signInRestorePoint = nil
+            // Only now does the new grant replace the old one, and it is saved first: a save that
+            // fails leaves the old sign-in and its caches as they were.
             if let refreshToken = grant.refreshToken {
                 try refreshTokenStore.saveRefreshToken(refreshToken)
             } else {
                 try refreshTokenStore.deleteRefreshToken()
+            }
+            signInRestorePoint = nil
+            // It may be a different account, so the library caches of the sign-in before go before
+            // its session is shown (#233, #234).
+            if replacesSavedSignIn {
+                await clearSignOutData()
+                try ensureAuthTransitionIsCurrent(generation)
             }
             let session = grant.authenticatedSession
             // Persist the server's scope result before validation. A newly
@@ -272,7 +279,7 @@ final class AuthViewModel: ObservableObject {
             if signInRestorePoint != nil {
                 // The reason still reaches the log; the session from before keeps working.
                 SpotiglassLog.error(.auth, "Reconnect failed, keeping the previous sign-in: \(error)")
-                _ = Self.displayError(for: error)
+                reconnectFailure = Self.displayError(for: error)
                 restoreStateBeforeSignIn()
             } else {
                 state = .failed(Self.displayError(for: error))
@@ -282,6 +289,7 @@ final class AuthViewModel: ObservableObject {
 
     func signOut() async {
         let generation = invalidateAuthOperations()
+        reconnectFailure = nil
         isSigningOut = true
         defer {
             if generation == authTransitionGeneration { isSigningOut = false }

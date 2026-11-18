@@ -13274,6 +13274,29 @@
         }
       }
     },
+    "settings.account.reconnectFailed": {
+      "comment": "Settings › Account, after a reconnect that didn't finish (cancelled excluded). %@ is the reason.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die neue Anmeldung wurde nicht abgeschlossen, du bleibst wie bisher angemeldet. %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new sign-in didn't finish, so you're still signed in as before. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nuevo inicio de sesión no terminó, así que sigues conectado como antes. %@"
+          }
+        }
+      }
+    },
     "settings.account.section": {
       "extractionState": "stale",
       "localizations": {
