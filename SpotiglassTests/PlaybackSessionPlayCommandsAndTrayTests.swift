@@ -4,6 +4,35 @@ import XCTest
 
 @MainActor
 final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
+    /// Picking an output that went away after the menu was built returned silently (#602).
+    /// Core Audio answers that with `kAudioHardwareBadDeviceError`; the real default output
+    /// is never touched here.
+    func testChoosingAnOutputThatIsGoneLogsTheStatusAndKeepsTheOutput() {
+        let goneID = AudioDeviceID(0x7FFF_FFF0)
+        var requested: [AudioDeviceID] = []
+        let viewModel = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+
+        viewModel.setSystemDefaultOutputDevice(goneID) { id in
+            requested.append(id)
+            return kAudioHardwareBadDeviceError
+        }
+
+        XCTAssertEqual(requested, [goneID])
+        let lines = try? SpotiglassLogReader.lines(containing: "Choosing Mac output device \(goneID) failed (OSStatus")
+        XCTAssertEqual(lines?.count, 1, "Expected one log line, got \(lines ?? [])")
+        XCTAssertTrue(lines?.first?.contains("[ERROR] [playback]") == true)
+    }
+
+    func testAFailedListenerStatusIsLoggedAndASuccessIsNot() throws {
+        let marker = "listener-\(UUID().uuidString)"
+        PlaybackSessionViewModel.logListenerStatus(noErr, "\(marker) ok")
+        PlaybackSessionViewModel.logListenerStatus(kAudioHardwareBadObjectError, "\(marker) failed", consequence: "; list stays")
+
+        let lines = try SpotiglassLogReader.lines(containing: marker)
+        XCTAssertEqual(lines.count, 1, "\(lines)")
+        XCTAssertTrue(lines.first?.contains("\(marker) failed (OSStatus \(kAudioHardwareBadObjectError)); list stays") == true)
+    }
     func testPlayURIWithoutDeviceSetsPlaybackError() async {
         let viewModel = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
