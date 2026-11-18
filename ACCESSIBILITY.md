@@ -9,7 +9,7 @@ It covers Wax on macOS **26** or newer, the only version it runs on. Everything 
 ### VoiceOver
 
 - Buttons, rows and controls have spoken labels, and many have a hint that says what they do. Icon-only buttons (play, skip, shuffle, repeat, queue, lyrics) are labelled too.
-- The track list is a standard macOS list: select a row and press Return to play it. Queue rows, album cards on artist pages, breadcrumb segments and command palette results have labels and an action that plays or opens them, so they aren't read as plain text.
+- The track list is a standard macOS list: select a row and press Return to play it. Queue rows, album cards on artist pages and command palette results have labels and an action that plays or opens them, so they aren't read as plain text. The Back button in the toolbar says where it goes, for example "Go back to Home".
 - Sliders you can change with VoiceOver's adjust gesture: the seek bar, the volume slider and every equalizer band. Each speaks its own value, and each equalizer band says which frequency it is.
 - A track's Explicit and Unavailable badges are spoken, not only shown.
 - Right-click menus on playlists, albums and artists are also offered as VoiceOver actions.
@@ -27,7 +27,7 @@ It covers Wax on macOS **26** or newer, the only version it runs on. Everything 
 
 ### Display settings
 
-- **Reduce Motion**: the playing-track waveform, the scrolling of long titles in the player bar, the lyrics scroll and fades, the command palette transitions and the artwork loading spinner stop animating.
+- **Reduce Motion**: the playing-track waveform, the scrolling of a long artist line in the player bar, the lyrics scroll and fades, the command palette transitions and the artwork loading spinner stop animating.
 - **Reduce Transparency**: the app's panels and full-window backgrounds become solid, and the lyrics edge fades turn off.
 - **Increase Contrast**: the seek bar track and the outlines of the app's panels get stronger.
 - **Appearance**: Wax follows Light and Dark mode, or you can pick one in **Settings → Appearance**.
