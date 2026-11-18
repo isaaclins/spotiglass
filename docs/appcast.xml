@@ -3,14 +3,14 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.52</title>
-            <pubDate>Wed, 18 Nov 2026 05:58:37 +0100</pubDate>
-            <sparkle:version>63</sparkle:version>
-            <sparkle:shortVersionString>0.8.52</sparkle:shortVersionString>
+            <title>0.8.53</title>
+            <pubDate>Wed, 18 Nov 2026 07:04:07 +0100</pubDate>
+            <sparkle:version>64</sparkle:version>
+            <sparkle:shortVersionString>0.8.53</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• When your queue runs out on Apple Music, it keeps playing new songs in the style of what you were just listening to.
+            <description sparkle:format="plain-text"><![CDATA[• Your settings, shortcuts and pins are no longer wiped out when one entry can't be read. Wax keeps a copy of the unreadable file first.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.52/Wax-0.8.52.zip" length="16001852" type="application/octet-stream" sparkle:edSignature="pd8KJOzEibfh2kYxm0/V0XRI9UGDiwhrn5zXBRX/vLqL264YHb67TkjFpdeZKYL3G+0JhgVphtDR+KRct2lzDw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.53/Wax-0.8.53.zip" length="16086395" type="application/octet-stream" sparkle:edSignature="BBVITQMJGwoQCpeXtcyKghwu2AYBDRceUrSGJJEE4qJFmZaNjCOHCqm+R4ntxF1LDhoRdykCOcjJ+aa4l50vDA=="/>
         </item>
     </channel>
 </rss>

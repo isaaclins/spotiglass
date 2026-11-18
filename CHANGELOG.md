@@ -2,6 +2,12 @@
 
 Wax was called Spotiglass until November 2026. Entries from before the rename use the old name.
 
+## [0.8.53] - 2026-11-18
+
+### Fixed
+
+- Your settings, shortcuts and pins are no longer wiped out when one entry can't be read. Wax keeps a copy of the unreadable file first.
+
 ## [0.8.52] - 2026-11-18
 
 ### Fixed
