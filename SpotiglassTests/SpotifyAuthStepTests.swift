@@ -887,6 +887,25 @@ private final class SaveRefusingRefreshTokenStore: RefreshTokenStore {
     func deleteRefreshToken() throws { throw KeychainRefreshTokenStoreError.unexpectedStatus(-25_308) }
 }
 
+/// A store whose reads can start failing, like a Keychain that gets locked.
+private final class LockableRefreshTokenStore: RefreshTokenStore {
+    private var refreshToken: String?
+    var loadError: Error?
+
+    func loadRefreshToken() throws -> String? {
+        if let loadError { throw loadError }
+        return refreshToken
+    }
+
+    func saveRefreshToken(_ refreshToken: String) throws {
+        self.refreshToken = refreshToken
+    }
+
+    func deleteRefreshToken() throws {
+        refreshToken = nil
+    }
+}
+
 private final class InMemoryRefreshTokenStore: RefreshTokenStore {
     private var refreshToken: String?
 
@@ -959,6 +978,44 @@ extension SpotifyAuthStepTests {
 
         XCTAssertEqual(session.accessToken, "back-online")
         XCTAssertEqual(http.requestCount, 4)
+    }
+
+    /// A paused sign-in that retries by itself reads the Keychain before its refresh starts, so a
+    /// locked Keychain there was never logged: the refresh's own line doesn't cover it (#602).
+    @MainActor
+    func testAPausedSignInsRetryLogsAKeychainThatCantBeRead() async throws {
+        let store = LockableRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.failure(URLError(.notConnectedToInternet)), count: 3)
+        let (signals, network) = AsyncStream<Void>.makeStream()
+        var settings = makeSettings(clientID: "client-id")
+        settings.grantedScope = Self.browsingScope
+        let viewModel = AuthViewModel(
+            settings: settings,
+            tokenClient: SpotifyTokenClient(httpClient: http, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            sleep: { _ in try await Task.sleep(for: .seconds(3_600)) },
+            recoverySignals: signals
+        )
+        await viewModel.restoreSessionIfAvailable()
+        guard case .paused = viewModel.state else {
+            return XCTFail("Offline at launch must pause the sign-in, got \(viewModel.state)")
+        }
+
+        // errSecInteractionNotAllowed: the login Keychain is locked.
+        store.loadError = KeychainRefreshTokenStoreError.unexpectedStatus(-25308)
+        network.yield()
+        for await state in viewModel.$state.values {
+            if case .failed = state { break }
+        }
+
+        let lines = try SpotiglassLogReader.lines(containing: "Retrying the paused sign-in could not read the saved sign-in")
+        XCTAssertEqual(lines.count, 1, "\(lines)")
+        XCTAssertTrue(lines.first?.contains("[ERROR] [auth]") == true)
+        XCTAssertTrue(lines.first?.contains("Keychain OSStatus -25308") == true, lines.first ?? "")
     }
 
     /// A refresh that fails mid-session because the network dropped tells the request so in calm

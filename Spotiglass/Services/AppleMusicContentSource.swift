@@ -349,17 +349,18 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
-        try await Self.logged("catalog song ratings read (\(catalogIDs.count) songs)") { () async throws -> [String: Bool] in
-            try await Self.catalogSongRatings(catalogIDs: catalogIDs)
-        }
+        try await Self.catalogSongRatings(catalogIDs: catalogIDs)
     }
 
+    /// Also the player's rating lookup, so its failure is logged too.
     static func catalogSongRatings(catalogIDs: [String]) async throws -> [String: Bool] {
-        let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
-        return Dictionary(
-            try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        try await logged("catalog song ratings read (\(catalogIDs.count) songs)") { () async throws -> [String: Bool] in
+            let request = MusicCatalogResourceRequest<Song>(matching: \.id, memberOf: catalogIDs.map { MusicItemID($0) })
+            return Dictionary(
+                try await request.response().items.map { ($0.id.rawValue, $0.contentRating == .explicit) },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
     }
 
     func catalogAlbumRatings(catalogIDs: [String]) async throws -> [String: Bool] {

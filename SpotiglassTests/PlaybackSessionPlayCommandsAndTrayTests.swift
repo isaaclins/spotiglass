@@ -7,7 +7,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
     /// Picking an output that went away after the menu was built returned silently (#602).
     /// Core Audio answers that with `kAudioHardwareBadDeviceError`; the real default output
     /// is never touched here.
-    func testChoosingAnOutputThatIsGoneLogsTheStatusAndKeepsTheOutput() {
+    func testChoosingAnOutputThatIsGoneLogsTheStatusAndKeepsTheOutput() throws {
         let goneID = AudioDeviceID(0x7FFF_FFF0)
         var requested: [AudioDeviceID] = []
         let viewModel = PlaybackSessionViewModel(
@@ -19,10 +19,11 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         }
 
         XCTAssertEqual(requested, [goneID])
-        let lines = try? SpotiglassLogReader.lines(containing: "Choosing Mac output device \(goneID) failed (OSStatus")
-        XCTAssertEqual(lines?.count, 1, "Expected one log line, got \(lines ?? [])")
-        XCTAssertTrue(lines?.first?.contains("[ERROR] [playback]") == true)
+        let lines = try SpotiglassLogReader.lines(containing: "Choosing Mac output device \(goneID) failed (OSStatus")
+        XCTAssertEqual(lines.count, 1, "Expected one log line, got \(lines)")
+        XCTAssertTrue(lines.first?.contains("[ERROR] [playback]") == true)
     }
+
 
     func testAFailedListenerStatusIsLoggedAndASuccessIsNot() throws {
         let marker = "listener-\(UUID().uuidString)"

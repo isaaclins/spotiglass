@@ -211,7 +211,7 @@ struct LrcLibClient: Sendable {
             throw Failure.http(-1)
         }
         if http.statusCode == 404 {
-            SpotiglassLog.info(.api, "LRCLIB \(endpoint) -> status=404 (no lyrics)")
+            SpotiglassLog.debug(.api, "LRCLIB \(endpoint) -> status=404 (no lyrics)")
             return nil
         }
         if http.statusCode == 429 {

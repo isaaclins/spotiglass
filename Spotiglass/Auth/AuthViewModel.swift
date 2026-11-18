@@ -127,17 +127,8 @@ final class AuthViewModel: ObservableObject {
         guard currentSession == nil else { return }
         let generation = authTransitionGeneration
         do {
-            let storedRefreshToken: String?
-            do {
-                storedRefreshToken = try refreshTokenStore.loadRefreshToken()
-            } catch {
-                SpotiglassLog.error(
-                    .auth,
-                    "Restoring the session could not read the saved sign-in (\(AuthFailureDescription.describe(error))); showed the error"
-                )
-                throw error
-            }
-            guard let refreshToken = storedRefreshToken, !settings.clientID.isEmpty else {
+            guard let refreshToken = try loadSavedRefreshToken(for: "Restoring the session", outcome: "showed the error"),
+                  !settings.clientID.isEmpty else {
                 guard generation == authTransitionGeneration else { return }
                 SpotiglassLog.info(.auth, "No saved sign-in to restore")
                 state = .signedOut
@@ -585,7 +576,10 @@ final class AuthViewModel: ObservableObject {
         refreshCooldownUntil = nil
         let generation = authTransitionGeneration
         do {
-            guard let refreshToken = try refreshTokenStore.loadRefreshToken() else {
+            guard let refreshToken = try loadSavedRefreshToken(
+                for: "Retrying the paused sign-in",
+                outcome: "showed the error"
+            ) else {
                 state = .signedOut
                 return
             }
@@ -597,6 +591,20 @@ final class AuthViewModel: ObservableObject {
         } catch {
             guard generation == authTransitionGeneration else { return }
             _ = await handleRefreshFailure(error: error, previousSession: pause.session)
+        }
+    }
+
+    /// Every read of the saved sign-in before a refresh: a Keychain failure throws before the
+    /// refresh starts, so the refresh's own failure line never covers it (#602).
+    func loadSavedRefreshToken(for attempt: String, outcome: String) throws -> String? {
+        do {
+            return try refreshTokenStore.loadRefreshToken()
+        } catch {
+            SpotiglassLog.error(
+                .auth,
+                "\(attempt) could not read the saved sign-in (\(AuthFailureDescription.describe(error))); \(outcome)"
+            )
+            throw error
         }
     }
 
@@ -718,17 +726,10 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
         // back on screen in the middle of the sign-in, and a dead-grant answer would delete the
         // token the reconnect falls back to (#593).
         guard signInTask == nil else { throw SpotifyAPIError.unauthorized }
-        let storedRefreshToken: String?
-        do {
-            storedRefreshToken = try refreshTokenStore.loadRefreshToken()
-        } catch {
-            SpotiglassLog.error(
-                .auth,
-                "The player's token refresh could not read the saved sign-in (\(AuthFailureDescription.describe(error))); passed to the player"
-            )
-            throw error
-        }
-        guard let refreshToken = storedRefreshToken else {
+        guard let refreshToken = try loadSavedRefreshToken(
+            for: "The player's token refresh",
+            outcome: "passed to the player"
+        ) else {
             throw SpotifyAPIError.unauthorized
         }
         let previousSession = currentSession ?? state.pausedOrLiveSession
