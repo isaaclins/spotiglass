@@ -142,9 +142,9 @@ enum EqualizerDriverInstallError: Error, Equatable {
 enum EqualizerDriverInstallErrorMapper {
     static func map(_ error: EqualizerDriverInstallError) -> EqualizerHALPluginError {
         switch error {
-        // Every other install failure is a developer fact for the log. This one
-        // is a pending user decision, so it is the single install outcome that
-        // belongs on screen.
+        // A pending user decision: the pane offers the trip to Login Items.
+        // Every other failure gets one general line on screen, and its
+        // details go only to the log.
         case .approvalRequired:
             return .driverInstallApprovalRequired
         case .registrationFailed,

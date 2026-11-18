@@ -868,43 +868,19 @@ enum EqualizerHALPluginError: LocalizedError {
     case routerTargetOpenFailed(targetUID: String, reasonCode: Int)
     case routerReadinessTimedOut(targetUID: String)
 
-    /// Driver installation failures are written to the log, not the settings
-    /// pane. The operating-system authorization prompt is the only user-facing
-    /// part of installing the system plug-in.
-    var isUserVisible: Bool {
-        switch self {
-        case .embeddedDriverMissing,
-             .embeddedDriverMetadataMissing,
-             .driverInstallationFailed,
-             .driverNotLoadedYet:
-            false
-        // The exception to the rule above: only the user can grant the
-        // background-item approval, so hiding this one left the equalizer
-        // switch springing back with no explanation at all.
-        case .driverInstallApprovalRequired,
-             .coreAudioStatus,
-             .outputDeviceUIDUnavailable,
-             .previousOutputBackupMissing,
-             .previousOutputDeviceUnavailable,
-             .previousOutputRestoreFailed,
-             .routerTargetOpenFailed,
-             .routerReadinessTimedOut:
-            true
-        }
-    }
-
-    var userFacingDescription: String? {
-        guard isUserVisible else { return nil }
-        return errorDescription
-    }
-
+    /// Every failure gets one plain line in the settings pane, because each of
+    /// them turns the equalizer switch back off and a switch that springs back
+    /// with nothing on screen reads as a broken app (#587). Paths, helper
+    /// messages and status codes stay in ``diagnosticDetails`` for the log.
     var errorDescription: String? {
         switch self {
         case .embeddedDriverMissing,
-             .embeddedDriverMetadataMissing,
-             .driverInstallationFailed,
-             .driverNotLoadedYet:
-            nil
+             .embeddedDriverMetadataMissing:
+            SpotiglassL10n.string("eq.error.embeddedDriverMissing")
+        case .driverInstallationFailed:
+            SpotiglassL10n.string("eq.error.driverInstallationFailed")
+        case .driverNotLoadedYet:
+            SpotiglassL10n.string("eq.error.driverNotLoadedYet")
         case .driverInstallApprovalRequired:
             SpotiglassL10n.string("eq.error.driverInstallApprovalRequired")
         case .coreAudioStatus:
