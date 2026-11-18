@@ -548,3 +548,28 @@ extension MusicKitContentSource {
         }
     }
 }
+
+/// Autoplay's catalog reads (#613): an artist search, and artists by ID with their top songs
+/// (`top-songs`) and similar artists (`similar-artists`).
+extension MusicKitContentSource: AppleMusicAutoplayCatalog {
+    func autoplayArtistMatches(named name: String, limit: Int) async throws -> [AppleMusicAutoplayArtistMatch] {
+        var request = MusicCatalogSearchRequest(term: name, types: [Artist.self])
+        request.limit = limit
+        return try await request.response().artists.map {
+            AppleMusicAutoplayArtistMatch(id: $0.id.rawValue, name: $0.name)
+        }
+    }
+
+    func autoplayArtists(ids: [String], includeSimilar: Bool) async throws -> [AppleMusicAutoplayCatalogArtist] {
+        guard !ids.isEmpty else { return [] }
+        var request = MusicCatalogResourceRequest<Artist>(matching: \.id, memberOf: ids.map { MusicItemID($0) })
+        request.properties = includeSimilar ? [.similarArtists, .topSongs] : [.topSongs]
+        return try await request.response().items.map { artist in
+            AppleMusicAutoplayCatalogArtist(
+                id: artist.id.rawValue,
+                similarArtistIDs: Array(artist.similarArtists ?? []).map(\.id.rawValue),
+                topSongs: Array(artist.topSongs ?? []).map(AppleMusicItemMapping.track)
+            )
+        }
+    }
+}

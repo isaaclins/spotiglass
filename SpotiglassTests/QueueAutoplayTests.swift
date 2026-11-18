@@ -360,6 +360,85 @@ final class QueueAutoplayTests: XCTestCase {
         XCTAssertEqual(weights.first?.idHint, "123", "a library ID isn't a catalog ID; the catalog one is used")
     }
 
+    // MARK: - Apple Music catalog reads
+
+    /// A seed from the library has no catalog artist ID: its artist is found by name (the exact
+    /// name over the catalog's first hit), then the artist's similar artists' top songs come in
+    /// a second request, and those lead the suggestions. Asking again reads nothing new.
+    func testCatalogSourceFindsArtistsByNameAndCachesWhatItRead() async throws {
+        let catalog = SampleAutoplayCatalog()
+        catalog.matches["Daft Punk"] = [
+            AppleMusicAutoplayArtistMatch(id: "9", name: "Daft Punk Tribute Band"),
+            AppleMusicAutoplayArtistMatch(id: "1", name: "Daft Punk"),
+        ]
+        catalog.artists["1"] = .init(id: "1", similarArtistIDs: ["2", "3"], topSongs: [Self.track("own", title: "Own Hit", artist: "Daft Punk")])
+        catalog.artists["2"] = .init(id: "2", similarArtistIDs: [], topSongs: [Self.track("j1", title: "Genesis", artist: "Justice")])
+        catalog.artists["3"] = .init(id: "3", similarArtistIDs: [], topSongs: [Self.track("c1", title: "Kids", artist: "MGMT")])
+        let source = AppleMusicAutoplaySource(catalog: catalog)
+        let seeds = [QueueAutoplaySeed(uri: "applemusic:song:i.lib", title: "Get Lucky", artists: ["Daft Punk"], artistIDs: ["r.lib"])]
+
+        let first = try await source.candidates(for: seeds)
+        let ranked = QueueAutoplayRanking.pick(first, count: 3, excluded: [], lastArtistKey: nil).map(\.id)
+        XCTAssertEqual(ranked, ["j1", "c1", "own"], "similar artists first, the seed artist's own hit last")
+        XCTAssertEqual(catalog.searches, ["Daft Punk"])
+        XCTAssertEqual(catalog.reads, [.init(ids: ["1"], includeSimilar: true), .init(ids: ["2", "3"], includeSimilar: false)])
+
+        let again = try await source.candidates(for: seeds)
+        XCTAssertEqual(again, first)
+        XCTAssertEqual(catalog.searches.count, 1, "the name lookup is kept for the session")
+        XCTAssertEqual(catalog.reads.count, 2, "artists already read aren't asked for again")
+    }
+
+    /// A seed that carries a catalog artist ID skips the search; a name the catalog doesn't
+    /// know adds nothing and isn't searched twice; with no exact name the catalog's first hit
+    /// is used.
+    func testCatalogSourceUsesCatalogIDsAndRemembersUnknownNames() async throws {
+        let catalog = SampleAutoplayCatalog()
+        catalog.matches["Nobody Known"] = []
+        catalog.matches["Air & Friends"] = [AppleMusicAutoplayArtistMatch(id: "5", name: "Air")]
+        catalog.artists["4"] = .init(id: "4", similarArtistIDs: [], topSongs: [Self.track("b1", title: "Hyperballad", artist: "Björk")])
+        catalog.artists["5"] = .init(id: "5", similarArtistIDs: [], topSongs: [Self.track("a1", title: "Playground Love", artist: "Air")])
+        let source = AppleMusicAutoplaySource(catalog: catalog)
+        let seeds = [
+            QueueAutoplaySeed(uri: "applemusic:song:b", title: "Joga", artists: ["Björk"], artistIDs: ["4"]),
+            QueueAutoplaySeed(uri: "applemusic:song:n", title: "Unknown", artists: ["Nobody Known"]),
+            QueueAutoplaySeed(uri: "applemusic:song:a", title: "La Femme", artists: ["Air & Friends"]),
+        ]
+
+        let found = try await source.candidates(for: seeds).map(\.track.id)
+        _ = try await source.candidates(for: seeds)
+
+        XCTAssertEqual(Set(found), ["b1", "a1"])
+        XCTAssertEqual(catalog.searches, ["Nobody Known", "Air & Friends"], "a catalog ID needs no search, and each name is searched once")
+    }
+
+    /// More than 25 similar artists go to the catalog in batches of 25, and an artist the
+    /// catalog doesn't return is asked for once.
+    func testCatalogSourceReadsSimilarArtistsInBatchesOf25() async throws {
+        let catalog = SampleAutoplayCatalog()
+        let seedArtists = (101...104).map(String.init)
+        for (index, id) in seedArtists.enumerated() {
+            let similar = (0..<AppleMusicAutoplaySource.similarArtistLimit).map { "sim\(index)-\($0)" }
+            catalog.artists[id] = .init(id: id, similarArtistIDs: similar, topSongs: [])
+            for similarID in similar where similarID != "sim0-0" {
+                catalog.artists[similarID] = .init(
+                    id: similarID, similarArtistIDs: [],
+                    topSongs: [Self.track("song-\(similarID)", title: "Song \(similarID)", artist: similarID)]
+                )
+            }
+        }
+        let source = AppleMusicAutoplaySource(catalog: catalog)
+        let seeds = seedArtists.map { QueueAutoplaySeed(uri: "applemusic:song:\($0)", title: $0, artists: [$0], artistIDs: [$0]) }
+
+        let found = try await source.candidates(for: seeds)
+        _ = try await source.candidates(for: seeds)
+
+        let topSongReads = catalog.reads.filter { !$0.includeSimilar }
+        XCTAssertEqual(topSongReads.map(\.ids.count), [25, 7], "32 similar artists in batches of 25")
+        XCTAssertEqual(found.count, 31, "the artist the catalog didn't return adds nothing")
+        XCTAssertEqual(catalog.reads.count, 3, "nothing is read twice, not even the missing artist")
+    }
+
     static func track(_ id: String, title: String, artist: String) -> MusicTrack {
         MusicTrack(
             id: id,
@@ -420,5 +499,32 @@ final class SampleAutoplaySource: QueueAutoplaySource {
             )
         }
         return echoes + fresh
+    }
+}
+
+/// Answers Autoplay's catalog reads from sample artists and records them.
+final class SampleAutoplayCatalog: AppleMusicAutoplayCatalog, @unchecked Sendable {
+    struct Read: Equatable {
+        let ids: [String]
+        let includeSimilar: Bool
+    }
+
+    var matches: [String: [AppleMusicAutoplayArtistMatch]] = [:]
+    var artists: [String: AppleMusicAutoplayCatalogArtist] = [:]
+    private(set) var searches: [String] = []
+    private(set) var reads: [Read] = []
+
+    func autoplayArtistMatches(named name: String, limit: Int) async throws -> [AppleMusicAutoplayArtistMatch] {
+        searches.append(name)
+        return Array((matches[name] ?? []).prefix(limit))
+    }
+
+    func autoplayArtists(ids: [String], includeSimilar: Bool) async throws -> [AppleMusicAutoplayCatalogArtist] {
+        reads.append(Read(ids: ids, includeSimilar: includeSimilar))
+        return ids.compactMap { id in
+            artists[id].map {
+                AppleMusicAutoplayCatalogArtist(id: $0.id, similarArtistIDs: includeSimilar ? $0.similarArtistIDs : [], topSongs: $0.topSongs)
+            }
+        }
     }
 }

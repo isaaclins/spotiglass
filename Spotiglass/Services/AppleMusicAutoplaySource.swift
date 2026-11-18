@@ -1,5 +1,28 @@
 import Foundation
-import MusicKit
+
+/// The catalog reads Autoplay needs (#613). ``MusicKitContentSource`` makes them; tests answer
+/// them from sample artists.
+protocol AppleMusicAutoplayCatalog: Sendable {
+    /// Catalog artists for a name, the catalog's best match first.
+    func autoplayArtistMatches(named name: String, limit: Int) async throws -> [AppleMusicAutoplayArtistMatch]
+    /// The catalog artists with these IDs, with their top songs, and with their similar artists
+    /// when `includeSimilar` is set. At most ``AppleMusicAutoplaySource/catalogBatchLimit`` IDs.
+    func autoplayArtists(ids: [String], includeSimilar: Bool) async throws -> [AppleMusicAutoplayCatalogArtist]
+}
+
+/// A catalog artist a name search found.
+struct AppleMusicAutoplayArtistMatch: Equatable {
+    let id: String
+    let name: String
+}
+
+/// What the catalog says about one artist.
+struct AppleMusicAutoplayCatalogArtist: Equatable {
+    let id: String
+    /// Catalog IDs of similar artists, most similar first; empty when not asked for.
+    let similarArtistIDs: [String]
+    let topSongs: [MusicTrack]
+}
 
 /// Autoplay suggestions for Apple Music (#613), from the catalog's artist relationships:
 /// each recent artist's similar artists (`Artist.similarArtists`, the Apple Music API's
@@ -28,6 +51,14 @@ final class AppleMusicAutoplaySource: QueueAutoplaySource {
     /// A recent artist's own songs count less than a similar artist's, so the queue moves on
     /// to new artists instead of playing one artist's hits.
     static let ownSongsFactor = 0.6
+    /// The catalog takes up to 25 IDs per request.
+    static let catalogBatchLimit = 25
+
+    private let catalog: any AppleMusicAutoplayCatalog
+
+    init(catalog: any AppleMusicAutoplayCatalog = MusicKitContentSource()) {
+        self.catalog = catalog
+    }
 
     /// Catalog artist ID by normalized name; `nil` when the catalog has no such artist.
     private var catalogArtistIDByName: [String: String?] = [:]
@@ -131,32 +162,25 @@ final class AppleMusicAutoplaySource: QueueAutoplaySource {
         if let hint { return hint }
         let key = QueueAutoplayIdentity.normalized(name)
         if let cached = catalogArtistIDByName[key] { return cached }
-        var request = MusicCatalogSearchRequest(term: name, types: [Artist.self])
-        request.limit = 5
-        let artists = try await request.response().artists
-        let match = artists.first { QueueAutoplayIdentity.normalized($0.name) == key } ?? artists.first
-        let id = match?.id.rawValue
-        catalogArtistIDByName[key] = .some(id)
-        return id
+        let matches = try await catalog.autoplayArtistMatches(named: name, limit: 5)
+        let match = matches.first { QueueAutoplayIdentity.normalized($0.name) == key } ?? matches.first
+        catalogArtistIDByName[key] = .some(match?.id)
+        return match?.id
     }
 
     private func loadProfiles(_ ids: [String]) async throws {
         let missing = Array(Set(ids.filter { profiles[$0] == nil })).sorted()
-        guard !missing.isEmpty else { return }
-        var request = MusicCatalogResourceRequest<Artist>(matching: \.id, memberOf: missing.map { MusicItemID($0) })
-        request.properties = [.similarArtists, .topSongs]
-        let artists = try await request.response().items
-        for artist in artists {
-            let songs = Array(artist.topSongs ?? []).prefix(Self.topSongLimit).map(AppleMusicItemMapping.track)
-            profiles[artist.id.rawValue] = ArtistProfile(
-                similarArtistIDs: Array(artist.similarArtists ?? []).map(\.id.rawValue),
-                topSongs: songs
-            )
-            topSongsByArtistID[artist.id.rawValue] = songs
-        }
-        // An artist the catalog didn't return has nothing to suggest; don't ask again.
-        for id in missing where profiles[id] == nil {
-            profiles[id] = ArtistProfile(similarArtistIDs: [], topSongs: [])
+        for batch in Self.batches(missing) {
+            try Task.checkCancellation()
+            for artist in try await catalog.autoplayArtists(ids: batch, includeSimilar: true) {
+                let songs = Array(artist.topSongs.prefix(Self.topSongLimit))
+                profiles[artist.id] = ArtistProfile(similarArtistIDs: artist.similarArtistIDs, topSongs: songs)
+                topSongsByArtistID[artist.id] = songs
+            }
+            // An artist the catalog didn't return has nothing to suggest; don't ask again.
+            for id in batch where profiles[id] == nil {
+                profiles[id] = ArtistProfile(similarArtistIDs: [], topSongs: [])
+            }
         }
     }
 
@@ -165,20 +189,20 @@ final class AppleMusicAutoplaySource: QueueAutoplaySource {
         for id in ids where topSongsByArtistID[id] == nil && !missing.contains(id) {
             missing.append(id)
         }
-        // The catalog takes up to 25 IDs per request.
-        for batchStart in stride(from: 0, to: missing.count, by: 25) {
+        for batch in Self.batches(missing) {
             try Task.checkCancellation()
-            let batch = Array(missing[batchStart..<min(batchStart + 25, missing.count)])
-            var request = MusicCatalogResourceRequest<Artist>(matching: \.id, memberOf: batch.map { MusicItemID($0) })
-            request.properties = [.topSongs]
-            let artists = try await request.response().items
-            for artist in artists {
-                topSongsByArtistID[artist.id.rawValue] =
-                    Array(artist.topSongs ?? []).prefix(Self.topSongLimit).map(AppleMusicItemMapping.track)
+            for artist in try await catalog.autoplayArtists(ids: batch, includeSimilar: false) {
+                topSongsByArtistID[artist.id] = Array(artist.topSongs.prefix(Self.topSongLimit))
             }
             for id in batch where topSongsByArtistID[id] == nil {
                 topSongsByArtistID[id] = []
             }
+        }
+    }
+
+    static func batches(_ ids: [String]) -> [[String]] {
+        stride(from: 0, to: ids.count, by: catalogBatchLimit).map {
+            Array(ids[$0..<min($0 + catalogBatchLimit, ids.count)])
         }
     }
 }

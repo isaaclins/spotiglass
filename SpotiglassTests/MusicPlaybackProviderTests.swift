@@ -38,6 +38,16 @@ final class MusicPlaybackProviderTests: XCTestCase {
         XCTAssertTrue(api.actions[1].contains("spotify:playlist:p"))
     }
 
+    /// Spotify's queue has one place to add to, so Autoplay's songs go in with Add to Queue (#613).
+    func testAppendingToTheQueueEndIsAddToQueueWhereTheQueueHasOnePlaceToAdd() async throws {
+        let api = MockPlaybackAPI()
+        let provider = SpotifyPlaybackProvider(playbackAPI: api)
+
+        try await provider.appendToQueueEnd(uri: "spotify:track:9", deviceID: "device")
+
+        XCTAssertEqual(api.actions, ["addToQueue:device:spotify:track:9"])
+    }
+
     func testSpotifyProviderRoutesInAppPlayerCommandsToTheSDKPage() async throws {
         let api = MockPlaybackAPI()
         let commander = MockWebPlaybackCommander()
