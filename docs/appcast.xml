@@ -3,14 +3,14 @@
     <channel>
         <title>Wax</title>
         <item>
-            <title>0.8.57</title>
-            <pubDate>Wed, 18 Nov 2026 17:23:18 +0100</pubDate>
-            <sparkle:version>68</sparkle:version>
-            <sparkle:shortVersionString>0.8.57</sparkle:shortVersionString>
+            <title>0.8.58</title>
+            <pubDate>Wed, 18 Nov 2026 19:23:21 +0100</pubDate>
+            <sparkle:version>69</sparkle:version>
+            <sparkle:shortVersionString>0.8.58</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.57/Wax-0.8.57.zip" length="16548291" type="application/octet-stream" sparkle:edSignature="bXp8ED1onlpH2iU8qT6VUQycOcXZ8ucT0g7hvbi1kJU3sF018mQap8YtncsX3epB0fhBjXWZZ7kem+dH8dg6Dg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.58/Wax-0.8.58.zip" length="16548286" type="application/octet-stream" sparkle:edSignature="abRePqMZsmM86sQWJamKMaHRIKzQo1leSBZCe9oK0wHUsdETOj5in6VbT9wQQpm2PiJycIzYwsQb56uG8HANBw=="/>
         </item>
     </channel>
 </rss>
