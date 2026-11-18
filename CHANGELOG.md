@@ -2,6 +2,12 @@
 
 Wax was called Spotiglass until November 2026. Entries from before the rename use the old name.
 
+## [0.8.59] - 2026-11-18
+
+### Fixed
+
+- Clicking a song's artist now opens that artist's own page, not the first search result.
+
 ## [0.8.58] - 2026-11-18
 
 ### Fixed
