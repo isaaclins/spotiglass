@@ -388,8 +388,10 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
 
         let store = SpotiglassSettingsStore(fileURL: url)
-        XCTAssertNotNil(store.saveFailure)
+        XCTAssertNotNil(store.lastError, "Settings says the file can't be read")
+        XCTAssertNil(store.saveFailure, "nothing was saved yet, so nothing failed to save")
         XCTAssertThrowsError(try store.mutate { $0.appearance.colorScheme = .light })
+        XCTAssertNotNil(store.saveFailure)
 
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         XCTAssertEqual(try Data(contentsOf: url), original)

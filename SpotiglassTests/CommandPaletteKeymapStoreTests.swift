@@ -304,6 +304,24 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         )
     }
 
+    /// A hand edit that doesn't parse, then the fix and Reload again: the reload error under
+    /// the advanced editor goes away with the fixed file instead of staying on screen.
+    func testFixedFileClearsTheReloadErrorOnTheNextReload() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let good = try Data(contentsOf: url)
+
+        try Data(#"{"version":2,"keybinds":["#.utf8).write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNotNil(store.lastError)
+
+        try good.write(to: url)
+        store.reloadFromDisk()
+        XCTAssertNil(store.lastError)
+        XCTAssertNil(settingsStore.lastError)
+    }
+
     /// Ten custom shortcuts and one row this build can't read (a key token from a newer
     /// build): the whole keymap used to fall back to the defaults, and recording one new
     /// shortcut then saved the defaults over every custom row (#597).

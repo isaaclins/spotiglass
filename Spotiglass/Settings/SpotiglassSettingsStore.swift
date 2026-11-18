@@ -477,7 +477,16 @@ final class SpotiglassSettingsStore: ObservableObject {
     /// read in full. Throws when the copy can't be made, which stops the save (#597).
     private func preserveBeforeOverwriting(_ snapshot: SettingsDiskSnapshot) throws {
         guard !snapshot.problems.isEmpty else { return }
-        let copy = try UnreadableFileBackup.preserve(snapshot.data, of: fileURL, now: now(), fileManager: fileManager)
+        let copy: URL
+        do {
+            copy = try UnreadableFileBackup.preserve(snapshot.data, of: fileURL, now: now(), fileManager: fileManager)
+        } catch {
+            SpotiglassLog.error(
+                SpotiglassLog.settings,
+                "Settings file \(fileURL.path) could not be fully read and no copy could be made, so it is not saved over. \(snapshot.problems.joined(separator: "; "))"
+            )
+            throw error
+        }
         guard copy != backupURL else { return }
         SpotiglassLog.error(
             SpotiglassLog.settings,
@@ -574,7 +583,7 @@ final class SpotiglassSettingsStore: ObservableObject {
                 SpotiglassLog.settings,
                 "Settings file \(fileURL.path) can't be read; using defaults without saving over it: \(UnreadableFileBackup.describe(error))"
             )
-            saveFailure = LocalizedText(SpotiglassL10n.string("settings.file.saveFailed"), comparedByKey: "settings.file.saveFailed")
+            lastError = error.localizedDescription
             return
         }
         rememberObservedFileData(data)

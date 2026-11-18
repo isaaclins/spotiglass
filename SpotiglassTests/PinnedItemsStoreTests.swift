@@ -114,6 +114,26 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(Set(try cache.loadPinnedItems(userID: "u1").map(\.id)), [Self.validPin.id, Self.otherPin.id])
     }
 
+    /// A failed save after a copy was kept: the save line shows meanwhile, and once a save
+    /// works the line naming the copy comes back instead of nothing.
+    func testCopyLineComesBackAfterAFailedSaveWorks() throws {
+        let (cache, url) = try pinsFile(userID: "u1")
+        try Data("[{\"id\":\"podcast:1\",\"kind\":\"podcast\",\"title\":\"Show\",\"subtitle\":\"x\",\"isStale\":false}]".utf8).write(to: url)
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let copyLine = try XCTUnwrap(store.fileNotice?.string)
+        let folder = url.deletingLastPathComponent().path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder) }
+
+        store.pin(Self.validPin)
+        XCTAssertEqual(store.fileNotice?.string, SpotiglassL10n.string("browser.pinned.saveFailed"))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder)
+        store.pin(Self.otherPin)
+        XCTAssertEqual(store.fileNotice?.string, copyLine)
+    }
+
     /// Pins made while Apple Music playlists without a picture of their own were listed
     /// without their cover (#444) saved no cover and kept the grey tile for good. The next
     /// listing gives them the cover their playlist has, saved for the next launch, and leaves

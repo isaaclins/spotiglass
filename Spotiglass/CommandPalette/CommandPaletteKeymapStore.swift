@@ -280,6 +280,8 @@ final class CommandPaletteKeymapStore: ObservableObject {
         if unusable != unusableRows {
             unusableRows = unusable
         }
+        // A load that worked replaces any earlier error; a failed reload sets its own after this.
+        lastErrorText = nil
     }
 
     private static func shortcuts(of binding: CommandPaletteKeyBinding) throws -> [CommandShortcut] {
