@@ -398,6 +398,30 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertTrue(UnreadableFileBackup.copies(of: url).isEmpty)
     }
 
+    /// The file can't be read at launch and is readable again later (permissions fixed): the
+    /// next change in the app goes into the real settings instead of the defaults replacing them.
+    func testFileThatBecomesReadableAgainKeepsItsSettingsOnTheNextChange() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var mine = SpotiglassSettingsStore.bootstrapDefaults()
+        mine.appearance.colorScheme = .dark
+        mine.appearance.lyricsTextSize = .large
+        mine.equalizer.preamp = -3
+        try JSONEncoder().encode(mine).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o200], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try store.mutate { $0.appearance.colorScheme = .light }
+
+        let saved = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
+        XCTAssertEqual(saved.appearance.colorScheme, .light)
+        XCTAssertEqual(saved.appearance.lyricsTextSize, .large, "the real settings were replaced by the defaults")
+        XCTAssertEqual(saved.equalizer.preamp, -3)
+        XCTAssertEqual(store.settings.appearance.lyricsTextSize, .large)
+    }
+
     /// Settings folder not writable: a change used to fail silently (`try?` in the pane, no log).
     /// The store now says so, for Appearance and for deleting an equalizer preset alike.
     func testSaveIntoAFolderThatCantBeWrittenIsReported() throws {

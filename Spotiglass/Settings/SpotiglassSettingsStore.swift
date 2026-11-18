@@ -584,6 +584,9 @@ final class SpotiglassSettingsStore: ObservableObject {
                 "Settings file \(fileURL.path) can't be read; using defaults without saving over it: \(UnreadableFileBackup.describe(error))"
             )
             lastError = error.localizedDescription
+            // The defaults in use are the baseline: once the file reads again, a change made
+            // here is merged into what is on disk instead of the defaults replacing it.
+            lastKnownDiskSettings = settings
             return
         }
         rememberObservedFileData(data)
