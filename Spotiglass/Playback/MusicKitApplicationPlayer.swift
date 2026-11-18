@@ -49,6 +49,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private var positionWatch = PlaybackPositionWatch()
     /// Logs what the player reports by itself: status, rate, the current entry (#590).
     private let stateObserver: AppleMusicPlayerStateObserver
+    /// Queued songs come without their artists' IDs; these are read once per song (#637).
+    private let songArtists = AppleMusicSongArtists()
+    /// Upcoming songs whose artists are read ahead; the queue shows about this many.
+    static let upcomingArtistLookahead = 25
 
     init() {
         stateObserver = AppleMusicPlayerStateObserver(player: ApplicationMusicPlayer.shared)
@@ -387,7 +391,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         let seconds = player.playbackTime
         let positionMilliseconds = seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0
-        let currentTrack = current.flatMap { track(for: $0, at: currentIndex) }
+        let currentTrack = current.flatMap { entry in
+            track(for: entry, at: currentIndex).map { withSongArtists($0, entry: entry) }
+        }
         // A new queue is a new object MusicKit announces nothing on; the poll catches it.
         stateObserver.check()
         if let jump = positionWatch.observe(
@@ -415,7 +421,28 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         guard let currentID = player.queue.currentEntry?.id,
               let currentIndex = entries.firstIndex(where: { $0.id == currentID })
         else { return [] }
-        return entries.indices.dropFirst(currentIndex + 1).compactMap { track(for: entries[$0], at: $0) }
+        let lookaheadEnd = currentIndex + 1 + Self.upcomingArtistLookahead
+        return entries.indices.dropFirst(currentIndex + 1).compactMap { index in
+            let track = track(for: entries[index], at: index)
+            return index < lookaheadEnd ? track.map { withSongArtists($0, entry: entries[index]) } : track
+        }
+    }
+
+    /// `track` with its song's own artists and their IDs, read once per song when MusicKit's
+    /// entry came without them (#637). Read-only: `with([.artists])` only reads the song.
+    private func withSongArtists(_ track: MusicTrack, entry: MusicPlayer.Queue.Entry) -> MusicTrack {
+        guard track.artistRefs.isEmpty, case let .song(song) = entry.item else { return track }
+        return songArtists.filling(track, songID: song.id.rawValue) {
+            do {
+                let detailed = try await song.with([.artists])
+                return (detailed.artists ?? []).map { MusicArtistRef(id: $0.id.rawValue, name: $0.name) }
+            } catch {
+                if !(error is CancellationError) {
+                    SpotiglassLog.error(.api, "Apple Music song artists read failed: \(MusicKitContentSource.describe(error))")
+                }
+                return []
+            }
+        }
     }
 
     // MARK: - Removing (#628)

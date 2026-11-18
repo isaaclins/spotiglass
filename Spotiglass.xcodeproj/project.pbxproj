@@ -48,6 +48,7 @@
 		C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000012 /* SpotifyAPIClient.swift */; };
 		SRC0000000000000000000036 /* AppleMusicArtworkRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080036 /* AppleMusicArtworkRegistry.swift */; };
 		SRC0000000000000000000034 /* AppleMusicSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080034 /* AppleMusicSession.swift */; };
+		E27906117DD61FFEA5656EB3 /* AppleMusicSongArtists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9901693E116A2D462DC2CC7E /* AppleMusicSongArtists.swift */; };
 		SRC00000000000000000000A3 /* AppleMusicPlayableRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800A3 /* AppleMusicPlayableRegistry.swift */; };
 		F51800000000000000000001 /* AppleMusicContentRatings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51800000000000000000002 /* AppleMusicContentRatings.swift */; };
 		F48700000000000000000001 /* AppleMusicPinAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = F48700000000000000000002 /* AppleMusicPinAliases.swift */; };
@@ -540,6 +541,7 @@
 		C30000000000000000000012 /* SpotifyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClient.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080036 /* AppleMusicArtworkRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicArtworkRegistry.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080034 /* AppleMusicSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicSession.swift; sourceTree = "<group>"; };
+		9901693E116A2D462DC2CC7E /* AppleMusicSongArtists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicSongArtists.swift; sourceTree = "<group>"; };
 		SRC00000000000000000800A3 /* AppleMusicPlayableRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPlayableRegistry.swift; sourceTree = "<group>"; };
 		F51800000000000000000002 /* AppleMusicContentRatings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicContentRatings.swift; sourceTree = "<group>"; };
 		F48700000000000000000002 /* AppleMusicPinAliases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPinAliases.swift; sourceTree = "<group>"; };
@@ -1141,6 +1143,7 @@
 				SRC0000000000000000080025 /* MusicPlaybackProvider.swift */,
 				SRC00000000000000000800A2 /* MusicKitApplicationPlayer.swift */,
 				SRC00000000000000000800A1 /* AppleMusicPlaybackProvider.swift */,
+				9901693E116A2D462DC2CC7E /* AppleMusicSongArtists.swift */,
 				SRC00000000000000000800A0 /* MusicPlaybackError.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
@@ -1817,6 +1820,7 @@
 				C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */,
 				SRC0000000000000000000036 /* AppleMusicArtworkRegistry.swift in Sources */,
 				SRC0000000000000000000034 /* AppleMusicSession.swift in Sources */,
+				E27906117DD61FFEA5656EB3 /* AppleMusicSongArtists.swift in Sources */,
 				SRC00000000000000000000A3 /* AppleMusicPlayableRegistry.swift in Sources */,
 				F51800000000000000000001 /* AppleMusicContentRatings.swift in Sources */,
 				F48700000000000000000001 /* AppleMusicPinAliases.swift in Sources */,
