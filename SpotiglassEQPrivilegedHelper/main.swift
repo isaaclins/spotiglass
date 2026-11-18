@@ -230,7 +230,7 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         store(service, for: identifier)
         let pid = newConnection.processIdentifier
         newConnection.invalidationHandler = { [weak self] in
-            helperLog.info("Connection from pid \(pid, privacy: .public) ended")
+            helperLog.notice("Connection from pid \(pid, privacy: .public) ended")
             self?.removeService(for: identifier)
         }
         newConnection.interruptionHandler = { [weak self] in
@@ -238,7 +238,7 @@ private final class EqualizerConnectionDelegate: NSObject, NSXPCListenerDelegate
         }
         // A caller that fails the code requirement is cut off by XPC after this point; its
         // connection then ends without an install line.
-        helperLog.info("Accepted a connection from pid \(newConnection.processIdentifier, privacy: .public), checking its signature")
+        helperLog.notice("Accepted a connection from pid \(newConnection.processIdentifier, privacy: .public), checking its signature")
         newConnection.resume()
         return true
     }

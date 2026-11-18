@@ -177,6 +177,8 @@ final class FileLogSink {
     private let diagnostics = Logger(subsystem: AppMetadata.bundleIdentifier, category: "log-file")
     private var handle: FileHandle?
     private var bytesWritten: UInt64 = 0
+    /// Set when the previous session's file could not be moved aside and this session appends to it.
+    private var holdsPreviousSession = false
     private var booted = false
     private var _fileURL: URL?
 
@@ -226,6 +228,7 @@ final class FileLogSink {
                     try? FileManager.default.removeItem(at: earlierURL) // A leftover only costs one capped file.
                 } catch {
                     // Appending keeps the previous session's lines; the size cap below still holds.
+                    holdsPreviousSession = true
                     rotationNote = "Could not move the previous session's log aside (\(SpotiglassLog.describe(error))); appending to it instead"
                     diagnostics.error("\(rotationNote ?? "", privacy: .public)")
                 }
@@ -308,12 +311,24 @@ final class FileLogSink {
             try moveItem(url, earlierURL)
             header = "=== Log continued \(stamp), earlier lines in \(Self.earlierFileName) ===\n"
         } catch {
+            if holdsPreviousSession {
+                // Starting over would empty the previous session's lines, which a report needs
+                // most; the file stops here and Console keeps the rest of this session.
+                diagnostics.error("Could not move the full log aside (\(String(describing: error), privacy: .public)); the file stops, Console keeps logging")
+                if let stopped = try? FileHandle(forWritingTo: url) {
+                    _ = try? stopped.seekToEnd()
+                    try? stopped.write(contentsOf: Data("=== Log file full at \(stamp) and could not be moved aside; the rest of this session is in Console only ===\n".utf8))
+                    try? stopped.close() // Best effort: the line only explains the end of the file.
+                }
+                return
+            }
             // Without the move the only way to stay under the cap is to start this session's
-            // file over; the previous session's file is never touched here.
+            // file over; it holds this session's lines only.
             diagnostics.error("Could not move the full log aside (\(String(describing: error), privacy: .public)); starting it over")
             FileManager.default.createFile(atPath: url.path, contents: nil)
             header = "=== Log started over \(stamp): the full log could not be moved aside (\(SpotiglassLog.describe(error))) ===\n"
         }
+        holdsPreviousSession = false
         _ = open(url, header: header)
     }
 }

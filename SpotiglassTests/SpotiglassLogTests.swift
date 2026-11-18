@@ -113,6 +113,27 @@ final class SpotiglassLogTests: XCTestCase {
         XCTAssertTrue(current.contains("new session line"))
     }
 
+    /// When the session appends to the previous session's file and that file later fills up
+    /// and can't be moved either, starting it over would empty the previous session's lines.
+    func testAFullFileHoldingThePreviousSessionIsNeverEmptied() throws {
+        let first = FileLogSink(directory: { self.directory })
+        first.boot()
+        first.write(level: "ERROR", category: "auth", message: "evidence from the crashed session", synchronously: true)
+
+        struct MoveRefused: Error {}
+        let second = FileLogSink(directory: { self.directory }, maxBytes: 600, moveItem: { _, _ in throw MoveRefused() })
+        second.boot()
+        for index in 0..<40 {
+            second.write(level: "INFO", category: "api", message: "line \(index)")
+        }
+        second.flush()
+
+        let current = try String(contentsOf: directory.appendingPathComponent(FileLogSink.currentFileName), encoding: .utf8)
+        XCTAssertTrue(current.contains("evidence from the crashed session"))
+        XCTAssertTrue(current.contains("the rest of this session is in Console only"))
+        XCTAssertFalse(current.contains("line 39"), "The file must stop growing once it is full")
+    }
+
     func testAnUnusableFolderLeavesNoFileAndDoesNotCrash() {
         struct NoFolder: Error {}
         let sink = FileLogSink(directory: { throw NoFolder() })
