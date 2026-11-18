@@ -63,6 +63,8 @@ class InstallerLayout(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.folder = tempfile.mkdtemp()
+        # Runs even when building or mounting fails, unlike tearDownClass.
+        cls.addClassCleanup(shutil.rmtree, cls.folder, ignore_errors=True)
         image = Path(cls.folder) / 'Wax.dmg'
         dmgbuild.build_dmg(str(image), 'Wax', settings_file=str(SETTINGS),
                            defines={'app': str(fake_app(cls.folder)),
@@ -81,10 +83,6 @@ class InstallerLayout(unittest.TestCase):
         finally:
             subprocess.run(['hdiutil', 'detach', str(mount)], check=True, capture_output=True)
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.folder, ignore_errors=True)
-
     def test_every_item_at_the_image_root_has_a_position(self):
         self.assertIn('.background.tiff', self.root_items)
         self.assertIn('.VolumeIcon.icns', self.root_items)
@@ -96,6 +94,8 @@ class InstallerLayout(unittest.TestCase):
         height -= 32  # the title bar Finder counts inside window_rect
         half = settings_value('icon_size') / 2
         for name in self.root_items:
+            if name not in self.positions:
+                self.fail(f'{name} has no position, so Finder drops it over the wordmark')
             x, y = self.positions[name]
             inside = x + half > 0 and x - half < width and y + half > 0 and y - half < height
             if name.startswith('.'):
