@@ -11847,19 +11847,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autoplay: Die Warteschlange mit ähnlichen Titeln weiterführen, auch mit neuen"
+            "value": "Autoplay einschalten und die Warteschlange mit ähnlichen Titeln weiterführen, auch mit neuen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autoplay: keep the queue going with similar songs, new ones included"
+            "value": "Turn on Autoplay to keep the queue going with similar songs, new ones included"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reproducción automática: sigue llenando la cola con canciones parecidas, también nuevas"
+            "value": "Activa la reproducción automática para seguir llenando la cola con canciones parecidas, también nuevas"
           }
         }
       }
@@ -11869,19 +11869,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autoplay ist ein: Am Ende der Warteschlange kommen laufend ähnliche Titel dazu. Klicken zum Ausschalten, die Titel in der Warteschlange bleiben."
+            "value": "Am Ende der Warteschlange kommen laufend ähnliche Titel dazu. Klicken schaltet Autoplay aus, die Titel in der Warteschlange bleiben."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Autoplay is on: similar songs keep coming at the end of the queue. Click to turn it off; queued songs stay."
+            "value": "Similar songs keep coming at the end of the queue. Click to turn Autoplay off, and queued songs stay."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La reproducción automática está activada: se siguen añadiendo canciones parecidas al final de la cola. Haz clic para desactivarla; las canciones en cola se quedan."
+            "value": "Se siguen añadiendo canciones parecidas al final de la cola. Haz clic para desactivar la reproducción automática; las canciones en cola se quedan."
           }
         }
       }
@@ -11963,7 +11963,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Couldn’t add songs, tries again next song"
+            "value": "Couldn’t add songs, will try again"
           }
         },
         "es": {
