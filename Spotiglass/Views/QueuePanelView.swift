@@ -45,6 +45,16 @@ struct QueuePanelView: View {
     }
 
     private var header: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            headerRow
+            // The panel's whole width, on one line, so its height stays the same while the
+            // status changes on every new song.
+            QueueAutoplayStatusLine(autoplay: queueViewModel.autoplay)
+        }
+        .padding(SpotiglassDesign.Layout.panelMargin)
+    }
+
+    private var headerRow: some View {
         HStack {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
                 Text(SpotiglassL10n.string("queue.title"))
@@ -52,7 +62,6 @@ struct QueuePanelView: View {
                 Text(subtitleText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                QueueAutoplayStatusLine(autoplay: queueViewModel.autoplay)
             }
             Spacer()
             QueueAutoplayButton(autoplay: queueViewModel.autoplay)
@@ -75,7 +84,6 @@ struct QueuePanelView: View {
             .accessibilityHint(PlaybackControlsView.serviceString("queue.shuffle.hint", appleMusic: "queue.shuffle.appleMusic.hint"))
             .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
-        .padding(SpotiglassDesign.Layout.panelMargin)
     }
 
     private var subtitleText: String {
@@ -252,17 +260,20 @@ struct QueueAutoplayButton: View {
     }
 }
 
-/// One line under the queue's title while Autoplay is on, saying what it does right now.
+/// One line under the queue's header while Autoplay is on, saying what it does right now.
+/// Always one line: the status changes on every new song, and the list below mustn't move.
 struct QueueAutoplayStatusLine: View {
     @ObservedObject var autoplay: QueueAutoplay
 
     var body: some View {
         if let key = Self.key(for: autoplay.status), autoplay.isEnabled {
-            Label(SpotiglassL10n.string(key), systemImage: "infinity")
+            let text = SpotiglassL10n.string(key)
+            Label(text, systemImage: "infinity")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(text)
         }
     }
 
