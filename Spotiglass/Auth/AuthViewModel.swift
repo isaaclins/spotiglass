@@ -187,8 +187,19 @@ final class AuthViewModel: ObservableObject {
         signInRestorePoint = nil
         currentSession = restorePoint.session
         switch restorePoint.state {
-        case .signedIn, .paused, .refreshing(.some):
+        case .signedIn:
             state = restorePoint.state
+        case let .refreshing(.some(session)):
+            // The refresh it showed was cancelled by the sign-in; the next request refreshes.
+            state = .signedIn(session)
+        case let .paused(pause):
+            // Starting the sign-in cancelled the pause's own retry: set it up again, keeping
+            // Spotify's Retry-After.
+            state = restorePoint.state
+            let wait = pause.retryAt.map { max(0, $0.timeIntervalSince(now())) }
+                ?? Self.temporaryFailureCooldown(afterFailures: 0)
+            refreshCooldownUntil = now().addingTimeInterval(wait)
+            schedulePausedRetry(after: wait)
         case .refreshing(.none):
             // The refresh it was waiting on was cancelled by the sign-in: try it again.
             state = .signedOut
@@ -428,7 +439,9 @@ final class AuthViewModel: ObservableObject {
                 return SpotifySignInPausedError(pause: pause)
             }
             SpotiglassLog.error(.auth, "Sign-in refresh failed for now, keeping the sign-in: \(error)")
-            let cooldown = retryAfter ?? Self.temporaryFailureCooldown(afterFailures: temporaryFailureStreak)
+            // Spotify's Retry-After when it is longer; a short or zero one doesn't undercut the
+            // backoff, or repeated 429s would ask again almost at once.
+            let cooldown = max(retryAfter ?? 0, Self.temporaryFailureCooldown(afterFailures: temporaryFailureStreak))
             temporaryFailureStreak += 1
             refreshCooldownUntil = now().addingTimeInterval(cooldown)
             let pause = SpotifySignInPause(

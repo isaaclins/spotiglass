@@ -1259,6 +1259,75 @@ extension SpotifyAuthStepTests {
         XCTAssertEqual(http.requestCount, 1, "Spotify is not asked again before its Retry-After ends.")
     }
 
+    /// Reconnect while Spotify is busy, then Cancel: the pause comes back with its retry still
+    /// set for when Spotify's Retry-After ends, and requests meanwhile still don't ask Spotify.
+    @MainActor
+    func testCancelledReconnectFromAPauseKeepsItsRetryAfter() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "600"]))
+        let clock = TestClock(Date(timeIntervalSince1970: 95_000))
+        let sleeper = ManualSleeper()
+        let flow = HangUntilCancelledAuthorizationFlow()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: http, now: { clock.now }, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            now: { clock.now },
+            sleep: { try await sleeper.sleep($0) },
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+        guard case let .paused(pause) = viewModel.state else { return XCTFail("Expected paused, got \(viewModel.state)") }
+        let firstWait = await sleeper.nextSleep()
+        XCTAssertEqual(firstWait, 600)
+
+        clock.now += 100
+        let reconnect = await startSignIn(viewModel, untilLaunched: flow.launch.started)
+        guard reconnect.launched else { return XCTFail("signIn() returned without reaching the authorization flow") }
+        viewModel.cancelSignIn()
+        await reconnect.finished.value
+
+        XCTAssertEqual(viewModel.state, .paused(pause))
+        let waitAfterCancel = await sleeper.nextSleep()
+        XCTAssertEqual(waitAfterCancel, 500, "The retry is set up again for when the Retry-After ends.")
+        do {
+            _ = try await viewModel.accessToken()
+            XCTFail("Expected the cooldown to answer the request")
+        } catch is SpotifySignInPausedError {}
+        XCTAssertEqual(http.requestCount, 1, "Spotify is not asked again before its Retry-After ends.")
+    }
+
+    /// A 429 whose Retry-After is zero doesn't make the next try come at once.
+    @MainActor
+    func testZeroRetryAfterStillWaitsTheBackoff() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("good-refresh-token")
+        let http = ScriptedTokenHTTPClient()
+        http.enqueue(.json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "0"]), count: 3)
+        let clock = TestClock(Date(timeIntervalSince1970: 97_000))
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: http, now: { clock.now }, random: { _ in 0 }, sleep: { _ in }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            now: { clock.now },
+            sleep: { _ in try await Task.sleep(for: .seconds(3_600)) },
+            recoverySignals: AsyncStream { _ in }
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        guard case let .paused(pause) = viewModel.state else { return XCTFail("Expected paused, got \(viewModel.state)") }
+        XCTAssertEqual(pause.retryAt, clock.now.addingTimeInterval(AuthViewModel.temporaryFailureCooldown))
+    }
+
     func testTemporaryFailureCooldownDoublesUpToFiveMinutes() {
         let waits = (0..<7).map { AuthViewModel.temporaryFailureCooldown(afterFailures: $0) }
         XCTAssertEqual(waits, [30, 60, 120, 240, 300, 300, 300])
